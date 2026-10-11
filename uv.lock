@@ -296,7 +296,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = ">=0.22" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "pytest-obligation", extras = ["django", "celery", "exploration"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=0992f189a55451946e0674ac9f6abfb0a50c3648" },
+    { name = "pytest-obligation", extras = ["django", "celery", "exploration"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=ad46c361217c09b51e28864f02de87653b03ec10" },
     { name = "sentry-sdk", specifier = ">=2,<3" },
 ]
 provides-extras = ["testing", "redis", "beat"]
@@ -311,7 +311,7 @@ dev = [
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-asyncio", specifier = ">=1.2" },
     { name = "pytest-mock", specifier = ">=3.16.0" },
-    { name = "pytest-obligation", extras = ["celery", "django", "exploration"], git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=0992f189a55451946e0674ac9f6abfb0a50c3648" },
+    { name = "pytest-obligation", extras = ["celery", "django", "exploration"], git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=ad46c361217c09b51e28864f02de87653b03ec10" },
     { name = "pytest-xdist", specifier = ">=3.8" },
     { name = "redis", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.14" },
@@ -727,8 +727,8 @@ wheels = [
 
 [[package]]
 name = "pytest-obligation"
-version = "1.dev3"
-source = { git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=0992f189a55451946e0674ac9f6abfb0a50c3648#0992f189a55451946e0674ac9f6abfb0a50c3648" }
+version = "1.dev11"
+source = { git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=ad46c361217c09b51e28864f02de87653b03ec10#ad46c361217c09b51e28864f02de87653b03ec10" }
 dependencies = [
     { name = "pydantic" },
     { name = "pytest" },

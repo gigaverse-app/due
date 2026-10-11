@@ -17,7 +17,7 @@ from due.django.conformance.collected_effects import (
 from due.pytest_plugin import requires_complete_suite
 
 if TYPE_CHECKING:
-    from due.django.conformance.suite import EffectExamples
+    from due.django.conformance.examples import EffectExamples
 
 from pytest_obligation.contract import (
     Claim,

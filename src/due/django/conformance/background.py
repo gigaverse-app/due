@@ -533,3 +533,20 @@ def background_work(
     """The driver, over the scheduler clock; unaccounted worker failures fail the test."""
     with accounted_background_work(monkeypatch, scheduler_clock) as driver:
         yield driver
+
+
+@contextmanager
+def harness_owned_background_work(
+    clock: time_machine.Traveller, *, app: Celery | None = None
+) -> Iterator[BackgroundWork]:
+    """Own delivery during a proof, temporarily lifting application task recorders."""
+    from celery import current_app
+
+    selected = app if app is not None else current_app
+    with pytest.MonkeyPatch.context() as patcher:
+        for task in selected.tasks.values():
+            for method in ("delay", "apply_async"):
+                if method in vars(task):
+                    patcher.delattr(task, method)
+        with accounted_background_work(patcher, clock) as driver:
+            yield driver
