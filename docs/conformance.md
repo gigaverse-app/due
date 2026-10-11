@@ -14,6 +14,25 @@ pointer. The replay proof enters the file writer twice and counts the actual
 writes. Its failure examples interrupt real storage writes and partial command
 admission.
 
+## Who owns each part of a proof?
+
+```text
+ APPLICATION                    DUE                    PYTEST-OBLIGATION
+ production capability --------> mode/policy ------------> required profiles
+ real producer / provider seam -> runtime adapters ------> fault histories
+ independent product observer --------------------------------> verdict
+                                       |                        |
+                         real DB + task bodies       shared invariant checks
+                                       |                        |
+                                       +----------+-------------+
+                                                  |
+                                  collected + executed evidence
+```
+
+Due does not maintain another copy of the semantic assertions. Its adapters bind
+the shared proofs to real admission, claims, fences, recovery and evidence. Your
+application supplies the product meaning that a generic runtime cannot infer.
+
 ## Configure the host
 
 In the application's test configuration, after Django setup:
@@ -30,6 +49,31 @@ callback failures, Celery publication failures, and the real Celery soft-limit
 exception. Pass `replica_aliases` when the test database configuration does not
 identify the application's replicas. Applications with a custom harness host can
 compose pytest-obligation's public `django_host` directly.
+
+If your application already has a tenant or request context, observe **that**
+context so a leak cannot hide behind Due's separate context variable:
+
+```python
+configure(
+    work_table_host(
+        production_packages={"myapp"},
+        replica_aliases={"replica"},
+        ambient_context=my_application_current_tenant,
+    )
+)
+```
+
+The canonical Django host enrolls its ambient-context restoration proof. It
+checks the value before and after the tick; per-row tenant correctness still
+needs the application's own observation. The [host self-test](../tests/conformance/test_host.py)
+includes a leaking tick and proves that the shared assertion rejects it.
+
+Framework integrations that already rely on signals or hooks can also supply
+`receiver_breaker=`. For existing Django signals, reuse
+`pytest_obligation.integrations.django.receivers.django_receiver_breaker(signal)`;
+for custom hooks, implement the public `ReceiverBreaker` protocol. This does not
+recommend adding business side effects through signals. Without a supplied
+breaker, receiver-failure coverage is not claimed.
 
 Initialize the same Celery application, task imports, registry and Beat schedule
 that workers use. The schedule proof checks both Django settings and the current
@@ -69,13 +113,67 @@ producer/admission/inline examples own their scopes so they cannot accidentally
 hide an early notification. Process histories own their child setup; fixtures
 keep their external resources alive for the whole generated case.
 
+## Handoffs: require the right result, not just the same result
+
 `observation_handoff` reuses an `ObservationExample` for shared handoff histories.
-`WorkTableDelivery` captures Celery publication, delivers real task bodies and runs
-three recovery rounds by default, advancing beyond the lease, first retry delay,
-registered cadence and pending message ETAs. `HandoffHistory.recovery_ticks`
-adds real downstream recovery entry points to each round. For direct driver use,
-`rounds` and `round_delay` configure the horizon. Remaining queued messages fail
-explicitly; this is bounded evidence for the declared workflow.
+For a general handoff, import `HandoffHistory` from
+`pytest_obligation.crash_histories` and bind it in `EffectExamples.handoffs`.
+In this sketch every callback belongs to your application or its provider fixture:
+
+```python
+handoff = HandoffHistory(
+    name="accepted-upload-to-publication",
+    arrange=accepted_upload,
+    transition=publish_upload,
+    observe=publication_and_cleanup_state,
+    expected={"published": True, "cleanup_reserved": True},
+    recovery_ticks=(recover_upload_cleanup,),
+)
+```
+
+`expected` can also be a callable of the arranged handle. It is an **independent
+product oracle**: delivered and recovered histories agreeing on the same wrong
+result must fail. Do not derive `expected` from the same observation after the
+transition, or discard it while migrating an older declaration. Downstream
+`recovery_ticks` must call real production recovery entry points.
+
+```mermaid
+flowchart LR
+    A[Arrange fresh application state] --> B[Real transition]
+    B --> C[Normal delivery]
+    B --> D[Lost notifications]
+    B --> E[Commit / callback / publication / external-call fault]
+    C --> F[Bounded production recovery]
+    D --> F
+    E --> F
+    F --> G[Independent product observation]
+    G --> H{Required outcome reached?}
+    H -->|No| I[Fail with the fault history]
+    H -->|Yes| J[Compare histories and record evidence]
+```
+
+`WorkTableDelivery` uses the accounted broker and the real registered task bodies.
+Each of its three default rounds:
+
+1. Advances past the lease, first retry delay, registration cadence and round
+   allowance, or a later held message ETA.
+2. Drains due deliveries, runs this capability's recovery and declared downstream
+   ticks, then drains deliveries again.
+
+After the last round, it refuses leftover held messages: their outcome was never
+observed.
+
+Instance-level task recorders are lifted inside the history and restored on exit.
+The driver supports explicit `rounds` and `round_delay` when constructed directly;
+the generated suite uses its defaults. A larger horizon must reflect the domain's
+completion policy, not conceal a loop that never settles. Its empty broker check
+cannot detect an unselected database obligation: the independent product observer
+must include required successors, cleanup or fan-out.
+
+See [scheduler controls](../tests/conformance/test_scheduler_adapters.py) for
+ETA draining and the deliberately nonterminating downstream task. The restored
+`expected` and `recovery_ticks` declarations come from the public dependency,
+not a Due-specific fork of the oracle.
 
 `BackgroundWork` is also available for application journey tests: hold/drop
 notifications, advance the scheduler clock, drain real workers, and account for
@@ -107,13 +205,49 @@ The repository's CI additionally requires all expected application histories to
 be collected, selected and passed exactly once. Filtering to one easy test or
 retaining only a passing profile report cannot certify the application suite.
 
+## Prove the proof, and use exploration where it applies
+
+A positive case proves the bound workflow can finish. A negative control changes
+one production seam and must make the same generated assertion fail:
+
+| Intentionally broken seam | Control owned by Due |
+| --- | --- |
+| Test-authored eligibility transition presented as a production binding | [Binding rejection control](../tests/conformance/test_conformance_enrollment.py) |
+| Gate fallback missing or writes hidden by an unchanged snapshot | [Gate controls](../tests/conformance/test_conformance_enrollment.py) |
+| Settlement fails to wake a declared dependent | [Dependent wake controls](../tests/capabilities/test_dependent_wake.py) |
+| Receipt is stored but product settlement is broken | [Receipt repair control](../tests/declarations/test_mirror_receipts.py) |
+| Definite rejection loses its recovery decision | [Rejection control](../tests/capabilities/test_operation_rejection_evidence.py) |
+| Simple callback skips repair after a race | [Callback race controls](../tests/declarations/test_simple_callbacks.py) |
+| A query scans retained history or loses its index | [Shared PostgreSQL scale proof](../tests/conformance/test_query_scale.py) |
+| Application context leaks between ticks | [Host control](../tests/conformance/test_host.py) |
+
+The primitive gate fixture owns a toy readiness transition. Its runtime controls
+are valid self-tests, but the production-binding check must reject that transition;
+it cannot certify an application adopter. Bind the real command that lifts the
+application blocker when writing its eligibility example.
+
+The query-scale proof observes real row visits and buffers, not just the presence
+of an index. Renamed-index positive controls allow equivalent plans; missing-index
+and extra-full-read controls demonstrate the bound. Applications keep separate
+proofs only for genuinely different discovery queries.
+
+For an application that declares `in_flight` or `evidence_confluence` scenarios,
+add `--due-work-explore=smoke` to its full suite command for bounded Hypothesis
+schedule exploration; `deep` searches more schedules. Keep the fixed histories
+and replay traces. Installing Hypothesis or enabling the flag without a bound
+scenario creates no application coverage. `conformance.interleavings` supplies
+broker capture/drop/redelivery and the real background driver; it does not supply
+the application's provider semantics or observations.
+
 ## Dependency status
 
 This branch pins an exact pytest-obligation commit that includes recovery
-isolation/owed-row proofs and scoped handoff arrangements. Those changes and the complete source-policy port are tracked in
-[pytest-obligation #50](https://github.com/gigaverse-app/pytest-obligation/pull/50).
-Before a PyPI release, use a released pytest-obligation version containing that
-change; the current Git dependency is for integration review, not PyPI publication.
+isolation/owed-row proofs, scoped handoff arrangements, independent outcomes and
+downstream recovery declarations. See
+[pytest-obligation #49](https://github.com/gigaverse-app/pytest-obligation/pull/49)
+and [#50](https://github.com/gigaverse-app/pytest-obligation/pull/50).
+Before a PyPI release, use a released pytest-obligation version containing those
+changes; the current Git dependency is for integration review, not PyPI publication.
 
 ## Walk through the executable example
 

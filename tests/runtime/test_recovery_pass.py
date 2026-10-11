@@ -13,6 +13,8 @@ from prometheus_client import REGISTRY
 from sentry_sdk.types import Event
 
 from due._installed import NotInstalledError
+from due.django import integration
+from due.django.integration import ApplicationHooks
 from due.django.runtime import metrics, recovery_pass
 from due.django.runtime.metrics import RecoveryOutcome, RecoveryPhase
 from due.django.runtime.recovery_pass import (
@@ -218,3 +220,24 @@ def test_a_standalone_loop_publishes_no_stale_threshold() -> None:
     with recovery_tick("tests.hinted_effect", heartbeat=False, stale_after=timedelta(seconds=5)):
         pass
     assert REGISTRY.get_sample_value("due_recovery_stale_after_seconds", {"effect": "tests.hinted_effect"}) is None
+
+
+@pytest.mark.parametrize("wrapped", [False, True], ids=["direct", "wrapped"])
+def test_application_fatal_error_aborts_without_a_row_deferral_or_clean_heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+    reported: dict[str, list[object]],
+    wrapped: bool,
+) -> None:
+    # An application exception is configured by type; names and Due's slot class are irrelevant.
+    monkeypatch.setattr(integration, "_hooks", ApplicationHooks())
+    integration.configure(ApplicationHooks(abort_recovery_on=(SessionLost,)))
+    failure = _wrapped(SessionLost("application service unavailable")) if wrapped else SessionLost("unavailable")
+    reached: list[int] = []
+    with pytest.raises(type(failure)), recovery_tick("tests.application_wiring") as tick:
+        for identity in (1, 2):
+            with tick.isolate(PHASE, identity):
+                reached.append(identity)
+                raise failure
+    assert reached == [1]
+    assert not tick.errors
+    assert reported == {"outcomes": [RecoveryOutcome.ABORTED], "heartbeats": []}

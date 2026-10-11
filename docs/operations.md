@@ -83,6 +83,18 @@ out by backoff. Alert on the **age of deferred identities**, not only recent
 failure counters. Backoff eventually spaces failures an hour apart, while the
 obligation remains owed. [Regression evidence](../tests/capabilities/test_recovery_deferral.py).
 
+## When recovery aborts instead of isolating a row
+
+`due_recovery_passes_total{effect,outcome="aborted"}` means the tick stopped early.
+A soft worker limit, unusable transaction, missing Due wiring or an application's
+configured fatal error can cause this. Check process configuration before treating
+it as another poisoned identity. Failed and aborted ticks do not advance the clean
+heartbeat; neither outcome authorizes replay of UNKNOWN work.
+
+[Configure fatal application errors](integration.md#a-bad-row-is-different-from-a-broken-process)
+once in each process. For a genuinely bad identity, ordinary isolation still
+allows other rows to progress and exposes the deferred identity for diagnosis.
+
 ## Database-backed Beat
 
 The optional `due[beat]` extra supports `django-celery-beat`.
