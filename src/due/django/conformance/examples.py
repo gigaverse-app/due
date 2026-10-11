@@ -174,7 +174,12 @@ class EffectExamples[W: UniverseDurableWork]:
     terminal: Binding[TerminalExample[W]] | None = None
     replay: Binding[ReplaySafeEffect] | None = None
     eligibility: Binding[EligibilityExample[W, Any]] | Mapping[str, Binding[EligibilityExample[W, Any]]] | None = None
+    # A checked domain assertion: admitted inputs cannot move when product facts change.
     immutable_inputs: str | None = None
+    # Arrange changed product facts; generated cases replay every bound admission path.
+    perturb_inputs: Callable[[W], object] | None = None
+    # Honest binding debt when inputs move but the E families are not yet bound.
+    convergence_not_assessed: str | None = None
     snapshot: Binding[SupersessionExample[W, Any]] | None = None
     derivation: Binding[FactExamples[W]] | None = None
     applied_receipt: Callable[[W], Any] | None = None

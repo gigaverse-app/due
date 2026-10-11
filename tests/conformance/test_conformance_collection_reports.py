@@ -63,8 +63,8 @@ def selected_run(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPa
     child = ChildSession(tmp_path_factory.mktemp(f"selected-{request.param}"))
     child.edit(
         "test_effects.py",
-        "examples = EffectExamples(",
-        "from functools import partial\nexamples = EffectExamples(producers={'registration': partial(unused)},",
+        "producers={'declared': unused}",
+        "producers={'registration': __import__('functools').partial(unused)}",
     )
     child.write("gigaverse/test_unselected.py", "effect_contract_suite !!! invalid syntax\n")
     child.write("test_observed.py", OBSERVED)

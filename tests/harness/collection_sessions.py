@@ -87,6 +87,7 @@ EFFECTS = """
     examples = EffectExamples(
         make_work=unused, delivery=unused, retry=unused, terminal=unused, replay=unused,
         immutable_inputs='An immutable captured cleanup identity.',
+        perturb_inputs=unused, producers={'declared': unused},
     )
 
     @effect_contract_suite(room_storage_cleanup, examples=examples)

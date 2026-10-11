@@ -78,6 +78,7 @@ EXAMPLES = replace(
         )
     ),
     immutable_inputs=None,
+    convergence_not_assessed=None,
     snapshot=snapshot,
     admissions={"save entry": producer},
     admission_failures={"save entry": admission_failure},

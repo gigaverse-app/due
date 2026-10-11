@@ -244,3 +244,5 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 [Integration](docs/integration.md) · [Architecture](docs/architecture.md) ·
 [Conformance](docs/conformance.md) · [Recovery walkthrough](docs/recovery-walkthrough.md) ·
 [Verification](docs/verification.md) · [Apache-2.0](LICENSE)
+
+Conformance declarations include [checked immutable inputs](docs/conformance.md#prove-an-immutable-input-declaration), with real admission and recovery controls.
