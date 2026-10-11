@@ -79,7 +79,7 @@ jobs:
       - run: uv run --no-sync python -m django makemigrations --check --dry-run
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: obligation-profiles-${{ matrix.django }}
@@ -99,7 +99,7 @@ jobs:
           uv venv /tmp/due-wheel
           uv pip install --python /tmp/due-wheel dist/*.whl
           /tmp/due-wheel/bin/python -I scripts/check_wheel.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distributions
           path: dist/
