@@ -6,6 +6,24 @@ required for correctness after a lost wakeup. Keep provider timeouts below the
 worker soft limit, the soft limit below the hard limit, and the hard limit below
 the lease. [Registration and startup](integration.md).
 
+## Check configuration and recovery freshness
+
+```bash
+uv run python -m django due_check
+uv run python -m django due_check --metrics-file /tmp/recovery-workers.prom
+```
+
+`due_check` checks registration coverage, actual Celery imports and both the
+Django and Celery views of each recovery schedule, including cadence, queue and
+expiry. It exits nonzero on drift. It never repairs configuration silently.
+
+Without `--metrics-file`, it explicitly reports recovery freshness as NOT CHECKED.
+Supply a fresh Prometheus text scrape from the recovery workers to check every
+registered effect's last clean tick against its runtime-declared stale threshold.
+Missing, stale or future-dated evidence fails. A management process's own metrics
+cannot establish another worker's health. This remains a point-in-time check;
+keep the continuous alerts described below and monitor exporter availability.
+
 ## Inspect stopped or uncertain work
 
 ```bash

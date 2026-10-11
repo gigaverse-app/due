@@ -4,37 +4,32 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
-from unittest.mock import patch
 from uuid import uuid4
 
 from django.db import connection
 from pytest_obligation.process_histories import ProcessHistory, fault_environment, fault_happened
-from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.suite import (
     AdmissionFailureExample,
-    DeliveryExample,
-    EffectExamples,
-    FailureExample,
     ProducerExample,
     TerminalExample,
 )
 from due.django.testing import hold_nudges
 from examples.books import search
-from examples.books.effects import BookEffect, index_book, publish_book
+from examples.books.effects import index_book, publish_book
 from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
 from examples.books.services import create_book, retry_indexing
+from tests.conformance.index_examples import BookContent, Stage, examples_for
 from tests.examples.books_support import calls, index_environment
 
 TITLE = "The Left Hand of Darkness"
 AUTHOR = "Ursula K. Le Guin"
-type BookContent = tuple[str, str]
+
 type ProcessResult = tuple[str, int]
 
 
@@ -73,64 +68,6 @@ def published(work: PublishBookWork) -> BookContent | None:
 def activated(work: PublishBookWork) -> bool:
     entry = search.get(work.index_key)
     return entry is not None and entry.published
-
-
-@dataclass(frozen=True)
-class Stage[W: BookWork]:
-    capability: BookEffect[W]
-    make_work: Callable[[], W]
-    key: Callable[[W], str]
-    observe: Callable[[W], BookContent | None]
-    external_observe: Callable[[W], BookContent | bool | None]
-    effect_calls: Callable[[W], int]
-    provider_method: str
-
-
-def examples_for[W: BookWork](stage: Stage[W]) -> EffectExamples[W]:
-    def delivery() -> DeliveryExample[W, BookContent | None]:
-        work = stage.make_work()
-        return DeliveryExample(work, lambda: stage.observe(work), (TITLE, AUTHOR), lambda: stage.effect_calls(work))
-
-    @contextmanager
-    def retry() -> Iterator[FailureExample[W]]:
-        attempts: Counter[str] = Counter()
-
-        def fail(value: search.IndexEntry | str) -> str:
-            attempts[value.key if isinstance(value, search.IndexEntry) else value] += 1
-            raise OSError("search provider unavailable")
-
-        with patch.object(search, stage.provider_method, fail):
-            yield FailureExample(attempts=lambda work: attempts[stage.key(work)])
-
-    def rearm(work: W) -> None:
-        assert work.owner_id is not None
-        assert retry_indexing(work.owner_id)
-
-    def replay() -> ReplaySafeEffect:
-        # ARRANGE: admit through the real book command and, for publication, its predecessor.
-        # REAL PRODUCTION: execute the stage's actual provider operation twice.
-        # EXTERNAL SEAM: index_environment records SQLite writes without replacing them.
-        # OBSERVE: read the independently committed search entry or activation bit.
-        return ReplaySafeEffect(
-            name=stage.capability.model._meta.label,
-            prepare=stage.make_work,
-            execute=stage.capability.perform_effect,
-            observe=stage.external_observe,
-            execution_count_for=stage.effect_calls,
-        )
-
-    return EffectExamples(
-        fixtures=("book_index",),
-        make_work=stage.make_work,
-        delivery=delivery,
-        retry=retry,
-        terminal=lambda: TerminalExample(
-            observe=lambda work: Book.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm
-        ),
-        replay=replay,
-        immutable_inputs="The demo accepts immutable book submissions; editing or replacing a book is not exposed.",
-        environment=index_environment,
-    )
 
 
 @contextmanager
@@ -209,6 +146,17 @@ def recover_process(title: str) -> None:
             delivery.recover()
 
 
+def rearm_book(work: BookWork) -> None:
+    assert work.owner_id is not None
+    assert retry_indexing(work.owner_id)
+
+
+BOOK_TERMINAL = TerminalExample(
+    observe=lambda work: Book.objects.get(pk=work.owner_id).indexing_failed,
+    rearm=rearm_book,
+)
+
+
 INDEX_EXAMPLES = examples_for(
     Stage(
         capability=index_book,
@@ -218,6 +166,9 @@ INDEX_EXAMPLES = examples_for(
         external_observe=index_content,
         effect_calls=lambda work: calls.get().writes[index_key(work)],
         provider_method="put",
+        execute=index_book.perform_effect,
+        terminal=BOOK_TERMINAL,
+        expected=(TITLE, AUTHOR),
     )
 )
 INDEX_EXAMPLES = replace(
@@ -251,6 +202,9 @@ PUBLISH_EXAMPLES = examples_for(
         external_observe=activated,
         effect_calls=lambda work: calls.get().publications[work.index_key],
         provider_method="publish",
+        execute=publish_book.perform_effect,
+        terminal=BOOK_TERMINAL,
+        expected=(TITLE, AUTHOR),
     )
 )
 PUBLISH_EXAMPLES = replace(

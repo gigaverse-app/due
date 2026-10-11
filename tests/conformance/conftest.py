@@ -23,3 +23,11 @@ def document_files() -> Iterator[None]:
 def book_index() -> Iterator[None]:
     with index_environment():
         yield
+
+
+@pytest.fixture
+def printer() -> Iterator[None]:
+    from tests.conformance.order_examples import environment as printer_environment
+
+    with printer_environment():
+        yield

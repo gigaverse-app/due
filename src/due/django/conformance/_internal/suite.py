@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 import pytest
 from asgiref.sync import AsyncSingleThreadContext
-from django.conf import settings
 from django.db import connection, models
 from pytest_obligation.binding import is_real_reason
 from pytest_obligation.contract import (
@@ -147,30 +146,12 @@ from due.errors import WorkFailureDisposition
 
 def assert_registered_schedule(entry: DurableWorkRegistration) -> None:
     """Inspect installed configuration, never the schedule generator's return value."""
-    task_path = "due.django.runtime.tasks.recover_durable_work_task"
     from celery import current_app as celery_app
 
-    assert "due.django.runtime.tasks" in celery_app.conf.imports
-    installed = [
-        item
-        for item in settings.CELERY_BEAT_SCHEDULE.values()
-        if item["task"] == task_path and tuple(item.get("args", ())) == (entry.name,)
-    ]
-    assert len(installed) == 1, f"{entry.name}: require exactly one capability-specific Beat entry"
-    actual = installed[0]
-    assert actual["schedule"] == entry.cadence_seconds, f"{entry.name}: recovery cadence drifted"
-    assert actual["options"]["queue"] == entry.queue, f"{entry.name}: recovery queue drifted"
-    assert actual["options"]["expire_seconds"] == entry.cadence_seconds, f"{entry.name}: recovery expiry drifted"
-    # The settings dict is what ready() populated; Beat reads the Celery app's
-    # view of it. Checking only the dict would certify the generator with itself.
-    from celery import current_app as celery_app
+    from due.django.runtime.diagnostics import schedule_errors
 
-    live = [
-        item
-        for item in celery_app.conf.beat_schedule.values()
-        if item["task"] == task_path and tuple(item.get("args", ())) == (entry.name,)
-    ]
-    assert live == installed, f"{entry.name}: the Celery app does not see the generated Beat entry"
+    errors = schedule_errors(entry, celery_app)
+    assert not errors, "\n".join(errors)
     capability = registered_capability(entry.name)
     assert capability.model is entry.model
 
