@@ -4,6 +4,7 @@ import sys
 from unittest.mock import patch
 
 import django
+from procrastinate.exceptions import AlreadyEnqueued
 from pytest_obligation.process_histories import die_here
 
 django.setup()
@@ -28,7 +29,12 @@ def main() -> None:
         return result
 
     if sys.argv[1] == "recover":
-        recover_stalled.configure(task_kwargs={"timestamp": 0}).defer()
+        try:
+            recover_stalled.configure(task_kwargs={"timestamp": 0}).defer()
+        except AlreadyEnqueued:
+            # The periodic scheduler already left this singleton task queued.
+            # Consume that real task below rather than insisting on a duplicate.
+            pass
     else:
         create_book(sys.argv[1], "Process Author")
         die_here("after admission")
