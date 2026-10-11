@@ -1,14 +1,14 @@
 """Printer contracts count actual requests; provider controls never settle Due work."""
 
 import os
-from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from unittest.mock import patch
 
 from due.django.conformance.observations import ObservationExample
+from due.django.conformance.provider import ProviderProbe
 from due.django.conformance.suite import (
     AdmissionFailureExample,
     DeliveryExample,
@@ -29,8 +29,8 @@ from tests.examples.books_support import index_environment
 
 @dataclass
 class PrinterCalls:
-    submits: Counter[str] = field(default_factory=Counter)
-    reads: Counter[str] = field(default_factory=Counter)
+    submits: ProviderProbe[[str, str], PrintReceipt, str]
+    reads: ProviderProbe[[str], PrintReceipt | None, str]
 
 
 calls: ContextVar[PrinterCalls] = ContextVar("printer_calls")
@@ -38,23 +38,16 @@ calls: ContextVar[PrinterCalls] = ContextVar("printer_calls")
 
 @contextmanager
 def environment() -> Iterator[None]:
-    observed = PrinterCalls()
-    submit, observe = provider.submit, provider.observe
-
-    def counted_submit(reference: str, title: str) -> PrintReceipt:
-        observed.submits[reference] += 1
-        return submit(reference, title)
-
-    def counted_observe(reference: str) -> PrintReceipt | None:
-        observed.reads[reference] += 1
-        return observe(reference)
-
+    observed = PrinterCalls(
+        submits=ProviderProbe(provider.submit, key=lambda reference, title: reference),
+        reads=ProviderProbe(provider.observe, key=lambda reference: reference),
+    )
     token = calls.set(observed)
     try:
         with (
             index_environment(),
-            patch.object(provider, "submit", counted_submit),
-            patch.object(provider, "observe", counted_observe),
+            observed.submits.patch(provider, "submit"),
+            observed.reads.patch(provider, "observe"),
         ):
             yield
     finally:
@@ -72,14 +65,14 @@ def delivery() -> DeliveryExample[PrintWork, str]:
         work=work,
         observe=lambda: PrintOrder.objects.get(pk=work.owner_id).status,
         expected="printed",
-        effect_calls=lambda: calls.get().submits[str(work.reference)],
+        effect_calls=lambda: calls.get().submits.count(str(work.reference)),
     )
 
 
 @contextmanager
 def retry() -> Iterator[FailureExample[PrintWork]]:
-    with patch.dict(os.environ, {"DUE_PRINTER_REJECT": "1"}):
-        yield FailureExample(attempts=lambda work: calls.get().submits[str(work.reference)])
+    with calls.get().submits.reject(lambda: provider.PrinterRejected("Printer refused before acceptance")):
+        yield FailureExample(attempts=lambda work: calls.get().submits.count(str(work.reference)))
 
 
 @contextmanager
@@ -92,7 +85,10 @@ def rejected() -> Iterator[RejectionExample[PrintWork, str]]:
 
 @contextmanager
 def uncertainty() -> Iterator[DeliveryExample[PrintWork, str]]:
-    with patch.dict(os.environ, {"DUE_PRINTER_LOSE_RESPONSE": "1", "DUE_PRINTER_HIDE_RECEIPTS": "1"}):
+    with (
+        calls.get().submits.lose_response(lambda: TimeoutError("Printer response lost after acceptance")),
+        patch.dict(os.environ, {"DUE_PRINTER_HIDE_RECEIPTS": "1"}),
+    ):
         yield replace(delivery(), expected="unknown")
 
 
@@ -109,7 +105,7 @@ def observation() -> Iterator[ObservationExample[PrintWork, str, PrintReceipt]]:
         yield ObservationExample(
             delivery=replace(uncertain, expected="printed"),
             reveal=reveal,
-            observation_calls=lambda: calls.get().reads[str(uncertain.work.reference)],
+            observation_calls=lambda: calls.get().reads.count(str(uncertain.work.reference)),
         )
 
 
@@ -120,7 +116,7 @@ def producer() -> Iterator[ProducerExample[PrintWork, bool]]:
             produce=lambda: (order_print("A physical book"),),
             observe=lambda: PrintOrder.objects.filter(title="A physical book").exists(),
             expected=True,
-            effect_calls=lambda: sum(calls.get().submits.values()),
+            effect_calls=lambda: calls.get().submits.total,
         )
 
 

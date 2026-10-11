@@ -3,10 +3,11 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Iterable, Mapping, MutableMapping
 from dataclasses import dataclass, field
-from typing import TypedDict
+from typing import Any, TypedDict
 
+from celery import Celery
 from django.conf import settings
 
 from due._installed import Installed, NotInstalledError
@@ -159,11 +160,39 @@ def registration_for(model: type[UniverseDurableWork]) -> DurableWorkRegistratio
     return {registration.model: registration for registration in installed.get().values()}[model]
 
 
-def configure_durable_work(registrations: Iterable[DurableWorkRegistration]) -> None:
-    """Install one manifest and merge its recovery schedules during Django ready()."""
+def _merge_schedules(existing: Mapping[str, Any], generated: Mapping[str, RecoverySchedule]) -> dict[str, Any]:
+    # Celery accepts application-defined schedule entries at this dynamic config
+    # boundary. Only an entry for the same Due route belongs to this manifest.
+    for name, entry in generated.items():
+        previous = existing.get(name)
+        if name in existing and (
+            not isinstance(previous, Mapping)
+            or previous.get("task") != RECOVERY_TASK
+            or previous.get("args", ()) not in (entry["args"], list(entry["args"]))
+        ):
+            raise ValueError(f"recovery schedule {name!r} is owned by another task or route")
+    return {**existing, **generated}
+
+
+def configure_durable_work(
+    registrations: Iterable[DurableWorkRegistration], *, celery_app: Celery | None = None
+) -> None:
+    """Install a manifest, task imports and schedules during application startup.
+
+    Pass an explicit Celery app if its configuration is already loaded or it does
+    not read Django's CELERY settings. Otherwise configure Celery from those
+    settings normally. Call before serving work; this is not a hot-reload API.
+    """
     by_name = index_durable_work_registrations(registrations)
+    generated = recovery_schedules(by_name.values())
+    schedules = _merge_schedules(getattr(settings, "CELERY_BEAT_SCHEDULE", {}), generated)
+    imports = tuple(dict.fromkeys((*getattr(settings, "CELERY_IMPORTS", ()), "due.django.runtime.tasks")))
+    # Validate both owners before mutating either or publishing the registry.
+    # A collision must not leave half of an application wired to a new manifest.
+    if celery_app is not None:
+        app_schedules = _merge_schedules(celery_app.conf.beat_schedule, generated)
+        app_imports = tuple(dict.fromkeys((*celery_app.conf.imports, *imports)))
+        celery_app.conf.update(beat_schedule=app_schedules, imports=app_imports)
+    settings.CELERY_BEAT_SCHEDULE = schedules
+    settings.CELERY_IMPORTS = imports
     install_registrations(by_name)
-    settings.CELERY_BEAT_SCHEDULE = {
-        **getattr(settings, "CELERY_BEAT_SCHEDULE", {}),
-        **recovery_schedules(by_name.values()),
-    }

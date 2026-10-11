@@ -180,6 +180,52 @@ notifications, advance the scheduler clock, drain real workers, and account for
 worker errors. It does not run a broker or simulate a killed OS process. The
 separate Redis/prefork test and `process_handoffs` cover those boundaries.
 
+## Bind a provider once
+
+`ProviderProbe` keeps the provider's callable signature and result type. It
+records real entries by a caller-supplied identity and delegates to the original
+callable. Use it in your existing binding environment, then reuse the same probe
+for delivery, retries, replay and uncertain-outcome examples:
+
+```python
+from due.django.conformance.provider import ProviderProbe
+
+submissions = ProviderProbe(printer.submit, key=lambda reference, title: reference)
+with submissions.patch(printer, "submit"):
+    # Production commands and workers call printer.submit normally.
+    with submissions.reject(lambda: PrinterRejected("unavailable")):
+        ...  # yield FailureExample(attempts=lambda work: submissions.count(work.reference))
+
+    with submissions.lose_response(lambda: TimeoutError("response lost")):
+        ...  # yield the uncertain DeliveryExample; real provider execution happens first
+```
+
+Both scopes accept `when=lambda identity: ...` to fault one identity while other
+work proceeds. `count(identity)` and `total` record boundary entries, including
+failures. Nested fault scopes restore the previous policy, and patches restore
+the original callable even when a proof raises. `patch` checks that the named
+attribute is the original callable supplied to the probe; it cannot silently
+patch another method. Module functions, bound instance methods and ordinary
+class-level instance-method seams are supported, preserving method binding.
+Classmethods and asynchronous callables are intentionally unsupported.
+
+The probe **never infers success from a call count**. Keep the independent product
+and provider observations in `DeliveryExample` and `ReplaySafeEffect`. A provider
+that returns without writing still fails those proofs. Response loss is injected
+only after the real call returns; a provider's own exception propagates unchanged.
+Use a provider-specific fake or the shared interleaving controls when an operation
+must remain in flight; this helper does not simulate that history.
+
+See [search bindings](../tests/examples/books_support.py) and
+[print-order bindings](../tests/conformance/order_examples.py) for complete
+examples against independently committed SQLite state. The generated printer
+proofs use the same counter across retries, uncertainty and read-only observation.
+The runnable CLI retains its provider controls for real worker journeys.
+
+Patches are process-local; fault policies are context-local and do not propagate
+into a new thread or process. Use these scopes in isolated synchronous conformance
+runs. Real subprocess histories still need child-visible fault controls.
+
 ## Make omitted evidence fail CI
 
 Due's installed pytest plugin rejects selected suites that were hidden or lost
