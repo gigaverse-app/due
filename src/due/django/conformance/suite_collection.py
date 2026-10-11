@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import fields
+from inspect import unwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -102,7 +103,9 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         for outcome in ("poisoned", "control"):
             expected.add(f"test_one_poisoned_identity_does_not_stall_recovery[{history}-{outcome}]")
     examples = cls.__durable_work_examples__
-    assert contract.handoffs == examples.handoffs, (
+    assert tuple(
+        history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in contract.handoffs
+    ) == tuple(history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in examples.handoffs), (
         f"{cls.__name__}: handoff histories differ from declared product transitions"
     )
     assert contract.process_handoffs == examples.process_handoffs, (

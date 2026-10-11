@@ -657,7 +657,10 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         convergence_families=examples.convergence_families,
         in_flight=examples.in_flight,
         evidence_confluence=examples.evidence_confluence,
-        handoffs=examples.handoffs,
+        handoffs=tuple(
+            history.model_copy(update={"arrange": _in_environment(examples, history.arrange)})
+            for history in examples.handoffs
+        ),
         process_handoffs=examples.process_handoffs,
         handoff_delivery=WorkTableDelivery(capability) if examples.handoffs else None,
         replay=bound(examples.replay),

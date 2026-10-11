@@ -657,3 +657,47 @@ def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monke
     )
     with pytest.raises(AssertionError, match="make_eligible authors production semantics"):
         case.run()
+
+
+def test_handoff_environment_survives_arrange_transition_and_observation():
+    from contextlib import contextmanager
+
+    from pytest_obligation.crash_histories import HandoffHistory
+
+    from due.django.conformance.binding import entered_binding
+
+    active = []
+    events = []
+
+    @contextmanager
+    def environment():
+        active.append(True)
+        events.append("enter")
+        try:
+            yield
+        finally:
+            active.pop()
+            events.append("exit")
+
+    def arrange():
+        assert active, "handoff arrange needs the adopter environment"
+        events.append("arrange")
+        return 1
+
+    def transition(value):
+        assert active and value == 1
+        events.append("transition")
+
+    def observe(value):
+        assert active
+        events.append("observe")
+        return value
+
+    history = HandoffHistory(name="scoped", arrange=arrange, transition=transition, observe=observe, expected=1)
+    contract = effect_contract(primitive, examples=_immutable_examples(environment=environment, handoffs=(history,)))
+    for _ in range(2):
+        with entered_binding(contract.handoffs[0].arrange) as value:
+            contract.handoffs[0].transition(value)
+            assert contract.handoffs[0].observe(value) == 1
+        assert not active
+    assert events == ["enter", "arrange", "transition", "observe", "exit"] * 2

@@ -131,3 +131,5 @@ When changing a proof, keep the production transition in its runtime owner and
 the portable oracle in pytest-obligation. Add a faulty control that the proof
 rejects, then run the [contributor checks](../CONTRIBUTING.md). Reports deliberately
 link to the actual proof implementation, even when users import its public facade.
+
+Crash histories also enter `EffectExamples.environment` before `arrange` and keep it active through transition, delivery, recovery and observation. Each history run owns and closes its scope, including faulted runs. Process histories configure their own child-process environment.
