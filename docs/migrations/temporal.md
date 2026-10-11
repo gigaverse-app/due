@@ -56,32 +56,206 @@ reuse that structure instead of inventing a queue wrapper. The `examples` packag
 belongs to this repository, not the installed Due runtime. In your application,
 implement the corresponding producer and models in your own app.
 
-## Extract one operation without losing its workflow
+## The interfaces you will work with
 
-Suppose a Workflow prepares a document, runs a publication Activity, waits for
-approval and then notifies another service. Keep the preparation, approval and
-notification orchestration on Temporal. Decide whether publication has a useful
-independent Django owner.
+| Familiar primitive | Its strength | Due counterpart and semantic change |
+| --- | --- | --- |
+| `@workflow.defn`, Workflow execution/history | Durable control flow, timers, signals and replay | No whole-Workflow counterpart; retain orchestration |
+| `@activity.defn`, Activity result/retry | External work with timeout and retry policies | A selected operation can become a native Due capability |
+| `WorkflowHandle`, cancellation/queries | Interact with a durable execution | No handle compatibility; define an explicit domain observation/bridge contract |
 
-For a new, locally owned publication, the Due example's admission is:
+## Before: the task and its caller
+
+The comparison publishes document 42's text to an immutable object and records
+its key in `Document.published_key`. The source example's application helper
+`write_revision(text, publication_id)` writes the same bytes to a stable key on
+retries and returns that key. `publication_id` is allocated once per request,
+not on each retry. This helper is application code, not a library API; the Due
+implementation below shows the actual file-write body.
+
+These are focused integration excerpts: put definitions in importable app
+modules, configure the source worker/backend, and provision the `Document` row.
+The deliberately simple source task has no application-specific stale-write
+fence. If yours already has one, preserve its contract and compare what code Due
+would replace; the source library is not inherently unable to implement it.
 
 ```python
-from examples.documents.effects import request_publication
+from datetime import timedelta
+from dataclasses import dataclass
+from temporalio import activity, workflow
+from temporalio.client import Client
 
-work = request_publication(document_id, text)
+@dataclass
+class PublicationInput:
+    document_id: int
+    text: str
+    publication_id: str
+
+@activity.defn
+async def publish_blob(data: PublicationInput) -> str:
+    import asyncio
+    from .models import Document
+    from .storage import write_revision
+
+    key = await asyncio.to_thread(write_revision, data.text, data.publication_id)
+    await Document.objects.filter(pk=data.document_id).aupdate(published_key=key)
+    return key
+
+@workflow.defn
+class PublishDocumentWorkflow:
+    @workflow.run
+    async def run(self, data: PublicationInput) -> str:
+        return await workflow.execute_activity(
+            publish_blob, data, start_to_close_timeout=timedelta(minutes=2),
+        )
+
+async def submit(client: Client) -> str:
+    return await client.execute_workflow(
+        PublishDocumentWorkflow.run,
+        PublicationInput(42, "Hello", "request-123"),
+        id="publication-request-123", task_queue="publication",
+    )
 ```
 
-It captures text transactionally, writes a revision-specific immutable object and
-publishes the product key in fenced settlement. For a workflow occurrence that
-must never coalesce with another publication, create a distinct request owner
-with a stable key derived from the application's occurrence identity. The
-example's one-row-per-document behavior is not an event history.
+`execute_workflow()` waits for the Workflow result; the Due producer below
+returns when a database obligation has been admitted. Those calls are not
+substitutable. A retained Workflow must observe actual completion through a
+retry-safe Activity/coordination boundary, not execute Django I/O in Workflow code.
 
-An Activity that submits to Due must be retry-safe at **admission**: a retry after
-the Django commit must find the same occurrence rather than create another one.
-The Workflow must wait for business completion, not merely successful admission.
-Use Temporal's supported Activity and durable coordination APIs for that bridge;
-do not call Django/provider I/O directly from deterministic Workflow code.
+The example has one Activity. Replacing an entire Workflow containing timers,
+signals or children would discard those semantics. Consider Due only for a
+bounded Django-owned operation whose local product completion needs fencing.
+Temporal already offers durable recovery; the gain is the domain settlement
+boundary, not the mere existence of retries. Keep a distinct occurrence owner
+when each Workflow execution owes a separate result.
+
+## After: model the obligation, split execution from completion
+
+In your application's `models.py`, add a concrete work model. This example's
+`OneToOneField` makes the document's **current publication** the obligation.
+Use a distinct persisted request owner instead if every call must execute.
+The fields below are from the [runnable models](../../examples/documents/models.py);
+keep your existing `Document` model and migrate any added fields.
+
+```python
+from typing import ClassVar
+
+from django.db import models
+
+from due.django.models import UniverseDurableWork, durable_work_schema
+
+
+class Document(models.Model):
+    text = models.TextField(default="")
+    publication_failed = models.BooleanField(default=False)
+    published_key = models.CharField(max_length=64, blank=True)
+
+
+class PublicationWork(UniverseDurableWork):
+    work_owner_field: ClassVar[str] = "owner"
+    owner = models.OneToOneField(Document, on_delete=models.SET_NULL, null=True)
+    text = models.TextField()
+
+    class Meta:
+        indexes, constraints = durable_work_schema("document_publication")
+```
+
+In `effects.py`, replace the decorated task with the following capability and
+producer. This is the [runnable effect](../../examples/documents/effects.py),
+with its import changed to your application. The type parameters are owner,
+captured work and effect result; here the provider returns a `str` key.
+
+```python
+import hashlib
+import os
+from pathlib import Path
+
+from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
+from .models import Document, PublicationWork
+
+
+class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
+    def perform_effect(self, work: PublicationWork) -> str:
+        # Each revision writes its own immutable key. A late old worker cannot
+        # overwrite the current revision's bytes. Retrying this key is safe.
+        key = hashlib.sha256(work.provider_idempotency_key().encode()).hexdigest()
+        output = Path(os.environ.get("DUE_OUTPUT_DIR", "/tmp/due-documents"))
+        output.mkdir(parents=True, exist_ok=True)
+        (output / key).write_text(work.text)
+        return key
+
+    def finalize_success(self, work: PublicationWork, result: str) -> None:
+        # Due holds the owner/work locks and validates the captured revision
+        # and fencing token before publishing this pointer.
+        Document.objects.filter(pk=work.owner_id).update(published_key=result, publication_failed=False)
+
+    def finalize_retry(self, work: PublicationWork, error: Exception) -> None:
+        if work.state == DurableWorkState.EXHAUSTED:
+            Document.objects.filter(pk=work.owner_id).update(publication_failed=True)
+
+
+publish_document = PublishDocument.for_owner(owner=Document, work=PublicationWork, policy=DurableWorkPolicy())
+
+
+def request_publication(document_id: int, text: str) -> PublicationWork:
+    """Commit product intent and its obligation together; wake only after commit."""
+    with publish_document.atomic(document_id) as pending:
+        document = pending.locked_owner
+        document.text = text
+        document.publication_failed = False
+        document.save(update_fields=["text", "publication_failed"])
+        return pending.request_work(PublicationWork(text=text, universe="example"))
+```
+
+The filesystem stands in for replay-safe object storage. For multiple worker
+hosts use shared storage or your provider API with the same immutable-key
+contract. A hash does not make an arbitrary payment/email/API request idempotent.
+Do not generate a fresh provider key on each attempt.
+
+The caller becomes:
+
+```python
+from .effects import request_publication
+from .models import Document, PublicationWork
+
+work = request_publication(42, "Hello")  # Admission; not completed publication.
+
+# A later status read, not a blocking result/future API:
+state = PublicationWork.objects.get(pk=work.pk).state
+key = Document.objects.get(pk=42).published_key
+```
+
+`key` can still be the previous settled publication while newer work is pending.
+The separate reads above are illustrative; expose a domain status endpoint with
+consistent reads and revision identity if callers must correlate a particular
+request. A work row can cover several revisions and is not a historical result
+per submission. Apply the schema migration and registration described above
+before sending work; defining the class alone does not start execution.
+
+### What changed, and where the gain comes from
+
+| Code change | Runtime meaning | Concrete gain or cost |
+| --- | --- | --- |
+| Function kwargs → `PublicationWork.text` | The captured input belongs to persisted work | The worker need not reread mutable document text to reconstruct what was owed |
+| Enqueue call → `atomic()` plus `request_work()` | Product text and obligation commit or roll back together | Lost wake-up is recoverable from the database; upstream transactional enqueue may already provide atomicity |
+| Storage call → `perform_effect()` | External work runs outside local settlement and may repeat | Reuses your provider code, but still requires a proven replay-safe contract |
+| ORM update → `finalize_success()` | Due validates captured revision and ownership before publishing the pointer | An older attempt cannot publish over a newer local revision |
+| Invocation result → product output and work state | Completion is a domain state transition | More explicit product semantics; callers lose a drop-in job-result API |
+
+Try two edits: request text **A**, then **B**, and let A's worker finish last.
+They write different immutable keys. Due rejects A's stale local settlement, so
+it cannot replace B's product pointer. This does not kill A's provider request or
+protect a mutable remote key. Requesting **B** again with unchanged input
+preserves the obligation's outcome/budget; it is not another event and does not
+restart stopped work. A deliberate recovery action uses `pending.retry_failed()`
+where supported, rather than ordinary resubmission.
+
+For a crash after storage succeeds but before local completion, this replay-safe
+example may write the same revision again and then settle. It does **not** retain
+a generic return-value checkpoint. If repetition is unsafe, choose an evidence-
+backed operation instead; the operation must retain a correlated receipt and keep
+an uncertain outcome `UNKNOWN` until resolved. That is a different capability,
+not a retry flag on this example.
 
 ## Map the boundaries
 

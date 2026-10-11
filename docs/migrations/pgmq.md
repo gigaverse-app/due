@@ -55,34 +55,181 @@ reuse that structure instead of inventing a queue wrapper. The `examples` packag
 belongs to this repository, not the installed Due runtime. In your application,
 implement the corresponding producer and models in your own app.
 
-## Move the business command, not the queue API
+## The interfaces you will work with
 
-A producer might currently store a publication message through PGMQ SQL:
+| Familiar primitive | Its strength | Due counterpart and semantic change |
+| --- | --- | --- |
+| `send()` → message ID | PostgreSQL message persistence, including SQL clients | Application producer admits typed domain work |
+| `read()` → message, visibility timeout | Consumer-controlled delivery and visibility | Registered Due runner claims work; no user read/ack loop |
+| `archive()` / delete | Explicit acknowledgement and optional message retention | Fenced local settlement establishes completion; retention has a separate policy |
+
+## Before: the task and its caller
+
+The comparison publishes document 42's text to an immutable object and records
+its key in `Document.published_key`. The source example's application helper
+`write_revision(text, publication_id)` writes the same bytes to a stable key on
+retries and returns that key. `publication_id` is allocated once per request,
+not on each retry. This helper is application code, not a library API; the Due
+implementation below shows the actual file-write body.
+
+These are focused integration excerpts: put definitions in importable app
+modules, configure the source worker/backend, and provision the `Document` row.
+The deliberately simple source task has no application-specific stale-write
+fence. If yours already has one, preserve its contract and compare what code Due
+would replace; the source library is not inherently unable to implement it.
 
 ```sql
+-- Producer (can share the product transaction on this connection):
 SELECT pgmq.send(
     'publication',
-    '{"document_id": 42, "text": "Hello"}'::jsonb
+    '{"document_id":42,"text":"Hello","publication_id":"request-123"}'::jsonb
 );
+-- Consumer claims one message for 60 seconds:
+SELECT * FROM pgmq.read('publication', 60, 1);
+-- Application validates message, writes the object, then updates the product.
+-- Only after successful processing, use the msg_id returned by read:
+SELECT pgmq.archive('publication', :msg_id);
 ```
 
-For a new publication owned by the Django application, the Due destination is:
+`:msg_id` is a client-bound SQL parameter, not literal SQL to paste unchanged.
+The application handler between `read` and `archive` owns the business operation:
+`write_revision(text, publication_id)` followed by an ORM pointer update. Below,
+those actions become `perform_effect` and `finalize_success`; Due owns dispatch
+and completion, so this selected consumer no longer calls `read` or `archive`.
+
+A visibility timeout makes an unacknowledged message available again. It does
+not stop the previous consumer's storage write. Due's local fence prevents a
+stale attempt from publishing the product pointer; the immutable-key storage
+contract still makes repeat writes safe. PostgreSQL durability and transactional
+send are existing PGMQ strengths, not gains introduced by this migration.
+
+## After: model the obligation, split execution from completion
+
+In your application's `models.py`, add a concrete work model. This example's
+`OneToOneField` makes the document's **current publication** the obligation.
+Use a distinct persisted request owner instead if every call must execute.
+The fields below are from the [runnable models](../../examples/documents/models.py);
+keep your existing `Document` model and migrate any added fields.
 
 ```python
-from examples.documents.effects import request_publication
+from typing import ClassVar
 
-work = request_publication(document_id, text)
+from django.db import models
+
+from due.django.models import UniverseDurableWork, durable_work_schema
+
+
+class Document(models.Model):
+    text = models.TextField(default="")
+    publication_failed = models.BooleanField(default=False)
+    published_key = models.CharField(max_length=64, blank=True)
+
+
+class PublicationWork(UniverseDurableWork):
+    work_owner_field: ClassVar[str] = "owner"
+    owner = models.OneToOneField(Document, on_delete=models.SET_NULL, null=True)
+    text = models.TextField()
+
+    class Meta:
+        indexes, constraints = durable_work_schema("document_publication")
 ```
 
-The configured example commits product text and captured work together, writes
-an immutable revision object, then publishes its key in fenced local settlement.
-Validate the old message into canonical fields at one boundary. If each message
-represents an independent event, use a distinct persisted request owner per
-message/occurrence; the example's latest-publication coalescing is inappropriate.
+In `effects.py`, replace the decorated task with the following capability and
+producer. This is the [runnable effect](../../examples/documents/effects.py),
+with its import changed to your application. The type parameters are owner,
+captured work and effect result; here the provider returns a `str` key.
 
-The returned work ID is not a PGMQ message ID. The old read/visibility/archive
-loop disappears only for the migrated business operation. Other queue consumers
-continue to use PGMQ normally.
+```python
+import hashlib
+import os
+from pathlib import Path
+
+from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
+from .models import Document, PublicationWork
+
+
+class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
+    def perform_effect(self, work: PublicationWork) -> str:
+        # Each revision writes its own immutable key. A late old worker cannot
+        # overwrite the current revision's bytes. Retrying this key is safe.
+        key = hashlib.sha256(work.provider_idempotency_key().encode()).hexdigest()
+        output = Path(os.environ.get("DUE_OUTPUT_DIR", "/tmp/due-documents"))
+        output.mkdir(parents=True, exist_ok=True)
+        (output / key).write_text(work.text)
+        return key
+
+    def finalize_success(self, work: PublicationWork, result: str) -> None:
+        # Due holds the owner/work locks and validates the captured revision
+        # and fencing token before publishing this pointer.
+        Document.objects.filter(pk=work.owner_id).update(published_key=result, publication_failed=False)
+
+    def finalize_retry(self, work: PublicationWork, error: Exception) -> None:
+        if work.state == DurableWorkState.EXHAUSTED:
+            Document.objects.filter(pk=work.owner_id).update(publication_failed=True)
+
+
+publish_document = PublishDocument.for_owner(owner=Document, work=PublicationWork, policy=DurableWorkPolicy())
+
+
+def request_publication(document_id: int, text: str) -> PublicationWork:
+    """Commit product intent and its obligation together; wake only after commit."""
+    with publish_document.atomic(document_id) as pending:
+        document = pending.locked_owner
+        document.text = text
+        document.publication_failed = False
+        document.save(update_fields=["text", "publication_failed"])
+        return pending.request_work(PublicationWork(text=text, universe="example"))
+```
+
+The filesystem stands in for replay-safe object storage. For multiple worker
+hosts use shared storage or your provider API with the same immutable-key
+contract. A hash does not make an arbitrary payment/email/API request idempotent.
+Do not generate a fresh provider key on each attempt.
+
+The caller becomes:
+
+```python
+from .effects import request_publication
+from .models import Document, PublicationWork
+
+work = request_publication(42, "Hello")  # Admission; not completed publication.
+
+# A later status read, not a blocking result/future API:
+state = PublicationWork.objects.get(pk=work.pk).state
+key = Document.objects.get(pk=42).published_key
+```
+
+`key` can still be the previous settled publication while newer work is pending.
+The separate reads above are illustrative; expose a domain status endpoint with
+consistent reads and revision identity if callers must correlate a particular
+request. A work row can cover several revisions and is not a historical result
+per submission. Apply the schema migration and registration described above
+before sending work; defining the class alone does not start execution.
+
+### What changed, and where the gain comes from
+
+| Code change | Runtime meaning | Concrete gain or cost |
+| --- | --- | --- |
+| Function kwargs → `PublicationWork.text` | The captured input belongs to persisted work | The worker need not reread mutable document text to reconstruct what was owed |
+| Enqueue call → `atomic()` plus `request_work()` | Product text and obligation commit or roll back together | Lost wake-up is recoverable from the database; upstream transactional enqueue may already provide atomicity |
+| Storage call → `perform_effect()` | External work runs outside local settlement and may repeat | Reuses your provider code, but still requires a proven replay-safe contract |
+| ORM update → `finalize_success()` | Due validates captured revision and ownership before publishing the pointer | An older attempt cannot publish over a newer local revision |
+| Invocation result → product output and work state | Completion is a domain state transition | More explicit product semantics; callers lose a drop-in job-result API |
+
+Try two edits: request text **A**, then **B**, and let A's worker finish last.
+They write different immutable keys. Due rejects A's stale local settlement, so
+it cannot replace B's product pointer. This does not kill A's provider request or
+protect a mutable remote key. Requesting **B** again with unchanged input
+preserves the obligation's outcome/budget; it is not another event and does not
+restart stopped work. A deliberate recovery action uses `pending.retry_failed()`
+where supported, rather than ordinary resubmission.
+
+For a crash after storage succeeds but before local completion, this replay-safe
+example may write the same revision again and then settle. It does **not** retain
+a generic return-value checkpoint. If repetition is unsafe, choose an evidence-
+backed operation instead; the operation must retain a correlated receipt and keep
+an uncertain outcome `UNKNOWN` until resolved. That is a different capability,
+not a retry flag on this example.
 
 ## Map message semantics deliberately
 

@@ -57,37 +57,226 @@ reuse that structure instead of inventing a queue wrapper. The `examples` packag
 belongs to this repository, not the installed Due runtime. In your application,
 implement the corresponding producer and models in your own app.
 
-## Follow one operation from submission to completion
+## The interfaces you will work with
 
-For document publication, the producer change looks like this. The first line
-uses your existing application task; the second uses Due's runnable example:
+| Familiar primitive | Its strength | Due counterpart and semantic change |
+| --- | --- | --- |
+| `Task`, `.delay()` / `.apply_async()` | Flexible delivery/routing and a mature worker system | Keep Celery workers; declare a Due capability for business completion |
+| `AsyncResult`, `self.retry()` | Per-task results and programmable retries | Domain output plus `DurableWorkPolicy` and work state |
+| Signatures, chains, groups, chords | Compose distributed task execution | No drop-in canvas; retain it or explicitly model successor obligations |
+
+## Before: the task and its caller
+
+The comparison publishes document 42's text to an immutable object and records
+its key in `Document.published_key`. The source example's application helper
+`write_revision(text, publication_id)` writes the same bytes to a stable key on
+retries and returns that key. `publication_id` is allocated once per request,
+not on each retry. This helper is application code, not a library API; the Due
+implementation below shows the actual file-write body.
+
+These are focused integration excerpts: put definitions in importable app
+modules, configure the source worker/backend, and provision the `Document` row.
+The deliberately simple source task has no application-specific stale-write
+fence. If yours already has one, preserve its contract and compare what code Due
+would replace; the source library is not inherently unable to implement it.
 
 ```python
-# Before (your existing task and configured source client):
-result = publish.delay(document_id, text)
+from celery import shared_task
+from .models import Document
+from .storage import write_revision
 
-# After (with the Due example configured and the Document row already present):
-from examples.documents.effects import request_publication
+@shared_task(autoretry_for=(OSError,), retry_kwargs={"max_retries": 3})
+def publish(document_id: int, text: str, publication_id: str) -> str:
+    key = write_revision(text, publication_id)
+    Document.objects.filter(pk=document_id).update(published_key=key)
+    return key
 
-work = request_publication(document_id, text)
+result = publish.delay(42, "Hello", "request-123")
+# From a result-consuming client, with a result backend configured:
+key = result.get(timeout=30)
 ```
 
-The producer now returns persisted work rather than an `AsyncResult`. An HTTP
-endpoint should report acceptance after commit unless its contract requires
-completion. A caller that needs the published key must observe the product's
-completion state; successful Celery message handling is not the business result.
+You retain Celery as transport. What changes is the task boundary: the provider
+call becomes `perform_effect`; the ORM update becomes `finalize_success`.
+Wrapping the whole old task body in `perform_effect` would miss the local fence.
 
-The destination commits the new document text and its obligation together.
-`perform_effect` writes a revision-specific immutable object;
-`finalize_success` publishes its key under Due's ownership/revision check.
-Putting the old function wholesale in `perform_effect` would leave its embedded
-DB updates outside that check. Completion callbacks do local DB work only;
-required external follow-ups become separately admitted obligations.
+`result.get()` waits for a task result; `request_publication()` returns after
+admission and must not be reported as completed publication. Likewise, moving
+`self.retry()` into the effect would create competing retry owners. Configure
+Due's policy for the migrated obligation and keep unrelated Celery tasks intact.
+The gain is recovery from committed business intent even if the post-commit
+message is lost; `transaction.on_commit(publish.delay)` alone lacks that record.
 
-The example owes the **current publication**: equal input preserves the existing
-outcome, while changed input starts a revision. If every submission must execute,
-create a distinct persisted request owner per occurrence instead. `work.pk` is
-an obligation identifier, not a source-library result handle.
+## After: model the obligation, split execution from completion
+
+In your application's `models.py`, add a concrete work model. This example's
+`OneToOneField` makes the document's **current publication** the obligation.
+Use a distinct persisted request owner instead if every call must execute.
+The fields below are from the [runnable models](../../examples/documents/models.py);
+keep your existing `Document` model and migrate any added fields.
+
+```python
+from typing import ClassVar
+
+from django.db import models
+
+from due.django.models import UniverseDurableWork, durable_work_schema
+
+
+class Document(models.Model):
+    text = models.TextField(default="")
+    publication_failed = models.BooleanField(default=False)
+    published_key = models.CharField(max_length=64, blank=True)
+
+
+class PublicationWork(UniverseDurableWork):
+    work_owner_field: ClassVar[str] = "owner"
+    owner = models.OneToOneField(Document, on_delete=models.SET_NULL, null=True)
+    text = models.TextField()
+
+    class Meta:
+        indexes, constraints = durable_work_schema("document_publication")
+```
+
+In `effects.py`, replace the decorated task with the following capability and
+producer. This is the [runnable effect](../../examples/documents/effects.py),
+with its import changed to your application. The type parameters are owner,
+captured work and effect result; here the provider returns a `str` key.
+
+```python
+import hashlib
+import os
+from pathlib import Path
+
+from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
+from .models import Document, PublicationWork
+
+
+class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
+    def perform_effect(self, work: PublicationWork) -> str:
+        # Each revision writes its own immutable key. A late old worker cannot
+        # overwrite the current revision's bytes. Retrying this key is safe.
+        key = hashlib.sha256(work.provider_idempotency_key().encode()).hexdigest()
+        output = Path(os.environ.get("DUE_OUTPUT_DIR", "/tmp/due-documents"))
+        output.mkdir(parents=True, exist_ok=True)
+        (output / key).write_text(work.text)
+        return key
+
+    def finalize_success(self, work: PublicationWork, result: str) -> None:
+        # Due holds the owner/work locks and validates the captured revision
+        # and fencing token before publishing this pointer.
+        Document.objects.filter(pk=work.owner_id).update(published_key=result, publication_failed=False)
+
+    def finalize_retry(self, work: PublicationWork, error: Exception) -> None:
+        if work.state == DurableWorkState.EXHAUSTED:
+            Document.objects.filter(pk=work.owner_id).update(publication_failed=True)
+
+
+publish_document = PublishDocument.for_owner(owner=Document, work=PublicationWork, policy=DurableWorkPolicy())
+
+
+def request_publication(document_id: int, text: str) -> PublicationWork:
+    """Commit product intent and its obligation together; wake only after commit."""
+    with publish_document.atomic(document_id) as pending:
+        document = pending.locked_owner
+        document.text = text
+        document.publication_failed = False
+        document.save(update_fields=["text", "publication_failed"])
+        return pending.request_work(PublicationWork(text=text, universe="example"))
+```
+
+The filesystem stands in for replay-safe object storage. For multiple worker
+hosts use shared storage or your provider API with the same immutable-key
+contract. A hash does not make an arbitrary payment/email/API request idempotent.
+Do not generate a fresh provider key on each attempt.
+
+The caller becomes:
+
+```python
+from .effects import request_publication
+from .models import Document, PublicationWork
+
+work = request_publication(42, "Hello")  # Admission; not completed publication.
+
+# A later status read, not a blocking result/future API:
+state = PublicationWork.objects.get(pk=work.pk).state
+key = Document.objects.get(pk=42).published_key
+```
+
+`key` can still be the previous settled publication while newer work is pending.
+The separate reads above are illustrative; expose a domain status endpoint with
+consistent reads and revision identity if callers must correlate a particular
+request. A work row can cover several revisions and is not a historical result
+per submission. Apply the schema migration and registration described above
+before sending work; defining the class alone does not start execution.
+
+### What changed, and where the gain comes from
+
+| Code change | Runtime meaning | Concrete gain or cost |
+| --- | --- | --- |
+| Function kwargs → `PublicationWork.text` | The captured input belongs to persisted work | The worker need not reread mutable document text to reconstruct what was owed |
+| Enqueue call → `atomic()` plus `request_work()` | Product text and obligation commit or roll back together | Lost wake-up is recoverable from the database; upstream transactional enqueue may already provide atomicity |
+| Storage call → `perform_effect()` | External work runs outside local settlement and may repeat | Reuses your provider code, but still requires a proven replay-safe contract |
+| ORM update → `finalize_success()` | Due validates captured revision and ownership before publishing the pointer | An older attempt cannot publish over a newer local revision |
+| Invocation result → product output and work state | Completion is a domain state transition | More explicit product semantics; callers lose a drop-in job-result API |
+
+Try two edits: request text **A**, then **B**, and let A's worker finish last.
+They write different immutable keys. Due rejects A's stale local settlement, so
+it cannot replace B's product pointer. This does not kill A's provider request or
+protect a mutable remote key. Requesting **B** again with unchanged input
+preserves the obligation's outcome/budget; it is not another event and does not
+restart stopped work. A deliberate recovery action uses `pending.retry_failed()`
+where supported, rather than ordinary resubmission.
+
+For a crash after storage succeeds but before local completion, this replay-safe
+example may write the same revision again and then settle. It does **not** retain
+a generic return-value checkpoint. If repetition is unsafe, choose an evidence-
+backed operation instead; the operation must retain a correlated receipt and keep
+an uncertain outcome `UNKNOWN` until resolved. That is a different capability,
+not a retry flag on this example.
+
+## Delayed delivery versus a movable deadline
+
+With a timezone-aware `deadline`, the familiar delayed call is:
+
+```python
+publish.apply_async(args=(42, "Hello", "request-123"), eta=deadline)
+```
+
+For a fixed initial delay, change the final line **inside the Due producer's
+existing `atomic()` block** to:
+
+```python
+return pending.request_work(
+    PublicationWork(text=text, universe="example"), not_before=deadline,
+)
+```
+
+That sets when new work becomes eligible; delivery can happen later. Sending
+unchanged inputs again is not a command to move an existing deadline. When the
+product concept is “do this at a deadline that may change,” declare a separate
+`ScheduledWork` model and `ScheduledAction` with `is_still_needed`,
+`perform_effect` and `on_completed` hooks. Its policy requires `retention=None`;
+explicit `input_fields` must include `run_at` and `cancelled`.
+[Declaration example](../../tests/declarations/test_simple_callbacks.py).
+
+For that registered capability, the native calls have meaningful result types:
+
+```python
+from due.django.capabilities.scheduled import CancellationResult, ScheduleResult
+
+# deadline_action and DeadlineWork are your declared capability and work model.
+status: ScheduleResult = deadline_action.schedule_at(
+    42, DeadlineWork(universe="example"), at=deadline,
+)
+cancellation: CancellationResult = deadline_action.cancel_pending(42)
+```
+
+Handle `ALREADY_STARTED` from either operation: Due cannot promise prevention
+once an attempt may have escaped. `UNCHANGED` from scheduling and
+`NOT_SCHEDULED` from cancellation are distinct outcomes too. The useful gain is
+an explicit, persisted deadline/cancellation contract; this does not reproduce
+the source library's general revoke, cron or priority API.
 
 ## Map the Celery contract
 

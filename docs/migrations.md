@@ -1,7 +1,8 @@
 # Coming to Due from another library
 
 Choose the library you use today. Each guide puts the migration decision,
-concrete producer change, setup, contract mapping, cutover, rollback and
+source/native code, comparable types and primitives, setup, semantic changes,
+concrete gains, cutover, rollback and
 compatibility-layer assessment in **one document**. You do not need to assemble
 a plan from separate comparison and adapter reports.
 
@@ -45,8 +46,11 @@ migration through today's native API from possible future integration.
 The native target is grounded in the existing [runnable document example](../examples/documents/).
 Its source remains the canonical implementation; the guides explain how each
 source library's semantics map to it and where the domain needs a different model.
-Source-call sketches assume your configured source client and existing application
-task. They are not turnkey programs or claims of executed cross-library parity.
+Each guide shows the source task and caller, the concrete Due models, the
+effect/completion split, and the atomic producer. Source examples assume a
+configured client/backend and importable application modules. The native excerpts
+come from the runnable example; the side-by-side comparisons are not claims of
+executed cross-library parity.
 
 Reviewed on **2026-10-11** against Due `65e0bcf`. The
 [source register](alternatives.md#source-register) records the inspected upstream
