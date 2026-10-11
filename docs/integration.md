@@ -9,8 +9,8 @@ transaction connection; cross-database atomic admission is not supported.
    `durable_work_schema(...)`. Generate and apply your application migrations.
 3. Implement a capability with an explicit `DurableWorkPolicy` and register it
    in every web, worker, Beat, management-command and test process that uses it.
-4. Include `due.django.runtime.tasks` in the Celery app's imports and merge the
-   generated recovery schedules with your application's existing Beat schedule.
+4. Call `configure_durable_work` once to install the manifest, task imports and
+   recovery schedules. Configure Celery from Django settings or pass its app explicitly.
 5. Run workers for the registered queues and a recurring scheduler. Alert on
    outstanding work and stale recovery heartbeats.
 
@@ -20,16 +20,33 @@ The complete registration pattern is in `examples/apps.py`:
 from due.django.runtime.registry import configure_durable_work
 from myapp.registry import REGISTRATIONS
 
-# In AppConfig.ready(): one manifest owns routes and Beat schedules.
+# In AppConfig.ready(): one manifest owns routes, task imports and Beat schedules.
 configure_durable_work(REGISTRATIONS)
 ```
 
-This validates/installs the registrations and merges their recovery schedules
-with existing Django settings. Configure the Celery app to read those settings
-and import `due.django.runtime.tasks`, then run `python -m django due_check` in
-the same environment as each process. This command verifies configuration, not
-remote broker connectivity or worker availability. The lower-level registry
-functions remain available for applications that own their setup explicitly.
+This validates and installs registrations, adds Due's task module to
+`CELERY_IMPORTS` and merges recovery schedules with existing Django settings.
+Unrelated imports and schedules are preserved. A generated schedule name owned
+by another task or route is an error, checked before configuration changes.
+Repeating the same setup is safe; an existing schedule for the same Due route is
+updated from the manifest.
+
+If the Celery app already loaded its configuration or does not read Django's
+`CELERY_*` settings, pass that app during startup:
+
+```python
+configure_durable_work(REGISTRATIONS, celery_app=my_celery_app)
+```
+
+This also updates the explicit app's task imports and recovery schedule. It does
+not change broker URLs, serializers or unrelated application settings. Configure
+before starting workers or serving requests; this is not a running-worker reload.
+No import-time autodiscovery or application dependency is added to Due.
+
+Run `python -m django due_check` in the same environment as each process. This
+command verifies configuration, not remote broker connectivity or worker
+availability. The lower-level registry functions remain available for applications
+that own their setup explicitly.
 
 Resolve registrations before executing work. Missing registration is a startup
 or deployment defect, not a retryable provider failure. Stable names are part of

@@ -50,7 +50,7 @@ def producer() -> Iterator[ProducerExample[CatalogWork, bool]]:
             produce=lambda: (save_entry(TITLE, AUTHOR),),
             observe=lambda: CatalogEntry.objects.filter(title=TITLE).exists(),
             expected=True,
-            effect_calls=lambda: sum(calls.get().writes.values()),
+            effect_calls=lambda: calls.get().writes.total,
         )
 
 
@@ -65,11 +65,10 @@ EXAMPLES = replace(
         Stage(
             capability=project_catalog,
             make_work=make_work,
-            key=lambda work: work.index_key,
             observe=content,
             external_observe=content,
-            effect_calls=lambda work: calls.get().writes[work.index_key],
-            provider_method="put",
+            effect_calls=lambda work: calls.get().writes.count(work.index_key),
+            unavailable=lambda: calls.get().writes.reject(lambda: OSError("search unavailable")),
             execute=project_catalog.write_projection,
             terminal=TerminalExample(
                 observe=lambda work: CatalogEntry.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm

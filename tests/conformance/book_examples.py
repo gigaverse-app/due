@@ -83,7 +83,7 @@ def create_producer() -> Iterator[ProducerExample[IndexBookWork, bool]]:
             produce=produce,
             observe=lambda: Book.objects.filter(title=title).exists(),
             expected=True,
-            effect_calls=lambda: sum(calls.get().writes.values()),
+            effect_calls=lambda: calls.get().writes.total,
         )
 
 
@@ -161,11 +161,10 @@ INDEX_EXAMPLES = examples_for(
     Stage(
         capability=index_book,
         make_work=make_index_work,
-        key=index_key,
         observe=indexed,
         external_observe=index_content,
-        effect_calls=lambda work: calls.get().writes[index_key(work)],
-        provider_method="put",
+        effect_calls=lambda work: calls.get().writes.count(index_key(work)),
+        unavailable=lambda: calls.get().writes.reject(lambda: OSError("search unavailable")),
         execute=index_book.perform_effect,
         terminal=BOOK_TERMINAL,
         expected=(TITLE, AUTHOR),
@@ -197,11 +196,10 @@ PUBLISH_EXAMPLES = examples_for(
     Stage(
         capability=publish_book,
         make_work=make_publish_work,
-        key=lambda work: work.index_key,
         observe=published,
         external_observe=activated,
-        effect_calls=lambda work: calls.get().publications[work.index_key],
-        provider_method="publish",
+        effect_calls=lambda work: calls.get().publications.count(work.index_key),
+        unavailable=lambda: calls.get().publications.reject(lambda: OSError("search unavailable")),
         execute=publish_book.perform_effect,
         terminal=BOOK_TERMINAL,
         expected=(TITLE, AUTHOR),
