@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "due"
 version = "0.1.0a1"
-description = "Durable obligations for Python"
+description = "Durable obligations for Django and PostgreSQL"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "Apache-2.0"
@@ -39,10 +39,11 @@ Repository = "https://github.com/gigaverse-app/due"
 Issues = "https://github.com/gigaverse-app/due/issues"
 
 [dependency-groups]
+lint = ["ruff>=0.14", "pre-commit>=4.3"]
 dev = [
+    { include-group = "lint" },
     "pytest>=8.4",
     "pytest-obligation[celery,django]>=0.8,<0.9",
-    "ruff>=0.14",
     "pyrefly>=1,<2",
     "celery-types>=0.26",
     "django-stubs>=5.2",
@@ -63,7 +64,7 @@ select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501", "B027"]
 
 [tool.pyrefly]
-project-includes = ["src", "tests", "examples"]
+project-includes = ["src", "tests", "examples", "scripts"]
 python-version = "3.14"
 search-path = ["src", "."]
 

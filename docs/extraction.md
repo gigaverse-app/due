@@ -24,3 +24,24 @@ package supplies the neutral generated proofs; work-table bindings delegate to D
 Consumer adoption is a separate data/import/worker-route cutover; see
 [integration](integration.md). This release has no framework-neutral persistence
 adapter and does not publish or migrate any backend application data.
+
+## Follow-up parity audit
+
+The runtime audit compared every named definition in the source work-table
+modules against Due. All authoring, declarations, models, evidence, coordination,
+transport, recovery and telemetry modules remain present. The observation lease
+accessor is now private, as is its imported lease type; the work-table capability
+owns its use. Shared delivery-page code is imported privately by coordination.
+
+The source operator command is ported as `due_status`, resolving Due's installed
+registry and omitting raw exception strings. Additional standalone regression
+suites cover registration/Beat cleanup, dependent wakes and lock order, mirror
+receipt rollback, gated evidence reconciliation, poisoned operation recovery,
+soft limits, and the private observation delivery arbitration.
+
+The source's full backend collection plugin and application scenarios remain in
+the backend. Their application-specific fixtures, legacy aliases and public
+native composition are not dependencies of this package. Due uses the published
+pytest-obligation contracts plus direct PostgreSQL regressions. This is a runtime
+and library-proof extraction, not a claim that every backend adopter has been
+ported or requalified.

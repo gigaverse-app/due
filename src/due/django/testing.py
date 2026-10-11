@@ -21,8 +21,7 @@ class HeldNudge:
     """
     An observed post-commit wake-up; no delivery claim has been acquired.
 
-    ``work_name`` is the capability's registered name, or for a native lease
-    ``<app>.<model>.<claimed column>``; ``work_id`` is the notified identity.
+    ``work_name`` is the capability's registered name; ``work_id`` is the notified identity.
     """
 
     work_name: str

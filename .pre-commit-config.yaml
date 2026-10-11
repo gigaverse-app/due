@@ -1,0 +1,20 @@
+minimum_pre_commit_version: '4.3.0'
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint (uv.lock)
+        entry: uv run --locked ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: Ruff format (uv.lock)
+        entry: uv run --locked ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: pyrefly
+        name: Pyrefly project check (uv.lock)
+        entry: uv run --locked pyrefly check
+        language: system
+        pass_filenames: false
+        files: '(^pyproject\.toml$|^uv\.lock$|\.pyi?$)'

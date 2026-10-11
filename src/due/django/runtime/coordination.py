@@ -25,7 +25,7 @@ from due.django.models import (
     DurableWork,
     DurableWorkState,
 )
-from due.django.runtime._delivery import dispatch_recovery_page
+from due.django.runtime._delivery import dispatch_recovery_page as _dispatch_recovery_page
 from due.django.runtime.counters import saturating_increment
 from due.django.runtime.metrics import (
     DurableWorkOperation,
@@ -823,7 +823,7 @@ def dispatch_due_work[WorkT: DurableWork](
         return True
 
     with recovery_pass_for(model._meta.label_lower, recovery) as tick:
-        published = dispatch_recovery_page(
+        published = _dispatch_recovery_page(
             due_work(model, now=now, eligibility=eligibility),
             dispatch=reserve_and_publish,
             batch_size=batch_size,

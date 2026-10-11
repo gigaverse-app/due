@@ -1,32 +1,75 @@
 # Due
 
-**Durable obligations for Django.** An attempt can end. The obligation remains.
+**An attempt can end. The obligation remains.**
 
-[![CI](https://github.com/gigaverse-app/due/actions/workflows/ci.yml/badge.svg)](https://github.com/gigaverse-app/due/actions/workflows/ci.yml)
+[![CI](https://github.com/gigaverse-app/due/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/due/actions/workflows/ci.yml)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
+[![Django 6](https://img.shields.io/badge/Django-6-092E20?logo=django)](docs/integration.md)
+[![Typed](https://img.shields.io/badge/typing-py.typed-blue)](src/due/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Due records what your application owes in PostgreSQL, in the same transaction
-as the product change. Celery runs the work; periodic recovery finds obligations
-whose notifications were lost or whose workers died. Captured ownership tokens
-and revisions prevent stale workers from publishing current database results.
+## The database committed. The worker never heard.
 
-This first alpha extracts Gigaverse's **work-table** primitive. It is Django-backed:
-Django owns transactions, models and migrations. Native-table lifecycle composition
-is outside this release. The API may change before 1.0.
+You save a document and queue its publication. The broker is unavailable. Or the
+worker writes the file and dies before recording success. Or a slow worker
+returns after a newer revision has already finished.
 
-## What it does
+**Due keeps track of what your Django application still owes.** It records the
+obligation in PostgreSQL alongside the product change, uses Celery to attempt it,
+and recovers work after lost messages and dead workers. Captured ownership tokens
+and revisions prevent an old worker from settling a newer obligation.
 
-- Keeps accepted work discoverable after lost messages and worker death.
-- Reserves deliveries, rejects duplicates, and fences stale settlement.
-- Tracks changing desired state and movable/cancellable scheduled actions.
-- Retains uncertain external operations until correlated evidence resolves them.
-- Bounds retries and isolates poisoned recovery rows with backoff.
-- Provides fault controls and `pytest-obligation` bindings for application tests.
+```mermaid
+flowchart LR
+    A[Application transaction] --> B[(PostgreSQL: product + obligation)]
+    A -. after commit .-> C[Celery worker]
+    B --> D[Periodic recovery]
+    D --> C
+    C --> E[External effect]
+    E --> F[Fenced local settlement]
+    F --> B
+```
 
-A lease does **not** stop an already-sent external request. Replay safety,
-idempotency, provider evidence and the definition of success remain application
-contracts. Due does not promise exactly-once external execution.
+The message gets work started sooner. The database remembers what remains owed.
+
+## What happens when things go wrong?
+
+| Failure | Due's response |
+| --- | --- |
+| Commit succeeds; queue publication is lost | Recovery finds the work and reserves another delivery. |
+| The broker delivers the same message twice | Only the captured owner can execute and settle it. |
+| A worker dies or returns after its lease expires | Recovery handles the expiry; stale settlement is rejected. |
+| Desired inputs change during execution | Revisions fence old settlement; the current target stays owed. |
+| A non-repeatable request times out | Its outcome stays **UNKNOWN** until correlated evidence resolves it. |
+| One recovery row always raises | Other identities progress; the failure is reported and held with backoff. |
+| Retries are exhausted | Work remains visibly stopped for an explicit application decision. |
+
+A local lease cannot cancel an external request. **Due does not promise
+exactly-once external execution.** Your application defines replay safety,
+provider idempotency, evidence, and success. [Guarantees and limits →](docs/architecture.md)
+
+## More than a task queue
+
+Use Due when a business obligation must survive the attempt that tried to
+fulfill it. Celery remains the transport; your application retains its own
+models, transactions and product logic.
+
+| What your application owes | Start with |
+| --- | --- |
+| A safely repeatable effect | `ReplaySafeEffect` |
+| An external view of changing desired state | `Projection` |
+| An action at a movable or cancellable deadline | `ScheduledAction` |
+| A non-repeatable operation, such as a provider request with an uncertain outcome | `DurableExternalOperation` |
+| Periodic observation of an uncertain operation | `ObservedExternalOperation` |
+| Cleanup owed even if the original worker dies | `IndependentCompensation` |
+
+The same work-table runtime also supports dependent wakes, discovery from
+persisted facts, execution gates, continuations, status mirrors and captured
+inputs. [Capability guide and executable examples →](docs/capabilities.md)
+
+**Alpha, Django-backed.** Extracted from Gigaverse's work-table primitive; the API
+may change before 1.0. Only work-table composition is public. Native-table
+composition is excluded. [Extraction scope →](docs/extraction.md)
 
 ## Install
 
@@ -107,25 +150,56 @@ publishes its key on the document row. Configure `DUE_DATABASE_URL`,
 `DUE_BROKER_URL`, `DUE_OUTPUT_DIR` and `DUE_QUEUE` as needed. Compose credentials
 are for local development only; both service ports bind to localhost.
 
-## Develop and test
+## See recovery survive a lost message
+
+With the local services running:
+
+```bash
+uv run pytest tests/integration/test_celery_worker.py -v
+```
+
+This test commits a document and its publication obligation while withholding the
+initial notification. It then starts a **separate Celery prefork worker**, sends
+the recovery task through **Redis**, and checks the file and product state in
+**PostgreSQL**. [Read the complete failure history](tests/integration/test_celery_worker.py).
+
+For generated crash, ownership, retention, admission and retry checks:
+
+```bash
+uv run pytest tests/conformance --due-work-summary --due-work-profile-report=profiles.json
+```
+
+[pytest-obligation](https://github.com/gigaverse-app/pytest-obligation) generates
+the applicable tests from a contract bound to Due's actual coordinator. CI
+requires executed passing evidence for the claimed profiles; an empty or filtered
+report fails. These proofs cover the bound example, not arbitrary application
+callbacks. [What we verify →](docs/verification.md)
+
+## Inspect stopped work
+
+```bash
+uv run python -m django due_status
+uv run python -m django due_status publish_document --limit 10
+```
+
+The read-only command reports exhausted, terminal-failed and unknown work,
+unresolved attempts, and deferred recovery identities. It never authorizes a
+replay. [Operations and monitoring →](docs/operations.md)
+
+## Contribute
 
 ```bash
 uv sync --locked
-docker compose up -d
-uv run ruff check .
-uv run ruff format --check .
-uv run pyrefly check
-uv run pytest --due-work-profile-report=profiles.json
+uv run pre-commit install
+uv run pre-commit run --all-files
+docker compose up -d --wait
+uv run pytest --due-work-require-assessed --due-work-profile-report=profiles.json
 uv build
 ```
 
-Tests use real PostgreSQL. The worker integration test also uses Redis and a
-separate Celery prefork process. Set the connection URLs to point to dedicated
-test services. `pytest-django` creates and drops its own test database.
+Pre-commit uses the Ruff and Pyrefly versions in `uv.lock`. CI also tests the
+minimum Django version, checks migrations, and installs the wheel without test
+dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 
-Applications can install `due[testing]` for the `pytest-obligation` integration.
-The generated suite proves recovery, ownership, retention, admission and retry
-bounds for its bound example; it is not certification of arbitrary application
-callbacks. See [verification](docs/verification.md) and [architecture](docs/architecture.md).
-
-Licensed under [Apache-2.0](LICENSE). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).
+[Integration](docs/integration.md) · [Architecture](docs/architecture.md) ·
+[Verification](docs/verification.md) · [Apache-2.0](LICENSE)
