@@ -73,12 +73,11 @@ composition is excluded. [Extraction scope →](docs/extraction.md)
 
 ## Coming from another library?
 
-See the [competitor comparison](docs/competitors.md),
-[migration guides](docs/migrations.md), and
-[compatibility adapter assessment](docs/compatibility.md) for Procrastinate,
-DBOS, RQ, Django Tasks, Celery and other Python libraries. The guides distinguish
-current Due APIs from proposed adapters, and explain when staying with the
-existing library is the better choice.
+Start with [your library's migration guide](docs/migrations.md). Each guide
+covers the benefits of adopting Due, a concrete migration, behavior to preserve,
+cutover and rollback, and whether a compatibility layer would help. Guides cover
+Procrastinate, DBOS, RQ, Django Tasks, Celery and the other Python libraries in
+[the background-work ecosystem overview](docs/alternatives.md).
 
 ## Install
 
