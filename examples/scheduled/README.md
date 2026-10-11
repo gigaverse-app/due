@@ -94,3 +94,105 @@ uv run pytest tests/examples/test_scheduled.py tests/conformance/test_scheduled_
 - CI runs these in both Django dependency lanes and requires executed profiles
   A/B/E/H/I/J plus the complete application effect report. Missing or filtered
   proofs fail the gate. No new unassessed profile debt is accepted for this demo.
+
+## How complete is the port?
+
+The movable-deadline journey is runnable and tested. This is **not a drop-in port
+of every upstream command or of Temporal's execution model**:
+
+| Upstream behavior | Due equivalent or difference |
+| --- | --- |
+| `worker.py` executes the timer workflow | Celery worker executes `PublishAtDeadline`; Beat finds due rows |
+| `starter.py` starts tomorrow's timer | `scheduled_publication create --at …` accepts any timezone-aware deadline |
+| Re-running starter while its fixed workflow ID is running | **Different:** each Due create currently makes a new publication; no caller-supplied submission key |
+| `wake_up_time_updater.py` signals ten seconds from now | `reschedule ID --at …` changes pending desired state synchronously |
+| `get_wake_up_time` workflow query | `show ID` / the detail page reads the committed product deadline |
+| Timer returns when its current deadline passes | Due additionally writes a file and settles a product pointer |
+| Temporal workflow history, replay and operator UI | No equivalent history/replay UI is provided by this demo |
+| Cancellation | Due has an explicit product command; the upstream sample requires Temporal's generic SDK/CLI cancellation |
+
+The upstream does not publish a file, so it cannot demonstrate cancellation after
+publication starts. Due's `already_started` boundary is an explicit application
+contract, not evidence that Temporal cannot protect an external operation.
+Likewise, successful restart recovery is a shared capability, not a Due-only win.
+
+## Run the original next to Due
+
+Install the [Temporal CLI](https://github.com/temporalio/cli/releases/tag/v1.9.1),
+then start its local development server in another terminal:
+
+```bash
+temporal server start-dev --db-filename /tmp/temporal-timers.db
+```
+
+Check out the pinned source in a separate directory:
+
+```bash
+git clone https://github.com/temporalio/samples-python.git temporal-samples
+cd temporal-samples
+git checkout ff0f1343822e532a5c377f02003002d2dcac4f79
+uv sync --no-dev
+uv run --no-sync updatable_timer/worker.py
+```
+
+From another terminal in that checkout:
+
+```bash
+uv run --no-sync updatable_timer/starter.py
+uv run --no-sync updatable_timer/wake_up_time_updater.py
+```
+
+The timer starts a day ahead; each updater invocation moves it to ten seconds
+from now. Inspect the workflow and signal/timer events in the native Temporal UI
+at <http://localhost:8233>. Due's corresponding controls are at
+<http://127.0.0.1:8000/scheduled/>. These are different interfaces: Temporal's UI
+is an engine operator console; Due's is a minimal product page.
+
+The [comparison evidence](https://github.com/gigaverse-app/due/pull/19) contains
+actual screenshots of both interfaces, original CLI logs, workflow history,
+raw timing samples, methodology, and the runner used for the live assertions.
+It is an evidence-only PR, deliberately closed without merging run artifacts.
+The automated runner imports the pinned upstream workflow unchanged and uses a
+real Temporal dev server, PostgreSQL, Redis, Celery and Beat. Temporal is an
+optional comparison dependency; it is not needed to run Due's demo or CI.
+
+## What this comparison teaches
+
+Due is a useful fit when the obligation belongs to an existing Django product
+transaction. Creating/changing the product and its owed work commits in the same
+PostgreSQL transaction. A remote Temporal start/signal call cannot join that local
+transaction: an equivalent product integration needs its own reliable handoff,
+such as an outbox. The upstream timer has no product DB, so it does not exercise
+that problem at all. This is an architectural fit advantage, not a measured
+performance advantage.
+
+Due also provides application-bound generated recovery/replay/cancellation proofs
+and fences product settlement by the current revision. Those are useful tools
+for the BE. Temporal supplies durable workflow history and excellent testing
+facilities of its own, including [time skipping and history replay](https://docs.temporal.io/develop/python/best-practices/testing-suite).
+Our larger test count does not establish a reliability ranking.
+
+Temporal's timer abstraction is smaller for the original timer-only problem.
+Its native UI exposes signals, timers, history and worker information which our
+page does not. Due avoids a new workflow service for a Django/Celery deployment,
+but it still uses PostgreSQL, Redis, a worker and Beat here. Do not claim fewer
+components universally, lower operational cost, or equivalent orchestration.
+
+### Improvements to prioritize
+
+| Priority | Gap | Improvement and acceptance proof |
+| --- | --- | --- |
+| 1 | Future deadlines depend on the five-second recovery cadence in this configuration | Add a bounded, best-effort deadline wake-up while retaining DB eligibility and periodic recovery; measure lateness and prove lost/obsolete wake-ups still recover and never publish early |
+| 1 | Retried create requests can create separate publications | Add a caller-supplied admission key with defined same-key/different-input behavior; prove retries and concurrent duplicate submissions create one product/obligation |
+| 2 | Product status alone does not explain a late or failed publication | Surface desired/applied revisions, last attempt/error, next recovery and cancellation refusal in an operator view; make the incident/retry journey executable |
+| 2 | `retention=None` grows retained scheduled evidence | Design safe archival/retention that preserves stale-delivery and unresolved-attempt protection; benchmark selection with retained history before allowing pruning |
+| 2 | Local files assume shared storage, and the browser needs manual refresh | Provide a shared/object-storage example and clearer live status/actions; keep its provider guarantees explicit |
+| 3 | A timer sample cannot assess complex orchestration or production capacity | Add matched external-effect workloads and controlled load/resource measurements; compare multi-step workflows separately |
+
+The timing runner reports command acknowledgements separately from observed
+lateness after the final deadline. Due's observation includes file publication
+and DB settlement; Temporal's includes only timer/workflow completion. Small,
+sequential local runs can reveal polling latency, but cannot establish production
+throughput, CPU/memory efficiency, cost, or comparative failure rates. Treat
+arrival phase, persistence configuration and observation interval as part of the
+measurement, not incidental details.
