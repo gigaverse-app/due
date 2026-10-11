@@ -25,6 +25,14 @@ Keep independent computation and workflows that rely on Canvas or result backend
 on their existing paths. Celery already provides retries, routing and scheduling;
 Due adds a particular product lifecycle, not universally better task execution.
 
+## Executable comparison
+
+The [document-publication add-on](../../examples/celery_migration/README.md) runs
+a plain Celery task beside the existing Due implementation with the same model
+and file provider. It includes real-worker delivery, a replay control and two
+explicit baseline gaps for lost delivery and stale completion. It also names the
+extra schema and recovery machinery, rather than claiming the port is shorter.
+
 ## Prepare the Due side
 
 Due currently requires **Python 3.14+, Django >=6.0.8,<7, PostgreSQL, Celery,

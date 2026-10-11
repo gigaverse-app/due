@@ -13,11 +13,18 @@ notification and checks recovery through PostgreSQL, Redis and a Celery worker.
 
 ## Books and search
 
-The [books application](books/README.md) has a browser interface and a two-stage
+The [books application](books/README.md) adapts Procrastinate’s Django books
+demo, with upstream attribution in its README. It has a browser interface and a two-stage
 indexing workflow. It uses a local SQLite search provider and demonstrates
 recovery when either stage's notification is lost. Its tests import the same
 application code and include generated conformance, actual process death, and
 Redis/Celery integration journeys.
+
+## Celery migration add-on
+
+The [Celery comparison](celery_migration/README.md) uses the document app’s model
+and file provider to compare a plain task with native Due. It is separate from
+the Books/Procrastinate port and keeps both original examples intact.
 
 ## Adding an example
 

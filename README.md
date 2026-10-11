@@ -134,9 +134,9 @@ schedule and route both execution and recovery. See [integration](docs/integrati
 
 ## Run the example
 
-The [document-publication application](examples/documents/README.md) originated
-as a Procrastinate demo and was ported to Due. This checkout runs the Due side
-of that migration.
+This quickstart runs the minimal [document-publication application](examples/documents/README.md).
+The separate [Books application](examples/books/README.md) adapts Procrastinate’s
+Django books demo into a Due workflow and documents its upstream provenance.
 
 ```bash
 git clone https://github.com/gigaverse-app/due.git
