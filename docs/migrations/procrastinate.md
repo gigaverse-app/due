@@ -28,6 +28,11 @@ not a new guarantee gained by switching.
 
 ## Prepare the Due side
 
+The [Books application](../../examples/books/README.md) is the concrete port of
+Procrastinate’s create → index → mark-indexed demo. It documents its upstream
+source and runs both indexing stages with Due. The shorter document-publication
+snippets below isolate the API changes; they are not an archived source snapshot.
+
 Due currently requires **Python 3.14+, Django >=6.0.8,<7, PostgreSQL, Celery,
 a broker, workers and periodic recovery**. It is alpha; pin a reviewed GitHub
 revision. Product, work and evidence must use the same writable database through

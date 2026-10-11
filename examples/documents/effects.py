@@ -1,10 +1,7 @@
 """A replay-safe file publication with fenced database settlement."""
 
-import hashlib
-import os
-from pathlib import Path
-
 from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
+from examples.documents import storage
 from examples.documents.models import Document, PublicationWork
 
 
@@ -12,11 +9,7 @@ class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
     def perform_effect(self, work: PublicationWork) -> str:
         # Each revision writes its own immutable key. A late old worker cannot
         # overwrite the current revision's bytes. Retrying this key is safe.
-        key = hashlib.sha256(work.provider_idempotency_key().encode()).hexdigest()
-        output = Path(os.environ.get("DUE_OUTPUT_DIR", "/tmp/due-documents"))
-        output.mkdir(parents=True, exist_ok=True)
-        (output / key).write_text(work.text)
-        return key
+        return storage.write_revision(work.text, work.provider_idempotency_key())
 
     def finalize_success(self, work: PublicationWork, result: str) -> None:
         # Due holds the owner/work locks and validates the captured revision
