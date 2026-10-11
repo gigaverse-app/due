@@ -54,7 +54,7 @@ no throughput is calculated from either window.
 | Worker death after external publication / cancellation after entry | Existing Due conformance tests cover it | Not compared | Original Temporal sample has no external publication activity |
 
 See [run3 results and assertions](run3/results.json), the [runner](run_comparison.py),
-and [original repeated-starter output](run3/upstream-1-starter.py.log).
+[Due subprocess CLI transcript](due-cli.log), and [original repeated-starter output](run3/upstream-1-starter.py.log).
 The upstream original workflow's [event history](run3/temporal-history.json) is
 preserved alongside the worker logs. No activity, timer or recovery implementation
 was mocked, and the benchmark used real elapsed time.

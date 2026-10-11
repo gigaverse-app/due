@@ -1,0 +1,15 @@
+$ python -m django scheduled_publication create CLI live audit --at 2026-10-11T12:31:39.535865+00:00
+Publication 45: scheduled at 2026-10-11T12:31:39.535865+00:00
+
+$ python -m django scheduled_publication show 45
+Publication 45: scheduled; 2026-10-11T12:31:39.535865+00:00; key=
+
+$ python -m django scheduled_publication reschedule 45 --at 2026-10-11T13:31:40.167150+00:00
+scheduled
+
+$ python -m django scheduled_publication cancel 45
+cancelled
+
+$ python -m django scheduled_publication show 45
+Publication 45: cancelled; 2026-10-11T13:31:40.167150+00:00; key=
+
