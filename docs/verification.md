@@ -43,3 +43,26 @@ the same case pass. The broken implementation was not committed.
 
 [Initial CI run](https://github.com/gigaverse-app/due/actions/runs/38098113273)
 ran the full check workflow successfully for the extraction implementation.
+
+## Contributor workflow and parity follow-up
+
+The expanded PostgreSQL/Redis suite passes **461 tests**, including the same
+44 generated contract cases. Added proofs cover registry/Beat routing,
+dependent wakes and lock ordering, mirror rollback and receipt repair, closed
+execution gates with unresolved evidence, operation recovery isolation and soft
+limits, read-only operator inspection, and private delivery arbitration.
+
+CI runs the suite on both locked Django and the declared minimum (6.0.8), with
+independent lint/workflow, Pyrefly and installed-wheel jobs. The wheel smoke test
+runs with isolated Python and no development dependencies, checks pure-contract
+imports, loads every runtime module, and verifies the typing marker, migration
+and management command are included.
+
+The report guard requires profiles A, B, D, I and J to have actually executed
+and passed. Its negative controls reject an empty report and a report whose
+stored `verified`/`passed` flags claim success while a required case was not
+selected: verdicts are recomputed from canonical pytest-obligation models.
+
+[Follow-up CI](https://github.com/gigaverse-app/due/actions/runs/38099055025)
+passed all five jobs for implementation commit `2766c33`, including both Django
+versions.
