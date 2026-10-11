@@ -7,6 +7,7 @@ from functools import partial
 
 import pytest
 from asgiref.sync import AsyncSingleThreadContext
+from pytest_obligation.interleavings import ProviderControl
 
 from due.django.conformance.background import (
     BackgroundWork,
@@ -14,6 +15,8 @@ from due.django.conformance.background import (
     frozen_scheduler_clock,
 )
 from due.django.conformance.worker_connection import database_worker_connection
+from due.django.models import UniverseDurableWork
+from due.django.runtime.registry import registration_for
 
 
 @dataclass
@@ -72,3 +75,40 @@ def environment() -> Iterator[tuple[BackgroundWork, pytest.MonkeyPatch]]:
 # Ordered actors already own fresh threads. Reuse the shared SQL-deadline and
 # connection-cleanup owner instead of maintaining a second teardown protocol.
 connection_scope = partial(database_worker_connection, statement_timeout_ms=5_000)
+
+
+@dataclass(frozen=True)
+class WorkTableRecovery:
+    """
+    Registered recovery and fault accounting for work tables behind one ProviderControl.
+
+    Every in-flight binding over work tables needs the same two callbacks: run each
+    capability's registered recovery through the broker, and accept exactly the worker
+    errors that injected provider faults explain. Anything else stays a failure.
+    """
+
+    background: BackgroundWork
+    provider: ProviderControl
+    models: tuple[type[UniverseDurableWork], ...]
+    """Work-table models whose registered recoveries run, in order."""
+    injected: tuple[type[BaseException], ...]
+    """Error types an injected fault surfaces as (a timeout, an unknown-outcome error)."""
+
+    def recover(self) -> None:
+        for model in self.models:
+            faults_before = len(self.provider.reached)
+            try:
+                self.background.run_recovery(registration_for(model).name)
+            except self.injected:
+                assert len(self.provider.reached) > faults_before, "uninjected provider failure"
+
+    def account(self) -> None:
+        assert len(self.background.failures) <= len(self.provider.reached), "more worker errors than injected faults"
+        failures = self.background.unexpected_failures()
+        if failures:
+            errors: list[type[BaseException]] = []
+            for failure in failures:
+                assert failure.error is not None
+                assert isinstance(failure.error, self.injected), repr(failure.error)
+                errors.append(type(failure.error))
+            self.background.expect_failures(*errors)

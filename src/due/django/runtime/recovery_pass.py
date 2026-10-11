@@ -4,6 +4,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ from due.django.runtime.metrics import (
     record_recovery_failure,
     record_recovery_pass,
     record_recovery_stale_after,
+    record_recovery_unclean,
 )
 from due.retry_delays import ExponentialDelay
 
@@ -380,7 +382,10 @@ def recovery_tick(
                 publish_recovery_deferrals(effect, observed_at=tick.clock())
     except BaseException:
         record_recovery_pass(effect, RecoveryOutcome.ABORTED)
+        _stamp_unclean(effect, heartbeat)
         raise
+    if tick.errors:
+        _stamp_unclean(effect, heartbeat)
     tick.raise_if_failed()
     if heartbeat:
         record_recovery_completed(effect, _coordination_now().timestamp())
@@ -513,3 +518,15 @@ class RecoveryStep:
 
     phase: RecoveryPhase
     run: Callable[[RecoveryPass], int]
+
+
+def _stamp_unclean(effect: str, heartbeat: bool) -> None:
+    """
+    Record when a heartbeat tick ended without a clean outcome.
+
+    The worker's wall clock, not the database's: an aborted tick may have lost
+    its connection. Operators compare this with the clean heartbeat; clocks
+    must be synchronized because close outcomes can otherwise appear reordered.
+    """
+    if heartbeat:
+        record_recovery_unclean(effect, time.time())

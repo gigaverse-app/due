@@ -103,3 +103,28 @@ whose task is Due's exact recovery task. Call it intentionally during scheduler
 startup; it never sweeps unrelated tasks or old backend namespaces. Applications
 migrating from the original primitive must explicitly retire their legacy task
 routes after the data and worker cutover.
+
+## Failed infrequent recovery
+
+`due_last_unclean_recovery_timestamp_seconds{effect=...}` records the end of a
+failed or aborted heartbeat tick, using the worker's wall clock even when the
+database connection failed. Clean ticks advance
+`due_last_recovery_timestamp_seconds`; they leave the failure stamp unchanged.
+A fast-path loop with `heartbeat=False` changes neither timestamp.
+
+For infrequent sweeps, compare the latest unclean timestamp with the latest clean
+heartbeat instead of relying only on a short-window counter increase. Handle an
+absent clean series too, since the first ever run may fail. For example:
+
+```promql
+(due_last_unclean_recovery_timestamp_seconds
+ > on(effect) due_last_recovery_timestamp_seconds)
+or
+(due_last_unclean_recovery_timestamp_seconds
+ unless on(effect) due_last_recovery_timestamp_seconds)
+```
+
+Use matching service/environment labels when combining multiple applications.
+Keep worker and database clocks synchronized: close clean/unclean outcomes can
+otherwise appear reordered. Choose alert routing and cadence policy in the application. This package exports
+the observation; installing it does not migrate a backend's dashboards or alerts.

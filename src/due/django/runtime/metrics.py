@@ -120,6 +120,13 @@ _due_last_recovery = Gauge(
     multiprocess_mode="livemostrecent",
 )
 
+_due_last_unclean_recovery = Gauge(
+    "due_last_unclean_recovery_timestamp_seconds",
+    "Last failed or aborted recovery tick; newer than the clean heartbeat means recovery is still unclean.",
+    labelnames=("effect",),
+    multiprocess_mode="livemostrecent",
+)
+
 _due_recovery_stale_after = Gauge(
     "due_recovery_stale_after_seconds",
     "How long an effect may go without a clean recovery tick before it is stale: twice its slowest cadence.",
@@ -266,3 +273,9 @@ _due_waiting_eligibility = Gauge(
 def record_execution_eligibility(effect: str, *, eligible: int, waiting: int) -> None:
     _due_eligible.labels(effect=effect).set(eligible)
     _due_waiting_eligibility.labels(effect=effect).set(waiting)
+
+
+@_optional_observation
+def record_recovery_unclean(effect: str, timestamp: float) -> None:
+    """Publish an unclean tick's end time without changing durable work truth."""
+    _due_last_unclean_recovery.labels(effect=effect).set(timestamp)

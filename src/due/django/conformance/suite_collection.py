@@ -149,6 +149,9 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         for path in admission_paths(examples):
             expected.add(f"test_immutable_inputs_hold[{path.id}]")
     if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
+        # Unbounded discovery claims every eligible owner, so its generated completeness proof cannot disappear.
+        if capability.discovery.horizon is None:
+            expected.add("test_discovery_selection_is_complete")
         for edge in candidate_edges(capability):
             expected.add(f"test_database_legal_candidate_is_admissible[{edge.id}]")
             expected.add(f"test_inadmissible_candidate_does_not_block_the_next[{edge.id}]")

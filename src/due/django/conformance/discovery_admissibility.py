@@ -57,9 +57,11 @@ sweeps get the same catalog through
 """
 
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from pytest_obligation.integrations.django.edge_values import CandidateEdge, model_edges, write_unvalidated
+from pytest_obligation.integrations.django.selection_completeness import CompletenessBinding
 
 from due.django.public import Discovery, OwnedDurableWorkCapability, database_now
 from due.django.runtime.coordination import outstanding_work
@@ -147,4 +149,41 @@ def assert_inadmissible_candidate_does_not_block_the_next(
         f"{'first in candidate order' if ahead else 'in the same tick'} stopped discovery of the valid owner "
         f"behind it (derive() raised {error!r}). One such row then blocks every later owner of its kind on "
         f"every tick"
+    )
+
+
+def discovery_completeness(
+    capability: OwnedDurableWorkCapability[Any, Any, Any], make_implied: Callable[[], Any]
+) -> CompletenessBinding:
+    """
+    The discovery page as selection completeness reads it: an owner it skips must owe no work.
+
+    The selection is the production candidate query; the worker is the step
+    ``derive()`` runs per owner, ``_derive_owner``, which enrolls what
+    ``desired_for`` asks for under the owner lock. A skipped owner that step
+    would enroll is owed work no tick discovers.
+
+    Only a discovery declared ``unbounded_because`` claims that: its candidate
+    query is every owner still owed. One with a ``horizon`` declares it adopts
+    part of what ``desired_for`` admits (social publication adopts only the
+    legacy sweep's last day, and leaves retried posts to the compatibility
+    path), so the suite does not generate this case for it.
+    """
+    discovery = _discovery_of(capability)
+    owners = capability.owner_model._base_manager
+
+    def candidates() -> Any:
+        # REAL PRODUCTION: the candidate query derive() pages through; unbounded, so it is the whole page source.
+        return discovery.candidates()
+
+    def make_owner() -> Any:
+        # ARRANGE: the derivation example's valid implied owner, as a row.
+        return owners.get(pk=make_implied())
+
+    return CompletenessBinding(
+        name=f"{capability.model._meta.label_lower} discovery",
+        selection=candidates,
+        make_owed=make_owner,
+        # REAL PRODUCTION: the per-owner step of the discovery phase, on the owner id the page holds.
+        execute=partial(capability._derive_owner, discovery),
     )
