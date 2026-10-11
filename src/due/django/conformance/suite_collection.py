@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import fields
+from inspect import unwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,6 +35,7 @@ from due.django.capabilities.observed_operations import ObservedExternalOperatio
 from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance._internal.immutable_inputs import admission_paths
 from due.django.conformance.composition import compensations_for
 from due.django.conformance.discovery_admissibility import candidate_edges
 from due.django.conformance.recovery_isolation import recovery_isolation_histories
@@ -101,7 +103,9 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         for outcome in ("poisoned", "control"):
             expected.add(f"test_one_poisoned_identity_does_not_stall_recovery[{history}-{outcome}]")
     examples = cls.__durable_work_examples__
-    assert contract.handoffs == examples.handoffs, (
+    assert tuple(
+        history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in contract.handoffs
+    ) == tuple(history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in examples.handoffs), (
         f"{cls.__name__}: handoff histories differ from declared product transitions"
     )
     assert contract.process_handoffs == examples.process_handoffs, (
@@ -141,6 +145,9 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
     for producer in examples.admissions:
         for outcome in ("commit", "rollback"):
             expected.add(f"test_application_admission_transaction[{outcome}-{producer}]")
+    if examples.perturb_inputs is not None:
+        for path in admission_paths(examples):
+            expected.add(f"test_immutable_inputs_hold[{path.id}]")
     if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
         for edge in candidate_edges(capability):
             expected.add(f"test_database_legal_candidate_is_admissible[{edge.id}]")

@@ -55,6 +55,12 @@ from due.django.capabilities.observed_operations import ObservedExternalOperatio
 from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance._internal.immutable_inputs import (
+    AdmissionPath,
+    admission_paths,
+    assert_immutable_inputs_hold,
+    checks_immutable_inputs,
+)
 from due.django.conformance.background import (
     accounted_background_work,
     frozen_scheduler_clock,
@@ -397,6 +403,57 @@ def required_examples_for(mode: type[DurableWorkCapability[Any, Any]]) -> tuple[
     raise ObligationContractDesignError(f"unrecognized capability mode: {mode.__name__}")
 
 
+def _convergence_decline_defects(
+    capability: DurableWorkCapability[Any, Any], examples: EffectExamples[Any], *, convergent: bool, name: str
+) -> list[str]:
+    """Refuse a contradictory profile E decision; return the declarations still missing."""
+    declared = [
+        field
+        for field in ("immutable_inputs", "perturb_inputs", "convergence_not_assessed")
+        if getattr(examples, field)
+    ]
+    if convergent:
+        if declared:
+            raise ObligationContractDesignError(
+                f"{name}: profile E is claimed (moving input or a bound E family), so {', '.join(declared)} "
+                f"decide(s) nothing; remove them"
+            )
+        return []
+    if examples.immutable_inputs and examples.convergence_not_assessed:
+        raise ObligationContractDesignError(
+            f"{name}: immutable_inputs says admitted inputs never move; convergence_not_assessed says they do"
+        )
+    for decision in ("immutable_inputs", "convergence_not_assessed"):
+        if getattr(examples, decision) is not None and not is_real_reason(getattr(examples, decision)):
+            raise ObligationContractDesignError(f"{name}: {decision} must state the domain rule, not a placeholder")
+    checked = checks_immutable_inputs(capability)
+    if examples.perturb_inputs is not None and not (checked and examples.immutable_inputs):
+        raise ObligationContractDesignError(
+            f"{name}: perturb_inputs checks immutable_inputs on owned replay-safe work only; "
+            + (
+                "this capability cannot move admitted inputs (an evidence-required operation refuses new input "
+                "and supersession; an independent compensation has no admission seam), so there is nothing to perturb"
+                if not checked
+                else "it is declared without immutable_inputs"
+            )
+        )
+    if not (examples.immutable_inputs or examples.convergence_not_assessed):
+        return [
+            "immutable_inputs (the domain rule why admitted inputs never move) or convergence_not_assessed "
+            "(which production path moves them)"
+        ]
+    if not (checked and examples.immutable_inputs):
+        return []
+    if not admission_paths(examples):
+        raise ObligationContractDesignError(
+            f"{name}: immutable_inputs is checked by re-running a real admission path; bind producers, admissions, "
+            f"admission_failures or synchronous_callers"
+        )
+    if examples.perturb_inputs is None:
+        return ["perturb_inputs (immutable_inputs is checked: move the facts an admitted work's inputs derive from)"]
+    return []
+
+
 def effect_contract[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT], *, examples: EffectExamples[W]
 ) -> ObligationContract:
@@ -424,8 +481,8 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         "eligibility": capability.eligibility is not None,
     }
     missing = [field for field, needed in required.items() if needed and getattr(examples, field) is None]
-    if not moving and not examples.immutable_inputs:
-        missing.append("immutable_inputs (domain reason why input cannot be superseded)")
+    convergent = moving or bool(examples.in_flight or examples.evidence_confluence) or examples.convergence is not None
+    missing.extend(_convergence_decline_defects(capability, examples, convergent=convergent, name=name))
     if missing:
         raise ObligationContractDesignError(f"{name}: production semantics require examples: {', '.join(missing)}")
     for scenario_name, scenario_bindings in (
@@ -457,7 +514,6 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             raise ObligationContractDesignError(
                 f"{name}: admission_not_applicable must name the single atomic work-row write"
             )
-    convergent = moving or bool(examples.in_flight or examples.evidence_confluence) or examples.convergence is not None
     if examples.convergence_families and not convergent:
         raise ObligationContractDesignError(
             f"{name}: convergence_families decide families of a profile E it never claims"
@@ -574,7 +630,11 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             Profile.D: Claim()
             if pruning
             else NotApplicable("Registered policy retains work and evidence indefinitely."),
-            Profile.E: Claim() if convergent else NotApplicable(examples.immutable_inputs or ""),
+            Profile.E: Claim()
+            if convergent
+            else NotAssessed(because=examples.convergence_not_assessed)
+            if examples.convergence_not_assessed
+            else NotApplicable(examples.immutable_inputs or ""),
             Profile.F: Claim() if discovery else NotApplicable("No canonical discovery is registered."),
             Profile.HARMLESS_REPLAY: Decline(
                 "Production requires definite provider evidence; another call can duplicate an occurrence."
@@ -597,7 +657,10 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         convergence_families=examples.convergence_families,
         in_flight=examples.in_flight,
         evidence_confluence=examples.evidence_confluence,
-        handoffs=examples.handoffs,
+        handoffs=tuple(
+            history.model_copy(update={"arrange": _in_environment(examples, history.arrange)})
+            for history in examples.handoffs
+        ),
         process_handoffs=examples.process_handoffs,
         handoff_delivery=WorkTableDelivery(capability) if examples.handoffs else None,
         replay=bound(examples.replay),
@@ -1096,6 +1159,18 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     assert_synchronous_caller(capability, scenario, history=history)
 
             cls.test_synchronous_caller = with_fixtures(test_synchronous_caller)
+
+        if examples.perturb_inputs is not None:
+            assert isinstance(capability, OwnedDurableWorkCapability)
+            owned = capability
+            paths = admission_paths(examples)
+
+            @pytest.mark.django_db(transaction=True)
+            @pytest.mark.parametrize("path", paths, ids=[path.id for path in paths])
+            def test_immutable_inputs_hold(self, path: AdmissionPath):
+                assert_immutable_inputs_hold(owned, examples, path, name=entry.name)
+
+            cls.test_immutable_inputs_hold = with_fixtures(test_immutable_inputs_hold)
 
         if examples.admissions:
 

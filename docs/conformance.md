@@ -353,3 +353,55 @@ rejects `recovery_ticks` explicitly. See the shared
 Use the [API reference and module map](conformance-api.md) for all example fields,
 scopes, extension interfaces and implementation boundaries. For the difference
 between a tested case and a general guarantee, read [verification scope](verification.md).
+
+## Prove an immutable-input declaration
+
+`immutable_inputs` is a checked claim that production keeps admitted inputs fixed.
+For owned replay-safe work, supply `perturb_inputs(work)` and real admission
+bindings (`producers`, `admissions`, `admission_failures`, or
+`synchronous_callers`). The generated suite checks every bound path:
+
+```text
+admit -> claim (or park at the gate) -> change product facts
+                                               |
+                     replay admission + registered recovery
+                                               |
+                  compare inputs, revision and claim fencing
+```
+
+```mermaid
+flowchart LR
+    A[Real admission] --> B[Claim admitted work]
+    B --> C[perturb_inputs changes product facts]
+    C --> D[Repeat same admission path]
+    D --> E[Run registered recovery]
+    E --> F[Inputs and revision unchanged]
+    E --> G[Claimed work retains state and token]
+```
+
+The harness rejects declared dependent wakes, a perturbation that writes no
+product row, and a path that only creates fresh obligations rather than revisiting
+the admitted owner. The reviewer still must check that the perturbation changes
+the facts from which the inputs derive. An unrelated write does not establish
+that connection.
+
+Use `convergence_not_assessed="..."` when the E bindings are missing, explaining
+the production path and evidence still needed. This produces explicit strict
+xfail debt. A moving-input capability should bind the E families it needs.
+Claimed E families cannot also declare immutable inputs or unassessed E.
+Evidence-required operations and independent compensations cannot move their
+inputs through these runtime paths, so they do not accept `perturb_inputs`.
+
+The book examples currently record E binding debt: their creation bindings always
+admit a new owner and do not prove input immutability on a revisit. Other book
+proofs still run. `--due-work-require-assessed` deliberately rejects those suites
+until that evidence is supplied. CI instead enforces the exact two entries in
+[`debt_baseline.yaml`](../tests/conformance/debt_baseline.yaml); adding other
+unassessed guarantees or silently removing these declarations fails collection.
+
+Runnable positive and negative controls are in
+[`test_immutable_inputs_claim.py`](../tests/conformance/test_immutable_inputs_claim.py),
+including all four admission families, changing inputs, waking in-flight work,
+missing perturbations and bindings that never revisit an owner. Factories may
+return examples directly or provide context managers, following the public
+[binding interface](conformance-api.md).

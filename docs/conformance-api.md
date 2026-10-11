@@ -72,7 +72,7 @@ capability requires it. Use the generated report to see the actual assessment;
 | `terminal` | Exhaustion visibility and authorized rearm for finite retry budgets. |
 | `replay` | Shared `ReplaySafeEffect` binding that actually enters the external operation twice. |
 | `eligibility` | One gate example or a mapping of named variants; keep readiness transitions in production. |
-| `immutable_inputs`, `snapshot` | Explain immutable captured inputs, or exercise a real change/supersession. |
+| `immutable_inputs`, `perturb_inputs`, `convergence_not_assessed`, `snapshot` | [Prove fixed inputs by perturbing product facts and revisiting admission](conformance.md#prove-an-immutable-input-declaration), record missing E evidence, or exercise real supersession. |
 | `derivation` | Canonical fact arrangement and independent desired-state observation. |
 | `applied_receipt`, `receipt_repair` | A canonical applied receipt and a scoped delivery proving recovery repairs product state without repeating the effect. |
 | `producers`, `admissions`, `admission_failures` | Named producer/standalone command paths and an interruption after a partial write. These bindings own their scopes. |
@@ -131,3 +131,7 @@ When changing a proof, keep the production transition in its runtime owner and
 the portable oracle in pytest-obligation. Add a faulty control that the proof
 rejects, then run the [contributor checks](../CONTRIBUTING.md). Reports deliberately
 link to the actual proof implementation, even when users import its public facade.
+
+Crash histories also enter `EffectExamples.environment` before `arrange` and keep it active through transition, delivery, recovery and observation. Each history run owns and closes its scope, including faulted runs. Process histories configure their own child-process environment.
+
+Schema index proofs reuse pytest-obligation's PostgreSQL catalog records, including key order, included columns and partial predicates. They reject a B-tree condition on only a later key; an index name or `Index Cond` alone is insufficient evidence of narrowing.

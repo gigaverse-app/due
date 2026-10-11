@@ -66,6 +66,6 @@ def examples_for[W: UniverseDurableWork, ResultT](stage: Stage[W, ResultT]) -> E
         retry=retry,
         terminal=lambda: stage.terminal,
         replay=replay,
-        immutable_inputs="The demo accepts immutable book submissions; editing or replacing a book is not exposed.",
+        convergence_not_assessed="Book creation admits a fresh owner; the existing admission bindings do not revisit admitted work to prove input immutability.",
         environment=index_environment,
     )

@@ -41,3 +41,30 @@ def test_ci_rejects_missing_or_nonpassing_application_evidence(tmp_path: Path, f
             check_effects(path, ["example"])
     else:
         check_effects(path, ["example"])
+
+
+@pytest.mark.parametrize("fault", [None, "extra", "stale", "passed", "other_xfail"])
+def test_ci_accepts_only_exact_declared_unassessed_cases(tmp_path: Path, fault: str | None) -> None:
+    declined = "test_due_work_contract[E-not_assessed]"
+    suite = {
+        "expected": [declined, "receipt repair"],
+        "collected": [declined, "receipt repair"],
+        "selected": [declined, "receipt repair"],
+        "unassessed": [declined],
+        "outcomes": {declined: ["xfail"], "receipt repair": ["passed"]},
+    }
+    if fault == "extra":
+        suite["unassessed"].append("receipt repair")
+    elif fault == "stale":
+        suite["unassessed"] = []
+    elif fault == "passed":
+        suite["outcomes"][declined] = ["passed"]
+    elif fault == "other_xfail":
+        suite["outcomes"]["receipt repair"] = ["xfail"]
+    path = tmp_path / "effects.json"
+    path.write_text(json.dumps({"example": suite}))
+    if fault:
+        with pytest.raises(AssertionError):
+            check_effects(path, ["example"], unassessed=[declined])
+    else:
+        check_effects(path, ["example"], unassessed=[declined])

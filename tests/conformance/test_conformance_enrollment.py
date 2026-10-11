@@ -20,6 +20,7 @@ from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance._internal.immutable_inputs import checks_immutable_inputs
 from due.django.conformance.composition import compensations_for
 from due.django.conformance.enrollment import (
     EffectEnrollment,
@@ -231,6 +232,9 @@ def _expected_requirements(capability: DurableWorkCapability[Any, Any]) -> tuple
         required += ("compensation",)
     if capability.eligibility is not None:
         required += ("eligibility",)
+    if checks_immutable_inputs(capability) and "snapshot" not in required:
+        # Owned replay-safe work that declines E: the decline is checked by perturbing its facts.
+        required += ("perturb_inputs",)
     return tuple(dict.fromkeys(required))
 
 
@@ -256,7 +260,10 @@ def test_capabilities_require_their_examples(capability, required, monkeypatch):
     needed = _expected_requirements(capability)
     examples = EffectExamples(
         make_work=no_fixture,
-        immutable_inputs="An immutable domain occurrence.",
+        # Moving input claims E; everything else declines it with a reason (checked where production could move it).
+        immutable_inputs=None if "snapshot" in needed else "An immutable domain occurrence.",
+        perturb_inputs=no_fixture if "perturb_inputs" in needed and required != "perturb_inputs" else None,
+        producers={"declared": no_fixture} if "perturb_inputs" in needed else {},
         delivery=no_fixture,
         retry=no_fixture,
         replay=no_fixture if "replay" in needed and required != "replay" else None,
@@ -322,19 +329,30 @@ def declared_only(*args: object, **kwargs: object) -> Any:
     raise AssertionError("a declaration-only binding must not execute")
 
 
-def _immutable_examples(**declared: Any) -> EffectExamples:
-    """A complete immutable-input declaration for the root primitive, plus the decisions under test."""
-    assert _expected_requirements(primitive) == ("delivery", "retry", "replay", "terminal")
+def _declared_examples(**declared: Any) -> EffectExamples:
+    """The root primitive's required bindings, with no profile E decision, plus the decisions under test."""
+    assert _expected_requirements(primitive) == ("delivery", "retry", "replay", "terminal", "perturb_inputs")
     return replace(
         EffectExamples(
             make_work=declared_only,
-            immutable_inputs="An immutable domain occurrence.",
             delivery=declared_only,
             retry=declared_only,
             replay=declared_only,
             terminal=declared_only,
         ),
         **declared,
+    )
+
+
+def _immutable_examples(**declared: Any) -> EffectExamples:
+    """A complete, checked immutable-input declaration for the root primitive, plus the decisions under test."""
+    return _declared_examples(
+        **{
+            "immutable_inputs": "An immutable domain occurrence.",
+            "perturb_inputs": declared_only,
+            "producers": {"declared": declared_only},
+            **declared,
+        }
     )
 
 
@@ -385,7 +403,7 @@ def test_convergence_binding_and_family_decisions_reach_the_contract():
     from pytest_obligation.profiles.catalog import ConvergenceFamily
 
     decision = NotApplicable("No provider evidence is ever applied to this work.")
-    examples = _immutable_examples(
+    examples = _declared_examples(
         convergence=declared_only, convergence_families={ConvergenceFamily.EVIDENCE_CONFLUENCE: decision}
     )
     contract = effect_contract(primitive, examples=examples)
@@ -416,9 +434,100 @@ def test_convergence_family_decisions_reject_unclaimed_or_untyped_declarations(b
 
     reason = "No work is ever paused across a competing change."
     families = {ConvergenceFamily.IN_FLIGHT: NotApplicable(reason) if decision == "not_applicable" else Decline(reason)}
-    declared: dict[str, Any] = {"convergence": declared_only} if bound else {}
+    examples = (
+        _declared_examples(convergence=declared_only, convergence_families=families)
+        if bound
+        else _immutable_examples(convergence_families=families)
+    )
     with pytest.raises(ObligationContractDesignError, match=match):
-        effect_contract(primitive, examples=_immutable_examples(**declared, convergence_families=families))
+        effect_contract(primitive, examples=examples)
+
+
+@pytest.mark.no_db
+def test_immutable_inputs_on_owned_replay_safe_work_generates_the_checked_case():
+    from pytest_obligation.contract import NotApplicable, Profile
+
+    reason = "An immutable domain occurrence."
+    contract = effect_contract(primitive, examples=_immutable_examples())
+    assert contract.profiles[Profile.E] == NotApplicable(reason)
+    # The decline stays a reason only together with the binding that checks it.
+    with pytest.raises(ObligationContractDesignError, match="perturb_inputs"):
+        effect_contract(primitive, examples=_immutable_examples(perturb_inputs=None))
+    with pytest.raises(ObligationContractDesignError, match="re-running a real admission path"):
+        effect_contract(primitive, examples=_immutable_examples(producers={}))
+
+
+@pytest.mark.no_db
+def test_inputs_production_moves_are_reported_not_assessed():
+    from pytest_obligation.contract import NotAssessed, Profile
+
+    reason = "Retirement re-captures the source on every request; E families are not bound yet."
+    examples = _declared_examples(convergence_not_assessed=reason)
+    assert effect_contract(primitive, examples=examples).profiles[Profile.E] == NotAssessed(because=reason)
+    assert "E-not_assessed" in _case_ids(examples)
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize(
+    ("declared", "match"),
+    [
+        ({"convergence": declared_only, "immutable_inputs": "An immutable domain occurrence."}, "decide"),
+        (
+            {
+                "immutable_inputs": "An immutable domain occurrence.",
+                "convergence_not_assessed": "Retirement re-captures the source on every request.",
+            },
+            "says they do",
+        ),
+        ({"perturb_inputs": declared_only, "producers": {"declared": declared_only}}, "without immutable_inputs"),
+        ({"immutable_inputs": "n/a"}, "must state the domain rule"),
+        ({}, "immutable_inputs .the domain rule"),
+    ],
+    ids=["claimed-e", "both-decisions", "perturb-without-claim", "placeholder", "undecided"],
+)
+def test_profile_e_decisions_reject_contradictory_or_missing_declarations(declared, match):
+    with pytest.raises(ObligationContractDesignError, match=match):
+        effect_contract(primitive, examples=_declared_examples(**declared))
+
+
+@pytest.mark.no_db
+def test_perturb_inputs_is_refused_where_the_library_cannot_move_inputs(monkeypatch):
+    from pytest_obligation.contract import NotApplicable, Profile
+
+    from due.django.runtime.registry import DurableWorkRegistration
+
+    operation = next(item for item in TEST_OWNED_CAPABILITIES if isinstance(item, DurableExternalOperation))
+    entry = DurableWorkRegistration("enrollment_operation", operation)
+    monkeypatch.setitem(installed.get(), entry.name, entry)
+    # No perturb_inputs requirement: the library already refuses to move an operation's inputs.
+    assert _expected_requirements(operation) == (
+        "delivery",
+        "retry",
+        "applied_receipt",
+        "receipt_repair",
+        "rejections",
+        "uncertainties",
+        "terminal",
+    )
+    reason = "An evidence-required occurrence refuses new input and supersession."
+    examples = EffectExamples[Any](
+        make_work=declared_only,
+        delivery=declared_only,
+        retry=declared_only,
+        terminal=declared_only,
+        applied_receipt=declared_only,
+        receipt_repair=declared_only,
+        rejections={"rejected": declared_only},
+        uncertainties={"unknown": declared_only},
+        immutable_inputs=reason,
+    )
+    # request_work refuses a different input and supersede_work/wake_work refuse the model: true by construction.
+    assert effect_contract(operation, examples=examples).profiles[Profile.E] == NotApplicable(reason)
+    with pytest.raises(ObligationContractDesignError, match="nothing to perturb"):
+        effect_contract(
+            operation,
+            examples=replace(examples, perturb_inputs=declared_only, producers={"declared": declared_only}),
+        )
 
 
 def _gated_contract(monkeypatch: pytest.MonkeyPatch):
@@ -548,3 +657,47 @@ def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monke
     )
     with pytest.raises(AssertionError, match="make_eligible authors production semantics"):
         case.run()
+
+
+def test_handoff_environment_survives_arrange_transition_and_observation():
+    from contextlib import contextmanager
+
+    from pytest_obligation.crash_histories import HandoffHistory
+
+    from due.django.conformance.binding import entered_binding
+
+    active = []
+    events = []
+
+    @contextmanager
+    def environment():
+        active.append(True)
+        events.append("enter")
+        try:
+            yield
+        finally:
+            active.pop()
+            events.append("exit")
+
+    def arrange():
+        assert active, "handoff arrange needs the adopter environment"
+        events.append("arrange")
+        return 1
+
+    def transition(value):
+        assert active and value == 1
+        events.append("transition")
+
+    def observe(value):
+        assert active
+        events.append("observe")
+        return value
+
+    history = HandoffHistory(name="scoped", arrange=arrange, transition=transition, observe=observe, expected=1)
+    contract = effect_contract(primitive, examples=_immutable_examples(environment=environment, handoffs=(history,)))
+    for _ in range(2):
+        with entered_binding(contract.handoffs[0].arrange) as value:
+            contract.handoffs[0].transition(value)
+            assert contract.handoffs[0].observe(value) == 1
+        assert not active
+    assert events == ["enter", "arrange", "transition", "observe", "exit"] * 2
