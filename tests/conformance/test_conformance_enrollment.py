@@ -519,7 +519,6 @@ def test_generated_gate_proof_detects_writes_hidden_by_unchanged_snapshots(
 @pytest.mark.parametrize(
     "proof",
     [
-        "assert_gate_bindings_are_production_bound",
         "assert_periodic_inspection_is_bounded",
         "assert_blocked_gate_preserves_intent",
         "assert_eligible_gate_recovers_lost_notification",
@@ -531,3 +530,21 @@ def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest
     contract = _gated_contract(monkeypatch)
     case = next(param.values[0] for param in contract_cases(contract) if param.id == f"eligibility-{proof}")
     case.run()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    # This reference fixture deliberately writes readiness directly. An application
+    # must instead bind its real readiness command; never certify this fixture as
+    # a production-bound application merely because its behavioral proofs pass.
+    contract = _gated_contract(monkeypatch)
+    case = next(
+        param.values[0]
+        for param in contract_cases(contract)
+        if param.id == "eligibility-assert_gate_bindings_are_production_bound"
+    )
+    with pytest.raises(AssertionError, match="make_eligible authors production semantics"):
+        case.run()
