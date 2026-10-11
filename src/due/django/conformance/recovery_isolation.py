@@ -40,7 +40,7 @@ from unittest.mock import patch
 from pytest_obligation.poison import PoisonSwitch, assert_poison_is_isolated
 
 from due.django.capabilities.authoring import _DurableWorkTransaction
-from due.django.conformance._binding import entered_binding as _binding
+from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import DurableWorkBindings
 from due.django.models import RecoveryDeferral
 from due.django.public import (

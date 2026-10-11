@@ -58,7 +58,7 @@ from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError
 
 if TYPE_CHECKING:
     # pytest-global: Reuse the enrollment example type across all generated receipt scenarios.
-    from due.django.conformance.suite import DeliveryExample
+    from due.django.conformance.examples import DeliveryExample
     from due.django.runtime.registry import DurableWorkRegistration
 
 
@@ -146,6 +146,7 @@ def admission_atomicity(capability, failure):
 
 
 def assert_admission_failure(capability, failure, *, interrupt: bool) -> None:
+    """Interrupt partial command admission and check that its own transaction rolls back."""
     from pytest_obligation.profiles.indivisible_admission import (
         assert_interrupted_admission_rolls_back,
         assert_successful_admission_commits,

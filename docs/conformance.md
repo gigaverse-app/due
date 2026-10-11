@@ -85,7 +85,8 @@ tests can use `durable_work_installed(*registrations)`; the optional
 
 ## Declare the evidence your mode needs
 
-Import authoring types from `due.django.conformance.suite`.
+Import declarations from `due.django.conformance.examples` and enroll through
+`due.django.conformance.suite`. Existing type imports from `suite` remain supported.
 
 | Capability feature | Application examples | Generated evidence |
 | --- | --- | --- |
@@ -247,3 +248,108 @@ downstream recovery declarations. See
 and [#50](https://github.com/gigaverse-app/pytest-obligation/pull/50).
 Before a PyPI release, use a released pytest-obligation version containing those
 changes; the current Git dependency is for integration review, not PyPI publication.
+
+## Walk through the executable example
+
+From a checkout of this repository, with PostgreSQL and Redis running as in the
+[README](../README.md#run-the-example):
+
+```bash
+uv sync --locked
+uv run pytest tests/conformance/test_document_contract.py -v \
+  -p due.django.conformance.reporting \
+  --due-work-require-assessed --due-work-profile-report=profiles.json \
+  --durable-work-report=effects.json
+```
+
+The enrollment is deliberately small; this is the declaration used by the
+[runnable test](../tests/conformance/test_document_contract.py):
+
+```python
+from due.django.conformance.suite import effect_contract_suite
+from examples.documents.effects import publish_document
+from tests.conformance.document_examples import EXAMPLES
+
+
+@effect_contract_suite(publish_document, examples=EXAMPLES)
+class TestDocumentPublication:
+    pass
+```
+
+Read the example in this order:
+
+1. [`request_publication`](../examples/documents/effects.py) changes the product
+   and admits work in one production transaction.
+2. [`environment`, `make_work`, `delivery`](../tests/conformance/document_examples.py)
+   arrange a temporary directory, call that producer, and observe the published
+   file through the product's pointer. `expected` is the requested file content.
+3. `retry` interrupts the actual file writer; `replay` counts real writes;
+   `producer` and `admission_failure` exercise command transaction boundaries.
+4. The same file's `EXAMPLES` assembles those factories. Enrollment selects proofs
+   from the real capability and policy, including evidence it cannot assess yet.
+5. Reports identify the application binding, implementation source and executed
+   result. CI checks the required guarantees and complete enrollment.
+
+```mermaid
+sequenceDiagram
+    participant Test as Generated proof
+    participant Scope as Application example scope
+    participant App as Production command
+    participant Worker as Real worker and recovery
+    participant Oracle as Product observation
+    Test->>Scope: Arrange fresh example and provider seams
+    Test->>App: Invoke command with a selected interruption
+    App->>Worker: Commit obligation and attempt notification
+    Test->>Worker: Drop or deliver, then bounded recovery
+    Worker->>Oracle: Perform effect and publish product state
+    Test->>Oracle: Compare independent outcome
+    Test->>Scope: Close scope, including on failure
+```
+
+### Composed recovery and independent outcomes
+
+Shared `HandoffHistory` accepts an `expected` value or a callback evaluated from
+its arranged handle **before** the transition. `None` is a valid expected value;
+omitting the field requests comparison with the uninterrupted delivered history.
+Use a product oracle when two histories could agree on the same wrong result.
+
+The following is an adaptation sketch: replace the named application functions
+with your actual commands and observations. `recover_search` must be a production
+entry point; it must not reimplement the search recovery loop in tests.
+
+```python
+from pytest_obligation.crash_histories import HandoffHistory
+
+history = HandoffHistory(
+    name="publish document and update search",
+    arrange=arrange_document,
+    transition=publish_and_index,
+    observe=read_published_document_and_search,
+    expected=expected_document_and_search,  # handle -> expected value, before transition
+    recovery_ticks=(recover_search,),
+)
+```
+
+Put this history in `EffectExamples.handoffs`. Due's generated suite supplies
+`WorkTableDelivery` for the primary capability. For a directly invoked shared
+proof, `WorkTableDelivery(capability, rounds=5)` allows a longer bounded horizon.
+Each round advances the clock, drains messages, runs primary recovery, runs the
+declared downstream ticks and drains again. The default is three rounds; queued
+work remaining at the end fails. A delivery adapter that lacks `recover_with`
+rejects `recovery_ticks` explicitly. See the shared
+[handoff API](https://github.com/gigaverse-app/pytest-obligation/blob/main/src/pytest_obligation/crash_histories.py).
+
+### Diagnose failures without weakening the proof
+
+| Failure | Check first |
+| --- | --- |
+| Production-binding error | Bind the real selection, command or readiness transition; use test factories only to arrange data and observations. |
+| Positive control did not execute | Verify the provider seam, current Celery app, registry and clock; do not replace the worker with a recorder. |
+| Product oracle mismatch | Inspect actual product/provider state; a successful work row does not establish the promised effect. |
+| Recovery horizon exhausted | Check due times, leases, retry policy and downstream ticks. Increase a bound only when the workflow requires it. |
+| Missing assessment or selected proof | Add the required binding or a supported substantive disposition, and check pytest selection and enrollment inventory. |
+| Worker error accounting fails | Declare the particular expected fault in the driver; unexpected worker errors must remain visible. |
+
+Use the [API reference and module map](conformance-api.md) for all example fields,
+scopes, extension interfaces and implementation boundaries. For the difference
+between a tested case and a general guarantee, read [verification scope](verification.md).
