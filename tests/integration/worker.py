@@ -30,7 +30,9 @@ class Worker:
 
 
 @contextmanager
-def running_worker(directory: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Worker]:
+def running_worker(
+    directory: Path, monkeypatch: pytest.MonkeyPatch, *, imports: tuple[str, ...] = ()
+) -> Iterator[Worker]:
     base = os.environ.get("DUE_DATABASE_URL", "postgresql://due:due@127.0.0.1:55439/due")
     database_url = base.rsplit("/", 1)[0] + "/" + str(connection.settings_dict["NAME"])
     queue = "due-test-" + uuid4().hex
@@ -64,6 +66,7 @@ def running_worker(directory: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
                 queue,
                 "--hostname",
                 queue + "@%h",
+                *(["--include", ",".join(imports)] if imports else []),
             ],
             worker_env,
         ) as process:

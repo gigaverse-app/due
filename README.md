@@ -134,6 +134,10 @@ schedule and route both execution and recovery. See [integration](docs/integrati
 
 ## Run the example
 
+This quickstart runs the minimal [document-publication application](examples/documents/README.md).
+The separate [Books application](examples/books/README.md) adapts Procrastinate’s
+Django books demo into a Due workflow and documents its upstream provenance.
+
 ```bash
 git clone https://github.com/gigaverse-app/due.git
 cd due
