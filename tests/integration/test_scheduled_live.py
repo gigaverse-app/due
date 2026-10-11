@@ -64,3 +64,27 @@ def test_restart_and_beat_recover_deadline_but_not_cancelled_publication(
         cancelled.refresh_from_db()
         assert cancelled.status == Publication.Status.CANCELLED
         assert not cancelled.published_key
+
+
+def test_near_deadline_publishes_with_real_worker_without_beat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import replace
+
+    from due.django.conformance.registrations import durable_work_installed
+    from due.django.runtime.registry import registration_for
+    from examples.scheduled.models import PublicationDeadline
+
+    with running_worker(tmp_path, monkeypatch) as worker:
+        worker.wait_until(lambda: "ready." in worker.process.log.read_text())
+        route = replace(registration_for(PublicationDeadline), queue=worker.queue)
+        with durable_work_installed(route):
+            deadline = timezone.now() + timedelta(seconds=2)
+            publication = create_publication("Timer without Beat", deadline)
+
+        def published() -> bool:
+            publication.refresh_from_db()
+            if timezone.now() < deadline:
+                assert publication.status == Publication.Status.SCHEDULED
+            return publication.status == Publication.Status.PUBLISHED
+
+        worker.wait_until(published)
+        assert (tmp_path / "objects" / publication.published_key).read_text() == publication.text

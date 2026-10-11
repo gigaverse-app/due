@@ -1,6 +1,7 @@
 # ruff: noqa: F811
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from pathlib import Path
 from threading import Barrier
 from uuid import uuid4
 
@@ -106,3 +107,17 @@ def test_cli_reuses_explicit_key() -> None:
             )
     assert Publication.objects.count() == PublicationDeadline.objects.count() == 1
     assert str(key) in output.getvalue()
+
+
+def test_completed_submission_replay_does_not_publish_again(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from examples.scheduled.effects import publish_at_deadline
+
+    monkeypatch.setenv("DUE_OUTPUT_DIR", str(tmp_path))
+    key, at = uuid4(), timezone.now()
+    with hold_nudges():
+        publication = create_publication("Completed", at, submission_key=key)
+    assert publish_at_deadline.attempt_execution(publication.publicationdeadline.pk)
+    replay = create_publication("Completed", at, submission_key=key)
+    assert replay.pk == publication.pk
+    assert replay.status == Publication.Status.PUBLISHED
+    assert len(list(tmp_path.iterdir())) == 1
