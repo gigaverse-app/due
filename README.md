@@ -71,6 +71,15 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 may change before 1.0. Only work-table composition is public. Native-table
 composition is excluded. [Extraction scope →](docs/extraction.md)
 
+## Coming from another library?
+
+See the [competitor comparison](docs/competitors.md),
+[migration guides](docs/migrations.md), and
+[compatibility adapter assessment](docs/compatibility.md) for Procrastinate,
+DBOS, RQ, Django Tasks, Celery and other Python libraries. The guides distinguish
+current Due APIs from proposed adapters, and explain when staying with the
+existing library is the better choice.
+
 ## Install
 
 Requires Python 3.14, PostgreSQL and a Django 6 application. Celery needs a broker
