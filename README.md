@@ -71,6 +71,14 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 may change before 1.0. Only work-table composition is public. Native-table
 composition is excluded. [Extraction scope →](docs/extraction.md)
 
+## Coming from another library?
+
+Start with [your library's migration guide](docs/migrations.md). Each guide
+covers the benefits of adopting Due, a concrete migration, behavior to preserve,
+cutover and rollback, and whether a compatibility layer would help. Guides cover
+Procrastinate, DBOS, RQ, Django Tasks, Celery and the other Python libraries in
+[the background-work ecosystem overview](docs/alternatives.md).
+
 ## Install
 
 Requires Python 3.14, PostgreSQL and a Django 6 application. Celery needs a broker

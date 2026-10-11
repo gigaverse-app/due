@@ -11,7 +11,7 @@ repos:
         name: Ruff format (uv.lock)
         entry: uv run --locked ruff format
         language: system
-        types_or: [python, pyi]
+        types_or: [python, pyi, markdown]
       - id: pyrefly
         name: Pyrefly project check (uv.lock)
         entry: uv run --locked pyrefly check
