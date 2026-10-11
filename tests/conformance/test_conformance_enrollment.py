@@ -210,12 +210,12 @@ def test_shared_bindings_follow_nondefault_retry_and_retention_policy(rearms):
 
 
 EXPECTED_REQUIREMENTS: dict[type[DurableWorkCapability[Any, Any]], tuple[str, ...]] = {
-    ReplaySafeEffect: ("delivery", "retry", "replay"),
-    DurableExternalOperation: ("delivery", "retry", "applied_receipt", "receipt_repair", "rejections", "uncertainties"),
-    DurableScheduledAction: ("delivery", "retry", "replay", "snapshot"),
-    DurableProjection: ("delivery", "retry", "replay", "snapshot"),
-    IndependentCompensation: ("delivery", "retry", "replay"),
-    OwnedDurableWorkCapability: ("delivery", "retry", "replay"),
+    ReplaySafeEffect: ("delivery", "replay"),
+    DurableExternalOperation: ("delivery", "applied_receipt", "receipt_repair", "rejections", "uncertainties"),
+    DurableScheduledAction: ("delivery", "replay", "snapshot"),
+    DurableProjection: ("delivery", "replay", "snapshot"),
+    IndependentCompensation: ("delivery", "replay"),
+    OwnedDurableWorkCapability: ("delivery", "replay"),
 }
 
 
@@ -223,7 +223,7 @@ def _expected_requirements(capability: DurableWorkCapability[Any, Any]) -> tuple
     mode = next(mode for mode in EXPECTED_REQUIREMENTS if isinstance(capability, mode))
     required = EXPECTED_REQUIREMENTS[mode]
     if capability.policy.max_rearms is not None:
-        required += ("terminal",)
+        required += ("retry", "terminal")
     if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
         required += ("derivation",)
         if not isinstance(capability, DurableExternalOperation):
@@ -265,7 +265,7 @@ def test_capabilities_require_their_examples(capability, required, monkeypatch):
         perturb_inputs=no_fixture if "perturb_inputs" in needed and required != "perturb_inputs" else None,
         producers={"declared": no_fixture} if "perturb_inputs" in needed else {},
         delivery=no_fixture,
-        retry=no_fixture,
+        retry=no_fixture if "retry" in needed and required != "retry" else None,
         replay=no_fixture if "replay" in needed and required != "replay" else None,
         terminal=no_fixture if "terminal" in needed and required != "terminal" else None,
         snapshot=no_fixture if "snapshot" in needed and required != "snapshot" else None,
@@ -331,7 +331,7 @@ def declared_only(*args: object, **kwargs: object) -> Any:
 
 def _declared_examples(**declared: Any) -> EffectExamples:
     """The root primitive's required bindings, with no profile E decision, plus the decisions under test."""
-    assert _expected_requirements(primitive) == ("delivery", "retry", "replay", "terminal", "perturb_inputs")
+    assert _expected_requirements(primitive) == ("delivery", "replay", "retry", "terminal", "perturb_inputs")
     return replace(
         EffectExamples(
             make_work=declared_only,
@@ -502,11 +502,11 @@ def test_perturb_inputs_is_refused_where_the_library_cannot_move_inputs(monkeypa
     # No perturb_inputs requirement: the library already refuses to move an operation's inputs.
     assert _expected_requirements(operation) == (
         "delivery",
-        "retry",
         "applied_receipt",
         "receipt_repair",
         "rejections",
         "uncertainties",
+        "retry",
         "terminal",
     )
     reason = "An evidence-required occurrence refuses new input and supersession."

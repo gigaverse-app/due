@@ -31,6 +31,10 @@ from pytest_obligation.contract import (
 from pytest_obligation.evidence.observation import assert_observation
 from pytest_obligation.integrations.django.edge_values import CandidateEdge
 from pytest_obligation.integrations.django.lock_order import recording_against_the_ledger
+from pytest_obligation.integrations.django.selection_completeness import (
+    CompletenessBinding,
+    assert_selection_is_complete,
+)
 from pytest_obligation.integrations.django.writes import (
     execute_reporting_autocommit_write,
     row_write,
@@ -88,6 +92,7 @@ from due.django.conformance.discovery_admissibility import (
     assert_database_legal_candidate_is_admissible,
     assert_inadmissible_candidate_does_not_block_the_next,
     candidate_edges,
+    discovery_completeness,
 )
 from due.django.conformance.examples import (
     DeliveryExample,
@@ -392,7 +397,7 @@ MODES = (
 
 def required_examples_for(mode: type[DurableWorkCapability[Any, Any]]) -> tuple[str, ...]:
     """Unconditional proof requirements of a mode; application features add obligations below."""
-    common = ("delivery", "retry")
+    common = ("delivery",)
     if issubclass(mode, DurableExternalOperation):
         required = (*common, "applied_receipt", "receipt_repair", "rejections", "uncertainties")
         return (*required, "observation") if issubclass(mode, ObservedExternalOperation) else required
@@ -474,12 +479,17 @@ def effect_contract[W: UniverseDurableWork, ResultT](
     pruning = capability.policy.retention is not None or isinstance(capability, DurableProjection)
     required = {
         **dict.fromkeys(required_examples_for(type(capability)), True),
+        "retry": capability.policy.max_rearms is not None,
         "terminal": capability.policy.max_rearms is not None,
         "snapshot": moving,
         "derivation": discovery,
         "compensation": bool(compensations_for(capability)),
         "eligibility": capability.eligibility is not None,
     }
+    if capability.policy.max_rearms is None and examples.retry is not None:
+        raise ObligationContractDesignError(
+            f"{name}: retry examples prove exhaustion, which an unbounded policy (max_rearms=None) never reaches"
+        )
     missing = [field for field, needed in required.items() if needed and getattr(examples, field) is None]
     convergent = moving or bool(examples.in_flight or examples.evidence_confluence) or examples.convergence is not None
     missing.extend(_convergence_decline_defects(capability, examples, convergent=convergent, name=name))
@@ -549,6 +559,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             return fact_bindings(capability, examples.derivation)
 
     def retry():
+        assert examples.retry is not None, "validated: bounded policies declare retry"
         # ARRANGE: domain examples provide genuine work for retry executor.
         # REAL PRODUCTION: the retry executor binding calls this registered capability.
         # EXTERNAL SEAM: only the example's provider/fault seam is substituted.
@@ -865,6 +876,7 @@ def assert_terminal_failure_is_visible_and_rearmable[W: UniverseDurableWork, Res
     entry = bindings.registration
     assert examples.terminal is not None
     assert capability.policy.max_rearms is not None, "unbounded policies never exhaust; no terminal proof applies"
+    assert examples.retry is not None, "validated: bounded policies declare retry"
     with (
         examples.environment(),
         hold_nudges(),
@@ -1218,6 +1230,20 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 cls.test_inadmissible_candidate_does_not_block_the_next = candidate_edge_test(
                     assert_inadmissible_candidate_does_not_block_the_next
                 )
+
+            if owned.discovery is not None and owned.discovery.horizon is None:
+
+                @contextmanager
+                def discovered() -> Iterator[CompletenessBinding]:
+                    assert examples.derivation is not None
+                    with examples.environment(), _binding(examples.derivation) as facts:
+                        yield discovery_completeness(owned, facts.make_implied)
+
+                @pytest.mark.django_db(transaction=True)
+                def test_discovery_selection_is_complete(self, due_work_selection_budget: int):
+                    assert_selection_is_complete(discovered)
+
+                cls.test_discovery_selection_is_complete = with_fixtures(test_discovery_selection_is_complete)
 
         @pytest.mark.django_db(transaction=True)
         @pytest.mark.parametrize("poison", [True, False], ids=["poisoned", "control"])

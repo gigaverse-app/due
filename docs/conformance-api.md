@@ -136,3 +136,45 @@ link to the actual proof implementation, even when users import its public facad
 Crash histories also enter `EffectExamples.environment` before `arrange` and keep it active through transition, delivery, recovery and observation. Each history run owns and closes its scope, including faulted runs. Process histories configure their own child-process environment.
 
 Schema index proofs reuse pytest-obligation's PostgreSQL catalog records, including key order, included columns and partial predicates. They reject a B-tree condition on only a later key; an index name or `Index Cond` alone is insufficient evidence of narrowing.
+
+## Derive routine bindings from one provider seam
+
+`seams.ProviderSeam` names the provider environment, real admission, independent
+observed/expected outcomes and call counters. `seam_examples(capability, seam,
+**overrides)` derives delivery, bounded retry, supported replay and projection
+convergence bindings. It never replaces the coordinator with test code.
+
+| Interface | Meaning |
+| --- | --- |
+| `environment`, `make_work`, `arrange` | Enter the provider fake, admit through production, optionally script the provider after admission |
+| `observe`, `delivered` | Independent observed and reviewed expected outcomes |
+| `calls`, `calls_for`, `provider_state` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement |
+| `refuse` | Make subsequent calls fail with an error production treats as retryable; required to derive bounded retry |
+| `outcome`, `rejection` | Scoped outcome/rejection factories with optional admission and observation overrides |
+| `producer`, `caller`, `interrupted` | Bind real admission, inline attempts and interruption after a persisted work row |
+| `replay`, `convergence` | Reuse the capability's effect method and result application |
+
+Keep producers, gates, derivation facts, uncertainty matrices and distinct
+histories explicit. Overrides replace defaults. The declaration requires the same
+ARRANGE / REAL PRODUCTION / EXTERNAL SEAM / OBSERVE annotations as handwritten
+bindings. Root controls reject constant observations, dead call counters and
+refusals that never fail: [executable examples](../tests/conformance/test_provider_seam.py).
+
+`ProviderProbe` and `ProviderSeam` have different jobs: the probe observes and
+faults a synchronous provider callable; the seam describes an adopter and derives
+its conformance bindings. A seam may use a probe as its provider handle.
+
+`EffectExamples.retry` is optional for unbounded policies, and forbidden there:
+its exhaustion proof cannot finish. Bounded policies require both retry and
+terminal bindings. This is a declaration error, not unassessed evidence.
+
+`interleavings.WorkTableRecovery` runs registered recovery for a tuple of models
+and accounts only for worker errors explained by the bound `ProviderControl`.
+It reuses the background driver and registration manifest.
+
+Unbounded discovery generates `test_discovery_selection_is_complete`. It compares
+the production candidate query with the real per-owner derivation, so an owner
+that derivation would enroll cannot silently disappear from recovery. Discovery
+with an explicit horizon does not claim to cover every possible owner and does
+not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/docs/selection-completeness.md)
+apply; the generated case participates in normal collection and outcome guards.

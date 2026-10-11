@@ -170,7 +170,7 @@ class EffectExamples[W: UniverseDurableWork]:
     evidence_confluence: Mapping[str, Scenario] = field(default_factory=dict)
     make_work: Callable[[], W]
     delivery: Binding[DeliveryExample[W, Any]]
-    retry: Binding[FailureExample[W]]
+    retry: Binding[FailureExample[W]] | None = None
     terminal: Binding[TerminalExample[W]] | None = None
     replay: Binding[ReplaySafeEffect] | None = None
     eligibility: Binding[EligibilityExample[W, Any]] | Mapping[str, Binding[EligibilityExample[W, Any]]] | None = None
