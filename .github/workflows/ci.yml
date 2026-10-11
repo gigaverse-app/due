@@ -86,8 +86,9 @@ jobs:
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book
       - name: Require catalog projection conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract project_catalog --verified A B D E H I J --effect-report effects.json --effect project_catalog
+      # Non-repeatable orders decline harmless replay and retain evidence indefinitely.
       - name: Require observed print-order conformance
-        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C H I J --effect-report effects.json --effect print_order
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C I J --effect-report effects.json --effect print_order
       - name: Validate application setup
         run: uv run --no-sync python -m django due_check
         env:
