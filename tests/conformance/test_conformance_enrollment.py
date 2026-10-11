@@ -419,3 +419,132 @@ def test_convergence_family_decisions_reject_unclaimed_or_untyped_declarations(b
     declared: dict[str, Any] = {"convergence": declared_only} if bound else {}
     with pytest.raises(ObligationContractDesignError, match=match):
         effect_contract(primitive, examples=_immutable_examples(**declared, convergence_families=families))
+
+
+def _gated_contract(monkeypatch: pytest.MonkeyPatch):
+    from datetime import timedelta
+
+    from django.db.models import Q
+
+    from due.django.conformance.suite import DeliveryExample, EligibilityExample
+    from due.django.public import ExecutionEligibility
+    from tests.harness.gated import GatedPrimitiveEffect
+    from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner
+
+    capability = replace(
+        GatedPrimitiveEffect.for_owner(owner=PrimitiveOwner, work=primitive.model, policy=primitive.policy),
+        eligibility=ExecutionEligibility(lambda now: Q(owner__value="ready"), recheck_after=timedelta(seconds=30)),
+    )
+    entry = installed.get()["primitive_self_test"]
+    monkeypatch.setitem(installed.get(), entry.name, replace(entry, capability=capability))
+
+    def example():
+        work = record()
+
+        def make_eligible() -> None:
+            PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="ready")
+
+        return EligibilityExample(
+            delivery=DeliveryExample(
+                work=work,
+                observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+                expected=work.payload,
+                effect_calls=lambda: len(PrimitiveEffect.calls),
+            ),
+            make_eligible=make_eligible,
+        )
+
+    return effect_contract(capability, examples=_immutable_examples(eligibility=example))
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+def test_generated_gate_proof_detects_missing_runtime_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    from due.django.public import ExecutionEligibility
+
+    contract = _gated_contract(monkeypatch)
+    case = next(
+        param.values[0]
+        for param in contract_cases(contract)
+        if param.id == "eligibility-assert_periodic_inspection_is_bounded"
+    )
+    # Mutate the production enforcement, preserving its declaration and the
+    # real exporter/registration. The old eligibility history missed this.
+    monkeypatch.setattr(
+        ExecutionEligibility, "filter", lambda self, queryset, *, now: queryset.filter(self.condition(now))
+    )
+    with pytest.raises(AssertionError, match="periodic inspection never becomes due"):
+        case.run()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("syntax", ["update", "cte"], ids=["same-value-update", "cte-returning-select"])
+def test_generated_gate_proof_detects_writes_hidden_by_unchanged_snapshots(
+    monkeypatch: pytest.MonkeyPatch, syntax: str
+) -> None:
+    from django.db import connection
+    from pytest_obligation.contract import contract_cases
+
+    from due.django.public import ExecutionEligibility
+
+    contract = _gated_contract(monkeypatch)
+    case = next(
+        param.values[0]
+        for param in contract_cases(contract)
+        if param.id == "eligibility-assert_blocked_gate_preserves_intent"
+    )
+    original = ExecutionEligibility.filter
+
+    def write_then_filter(self, queryset, *, now):
+        # Real PostgreSQL writes deliberately preserve every application/work
+        # value. The CTE reports SELECT, defeating a SQL-prefix-only observer.
+        table = connection.ops.quote_name(queryset.model._meta.db_table)
+        update = f"UPDATE {table} SET updated_at = updated_at"
+        with connection.cursor() as cursor:
+            cursor.execute(
+                update if syntax == "update" else f"WITH touched AS ({update} RETURNING id) SELECT id FROM touched"
+            )
+        return original(self, queryset, now=now)
+
+    monkeypatch.setattr(ExecutionEligibility, "filter", write_then_filter)
+    with pytest.raises(AssertionError, match="blocked work mutated durable state"):
+        case.run()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize(
+    "proof",
+    [
+        "assert_periodic_inspection_is_bounded",
+        "assert_blocked_gate_preserves_intent",
+        "assert_eligible_gate_recovers_lost_notification",
+    ],
+)
+def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest.MonkeyPatch, proof: str) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    contract = _gated_contract(monkeypatch)
+    case = next(param.values[0] for param in contract_cases(contract) if param.id == f"eligibility-{proof}")
+    case.run()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    # This reference fixture deliberately writes readiness directly. An application
+    # must instead bind its real readiness command; never certify this fixture as
+    # a production-bound application merely because its behavioral proofs pass.
+    contract = _gated_contract(monkeypatch)
+    case = next(
+        param.values[0]
+        for param in contract_cases(contract)
+        if param.id == "eligibility-assert_gate_bindings_are_production_bound"
+    )
+    with pytest.raises(AssertionError, match="make_eligible authors production semantics"):
+        case.run()

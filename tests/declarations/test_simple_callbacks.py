@@ -128,3 +128,33 @@ def test_simple_mode_rejects_rich_settlement_overrides(implementation, method, m
     monkeypatch.setattr(implementation, method, lambda *args: None)
     with pytest.raises(TypeError, match="runtime-owned"):
         bind(implementation)
+
+
+@pytest.mark.parametrize("implementation", [Feed, Deadline])
+@pytest.mark.parametrize("older_timeout", [False, True])
+def test_shared_race_proof_observes_simple_callbacks_and_preserves_repair(implementation, older_timeout, monkeypatch):
+    from dataclasses import replace
+
+    from due.django.conformance.concurrency import assert_competing_deliveries
+
+    capability = replace(bind(implementation), nudge=lambda *args: None)
+    work = record(capability)
+    if older_timeout:
+        monkeypatch.setattr(Provider, "failure", TimeoutError)
+        with pytest.raises(TimeoutError):
+            capability.attempt_execution(work.pk)
+        supersede_work(EvidenceWork, work.pk)
+        monkeypatch.setattr(Provider, "failure", None)
+        make_due(work)
+    capability.enqueue_execution(work.pk)
+    assert_competing_deliveries(
+        capability,
+        work,
+        observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+        expected="published" if implementation is Feed else "performed",
+    )
+    work.refresh_from_db()
+    assert work.state == (
+        DurableWorkState.READY if implementation is Feed and older_timeout else DurableWorkState.SUCCEEDED
+    )
+    assert unsettled_work(EvidenceWork.objects.filter(pk=work.pk), strict=True).exists() is older_timeout

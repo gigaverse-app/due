@@ -13,6 +13,7 @@ from tests.harness.operation import (
     Publication,
     PublicationWork,
     Receipt,
+    delivery_example,
     record,
 )
 from tests.harness.operation import operation_environment as operation_environment
@@ -85,3 +86,31 @@ def test_capture_declaration_rejects_duplicate_relation_destinations(publication
 
     with pytest.raises(ValueError, match="one spelling"):
         replace(publication, capture=Capture(source="id", source_id="id"))
+
+
+@pytest.mark.parametrize("interruption", ["death", "late", "settlement_rollback", "settlement_error"])
+@pytest.mark.parametrize("fault", [None, "omit_product", "omit_repair", "repeat_provider"])
+def test_shared_receipt_repair_scenario_rejects_broken_settlement(
+    publication: Publication, monkeypatch: pytest.MonkeyPatch, fault: str | None, interruption: str
+) -> None:
+    from contextlib import nullcontext
+
+    from due.django.conformance.scenarios import assert_receipt_repairs_product
+
+    work = record(publication)
+    example = delivery_example(work, expected="applied")
+    if fault == "omit_product":
+        monkeypatch.setattr(Publication, "_finalize_applied", lambda self, work, result: None)
+    elif fault == "omit_repair":
+        monkeypatch.setattr(Publication, "recover", lambda self: None)
+    elif fault == "repeat_provider":
+        original = publication.recover
+
+        def repeat(self: Publication):
+            publication.perform_effect(work)
+            return original()
+
+        monkeypatch.setattr(Publication, "recover", repeat)
+    message = "repeated provider I/O" if fault == "repeat_provider" else "product outcome"
+    with pytest.raises(AssertionError, match=message) if fault else nullcontext():
+        assert_receipt_repairs_product(publication, example, interruption=interruption)

@@ -71,6 +71,14 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 may change before 1.0. Only work-table composition is public. Native-table
 composition is excluded. [Extraction scope →](docs/extraction.md)
 
+## Coming from another library?
+
+Start with [your library's migration guide](docs/migrations.md). Each guide
+covers the benefits of adopting Due, a concrete migration, behavior to preserve,
+cutover and rollback, and whether a compatibility layer would help. Guides cover
+Procrastinate, DBOS, RQ, Django Tasks, Celery and the other Python libraries in
+[the background-work ecosystem overview](docs/alternatives.md).
+
 ## Install
 
 Requires Python 3.14, PostgreSQL and a Django 6 application. Celery needs a broker
@@ -180,6 +188,7 @@ requires executed passing evidence for the claimed profiles; an empty or filtere
 report fails. These proofs cover the bound example, not arbitrary application
 callbacks. Enroll your own capability with `effect_contract_suite` and
 `EffectExamples`: [authoring guide](docs/conformance.md),
+[API and module map](docs/conformance-api.md),
 [executable example](tests/conformance/document_examples.py),
 [verification scope](docs/verification.md).
 
@@ -193,6 +202,17 @@ uv run python -m django due_status publish_document --limit 10
 The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](docs/operations.md)
+
+## Documentation
+
+| You want to… | Read |
+| --- | --- |
+| Integrate the runtime | [Django and Celery wiring](docs/integration.md), [capabilities](docs/capabilities.md) |
+| Prove your application's obligations | [Conformance walkthrough](docs/conformance.md), [executable document adopter](tests/conformance/document_examples.py) |
+| Find an interface or understand scope | [Conformance API, field reference and module boundaries](docs/conformance-api.md) |
+| Understand a passing result | [Verification scope](docs/verification.md), [architecture and limits](docs/architecture.md) |
+| Operate and recover work | [Operations](docs/operations.md) |
+| Migrate the backend harness | [Backend adoption and ownership](docs/backend-adoption.md) |
 
 ## Contribute
 
