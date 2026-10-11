@@ -266,7 +266,7 @@ requires-dist = [
     { name = "asgiref", specifier = ">=3.9" },
     { name = "celery", specifier = ">=5.6,<6" },
     { name = "celery", extras = ["redis"], marker = "extra == 'redis'", specifier = ">=5.6,<6" },
-    { name = "django", specifier = ">=5.2,<7" },
+    { name = "django", specifier = ">=6.0.8,<7" },
     { name = "django-celery-beat", marker = "extra == 'beat'", specifier = ">=2.8" },
     { name = "prometheus-client", specifier = ">=0.22" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },

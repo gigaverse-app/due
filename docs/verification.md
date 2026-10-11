@@ -27,3 +27,19 @@ PostgreSQL/Redis services. CI retains the generated profile report. Ruff, Pyrefl
 migration consistency and wheel/sdist builds are separate gates. Claims about
 fault recovery do not imply a throughput benchmark, a deployed backend cutover,
 or that every provider integration has been validated.
+
+## Initial extraction evidence
+
+On Python 3.14.7, PostgreSQL 17 and Django 6.0.9, the suite passed **382 tests**,
+including **44 generated contract cases** and the separate Redis/Celery worker
+journey. Ruff, Pyrefly, migration checks and wheel/sdist builds passed.
+The installed wheel also passed imports, Django checks and actual migrations in a
+clean environment with Django 6.1.2 and no checkout on its import path.
+
+The generated retention positive control was mutation-checked: temporarily
+returning zero from production `prune_completed_work` made
+`D-assert_retention_prunes_settled_work` fail; restoring the implementation made
+the same case pass. The broken implementation was not committed.
+
+[Initial CI run](https://github.com/gigaverse-app/due/actions/runs/38098113273)
+ran the full check workflow successfully for the extraction implementation.

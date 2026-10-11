@@ -30,7 +30,7 @@ contracts. Due does not promise exactly-once external execution.
 
 ## Install
 
-Requires Python 3.14, PostgreSQL and a Django application. Celery needs a broker
+Requires Python 3.14, PostgreSQL and a Django 6 application. Celery needs a broker
 and a running worker plus a recurring recovery scheduler (normally Celery Beat).
 The integration suite uses PostgreSQL 17 and Redis 7.
 
