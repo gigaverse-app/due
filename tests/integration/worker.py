@@ -1,9 +1,7 @@
 """A real isolated Celery worker shared by runnable-application journeys."""
 
 import os
-import subprocess
 import sys
-import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -15,25 +13,20 @@ from django.db import connection
 
 from due.django.runtime import tasks
 from examples.celery_app import app
+from tests.integration.processes import Process, running_process
 
 
 @dataclass(frozen=True)
 class Worker:
-    process: subprocess.Popen[str]
+    process: Process
     queue: str
-    log: Path
+    env: dict[str, str]
 
     def recover(self, name: str) -> None:
         tasks.recover_durable_work_task.apply_async(args=(name,), queue=self.queue)
 
     def wait_until(self, ready: Callable[[], bool]) -> None:
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if ready():
-                return
-            assert self.process.poll() is None, self.log.read_text()
-            time.sleep(0.1)
-        raise AssertionError(self.log.read_text())
+        self.process.wait_until(ready)
 
 
 @contextmanager
@@ -51,9 +44,10 @@ def running_worker(directory: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
         "DUE_QUEUE": queue,
         "DJANGO_SETTINGS_MODULE": "examples.settings",
     }
-    log_path = directory / "worker.log"
-    with log_path.open("w+") as log:
-        process = subprocess.Popen(
+    try:
+        with running_process(
+            directory,
+            "worker",
             [
                 sys.executable,
                 "-m",
@@ -71,19 +65,9 @@ def running_worker(directory: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
                 "--hostname",
                 queue + "@%h",
             ],
-            env=worker_env,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        try:
-            yield Worker(process, queue, log_path)
-        finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=5)
-            with app.connection_or_acquire() as broker:
-                broker.default_channel.queue_delete(queue=queue)
+            worker_env,
+        ) as process:
+            yield Worker(process, queue, worker_env)
+    finally:
+        with app.connection_or_acquire() as broker:
+            broker.default_channel.queue_delete(queue=queue)

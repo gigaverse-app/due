@@ -36,6 +36,7 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -73,7 +74,8 @@ jobs:
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
-      - run: uv run --no-sync pytest -p due.django.conformance.reporting --due-work-require-assessed --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
+      - name: Run full suite including live web, worker and Beat recovery
+        run: uv run --no-sync pytest --basetemp=test-results -p due.django.conformance.reporting --due-work-require-assessed --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
       - name: Require executed obligation guarantees
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
       - name: Require complete application conformance
@@ -93,6 +95,7 @@ jobs:
             profiles.json
             effects.json
             observations.json
+            test-results/**/*.log
           if-no-files-found: error
 
   build:

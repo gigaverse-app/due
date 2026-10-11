@@ -112,7 +112,7 @@ after correcting the provider problem.
 ## Executable evidence
 
 ```bash
-uv run pytest tests/examples/test_books.py tests/integration/test_books_worker.py -v
+uv run pytest tests/examples/test_books.py tests/integration/test_books*.py -v
 uv run pytest tests/conformance/test_book_contracts.py \
   -p due.django.conformance.reporting --due-work-require-assessed \
   --due-work-profile-report=book-profiles.json --durable-work-report=book-effects.json
@@ -126,6 +126,11 @@ uv run pytest tests/conformance/test_book_contracts.py \
   must converge to one searchable book and one publication obligation.
 - Redis/prefork journeys withhold either notification and check the real index
   and Django product state after recovery.
+- Live journeys start separate web, worker and Beat processes. They submit the
+  CSRF-protected form over HTTP, then withhold either stage's notification and
+  require the real Beat schedule to make that book searchable over HTTP. No
+  direct recovery call is made. Both Django CI configurations run these tests
+  and retain process logs in the `obligation-profiles-*` artifacts.
 
 These checks establish this application's contracts with its local provider.
 They do not establish another search provider's idempotency or editing semantics.
