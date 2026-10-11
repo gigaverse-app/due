@@ -16,6 +16,7 @@ from pytest_obligation.integrations.django.lock_order import assert_consistent_l
 
 from due.django.capabilities.projection import Projection
 from due.django.capabilities.scheduled import ActionOutcome, ScheduledAction
+from due.django.conformance.suite import DeliveryExample, assert_settlement_wakes_declared_dependents
 from due.django.declarations.dependents import Dependent
 from due.django.models import DurableWorkState
 from due.django.public import DurableWorkPolicy, database_now
@@ -352,3 +353,19 @@ def test_startup_refuses_a_wake_of_work_its_producer_claims() -> None:
         index_durable_work_registrations([registration("upstream", upstream), registration("claimed", claimed_cleanup)])
     with pytest.raises(TypeError, match="cannot be woken"):
         claimed_cleanup.wake(1)
+
+
+def primitive_delivery() -> DeliveryExample[PrimitiveWork, str]:
+    owner, _ = owner_with_dependent()
+    work = record_upstream(owner)
+    return DeliveryExample(work=work, observe=lambda: PrimitiveOwner.objects.get(pk=owner.pk).value, expected="after")
+
+
+def test_generated_proof_accepts_a_declared_wake() -> None:
+    assert_settlement_wakes_declared_dependents(upstream, primitive_delivery)
+
+
+def test_generated_proof_rejects_a_settlement_that_does_not_wake(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(PrimitiveEffect, "_wake_dependents", lambda self, work: None)
+    with pytest.raises(AssertionError, match="published 0 wake"):
+        assert_settlement_wakes_declared_dependents(upstream, primitive_delivery)

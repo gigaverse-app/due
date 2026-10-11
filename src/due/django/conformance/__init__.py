@@ -1,6 +1,7 @@
 """Optional work-table conformance integration; install due[testing].
 
-Full authoring API: due.django.conformance.suite. Importing the optional
+Enroll through due.django.conformance.suite; author declarations in
+due.django.conformance.examples and scopes in due.django.conformance.binding. Importing the optional
 reporting plugin before Django setup must not load ORM models.
 """
 

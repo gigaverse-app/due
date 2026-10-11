@@ -19,7 +19,6 @@ from due.django.capabilities.observed_operations import (
     ObservedExternalOperation,
     ObservedExternalOperationWork,
 )
-from due.django.conformance._binding import Binding, entered_binding
 
 # pytest-global: All generated histories share the broker recorder; importing its types installs no fixture.
 from due.django.conformance.background import (
@@ -28,6 +27,7 @@ from due.django.conformance.background import (
     accounted_background_work,
     frozen_scheduler_clock,
 )
+from due.django.conformance.binding import Binding, entered_binding
 
 # pytest-global: All observer suites resolve their actual registration through the same canonical binding.
 from due.django.conformance.bindings import DurableWorkBindings
@@ -55,7 +55,7 @@ from due.errors import EffectOutcomeUnknownError
 
 if TYPE_CHECKING:
     # pytest-global: Type-only reference to the existing delivery example avoids a second product-observation shape.
-    from due.django.conformance.suite import DeliveryExample
+    from due.django.conformance.examples import DeliveryExample
 
 
 type ObservationHistory = Literal["inconclusive", "lost_delivery", "competing_receipt"]
