@@ -1,4 +1,4 @@
-"""Application hooks for tenant context and read-after-write routing.
+"""Application hooks for tenant context, read routing and fatal recovery errors.
 
 Install once during application startup, before registering capabilities. The
 standalone default keeps a context-local tenant identifier and uses the default
@@ -33,8 +33,18 @@ def _no_pin(user_id: int) -> None:
 
 @dataclass(frozen=True)
 class ApplicationHooks:
+    """Process-start integration, installed before registering or running work.
+
+    ``abort_recovery_on`` names application errors that invalidate the whole
+    tick, rather than one identity. Causes and contexts are inspected too.
+    See docs/integration.md for tenant restoration and the failure boundary.
+    """
+
     tenant_scope: Callable[[str], AbstractContextManager[None]] = _tenant_scope
     pin_after_write: Callable[[int], None] = _no_pin
+    # These application failures invalidate every identity in a recovery pass.
+    # Their class identity belongs to the application, not to Due's private slots.
+    abort_recovery_on: tuple[type[Exception], ...] = ()
 
 
 _hooks = ApplicationHooks()
@@ -55,3 +65,8 @@ def current_universe_scope(tenant: str) -> Iterator[None]:
 
 def pin_after_write(user_id: int) -> None:
     _hooks.pin_after_write(user_id)
+
+
+def aborts_recovery(error: BaseException) -> bool:
+    """Whether the application classifies this error as fatal to the whole tick."""
+    return isinstance(error, _hooks.abort_recovery_on)

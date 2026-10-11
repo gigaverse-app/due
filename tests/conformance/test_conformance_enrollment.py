@@ -519,7 +519,6 @@ def test_generated_gate_proof_detects_writes_hidden_by_unchanged_snapshots(
 @pytest.mark.parametrize(
     "proof",
     [
-        "assert_gate_bindings_are_production_bound",
         "assert_periodic_inspection_is_bounded",
         "assert_blocked_gate_preserves_intent",
         "assert_eligible_gate_recovers_lost_notification",
@@ -531,3 +530,21 @@ def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest
     contract = _gated_contract(monkeypatch)
     case = next(param.values[0] for param in contract_cases(contract) if param.id == f"eligibility-{proof}")
     case.run()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+def test_generated_gate_proof_rejects_test_authored_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    # This primitive self-test deliberately owns its toy readiness transition.
+    # Its runtime fault controls are useful, but cannot certify an application's
+    # production binding. Keep the stricter canonical check as a negative control.
+    contract = _gated_contract(monkeypatch)
+    case = next(
+        param.values[0]
+        for param in contract_cases(contract)
+        if param.id == "eligibility-assert_gate_bindings_are_production_bound"
+    )
+    with pytest.raises(AssertionError, match="make_eligible authors production semantics in test code"):
+        case.run()

@@ -48,6 +48,14 @@ A local lease cannot cancel an external request. **Due does not promise
 exactly-once external execution.** Your application defines replay safety,
 provider idempotency, evidence, and success. [Guarantees and limits →](docs/architecture.md)
 
+```text
+commit product + obligation --> notify worker --> execute --> fenced settlement
+             |                       X lost
+             +------ recurring recovery --------> execute --> fenced settlement
+```
+
+[Follow a real obligation through message loss and process death →](docs/recovery-walkthrough.md)
+
 ## More than a task queue
 
 Use Due when a business obligation must survive the attempt that tried to
@@ -206,4 +214,5 @@ minimum Django version, checks migrations, and installs the wheel without test
 dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 
 [Integration](docs/integration.md) · [Architecture](docs/architecture.md) ·
+[Conformance](docs/conformance.md) · [Recovery walkthrough](docs/recovery-walkthrough.md) ·
 [Verification](docs/verification.md) · [Apache-2.0](LICENSE)

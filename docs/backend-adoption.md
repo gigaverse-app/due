@@ -12,6 +12,34 @@ checks, collection/enrollment guards, reporting and the background-work driver.
 Shared semantic assertions remain in pytest-obligation. Due supplies adapters to
 its actual runtime and policy. Native-table composition is not public.
 
+## Audit follow-through: package gaps versus application migration
+
+The detailed [migration audit (PR #6)](https://github.com/gigaverse-app/due/pull/6)
+identified separate runtime, harness and application migration issues. The code
+on this branch builds on the restored harness in PR #9; it does not imply those
+changes are all released or that BE has cut over.
+
+| Audited gap | Package support on this branch | Still owned by BE |
+| --- | --- | --- |
+| Handoff outcome and downstream recovery | Public `HandoffHistory.expected` / `recovery_ticks`; bounded delivery with ETA draining and leftover-message rejection | Bind real product outcomes and downstream ticks |
+| Missing proof controls and query-scale evidence | Gate, wake, receipt, rejection, callback race and retained-history controls restored | Run the actual adopter declarations and custom query proofs |
+| Application wiring error has a different class identity | `ApplicationHooks.abort_recovery_on` aborts recovery for configured application exceptions, including wrapped errors | Configure the application's actual error types in every process |
+| Application context / hook fault visibility | `work_table_host(ambient_context=..., receiver_breaker=...)` composes canonical shared proofs | Supply actual context and relevant framework hooks; preserve fixture isolation |
+| Different module, task, metric and command names | Runtime capabilities remain available under Due's namespace | Imports, old messages, schedules and operational consumers need adaptation |
+| Existing evidence tables / receipt foreign keys | Fresh-install schema and canonical evidence runtime exist | Explicit populated/fresh migration rehearsal; no competing evidence stores |
+| Pytest plugin/type ownership and 17 adopter suites | Public library contracts, collection guards and reporting exist | Resolve duplicate options, convert embedded contract types, run every adopter |
+
+**Native lifecycle APIs are not a BE migration blocker.** All 17 registrations
+use work tables; BE has no direct production adopter of `RecoveryLease`,
+`CompletionLease` or `RecoveryRoute`. The two production imports from
+`native.counters` use arithmetic only. Work-table observation's internal recovery
+helper is already ported privately. Preserve those arithmetic imports and unrelated
+application workflows without introducing a public native API.
+
+Read the [integration guide](integration.md), [proof authoring guide](conformance.md)
+and [executable recovery walkthrough](recovery-walkthrough.md) for the supported
+package path. The 17 BE adopter suites and data migration remain unexecuted here.
+
 ## Read-only consumer inventory
 
 Audited backend source: `04786fb2d` (the checkout used for extraction). Reproduce
@@ -59,7 +87,7 @@ must run against Due to prove a completed replacement.
    keys include model labels. Due's tenant field is a neutral 64-character field;
    retain the backend's 16-character choices through an application abstract base
    or an intentional, tested field migration and validation decision.
-3. **Install tenant and read-after-write hooks.** Bind `ApplicationHooks` to the
+3. **Install tenant, read-after-write and fatal-error hooks.** Bind `ApplicationHooks` to the
    backend's tenant scope and replica-pin callback. Install them and the same
    registration manifest in request, worker, Beat and command entry points.
    Test actual primary/replica routing, not just the default database.

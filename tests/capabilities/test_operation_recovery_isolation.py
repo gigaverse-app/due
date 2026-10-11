@@ -5,7 +5,9 @@ from datetime import timedelta
 import pytest
 from celery.exceptions import SoftTimeLimitExceeded
 
+from due.django import integration
 from due.django.evidence.attempts import attempts_for, observe_effect_outcome, record_effect_attempt
+from due.django.integration import ApplicationHooks
 from due.django.models import DurableWorkState, EffectAttemptOutcome, RecoveryDeferral
 from due.django.runtime.coordination import claim_work
 from due.django.runtime.metrics import RecoveryPhase
@@ -16,6 +18,10 @@ from tests.harness.primitive import PrimitiveOwner
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+class ApplicationNotInstalled(RuntimeError):
+    """An application-owned wiring defect, unrelated to Due's private slot type."""
 
 
 def arrange(publication: Publication, phase: RecoveryPhase) -> PublicationWork:
@@ -42,10 +48,16 @@ def progressed(work: PublicationWork, phase: RecoveryPhase) -> bool:
 
 
 @pytest.mark.parametrize("phase", [RecoveryPhase.EVIDENCE_SETTLEMENT, RecoveryPhase.NONAPPLICATION])
-@pytest.mark.parametrize("fault", [None, RuntimeError, SoftTimeLimitExceeded], ids=["control", "poison", "stop"])
+@pytest.mark.parametrize(
+    "fault",
+    [None, RuntimeError, SoftTimeLimitExceeded, ApplicationNotInstalled],
+    ids=["control", "poison", "stop", "application-wiring"],
+)
 def test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures(
     publication: Publication, monkeypatch: pytest.MonkeyPatch, phase: RecoveryPhase, fault: type[Exception] | None
 ) -> None:
+    monkeypatch.setattr(integration, "_hooks", ApplicationHooks())
+    integration.configure(ApplicationHooks(abort_recovery_on=(ApplicationNotInstalled,)))
     bad, good = arrange(publication, phase), arrange(publication, phase)
     calls: list[int] = []
 
@@ -72,8 +84,8 @@ def test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures(
         monkeypatch.setattr(Publication, "retry_delay_for", delay)
 
     with hold_nudges():
-        if fault is SoftTimeLimitExceeded:
-            with pytest.raises(SoftTimeLimitExceeded):
+        if fault in (SoftTimeLimitExceeded, ApplicationNotInstalled):
+            with pytest.raises(fault):
                 publication.recover()
             assert calls == [bad.pk]
             assert not progressed(good, phase)

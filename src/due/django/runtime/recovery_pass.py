@@ -19,6 +19,7 @@ from sentry_sdk.scope import add_global_event_processor
 from sentry_sdk.types import Event
 
 from due._installed import NotInstalledError
+from due.django.integration import aborts_recovery
 from due.django.models import RecoveryDeferral
 from due.django.runtime.metrics import (
     RecoveryOutcome,
@@ -105,7 +106,9 @@ def ends_the_tick(error: BaseException, propagate: tuple[type[BaseException], ..
     seen: set[int] = set()
     current: BaseException | None = error
     while current is not None and id(current) not in seen:
-        if isinstance(current, stop_on):
+        # Application slots have their own exception identity. Configured fatal
+        # errors must never become row deferrals or allow later phases to run.
+        if isinstance(current, stop_on) or aborts_recovery(current):
             return True
         seen.add(id(current))
         current = current.__cause__ or current.__context__
