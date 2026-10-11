@@ -534,17 +534,17 @@ def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
-def test_generated_gate_proof_rejects_test_authored_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monkeypatch: pytest.MonkeyPatch) -> None:
     from pytest_obligation.contract import contract_cases
 
-    # This primitive self-test deliberately owns its toy readiness transition.
-    # Its runtime fault controls are useful, but cannot certify an application's
-    # production binding. Keep the stricter canonical check as a negative control.
+    # This reference fixture deliberately writes readiness directly. An application
+    # must instead bind its real readiness command; never certify this fixture as
+    # a production-bound application merely because its behavioral proofs pass.
     contract = _gated_contract(monkeypatch)
     case = next(
         param.values[0]
         for param in contract_cases(contract)
         if param.id == "eligibility-assert_gate_bindings_are_production_bound"
     )
-    with pytest.raises(AssertionError, match="make_eligible authors production semantics in test code"):
+    with pytest.raises(AssertionError, match="make_eligible authors production semantics"):
         case.run()
