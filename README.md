@@ -134,6 +134,10 @@ schedule and route both execution and recovery. See [integration](docs/integrati
 
 ## Run the example
 
+The [document-publication application](examples/documents/README.md) originated
+as a Procrastinate demo and was ported to Due. This checkout runs the Due side
+of that migration.
+
 ```bash
 git clone https://github.com/gigaverse-app/due.git
 cd due

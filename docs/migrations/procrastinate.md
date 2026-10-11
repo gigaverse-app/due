@@ -28,6 +28,10 @@ not a new guarantee gained by switching.
 
 ## Prepare the Due side
 
+The [document-publication demo](../../examples/documents/README.md) was originally
+a Procrastinate demo that we ported to Due. It is the concrete destination used
+below; the historical source app is not bundled in this checkout.
+
 Due currently requires **Python 3.14+, Django >=6.0.8,<7, PostgreSQL, Celery,
 a broker, workers and periodic recovery**. It is alpha; pin a reviewed GitHub
 revision. Product, work and evidence must use the same writable database through
