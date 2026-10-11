@@ -133,3 +133,5 @@ rejects, then run the [contributor checks](../CONTRIBUTING.md). Reports delibera
 link to the actual proof implementation, even when users import its public facade.
 
 Crash histories also enter `EffectExamples.environment` before `arrange` and keep it active through transition, delivery, recovery and observation. Each history run owns and closes its scope, including faulted runs. Process histories configure their own child-process environment.
+
+Schema index proofs reuse pytest-obligation's PostgreSQL catalog records, including key order, included columns and partial predicates. They reject a B-tree condition on only a later key; an index name or `Index Cond` alone is insufficient evidence of narrowing.

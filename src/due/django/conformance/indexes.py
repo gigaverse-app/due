@@ -3,6 +3,7 @@
 from django.db import connection
 
 # pytest-global: All enrolled models reuse the existing root-owned index-eligibility verdict.
+from pytest_obligation.integrations.django.indexes import installed_indexes
 from pytest_obligation.integrations.django.selection import DjangoSelectionInspector
 
 # pytest-global: Optional observer schema shares the generated catalog proof.
@@ -30,21 +31,10 @@ def assert_work_indexes(model: type[UniverseDurableWork]) -> None:
     """
     table = model._meta.db_table
     quote = connection.ops.quote_name
+    installed = [
+        index for index in installed_indexes(connection, [table]) if index.usable and index.access_method == "btree"
+    ]
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT i.indnkeyatts, i.indnatts,
-                   ARRAY(SELECT pg_get_indexdef(i.indexrelid, n, true)
-                         FROM generate_series(1, i.indnatts) n),
-                   pg_get_expr(i.indpred, i.indrelid), c.relname
-            FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
-            JOIN pg_am am ON am.oid = c.relam
-            WHERE i.indrelid = %s::regclass AND i.indisvalid AND i.indisready
-                  AND am.amname = 'btree'
-            """,
-            [table],
-        )
-        installed = cursor.fetchall()
         states = [*DurableWorkState.values, None, "unrecognized"]
         values = ", ".join(["(%s::varchar)"] * len(states))
         expected_indexes = durable_work_indexes(name_prefix="contract")
@@ -58,12 +48,12 @@ def assert_work_indexes(model: type[UniverseDurableWork]) -> None:
             condition, params = query.where.as_sql(query.get_compiler(connection=connection), connection)
             columns = [*expected.fields, *expected.include]
             candidates = [
-                (predicate, name)
-                for key_count, total, actual_columns, predicate, name in installed
-                if key_count == len(expected.fields) and total == len(columns) and actual_columns == columns
+                (index.predicate, index.name)
+                for index in installed
+                if index.key_columns == tuple(expected.fields) and index.included_columns == tuple(expected.include)
             ]
             matched: set[str] = set()
-            verified_predicates: set[str] = set()
+            verified_predicates: set[str | None] = set()
             for predicate, name in candidates:
                 cursor.execute(
                     f"SELECT bool_and((({condition}) IS TRUE) = (({predicate or 'TRUE'}) IS TRUE)) "
@@ -86,6 +76,6 @@ def assert_work_indexes(model: type[UniverseDurableWork]) -> None:
             # may serve this selection through a different key layout, however.
             # Trust that partial bitmap only when its catalog-normalized WHERE
             # exactly matches a predicate we validated, never by index name alone.
-            predicate_indexes = {name for _, _, _, predicate, name in installed if predicate in verified_predicates}
+            predicate_indexes = {index.name for index in installed if index.predicate in verified_predicates}
             served, explanation = DjangoSelectionInspector(partial_indexes=predicate_indexes).index_served(queryset)
             assert served, f"{table}: {expected.name}: {explanation}"
