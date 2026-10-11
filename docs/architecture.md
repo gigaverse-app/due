@@ -1,5 +1,8 @@
 # Architecture and guarantees
 
+For the application-level decision, start with [When Due is the right tool](why-due.md).
+This reference describes the mechanisms and their exact boundaries.
+
 PostgreSQL records an obligation, not just a request to enqueue a task. An
 obligation can survive many execution attempts. Completion means both the
 external result and the required local settlement have been handled according

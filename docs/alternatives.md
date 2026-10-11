@@ -5,6 +5,10 @@ solve overlapping problems with different tradeoffs, and some can remain useful
 alongside Due. The right migration starts with an application need, not a claim
 that one project should replace every other project.
 
+For a provider-independent explanation of the decision, read
+[When Due is the right tool](why-due.md): its strengths, application costs, and
+how to check the failure assumptions behind a proposed migration.
+
 Due's strongest current fit is a Django/PostgreSQL application that already uses
 Celery and maintains custom obligation recovery, revision or provider-evidence
 logic. Moving a satisfactory PostgreSQL queue only to obtain durable admission
