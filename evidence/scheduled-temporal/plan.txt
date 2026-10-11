@@ -1,0 +1,9 @@
+Live comparison plan
+- Run pinned upstream worker/starter/updater unchanged against Temporal CLI dev server.
+- Run Due web/worker/Beat with existing registration cadence 5s and actual PostgreSQL/Redis.
+- Paired behavior: start future deadline, query current time, move earlier/later, complete; stop/restart worker while deadline is pending; cancel pending.
+- Temporal cancellation is SDK workflow cancellation, not an upstream sample command; do not claim parity after an external effect because upstream has no activity/provider.
+- Benchmark sequential admissions + reschedules, 3 alternating blocks per arm x 5 samples. Warm up each arm; no capacity/throughput claim.
+- Measure client command duration separately from observed lateness against the final requested deadline; 20ms observation polling, no business retries, real workers, no clock acceleration.
+- Capture actual Due browser and native Temporal UI running/completed workflows; save terminal logs and workflow history.
+- Keep run output and screenshots in a closed evidence-only PR; maintain source README comparison/repro instructions on PR18.
