@@ -85,13 +85,16 @@ from arq.connections import ArqRedis
 from .models import Document
 from .storage import write_revision
 
+
 async def publish(ctx: dict[str, Any], document_id: int, text: str, publication_id: str) -> str:
     key = await asyncio.to_thread(write_revision, text, publication_id)
     await Document.objects.filter(pk=document_id).aupdate(published_key=key)
     return key
 
+
 class WorkerSettings:
     functions = [publish]
+
 
 async def submit(redis: ArqRedis) -> str:
     job = await redis.enqueue_job("publish", 42, "Hello", "request-123")

@@ -91,15 +91,18 @@ from .storage import write_revision
 def write_blob(text: str, publication_id: str) -> str:
     return write_revision(text, publication_id)
 
+
 @DBOS.step()
 def publish_pointer(document_id: int, key: str) -> None:
     Document.objects.filter(pk=document_id).update(published_key=key)
+
 
 @DBOS.workflow()
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_blob(text, publication_id)
     publish_pointer(document_id, key)
     return key
+
 
 # After DBOS configuration and launch:
 DBOS.register_queue("publication")

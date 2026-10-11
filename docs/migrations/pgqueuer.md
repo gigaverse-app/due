@@ -87,10 +87,12 @@ from pgqueuer.types import JobId
 from .models import Document
 from .storage import write_revision
 
+
 class PublicationInput(BaseModel):
     document_id: int
     text: str
     publication_id: str
+
 
 # pgq is the application's configured PgQueuer instance.
 @pgq.entrypoint("publish")
@@ -99,6 +101,7 @@ async def publish(job: Job) -> None:
     data = PublicationInput.model_validate_json(job.payload)
     key = await asyncio.to_thread(write_revision, data.text, data.publication_id)
     await Document.objects.filter(pk=data.document_id).aupdate(published_key=key)
+
 
 async def submit(queries: Queries) -> list[JobId]:
     payload = PublicationInput(document_id=42, text="Hello", publication_id="request-123")

@@ -90,14 +90,19 @@ from rq import Queue, Retry
 from .models import Document
 from .storage import write_revision
 
+
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_revision(text, publication_id)
     Document.objects.filter(pk=document_id).update(published_key=key)
     return key
 
+
 queue = Queue("publication", connection=Redis())
 job = queue.enqueue(
-    publish, 42, "Hello", "request-123",
+    publish,
+    42,
+    "Hello",
+    "request-123",
     retry=Retry(max=3, interval=60),
 )
 # Later, after checking the job completed:
@@ -257,7 +262,8 @@ existing `atomic()` block** to:
 
 ```python
 return pending.request_work(
-    PublicationWork(text=text, universe="example"), not_before=deadline,
+    PublicationWork(text=text, universe="example"),
+    not_before=deadline,
 )
 ```
 
@@ -276,7 +282,9 @@ from due.django.capabilities.scheduled import CancellationResult, ScheduleResult
 
 # deadline_action and DeadlineWork are your declared capability and work model.
 status: ScheduleResult = deadline_action.schedule_at(
-    42, DeadlineWork(universe="example"), at=deadline,
+    42,
+    DeadlineWork(universe="example"),
+    at=deadline,
 )
 cancellation: CancellationResult = deadline_action.cancel_pending(42)
 ```

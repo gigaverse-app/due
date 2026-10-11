@@ -85,11 +85,13 @@ from .storage import write_revision
 
 huey = RedisHuey("publication")
 
+
 @huey.task(retries=3, retry_delay=60)
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_revision(text, publication_id)
     Document.objects.filter(pk=document_id).update(published_key=key)
     return key
+
 
 result = publish(42, "Hello", "request-123")
 key = result(blocking=True, timeout=30)
@@ -246,7 +248,8 @@ existing `atomic()` block** to:
 
 ```python
 return pending.request_work(
-    PublicationWork(text=text, universe="example"), not_before=deadline,
+    PublicationWork(text=text, universe="example"),
+    not_before=deadline,
 )
 ```
 
@@ -265,7 +268,9 @@ from due.django.capabilities.scheduled import CancellationResult, ScheduleResult
 
 # deadline_action and DeadlineWork are your declared capability and work model.
 status: ScheduleResult = deadline_action.schedule_at(
-    42, DeadlineWork(universe="example"), at=deadline,
+    42,
+    DeadlineWork(universe="example"),
+    at=deadline,
 )
 cancellation: CancellationResult = deadline_action.cancel_pending(42)
 ```

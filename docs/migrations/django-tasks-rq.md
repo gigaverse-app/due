@@ -83,11 +83,13 @@ from django_tasks import task
 from .models import Document
 from .storage import write_revision
 
+
 @task
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_revision(text, publication_id)
     Document.objects.filter(pk=document_id).update(published_key=key)
     return key
+
 
 task_result = publish.enqueue(42, "Hello", "request-123")
 # Later, once the backend reports SUCCESSFUL:
@@ -246,7 +248,8 @@ existing `atomic()` block** to:
 
 ```python
 return pending.request_work(
-    PublicationWork(text=text, universe="example"), not_before=deadline,
+    PublicationWork(text=text, universe="example"),
+    not_before=deadline,
 )
 ```
 
@@ -265,7 +268,9 @@ from due.django.capabilities.scheduled import CancellationResult, ScheduleResult
 
 # deadline_action and DeadlineWork are your declared capability and work model.
 status: ScheduleResult = deadline_action.schedule_at(
-    42, DeadlineWork(universe="example"), at=deadline,
+    42,
+    DeadlineWork(universe="example"),
+    at=deadline,
 )
 cancellation: CancellationResult = deadline_action.cancel_pending(42)
 ```

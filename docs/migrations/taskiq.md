@@ -84,11 +84,13 @@ from .broker import broker
 from .models import Document
 from .storage import write_revision
 
+
 @broker.task
 async def publish(document_id: int, text: str, publication_id: str) -> str:
     key = await asyncio.to_thread(write_revision, text, publication_id)
     await Document.objects.filter(pk=document_id).aupdate(published_key=key)
     return key
+
 
 async def submit() -> str:
     task = await publish.kiq(42, "Hello", "request-123")

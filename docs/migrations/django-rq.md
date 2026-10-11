@@ -83,11 +83,13 @@ from django_rq import job
 from .models import Document
 from .storage import write_revision
 
+
 @job("publication")
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_revision(text, publication_id)
     Document.objects.filter(pk=document_id).update(published_key=key)
     return key
+
 
 job = publish.delay(42, "Hello", "request-123")
 # Later, after successful execution:

@@ -83,10 +83,12 @@ from django_q.tasks import async_task, result
 from .models import Document
 from .storage import write_revision
 
+
 def publish(document_id: int, text: str, publication_id: str) -> str:
     key = write_revision(text, publication_id)
     Document.objects.filter(pk=document_id).update(published_key=key)
     return key
+
 
 task_id = async_task(publish, 42, "Hello", "request-123")
 # Later; None can mean not ready, so also inspect task status.

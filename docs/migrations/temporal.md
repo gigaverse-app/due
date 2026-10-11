@@ -85,11 +85,13 @@ from dataclasses import dataclass
 from temporalio import activity, workflow
 from temporalio.client import Client
 
+
 @dataclass
 class PublicationInput:
     document_id: int
     text: str
     publication_id: str
+
 
 @activity.defn
 async def publish_blob(data: PublicationInput) -> str:
@@ -101,19 +103,24 @@ async def publish_blob(data: PublicationInput) -> str:
     await Document.objects.filter(pk=data.document_id).aupdate(published_key=key)
     return key
 
+
 @workflow.defn
 class PublishDocumentWorkflow:
     @workflow.run
     async def run(self, data: PublicationInput) -> str:
         return await workflow.execute_activity(
-            publish_blob, data, start_to_close_timeout=timedelta(minutes=2),
+            publish_blob,
+            data,
+            start_to_close_timeout=timedelta(minutes=2),
         )
+
 
 async def submit(client: Client) -> str:
     return await client.execute_workflow(
         PublishDocumentWorkflow.run,
         PublicationInput(42, "Hello", "request-123"),
-        id="publication-request-123", task_queue="publication",
+        id="publication-request-123",
+        task_queue="publication",
     )
 ```
 
