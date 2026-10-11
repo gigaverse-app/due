@@ -123,7 +123,7 @@ def test_report_locates_bindings_and_proofs_without_executing_examples(selected_
     assert proof["path"].endswith("/pytest_obligation/profiles/harmless_replay.py")
     assert proof["callable"].endswith(".assert_replay_converges")
     migrated_indexes = evidence["proof_sources"]["test_migrated_work_indexes"]
-    assert migrated_indexes["path"].endswith("/due/django/conformance/suite.py")
+    assert migrated_indexes["path"].endswith("/due/django/conformance/_internal/suite.py")
     assert migrated_indexes["callable"].endswith(".test_migrated_work_indexes")
     assert "test_migrated_work_indexes" in evidence["expected"]
     assert "test_migrated_work_indexes" in evidence["collected"]

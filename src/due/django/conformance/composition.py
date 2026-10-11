@@ -31,6 +31,12 @@ from due.django.testing import WorkerDied, hold_nudges
 
 @dataclass(frozen=True, kw_only=True)
 class CompensationExample[W: UniverseDurableWork, ObservationT]:
+    """A producer and independently owed cleanup, observed at the external boundary.
+
+    ``provider_path`` is the producer seam; ``produce_output(work)`` arranges late
+    output. ``retire()`` calls the real retirement command and returns cleanup
+    rows. ``observe()`` must reach ``clean`` even after producer exhaustion."""
+
     work: W
     provider_path: str
     produce_output: Callable[[W], object]
@@ -41,6 +47,8 @@ class CompensationExample[W: UniverseDurableWork, ObservationT]:
 
 @dataclass(frozen=True, kw_only=True)
 class SupersessionExample[W: UniverseDurableWork, ObservationT]:
+    """Existing work, a real desired-input change, and an independent product observation."""
+
     work: W
     change: Callable[[], object]
     observe: Callable[[], ObservationT]
@@ -48,17 +56,22 @@ class SupersessionExample[W: UniverseDurableWork, ObservationT]:
 
 @dataclass(frozen=True, kw_only=True)
 class ProjectionExample[W: UniverseDurableWork, ObservationT](SupersessionExample[W, ObservationT]):
+    """Supersession whose eventual observable result must equal the latest target."""
+
     latest: ObservationT
 
 
 @dataclass(frozen=True, kw_only=True)
 class CancellationExample[W: UniverseDurableWork, ObservationT](SupersessionExample[W, ObservationT]):
+    """Cancellation after provider entry; completed names the actual external outcome."""
+
     completed: ObservationT
 
 
 def assert_cancellation_after_entry_is_honest(
     capability: DurableScheduledAction, example: CancellationExample, *, worker_dies: bool
 ) -> None:
+    """Prove late cancellation reports admitted I/O honestly, including worker death."""
     original = capability.perform_effect
     entered = []
 
@@ -92,6 +105,7 @@ def assert_cancellation_after_entry_is_honest(
 def assert_late_projection_write_is_repaired(
     capability: DurableProjection, example: ProjectionExample, *, worker_dies: bool
 ) -> None:
+    """Let a stale external write finish late, then require recovery to restore the latest target."""
     original = capability.write_projection
     entered = False
     escaped = []
@@ -142,6 +156,7 @@ def assert_late_projection_write_is_repaired(
 def compensations_for[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT],
 ) -> tuple[IndependentCompensation, ...]:
+    """Return installed independent compensation capabilities for this producer model."""
     return tuple(
         cleanup
         for entry in installed.get().values()
@@ -151,6 +166,7 @@ def compensations_for[W: UniverseDurableWork, ResultT](
 
 
 def recover_and_deliver(work: UniverseDurableWork) -> None:
+    """Recover one work identity and execute the registered production worker delivery."""
     entry = registration_of(type(work))
     sent = []
 
@@ -180,6 +196,7 @@ def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT]
     cleanup: IndependentCompensation,
     example: CompensationExample,
 ) -> None:
+    """Require independent cleanup after producer exhaustion, including a late output race."""
     assert type(example.work) is primary.model
     assert cleanup.producer_model is primary.model
     work = example.work

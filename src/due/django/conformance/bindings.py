@@ -56,6 +56,13 @@ def assert_registered_worker_options(entry: DurableWorkRegistration, options: Ma
 
 @dataclass(frozen=True)
 class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
+    """Advanced adapter from a registered capability to shared profile contracts.
+
+    ``capability`` owns all runtime transitions; ``make`` admits fresh work through
+    production. Observation, lease aging and task delivery helpers expose those
+    transitions to shared proofs. Prefer effect_contract_suite for application
+    enrollment, which also enforces mode-specific examples and report completeness."""
+
     capability: DurableWorkCapability[W, ResultT]
     make_work: Callable[[], W]
     identity_of: Callable[[W], Any] = lambda work: work.pk
