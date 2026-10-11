@@ -1,0 +1,433 @@
+ 
+ -------------- celery@aviad-workstation v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.39 2026-10-11 12:05:52
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         due_example:0x71714c553620
+- ** ---------- .> transport:   redis://127.0.0.1:26461/0
+- ** ---------- .> results:     disabled://
+- *** --- * --- .> concurrency: 1 (prefork)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> due-live-comparison exchange=due-live-comparison(direct) key=due-live-comparison
+                
+
+[tasks]
+  . due.django.runtime.tasks.observe_durable_work_task
+  . due.django.runtime.tasks.recover_durable_work_task
+  . due.django.runtime.tasks.run_durable_work_task
+
+[2026-10-11 12:05:52,894: INFO/MainProcess] Connected to redis://127.0.0.1:26461/0
+[2026-10-11 12:05:52,902: INFO/MainProcess] celery@aviad-workstation ready.
+[2026-10-11 12:05:52,904: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ff11b38c-a656-492c-9f5f-d813f00a53bc] received
+[2026-10-11 12:05:52,905: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[27073b95-edb2-43fd-8c4a-8bc309bbcbe2] received
+[2026-10-11 12:05:52,906: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a6172cd0-cbb5-49db-afd1-f666a2a5eccc] received
+[2026-10-11 12:05:52,906: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[b9ec639b-faec-417b-b652-aea7bfce7b3e] received
+[2026-10-11 12:05:52,907: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[79b373f6-ddf6-4d7e-82ff-a1dfdac61c30] received
+[2026-10-11 12:05:52,929: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ff11b38c-a656-492c-9f5f-d813f00a53bc] succeeded in 0.024166373999833013s: 0
+[2026-10-11 12:05:52,930: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[b5f55e8b-fb3a-4fbc-9e4e-7dc0695a52d1] received
+[2026-10-11 12:05:52,938: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[27073b95-edb2-43fd-8c4a-8bc309bbcbe2] succeeded in 0.008838059000026988s: 0
+[2026-10-11 12:05:52,947: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a6172cd0-cbb5-49db-afd1-f666a2a5eccc] succeeded in 0.008426028000030783s: 0
+[2026-10-11 12:05:52,995: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[a2f81128-d1c0-40ab-8b8b-c9bf72d5716f] received
+[2026-10-11 12:05:52,997: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[b9ec639b-faec-417b-b652-aea7bfce7b3e] succeeded in 0.05013593200010291s: 1
+[2026-10-11 12:05:53,012: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[79b373f6-ddf6-4d7e-82ff-a1dfdac61c30] succeeded in 0.012825344000248151s: 0
+[2026-10-11 12:05:53,023: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[b5f55e8b-fb3a-4fbc-9e4e-7dc0695a52d1] succeeded in 0.01014725000004546s: 0
+[2026-10-11 12:05:53,062: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[a2f81128-d1c0-40ab-8b8b-c9bf72d5716f] succeeded in 0.03873715700001412s: True
+[2026-10-11 12:05:57,005: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0eec0624-30db-49ef-8573-b8852b92cde5] received
+[2026-10-11 12:05:57,005: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[aac3da9c-c2c7-4f69-8852-58b14b01098b] received
+[2026-10-11 12:05:57,006: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[103d9655-6ec7-4f2b-bede-2125ff4fea6d] received
+[2026-10-11 12:05:57,008: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[de4b6bbf-8d26-4034-9bbc-7ae324e70d9b] received
+[2026-10-11 12:05:57,008: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[53ec9e1a-7437-4188-a43a-0c71cdd47c2e] received
+[2026-10-11 12:05:57,020: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0eec0624-30db-49ef-8573-b8852b92cde5] succeeded in 0.015220428999782598s: 0
+[2026-10-11 12:05:57,022: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[17d83b23-8e1e-4fab-878a-be4b1a7f9a6e] received
+[2026-10-11 12:05:57,031: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[aac3da9c-c2c7-4f69-8852-58b14b01098b] succeeded in 0.010106993000135844s: 0
+[2026-10-11 12:05:57,042: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[103d9655-6ec7-4f2b-bede-2125ff4fea6d] succeeded in 0.0101083889999245s: 0
+[2026-10-11 12:05:57,057: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[de4b6bbf-8d26-4034-9bbc-7ae324e70d9b] succeeded in 0.014119511999979295s: 0
+[2026-10-11 12:05:57,070: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[53ec9e1a-7437-4188-a43a-0c71cdd47c2e] succeeded in 0.01275892500007103s: 0
+[2026-10-11 12:05:57,081: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[17d83b23-8e1e-4fab-878a-be4b1a7f9a6e] succeeded in 0.010541052000007767s: 0
+[2026-10-11 12:06:02,004: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[7fb63003-fea9-484d-9858-d02c315d8d78] received
+[2026-10-11 12:06:02,005: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[b80d6825-1e66-4336-afdd-c4d26c6dc75a] received
+[2026-10-11 12:06:02,006: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[b6914311-bbc7-457b-9eef-79907e6912c7] received
+[2026-10-11 12:06:02,007: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[1e24533b-b813-42d5-8c17-a5b53c34f383] received
+[2026-10-11 12:06:02,007: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d5afd1c5-4009-41a2-809f-4c6518d8387b] received
+[2026-10-11 12:06:02,019: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[7fb63003-fea9-484d-9858-d02c315d8d78] succeeded in 0.014406534000045212s: 0
+[2026-10-11 12:06:02,021: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c8a1cb4c-2341-4a5b-b4a6-a5eba6e2ff11] received
+[2026-10-11 12:06:02,029: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[b80d6825-1e66-4336-afdd-c4d26c6dc75a] succeeded in 0.009881559999939782s: 0
+[2026-10-11 12:06:02,040: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[b6914311-bbc7-457b-9eef-79907e6912c7] succeeded in 0.010080747000301926s: 0
+[2026-10-11 12:06:02,055: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[1e24533b-b813-42d5-8c17-a5b53c34f383] succeeded in 0.014226812999822869s: 0
+[2026-10-11 12:06:02,071: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d5afd1c5-4009-41a2-809f-4c6518d8387b] succeeded in 0.015662805999909324s: 0
+[2026-10-11 12:06:02,085: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c8a1cb4c-2341-4a5b-b4a6-a5eba6e2ff11] succeeded in 0.012729137999940576s: 0
+[2026-10-11 12:06:07,004: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[65bc463d-30ce-4169-8df2-a8a2bbc284af] received
+[2026-10-11 12:06:07,006: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[49588401-fbd0-4dfc-bd09-daecf8343c4b] received
+[2026-10-11 12:06:07,007: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[1152a607-bf48-45d2-aee7-299440008de6] received
+[2026-10-11 12:06:07,007: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a549db3d-90d4-42a4-9dab-87ed957e431c] received
+[2026-10-11 12:06:07,008: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[09ee9041-1cf6-41bf-afc6-99e606fe71d9] received
+[2026-10-11 12:06:07,020: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[65bc463d-30ce-4169-8df2-a8a2bbc284af] succeeded in 0.01517007399979775s: 0
+[2026-10-11 12:06:07,022: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[663a2ae1-99af-413d-83b2-14af2a23d2bc] received
+[2026-10-11 12:06:07,030: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[49588401-fbd0-4dfc-bd09-daecf8343c4b] succeeded in 0.009415231000275526s: 0
+[2026-10-11 12:06:07,039: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[1152a607-bf48-45d2-aee7-299440008de6] succeeded in 0.008937829999922542s: 0
+[2026-10-11 12:06:07,058: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[0bc11d04-472f-4ea2-915a-d2085bb79ffe] received
+[2026-10-11 12:06:07,059: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a549db3d-90d4-42a4-9dab-87ed957e431c] succeeded in 0.019368666999980633s: 1
+[2026-10-11 12:06:07,075: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[09ee9041-1cf6-41bf-afc6-99e606fe71d9] succeeded in 0.01476345199989737s: 0
+[2026-10-11 12:06:07,088: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[663a2ae1-99af-413d-83b2-14af2a23d2bc] succeeded in 0.012469448000047123s: 0
+[2026-10-11 12:06:07,124: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[0bc11d04-472f-4ea2-915a-d2085bb79ffe] succeeded in 0.03463222299978952s: True
+[2026-10-11 12:06:14,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d79c7765-b290-4596-9a28-b1ecc8f373ba] received
+[2026-10-11 12:06:14,174: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[eeb0d675-83df-4b88-ad07-2dc45e6e3e27] received
+[2026-10-11 12:06:14,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[362ac40d-6575-43a8-9df0-54f6fb715d9e] received
+[2026-10-11 12:06:14,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[9dccc27d-7e62-414f-8e5c-4ad052e310a9] received
+[2026-10-11 12:06:14,176: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3628c623-08cc-42eb-a1d9-d81b2d2b8604] received
+[2026-10-11 12:06:14,190: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d79c7765-b290-4596-9a28-b1ecc8f373ba] succeeded in 0.016429092999715067s: 0
+[2026-10-11 12:06:14,192: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[061321aa-16fa-4be4-8e2f-641f4aaaf3ff] received
+[2026-10-11 12:06:14,202: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[eeb0d675-83df-4b88-ad07-2dc45e6e3e27] succeeded in 0.011907099999916682s: 0
+[2026-10-11 12:06:14,214: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[362ac40d-6575-43a8-9df0-54f6fb715d9e] succeeded in 0.01023355800043646s: 0
+[2026-10-11 12:06:14,234: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[6f4adc2d-c5cb-4205-90f6-a90ee20c55ca] received
+[2026-10-11 12:06:14,236: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[9dccc27d-7e62-414f-8e5c-4ad052e310a9] succeeded in 0.020792147000065597s: 1
+[2026-10-11 12:06:14,251: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3628c623-08cc-42eb-a1d9-d81b2d2b8604] succeeded in 0.013059545000032813s: 0
+[2026-10-11 12:06:14,262: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[061321aa-16fa-4be4-8e2f-641f4aaaf3ff] succeeded in 0.010915528000623453s: 0
+[2026-10-11 12:06:14,297: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[6f4adc2d-c5cb-4205-90f6-a90ee20c55ca] succeeded in 0.03389000999959535s: True
+[2026-10-11 12:06:19,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[bd0f0887-4ea4-4012-9646-437ea70142ad] received
+[2026-10-11 12:06:19,174: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[053f59a8-61c2-4e91-927c-b8d466c92db4] received
+[2026-10-11 12:06:19,176: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f2ee6261-8305-4eb8-8c5b-06b0a2cf9fd9] received
+[2026-10-11 12:06:19,177: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[16082401-e895-4654-841e-3c00cb5c970d] received
+[2026-10-11 12:06:19,178: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ef257339-9d21-434e-b617-fad472099326] received
+[2026-10-11 12:06:19,189: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[bd0f0887-4ea4-4012-9646-437ea70142ad] succeeded in 0.015135442999962834s: 0
+[2026-10-11 12:06:19,190: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[17f1462f-cb12-419a-a5ad-f7f8b64c6a2f] received
+[2026-10-11 12:06:19,199: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[053f59a8-61c2-4e91-927c-b8d466c92db4] succeeded in 0.009411130000444246s: 0
+[2026-10-11 12:06:19,209: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f2ee6261-8305-4eb8-8c5b-06b0a2cf9fd9] succeeded in 0.009551361999911023s: 0
+[2026-10-11 12:06:19,227: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[a59bf6bb-d0d2-4c9f-a6c3-3c67c05fada0] received
+[2026-10-11 12:06:19,229: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[16082401-e895-4654-841e-3c00cb5c970d] succeeded in 0.019398861999434303s: 1
+[2026-10-11 12:06:19,241: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ef257339-9d21-434e-b617-fad472099326] succeeded in 0.011452681999799097s: 0
+[2026-10-11 12:06:19,251: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[17f1462f-cb12-419a-a5ad-f7f8b64c6a2f] succeeded in 0.009887091000564396s: 0
+[2026-10-11 12:06:19,280: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[a59bf6bb-d0d2-4c9f-a6c3-3c67c05fada0] succeeded in 0.028131829999438196s: True
+[2026-10-11 12:06:24,172: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[82eaa109-e6c4-492d-85ce-d9c1c1cd270e] received
+[2026-10-11 12:06:24,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[2978007a-0b18-48b2-89ec-7769c8034036] received
+[2026-10-11 12:06:24,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[66012315-ae01-404c-a2bd-5dacfda7e1b0] received
+[2026-10-11 12:06:24,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0a1c9965-820b-4a07-bf27-a9067f46dbf9] received
+[2026-10-11 12:06:24,176: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[63ac3638-bc10-4881-9059-842739c88f5d] received
+[2026-10-11 12:06:24,189: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[82eaa109-e6c4-492d-85ce-d9c1c1cd270e] succeeded in 0.016688280000380473s: 0
+[2026-10-11 12:06:24,191: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[26c00635-d93d-4cef-9e0a-afb7a90b9ad5] received
+[2026-10-11 12:06:24,200: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[2978007a-0b18-48b2-89ec-7769c8034036] succeeded in 0.009748575999765308s: 0
+[2026-10-11 12:06:24,210: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[66012315-ae01-404c-a2bd-5dacfda7e1b0] succeeded in 0.009822773999985657s: 0
+[2026-10-11 12:06:24,227: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[decc830b-61bf-4fd5-bad9-5853ed4e9424] received
+[2026-10-11 12:06:24,228: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0a1c9965-820b-4a07-bf27-a9067f46dbf9] succeeded in 0.017806580999604193s: 1
+[2026-10-11 12:06:24,241: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[63ac3638-bc10-4881-9059-842739c88f5d] succeeded in 0.01177432599979511s: 0
+[2026-10-11 12:06:24,251: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[26c00635-d93d-4cef-9e0a-afb7a90b9ad5] succeeded in 0.009612586999537598s: 0
+[2026-10-11 12:06:24,284: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[decc830b-61bf-4fd5-bad9-5853ed4e9424] succeeded in 0.03258455699960905s: True
+[2026-10-11 12:06:29,172: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[931668f9-ecde-4048-9f42-0271dfbb37a0] received
+[2026-10-11 12:06:29,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5acfd727-5d1b-4b85-9c61-ed2e445bc62a] received
+[2026-10-11 12:06:29,174: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ac9d8441-e647-430e-ad81-7f7269b79b3c] received
+[2026-10-11 12:06:29,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[faeefe2c-f0bd-47a6-a83e-54fc1d1b675f] received
+[2026-10-11 12:06:29,177: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[e5157b6a-9604-4674-8e1e-fed1105f06a0] received
+[2026-10-11 12:06:29,188: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[931668f9-ecde-4048-9f42-0271dfbb37a0] succeeded in 0.015534610000031535s: 0
+[2026-10-11 12:06:29,190: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[73510272-9007-4e68-8bb7-9a22d16bc548] received
+[2026-10-11 12:06:29,199: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5acfd727-5d1b-4b85-9c61-ed2e445bc62a] succeeded in 0.010013651999543072s: 0
+[2026-10-11 12:06:29,209: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ac9d8441-e647-430e-ad81-7f7269b79b3c] succeeded in 0.009456851999857463s: 0
+[2026-10-11 12:06:29,234: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[4460ab9c-0172-41ba-9e49-1b0bd5ffc029] received
+[2026-10-11 12:06:29,235: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[faeefe2c-f0bd-47a6-a83e-54fc1d1b675f] succeeded in 0.022592520999751287s: 1
+[2026-10-11 12:06:29,248: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[e5157b6a-9604-4674-8e1e-fed1105f06a0] succeeded in 0.012163342000349076s: 0
+[2026-10-11 12:06:29,258: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[73510272-9007-4e68-8bb7-9a22d16bc548] succeeded in 0.009805649000554695s: 0
+[2026-10-11 12:06:29,364: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[4460ab9c-0172-41ba-9e49-1b0bd5ffc029] succeeded in 0.10564978799993696s: True
+[2026-10-11 12:06:34,172: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[9cfe8b13-644b-43b3-84b4-24ca10be5e4e] received
+[2026-10-11 12:06:34,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5f6dae15-c109-4e40-a554-f1cbe7b03c67] received
+[2026-10-11 12:06:34,174: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ea00ff3e-cea2-4403-bbcd-f26c950f976e] received
+[2026-10-11 12:06:34,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d3866959-f932-4d41-b4fd-f4e288a2c4b0] received
+[2026-10-11 12:06:34,176: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[7d2bf968-c130-4e41-912a-c957089652ee] received
+[2026-10-11 12:06:34,186: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[9cfe8b13-644b-43b3-84b4-24ca10be5e4e] succeeded in 0.013747429000432021s: 0
+[2026-10-11 12:06:34,188: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[fbe3b1b4-cf40-4006-970d-b98947ebfbf3] received
+[2026-10-11 12:06:34,195: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5f6dae15-c109-4e40-a554-f1cbe7b03c67] succeeded in 0.008598706999691785s: 0
+[2026-10-11 12:06:34,205: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ea00ff3e-cea2-4403-bbcd-f26c950f976e] succeeded in 0.008919387000787538s: 0
+[2026-10-11 12:06:34,225: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[b027e11f-0edd-4e35-a09c-7d07bdf99630] received
+[2026-10-11 12:06:34,227: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d3866959-f932-4d41-b4fd-f4e288a2c4b0] succeeded in 0.021459223999954702s: 1
+[2026-10-11 12:06:34,242: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[7d2bf968-c130-4e41-912a-c957089652ee] succeeded in 0.013524284000595799s: 0
+[2026-10-11 12:06:34,254: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[fbe3b1b4-cf40-4006-970d-b98947ebfbf3] succeeded in 0.009678819000328076s: 0
+[2026-10-11 12:06:34,375: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[b027e11f-0edd-4e35-a09c-7d07bdf99630] succeeded in 0.12037979800061294s: True
+[2026-10-11 12:06:39,173: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[fce46af8-3558-46a9-a772-01dcbbb2643e] received
+[2026-10-11 12:06:39,174: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[35e50723-0c50-4f39-ac06-84ee3e87cff4] received
+[2026-10-11 12:06:39,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[6787fe78-3076-4992-a2fe-b8e23616590c] received
+[2026-10-11 12:06:39,175: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[e5598a2a-eac3-4ff6-ac03-0c07f2b56260] received
+[2026-10-11 12:06:39,176: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[cdd8b16a-0f4e-4158-89be-294b8958bacf] received
+[2026-10-11 12:06:39,189: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[fce46af8-3558-46a9-a772-01dcbbb2643e] succeeded in 0.015483689999200578s: 0
+[2026-10-11 12:06:39,190: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[78d74ebb-cecb-4d3c-b394-92f1915570a3] received
+[2026-10-11 12:06:39,198: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[35e50723-0c50-4f39-ac06-84ee3e87cff4] succeeded in 0.009154002999821387s: 0
+[2026-10-11 12:06:39,208: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[6787fe78-3076-4992-a2fe-b8e23616590c] succeeded in 0.009043197999744734s: 0
+[2026-10-11 12:06:39,222: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[e5598a2a-eac3-4ff6-ac03-0c07f2b56260] succeeded in 0.013287003999721492s: 0
+[2026-10-11 12:06:39,234: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[cdd8b16a-0f4e-4158-89be-294b8958bacf] succeeded in 0.012086433000149555s: 0
+[2026-10-11 12:06:39,245: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[78d74ebb-cecb-4d3c-b394-92f1915570a3] succeeded in 0.010521882999455556s: 0
+[2026-10-11 12:06:46,466: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[af7f99e1-b14c-4092-b071-458a76eb1a2b] received
+[2026-10-11 12:06:46,470: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f27db19b-f285-4bae-92b6-def31026131f] received
+[2026-10-11 12:06:46,470: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[47baf0bd-6b55-4970-8385-6de3364cb629] received
+[2026-10-11 12:06:46,471: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5e2b0212-81a1-4849-a0e4-fc784370aaf6] received
+[2026-10-11 12:06:46,471: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[2b828607-2518-4f0e-a200-7cfefd1fa92b] received
+[2026-10-11 12:06:46,483: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[af7f99e1-b14c-4092-b071-458a76eb1a2b] succeeded in 0.014680565999697137s: 0
+[2026-10-11 12:06:46,485: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[9aadc80e-1788-4a79-9f07-cc094ecfd1c2] received
+[2026-10-11 12:06:46,494: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f27db19b-f285-4bae-92b6-def31026131f] succeeded in 0.00941732499995851s: 0
+[2026-10-11 12:06:46,504: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[47baf0bd-6b55-4970-8385-6de3364cb629] succeeded in 0.009565791999193607s: 0
+[2026-10-11 12:06:46,520: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5e2b0212-81a1-4849-a0e4-fc784370aaf6] succeeded in 0.012283175000447955s: 0
+[2026-10-11 12:06:46,532: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[2b828607-2518-4f0e-a200-7cfefd1fa92b] succeeded in 0.011215984000045864s: 0
+[2026-10-11 12:06:46,541: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[9aadc80e-1788-4a79-9f07-cc094ecfd1c2] succeeded in 0.008626349000223854s: 0
+[2026-10-11 12:06:51,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[cf378f3a-7143-442f-8b25-8d66d47e08b1] received
+[2026-10-11 12:06:51,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[68e17d15-8862-431a-a32b-b7e4a3154d47] received
+[2026-10-11 12:06:51,466: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d7d83e80-c52e-4ac5-aae9-e6a064397bd3] received
+[2026-10-11 12:06:51,467: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f1d9446f-f341-4fce-926c-3c1f747e5101] received
+[2026-10-11 12:06:51,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[e749b80d-ddf4-4570-8521-352e83d42291] received
+[2026-10-11 12:06:51,481: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[cf378f3a-7143-442f-8b25-8d66d47e08b1] succeeded in 0.014910310999766807s: 0
+[2026-10-11 12:06:51,484: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[fe686744-7d08-4d73-9984-05b920c63991] received
+[2026-10-11 12:06:51,493: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[68e17d15-8862-431a-a32b-b7e4a3154d47] succeeded in 0.01008264199936093s: 0
+[2026-10-11 12:06:51,505: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d7d83e80-c52e-4ac5-aae9-e6a064397bd3] succeeded in 0.01230296899939276s: 0
+[2026-10-11 12:06:51,519: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f1d9446f-f341-4fce-926c-3c1f747e5101] succeeded in 0.01299380700038455s: 0
+[2026-10-11 12:06:51,534: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[e749b80d-ddf4-4570-8521-352e83d42291] succeeded in 0.013777088000097137s: 0
+[2026-10-11 12:06:51,545: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[fe686744-7d08-4d73-9984-05b920c63991] succeeded in 0.009369315000185452s: 0
+[2026-10-11 12:06:56,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[48629195-48e6-4328-93ed-e488d4ab28fc] received
+[2026-10-11 12:06:56,466: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[28d09be0-f40d-4037-bfcf-23d3dbd35e14] received
+[2026-10-11 12:06:56,467: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f08c5a53-7b75-45c1-9486-ff9b19a87421] received
+[2026-10-11 12:06:56,469: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[1383dec7-713a-4de8-a153-17e1870b9e92] received
+[2026-10-11 12:06:56,469: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[6bb425e8-fc03-45e4-a601-0afd95378426] received
+[2026-10-11 12:06:56,483: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[48629195-48e6-4328-93ed-e488d4ab28fc] succeeded in 0.016571512000155053s: 0
+[2026-10-11 12:06:56,496: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5b626753-9560-437e-aed2-f6fa7d09f63c] received
+[2026-10-11 12:06:56,506: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[28d09be0-f40d-4037-bfcf-23d3dbd35e14] succeeded in 0.017827839000347012s: 0
+[2026-10-11 12:06:56,519: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f08c5a53-7b75-45c1-9486-ff9b19a87421] succeeded in 0.012316646999352088s: 0
+[2026-10-11 12:06:56,534: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[1383dec7-713a-4de8-a153-17e1870b9e92] succeeded in 0.012694493000708462s: 0
+[2026-10-11 12:06:56,549: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[6bb425e8-fc03-45e4-a601-0afd95378426] succeeded in 0.014778462999856856s: 0
+[2026-10-11 12:06:56,562: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5b626753-9560-437e-aed2-f6fa7d09f63c] succeeded in 0.00972897199972067s: 0
+[2026-10-11 12:07:01,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[856d1535-3314-4b88-9e19-34831e551849] received
+[2026-10-11 12:07:01,466: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c337981c-4b81-40d0-8439-f31a3c7869b2] received
+[2026-10-11 12:07:01,467: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a7f45105-4218-42d1-8f62-392b49695cbb] received
+[2026-10-11 12:07:01,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ae0fa5fa-848d-44ac-b47c-cf4cdfee0d7c] received
+[2026-10-11 12:07:01,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[96b2c450-ff27-42b7-9564-c2cc2068b546] received
+[2026-10-11 12:07:01,479: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[856d1535-3314-4b88-9e19-34831e551849] succeeded in 0.013598602999991272s: 0
+[2026-10-11 12:07:01,481: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[98d14e0f-3586-435c-bbb2-301a869fc252] received
+[2026-10-11 12:07:01,488: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c337981c-4b81-40d0-8439-f31a3c7869b2] succeeded in 0.008418301999881805s: 0
+[2026-10-11 12:07:01,497: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a7f45105-4218-42d1-8f62-392b49695cbb] succeeded in 0.008692303000316315s: 0
+[2026-10-11 12:07:01,509: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ae0fa5fa-848d-44ac-b47c-cf4cdfee0d7c] succeeded in 0.011096280999481678s: 0
+[2026-10-11 12:07:01,520: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[96b2c450-ff27-42b7-9564-c2cc2068b546] succeeded in 0.010772857000119984s: 0
+[2026-10-11 12:07:01,529: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[98d14e0f-3586-435c-bbb2-301a869fc252] succeeded in 0.008028244999877643s: 0
+[2026-10-11 12:07:06,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[694e25f8-73b4-414c-9940-dfcad899bdb8] received
+[2026-10-11 12:07:06,466: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c95c622d-52ce-42b3-aeeb-e3f9225e4369] received
+[2026-10-11 12:07:06,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[dec7a528-e13f-4441-9f45-a4cc8b587d87] received
+[2026-10-11 12:07:06,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[cd64d354-af76-42bc-b1d6-31a555d15aba] received
+[2026-10-11 12:07:06,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[fe2822c7-7323-496a-a291-c3b0239d7fca] received
+[2026-10-11 12:07:06,479: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[694e25f8-73b4-414c-9940-dfcad899bdb8] succeeded in 0.013983570999698713s: 0
+[2026-10-11 12:07:06,481: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[1d71aea5-6e71-40b5-aeea-567de1aaf565] received
+[2026-10-11 12:07:06,489: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c95c622d-52ce-42b3-aeeb-e3f9225e4369] succeeded in 0.009034278000399354s: 0
+[2026-10-11 12:07:06,500: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[dec7a528-e13f-4441-9f45-a4cc8b587d87] succeeded in 0.010564813999735634s: 0
+[2026-10-11 12:07:06,513: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[cd64d354-af76-42bc-b1d6-31a555d15aba] succeeded in 0.01248725799996464s: 0
+[2026-10-11 12:07:06,528: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[fe2822c7-7323-496a-a291-c3b0239d7fca] succeeded in 0.014476575000117009s: 0
+[2026-10-11 12:07:06,543: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[1d71aea5-6e71-40b5-aeea-567de1aaf565] succeeded in 0.012667901999520836s: 0
+[2026-10-11 12:07:11,465: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0f49e259-ba5e-4620-967e-615c175f05ff] received
+[2026-10-11 12:07:11,467: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0b6f6610-b3c0-4cfa-93a2-5b82afe7b155] received
+[2026-10-11 12:07:11,467: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0e1519d0-9005-4792-9232-2c8d011f08af] received
+[2026-10-11 12:07:11,468: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[27517909-030b-423b-813a-0a1fe05212ef] received
+[2026-10-11 12:07:11,469: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[333a9445-38aa-4937-b38d-68bd5e861af6] received
+[2026-10-11 12:07:11,481: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0f49e259-ba5e-4620-967e-615c175f05ff] succeeded in 0.014926584000022558s: 0
+[2026-10-11 12:07:11,483: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5d85efb7-1a79-40cb-8ac9-8ae274504cfa] received
+[2026-10-11 12:07:11,491: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0b6f6610-b3c0-4cfa-93a2-5b82afe7b155] succeeded in 0.009644913999181881s: 0
+[2026-10-11 12:07:11,501: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0e1519d0-9005-4792-9232-2c8d011f08af] succeeded in 0.009212834000209114s: 0
+[2026-10-11 12:07:11,514: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[27517909-030b-423b-813a-0a1fe05212ef] succeeded in 0.01262125500034017s: 0
+[2026-10-11 12:07:11,526: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[333a9445-38aa-4937-b38d-68bd5e861af6] succeeded in 0.011256924999543116s: 0
+[2026-10-11 12:07:11,535: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5d85efb7-1a79-40cb-8ac9-8ae274504cfa] succeeded in 0.009025712000038766s: 0
+[2026-10-11 12:07:18,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ff027515-325d-44a5-a5a5-f6a74387181d] received
+[2026-10-11 12:07:18,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[86c2d19c-f45c-4c35-a735-72c3558813ff] received
+[2026-10-11 12:07:18,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[aeff4366-1de4-42d5-b8e7-cb71d466af08] received
+[2026-10-11 12:07:18,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[66bf3587-2250-4544-810e-afb4a4f3ec0e] received
+[2026-10-11 12:07:18,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[6896009e-bfc4-45ee-a2a1-636c54d0ff33] received
+[2026-10-11 12:07:18,699: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ff027515-325d-44a5-a5a5-f6a74387181d] succeeded in 0.013663323000400851s: 0
+[2026-10-11 12:07:18,700: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[545b1520-fbd2-44a7-a725-f8ac5ec419d9] received
+[2026-10-11 12:07:18,708: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[86c2d19c-f45c-4c35-a735-72c3558813ff] succeeded in 0.00842647300032695s: 0
+[2026-10-11 12:07:18,717: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[aeff4366-1de4-42d5-b8e7-cb71d466af08] succeeded in 0.008438922000095772s: 0
+[2026-10-11 12:07:18,728: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[66bf3587-2250-4544-810e-afb4a4f3ec0e] succeeded in 0.010548186999585596s: 0
+[2026-10-11 12:07:18,739: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[6896009e-bfc4-45ee-a2a1-636c54d0ff33] succeeded in 0.010436585000206833s: 0
+[2026-10-11 12:07:18,747: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[545b1520-fbd2-44a7-a725-f8ac5ec419d9] succeeded in 0.008033457000237831s: 0
+[2026-10-11 12:07:23,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a3708a5c-8bb3-4600-89a5-034ff1e08e8f] received
+[2026-10-11 12:07:23,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c8d899b3-dcc2-4adc-9c96-212bacb70689] received
+[2026-10-11 12:07:23,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[77f46b19-356d-483f-92c5-ac9d88b90fdf] received
+[2026-10-11 12:07:23,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ae18f259-8229-49c2-874f-9f2030b44449] received
+[2026-10-11 12:07:23,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[6097ecfd-5b57-4d2b-b45b-57581d296cdd] received
+[2026-10-11 12:07:23,699: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a3708a5c-8bb3-4600-89a5-034ff1e08e8f] succeeded in 0.013297246000547602s: 0
+[2026-10-11 12:07:23,700: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[9a7a745a-c818-4885-af37-2ddd2a5c8663] received
+[2026-10-11 12:07:23,707: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c8d899b3-dcc2-4adc-9c96-212bacb70689] succeeded in 0.008009987999685109s: 0
+[2026-10-11 12:07:23,715: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[77f46b19-356d-483f-92c5-ac9d88b90fdf] succeeded in 0.007930814000246755s: 0
+[2026-10-11 12:07:23,734: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[99809153-66f5-4d07-a8a0-1c079027e676] received
+[2026-10-11 12:07:23,735: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ae18f259-8229-49c2-874f-9f2030b44449] succeeded in 0.0194323389996498s: 1
+[2026-10-11 12:07:23,746: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[6097ecfd-5b57-4d2b-b45b-57581d296cdd] succeeded in 0.01049350500034052s: 0
+[2026-10-11 12:07:23,754: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[9a7a745a-c818-4885-af37-2ddd2a5c8663] succeeded in 0.00786550199973135s: 0
+[2026-10-11 12:07:23,779: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[99809153-66f5-4d07-a8a0-1c079027e676] succeeded in 0.02433844400002272s: True
+[2026-10-11 12:07:28,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c6a9f1fd-21b0-4e8f-8386-328c25828fbf] received
+[2026-10-11 12:07:28,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[6ea7b55b-b6a2-4aaa-a5ff-261981d456d0] received
+[2026-10-11 12:07:28,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[1ddeec6a-834b-41b6-948a-7cf799e555a2] received
+[2026-10-11 12:07:28,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[8c0bbc6c-88ce-4661-8833-99b52ccd7475] received
+[2026-10-11 12:07:28,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[4acd2e17-3c13-4026-ae99-64541e4f9f30] received
+[2026-10-11 12:07:28,699: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c6a9f1fd-21b0-4e8f-8386-328c25828fbf] succeeded in 0.013236622000476927s: 0
+[2026-10-11 12:07:28,700: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[71757d6a-11aa-4665-9c44-e8361940193e] received
+[2026-10-11 12:07:28,707: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[6ea7b55b-b6a2-4aaa-a5ff-261981d456d0] succeeded in 0.008550653000384045s: 0
+[2026-10-11 12:07:28,716: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[1ddeec6a-834b-41b6-948a-7cf799e555a2] succeeded in 0.007982101000379771s: 0
+[2026-10-11 12:07:28,734: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[3dcbd157-b2c9-47cb-b512-ed12624b5212] received
+[2026-10-11 12:07:28,735: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[8c0bbc6c-88ce-4661-8833-99b52ccd7475] succeeded in 0.01874418500028696s: 1
+[2026-10-11 12:07:28,746: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[4acd2e17-3c13-4026-ae99-64541e4f9f30] succeeded in 0.01022002900026564s: 0
+[2026-10-11 12:07:28,754: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[71757d6a-11aa-4665-9c44-e8361940193e] succeeded in 0.00818172199979017s: 0
+[2026-10-11 12:07:28,779: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[3dcbd157-b2c9-47cb-b512-ed12624b5212] succeeded in 0.024278228000184754s: True
+[2026-10-11 12:07:33,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[777964b5-4b80-46fe-ba8b-ff4f2bfe6ee5] received
+[2026-10-11 12:07:33,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[8ea41730-875b-4065-882f-4542e76b6437] received
+[2026-10-11 12:07:33,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f0abdcc4-2b13-4c87-afc9-238d9ed18d3c] received
+[2026-10-11 12:07:33,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[562b795a-2ff4-4501-8c0b-d34764f82b48] received
+[2026-10-11 12:07:33,689: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3f242a0c-d033-4a36-8566-6d0d4a79cf54] received
+[2026-10-11 12:07:33,700: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[777964b5-4b80-46fe-ba8b-ff4f2bfe6ee5] succeeded in 0.014080640000429412s: 0
+[2026-10-11 12:07:33,701: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[dbcc27e2-7710-40af-bb6e-4261b3e437fa] received
+[2026-10-11 12:07:33,708: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[8ea41730-875b-4065-882f-4542e76b6437] succeeded in 0.008399301999816089s: 0
+[2026-10-11 12:07:33,717: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f0abdcc4-2b13-4c87-afc9-238d9ed18d3c] succeeded in 0.007991251000021293s: 0
+[2026-10-11 12:07:33,731: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[1280c4a6-ab67-49c0-bb26-c08f6c41c5f9] received
+[2026-10-11 12:07:33,732: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[562b795a-2ff4-4501-8c0b-d34764f82b48] succeeded in 0.015307433999623754s: 1
+[2026-10-11 12:07:33,743: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3f242a0c-d033-4a36-8566-6d0d4a79cf54] succeeded in 0.010152036999897973s: 0
+[2026-10-11 12:07:33,751: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[dbcc27e2-7710-40af-bb6e-4261b3e437fa] succeeded in 0.008145225000589562s: 0
+[2026-10-11 12:07:33,776: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[1280c4a6-ab67-49c0-bb26-c08f6c41c5f9] succeeded in 0.024153528999704577s: True
+[2026-10-11 12:07:38,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ba9440d8-6558-4bbd-9bf6-2c4405ce25bd] received
+[2026-10-11 12:07:38,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[610f8e56-8f0f-4a03-9b33-7fc6231aa74f] received
+[2026-10-11 12:07:38,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[dd614f7a-deb0-49ee-8cdb-17816abb43b7] received
+[2026-10-11 12:07:38,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d7e57e01-0927-4a13-b4ef-079ffb2f5e37] received
+[2026-10-11 12:07:38,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[15247c16-53d4-4c71-aac0-624fedc8e237] received
+[2026-10-11 12:07:38,700: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ba9440d8-6558-4bbd-9bf6-2c4405ce25bd] succeeded in 0.01394489300037094s: 0
+[2026-10-11 12:07:38,701: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[118130f2-0222-454f-bf12-50e9e0e69e1f] received
+[2026-10-11 12:07:38,708: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[610f8e56-8f0f-4a03-9b33-7fc6231aa74f] succeeded in 0.008197096000003512s: 0
+[2026-10-11 12:07:38,717: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[dd614f7a-deb0-49ee-8cdb-17816abb43b7] succeeded in 0.00788879999981873s: 0
+[2026-10-11 12:07:38,735: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[2b579172-c6f9-432d-ac68-811b76defbb6] received
+[2026-10-11 12:07:38,736: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d7e57e01-0927-4a13-b4ef-079ffb2f5e37] succeeded in 0.018880222000007052s: 1
+[2026-10-11 12:07:38,746: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[15247c16-53d4-4c71-aac0-624fedc8e237] succeeded in 0.01018971000030433s: 0
+[2026-10-11 12:07:38,755: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[118130f2-0222-454f-bf12-50e9e0e69e1f] succeeded in 0.008001225000043632s: 0
+[2026-10-11 12:07:38,780: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[2b579172-c6f9-432d-ac68-811b76defbb6] succeeded in 0.024826218000271183s: True
+[2026-10-11 12:07:43,685: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[8bdbd0ef-9a66-4874-bfce-75428fe3a924] received
+[2026-10-11 12:07:43,686: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3457ede8-1c64-406e-82ab-2c064b474590] received
+[2026-10-11 12:07:43,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[ed3a29dc-1dd3-4a8a-a656-5413279757be] received
+[2026-10-11 12:07:43,687: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[0437ad6f-a871-4ab2-92a5-aa9aa7d27e42] received
+[2026-10-11 12:07:43,688: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[29bf0306-453f-4c17-832a-c8dd16167b52] received
+[2026-10-11 12:07:43,698: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[8bdbd0ef-9a66-4874-bfce-75428fe3a924] succeeded in 0.013023096999859263s: 0
+[2026-10-11 12:07:43,700: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[82ab98be-20d0-4ebb-b858-1d5fc4d90106] received
+[2026-10-11 12:07:43,707: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3457ede8-1c64-406e-82ab-2c064b474590] succeeded in 0.008107891999316053s: 0
+[2026-10-11 12:07:43,715: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[ed3a29dc-1dd3-4a8a-a656-5413279757be] succeeded in 0.008029530999920098s: 0
+[2026-10-11 12:07:43,730: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[79c2ed4a-71b8-40c6-ae62-2bd0b8fcfc97] received
+[2026-10-11 12:07:43,731: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[0437ad6f-a871-4ab2-92a5-aa9aa7d27e42] succeeded in 0.015192161000413762s: 1
+[2026-10-11 12:07:43,742: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[29bf0306-453f-4c17-832a-c8dd16167b52] succeeded in 0.010578417999568046s: 0
+[2026-10-11 12:07:43,750: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[82ab98be-20d0-4ebb-b858-1d5fc4d90106] succeeded in 0.008121056000163662s: 0
+[2026-10-11 12:07:43,775: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[79c2ed4a-71b8-40c6-ae62-2bd0b8fcfc97] succeeded in 0.02407539799969527s: True
+[2026-10-11 12:07:50,848: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d3933139-5f7a-43c3-be7a-ce2c4fe54633] received
+[2026-10-11 12:07:50,849: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[b6ad45fb-9dfc-465a-8c88-4ea8b1f5eeaa] received
+[2026-10-11 12:07:50,850: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f1d22a08-ac0c-4f60-86a0-6aa6c3ff1738] received
+[2026-10-11 12:07:50,851: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[10ac5ff3-980b-4062-849a-225cc64186f0] received
+[2026-10-11 12:07:50,851: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[83197138-7ea5-4fdc-86c4-d4ea974557ff] received
+[2026-10-11 12:07:50,863: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d3933139-5f7a-43c3-be7a-ce2c4fe54633] succeeded in 0.014278016999924148s: 0
+[2026-10-11 12:07:50,864: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a9f296fe-ba0d-4bfe-8c46-9fc3494234a8] received
+[2026-10-11 12:07:50,871: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[b6ad45fb-9dfc-465a-8c88-4ea8b1f5eeaa] succeeded in 0.008068643999649794s: 0
+[2026-10-11 12:07:50,880: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f1d22a08-ac0c-4f60-86a0-6aa6c3ff1738] succeeded in 0.007992000000740518s: 0
+[2026-10-11 12:07:50,896: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[6c866547-e4fa-4563-92dc-9bc7f02ed7af] received
+[2026-10-11 12:07:50,897: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[10ac5ff3-980b-4062-849a-225cc64186f0] succeeded in 0.016678695999871707s: 1
+[2026-10-11 12:07:50,908: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[83197138-7ea5-4fdc-86c4-d4ea974557ff] succeeded in 0.010823360999893339s: 0
+[2026-10-11 12:07:50,916: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a9f296fe-ba0d-4bfe-8c46-9fc3494234a8] succeeded in 0.008166945999619202s: 0
+[2026-10-11 12:07:50,942: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[6c866547-e4fa-4563-92dc-9bc7f02ed7af] succeeded in 0.02564380399962829s: True
+[2026-10-11 12:07:55,847: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[69a8bea8-0bdd-45c5-824b-abdcf5ce4747] received
+[2026-10-11 12:07:55,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[643ef2bf-58f8-4043-8b91-1332b01f8650] received
+[2026-10-11 12:07:55,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[dc118f8a-d6cf-4908-bfef-44e72778d692] received
+[2026-10-11 12:07:55,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[35a34aaf-8dd6-400a-8de6-7fb46ebfdf25] received
+[2026-10-11 12:07:55,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3fb071ab-d441-4e01-9606-ff813885303d] received
+[2026-10-11 12:07:55,864: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[69a8bea8-0bdd-45c5-824b-abdcf5ce4747] succeeded in 0.01326418000007834s: 0
+[2026-10-11 12:07:55,865: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5da6ff83-2eed-4ed3-b1ce-734f932faff0] received
+[2026-10-11 12:07:55,873: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[643ef2bf-58f8-4043-8b91-1332b01f8650] succeeded in 0.008209860000533808s: 0
+[2026-10-11 12:07:55,881: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[dc118f8a-d6cf-4908-bfef-44e72778d692] succeeded in 0.007879081999817572s: 0
+[2026-10-11 12:07:55,897: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[f849843b-40e4-4f8c-b514-b1388f9785b0] received
+[2026-10-11 12:07:55,898: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[35a34aaf-8dd6-400a-8de6-7fb46ebfdf25] succeeded in 0.016517170000042825s: 1
+[2026-10-11 12:07:55,908: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3fb071ab-d441-4e01-9606-ff813885303d] succeeded in 0.010325073000785778s: 0
+[2026-10-11 12:07:55,917: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5da6ff83-2eed-4ed3-b1ce-734f932faff0] succeeded in 0.007899455999904603s: 0
+[2026-10-11 12:07:55,941: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[f849843b-40e4-4f8c-b514-b1388f9785b0] succeeded in 0.024280048000036913s: True
+[2026-10-11 12:08:00,847: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f69b5f81-05e0-404a-af5a-4120fc6fbda5] received
+[2026-10-11 12:08:00,848: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a0617de9-c775-44e0-b0bc-c9121a5fc19d] received
+[2026-10-11 12:08:00,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c019c224-2b3c-4105-ae7f-e48f4bc4ea8c] received
+[2026-10-11 12:08:00,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[511fb4ce-712d-4b39-9ffb-259a96a3699c] received
+[2026-10-11 12:08:00,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[d92a8628-8f20-4e8d-a154-00b9fc5b57d1] received
+[2026-10-11 12:08:00,861: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f69b5f81-05e0-404a-af5a-4120fc6fbda5] succeeded in 0.013524429000426608s: 0
+[2026-10-11 12:08:00,862: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[fe46ef01-7664-484e-9cda-45f77457efaf] received
+[2026-10-11 12:08:00,870: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a0617de9-c775-44e0-b0bc-c9121a5fc19d] succeeded in 0.008251207000284921s: 0
+[2026-10-11 12:08:00,878: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c019c224-2b3c-4105-ae7f-e48f4bc4ea8c] succeeded in 0.007958541000334662s: 0
+[2026-10-11 12:08:00,893: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[9d61223a-be13-47f9-839e-4f97caaf2b07] received
+[2026-10-11 12:08:00,894: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[511fb4ce-712d-4b39-9ffb-259a96a3699c] succeeded in 0.015372058000139077s: 1
+[2026-10-11 12:08:00,905: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[d92a8628-8f20-4e8d-a154-00b9fc5b57d1] succeeded in 0.010285278000083053s: 0
+[2026-10-11 12:08:00,913: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[fe46ef01-7664-484e-9cda-45f77457efaf] succeeded in 0.007968832000187831s: 0
+[2026-10-11 12:08:00,938: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[9d61223a-be13-47f9-839e-4f97caaf2b07] succeeded in 0.02503264000006311s: True
+[2026-10-11 12:08:05,848: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[166f9a2c-0dd8-4a5e-a6c3-4691a470616e] received
+[2026-10-11 12:08:05,849: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[4aaf4bf2-e474-463e-acc1-e44fa89a09b4] received
+[2026-10-11 12:08:05,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[04731c85-f897-4a19-b6f6-c10013ed7048] received
+[2026-10-11 12:08:05,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[307163a4-d978-4fb4-94d3-4c4d3ba856cc] received
+[2026-10-11 12:08:05,854: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5cb50368-c6ce-41ef-94be-e34c14e1d260] received
+[2026-10-11 12:08:05,863: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[166f9a2c-0dd8-4a5e-a6c3-4691a470616e] succeeded in 0.014688216999275028s: 0
+[2026-10-11 12:08:05,865: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[aed2ac4f-7798-4fa7-83b9-df50dc2f4cff] received
+[2026-10-11 12:08:05,872: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[4aaf4bf2-e474-463e-acc1-e44fa89a09b4] succeeded in 0.009078911999495176s: 0
+[2026-10-11 12:08:05,882: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[04731c85-f897-4a19-b6f6-c10013ed7048] succeeded in 0.008892295999430644s: 0
+[2026-10-11 12:08:05,898: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[2819a1f1-1ba6-4fdd-8d8d-310337a22522] received
+[2026-10-11 12:08:05,899: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[307163a4-d978-4fb4-94d3-4c4d3ba856cc] succeeded in 0.017021683999701054s: 1
+[2026-10-11 12:08:05,911: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5cb50368-c6ce-41ef-94be-e34c14e1d260] succeeded in 0.011392355000680254s: 0
+[2026-10-11 12:08:05,920: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[aed2ac4f-7798-4fa7-83b9-df50dc2f4cff] succeeded in 0.00842910400024266s: 0
+[2026-10-11 12:08:05,949: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[2819a1f1-1ba6-4fdd-8d8d-310337a22522] succeeded in 0.02864845900057844s: True
+[2026-10-11 12:08:10,847: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[cf14e0c0-2e59-4c77-878e-b2264af518f4] received
+[2026-10-11 12:08:10,849: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3f9759b8-fe77-45dc-8d87-3e92a0f5c411] received
+[2026-10-11 12:08:10,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[03f0ddcc-db02-48a6-bcda-3c0422f00ad3] received
+[2026-10-11 12:08:10,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[8cc5c505-8b2b-459e-93f5-143772073330] received
+[2026-10-11 12:08:10,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[7dbdb881-db70-400c-be82-203cb07da081] received
+[2026-10-11 12:08:10,861: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[cf14e0c0-2e59-4c77-878e-b2264af518f4] succeeded in 0.013510761999896204s: 0
+[2026-10-11 12:08:10,862: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[349fad56-e098-48c1-9227-aca106189283] received
+[2026-10-11 12:08:10,870: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3f9759b8-fe77-45dc-8d87-3e92a0f5c411] succeeded in 0.00834920899978897s: 0
+[2026-10-11 12:08:10,878: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[03f0ddcc-db02-48a6-bcda-3c0422f00ad3] succeeded in 0.007920727000055194s: 0
+[2026-10-11 12:08:10,889: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[8cc5c505-8b2b-459e-93f5-143772073330] succeeded in 0.010800806000588636s: 0
+[2026-10-11 12:08:10,900: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[7dbdb881-db70-400c-be82-203cb07da081] succeeded in 0.01033439000002545s: 0
+[2026-10-11 12:08:10,908: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[349fad56-e098-48c1-9227-aca106189283] succeeded in 0.007775244000185921s: 0
+[2026-10-11 12:08:15,848: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[975a2474-be3d-400b-b23f-27f33903071f] received
+[2026-10-11 12:08:15,848: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a868afc6-20d6-4358-8967-4ebae33081cd] received
+[2026-10-11 12:08:15,852: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[727c7abc-f6a3-4ab1-b9a2-e8e2d3d06e5e] received
+[2026-10-11 12:08:15,853: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[9915cddd-0346-4ca0-aba1-934ae94dd4a3] received
+[2026-10-11 12:08:15,854: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[bd914f66-f781-4c09-955b-d40be0a6054c] received
+[2026-10-11 12:08:15,861: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[975a2474-be3d-400b-b23f-27f33903071f] succeeded in 0.013140674000169383s: 0
+[2026-10-11 12:08:15,862: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[55498b15-b39a-4b93-805c-85ceef2d0e38] received
+[2026-10-11 12:08:15,870: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a868afc6-20d6-4358-8967-4ebae33081cd] succeeded in 0.008182081999621005s: 0
+[2026-10-11 12:08:15,878: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[727c7abc-f6a3-4ab1-b9a2-e8e2d3d06e5e] succeeded in 0.007941540000501845s: 0
+[2026-10-11 12:08:15,905: INFO/MainProcess] Task due.django.runtime.tasks.run_durable_work_task[48b859e6-9090-4311-a757-307a68f94b7b] received
+[2026-10-11 12:08:15,906: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[9915cddd-0346-4ca0-aba1-934ae94dd4a3] succeeded in 0.02822220699999889s: 1
+[2026-10-11 12:08:15,918: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[bd914f66-f781-4c09-955b-d40be0a6054c] succeeded in 0.011323441000058665s: 0
+[2026-10-11 12:08:15,927: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[55498b15-b39a-4b93-805c-85ceef2d0e38] succeeded in 0.00843557400003192s: 0
+[2026-10-11 12:08:15,952: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.run_durable_work_task[48b859e6-9090-4311-a757-307a68f94b7b] succeeded in 0.024686069000381394s: True
+[2026-10-11 12:08:23,111: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[f49c4b48-be51-42c0-8082-bdc78be4e2bd] received
+[2026-10-11 12:08:23,115: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[715fb22b-e1d3-49a0-8441-baf84f974e24] received
+[2026-10-11 12:08:23,117: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5dab0298-89f3-4e35-8516-b019405b0329] received
+[2026-10-11 12:08:23,118: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[04649096-d2bc-4965-ab33-83d01a660d1b] received
+[2026-10-11 12:08:23,118: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[38876f0f-4aa3-40cd-aab8-577ab1d62fd1] received
+[2026-10-11 12:08:23,131: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[f49c4b48-be51-42c0-8082-bdc78be4e2bd] succeeded in 0.017980083000111335s: 0
+[2026-10-11 12:08:23,132: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[e3f3a67c-d673-4ae3-a1b0-54bab409963d] received
+[2026-10-11 12:08:23,139: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[715fb22b-e1d3-49a0-8441-baf84f974e24] succeeded in 0.008396801999879244s: 0
+[2026-10-11 12:08:23,148: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[5dab0298-89f3-4e35-8516-b019405b0329] succeeded in 0.008416919999945094s: 0
+[2026-10-11 12:08:23,159: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[04649096-d2bc-4965-ab33-83d01a660d1b] succeeded in 0.010845662999599881s: 0
+[2026-10-11 12:08:23,170: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[38876f0f-4aa3-40cd-aab8-577ab1d62fd1] succeeded in 0.010038440000244009s: 0
+[2026-10-11 12:08:23,178: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[e3f3a67c-d673-4ae3-a1b0-54bab409963d] succeeded in 0.00788513800034707s: 0
+[2026-10-11 12:08:28,105: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c296e8aa-f3e4-4c39-92e3-764b8f0d50c3] received
+[2026-10-11 12:08:28,111: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[a249a882-d990-45fd-8df5-16e0e115a412] received
+[2026-10-11 12:08:28,114: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[c912d257-5b83-437a-b451-b940e55d8726] received
+[2026-10-11 12:08:28,115: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[57fa220a-dbb6-4c79-a78a-ae8d9d9804cd] received
+[2026-10-11 12:08:28,117: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[883b14a6-f81d-4a31-8f36-0fd8384dbc8a] received
+[2026-10-11 12:08:28,119: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c296e8aa-f3e4-4c39-92e3-764b8f0d50c3] succeeded in 0.013624447000438522s: 0
+[2026-10-11 12:08:28,120: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[42ea46dc-7ea2-43d5-881d-73dd6e601173] received
+[2026-10-11 12:08:28,128: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[a249a882-d990-45fd-8df5-16e0e115a412] succeeded in 0.008213201000216941s: 0
+[2026-10-11 12:08:28,136: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[c912d257-5b83-437a-b451-b940e55d8726] succeeded in 0.008144931000060751s: 0
+[2026-10-11 12:08:28,147: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[57fa220a-dbb6-4c79-a78a-ae8d9d9804cd] succeeded in 0.010462376000759832s: 0
+[2026-10-11 12:08:28,157: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[883b14a6-f81d-4a31-8f36-0fd8384dbc8a] succeeded in 0.010171150000132911s: 0
+[2026-10-11 12:08:28,166: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[42ea46dc-7ea2-43d5-881d-73dd6e601173] succeeded in 0.008061228999395098s: 0
+[2026-10-11 12:08:33,105: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[837bd8d5-12a7-463a-8302-3849c68fbfb4] received
+[2026-10-11 12:08:33,110: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[227dea5e-28eb-4744-8678-520eb66a5afe] received
+[2026-10-11 12:08:33,114: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[2eaff99b-5d37-42d5-a96e-670a51249d18] received
+[2026-10-11 12:08:33,115: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[53512eed-e5b8-4cf4-8b40-3ed7b265710a] received
+[2026-10-11 12:08:33,117: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[19130f59-82be-4f00-a6e6-03798267923b] received
+[2026-10-11 12:08:33,119: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[837bd8d5-12a7-463a-8302-3849c68fbfb4] succeeded in 0.013657275999321428s: 0
+[2026-10-11 12:08:33,120: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[3f522fad-5b77-4c88-aeeb-4eb77bed2879] received
+[2026-10-11 12:08:33,127: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[227dea5e-28eb-4744-8678-520eb66a5afe] succeeded in 0.007892505999734567s: 0
+[2026-10-11 12:08:33,135: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[2eaff99b-5d37-42d5-a96e-670a51249d18] succeeded in 0.00798361300076067s: 0
+[2026-10-11 12:08:33,146: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[53512eed-e5b8-4cf4-8b40-3ed7b265710a] succeeded in 0.010515207000025839s: 0
+[2026-10-11 12:08:33,156: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[19130f59-82be-4f00-a6e6-03798267923b] succeeded in 0.009923909999997704s: 0
+[2026-10-11 12:08:33,165: INFO/ForkPoolWorker-1] Task due.django.runtime.tasks.recover_durable_work_task[3f522fad-5b77-4c88-aeeb-4eb77bed2879] succeeded in 0.007898650999777601s: 0
+
+worker: Warm shutdown (MainProcess)
+[2026-10-11 12:08:38,105: INFO/MainProcess] Task due.django.runtime.tasks.recover_durable_work_task[5c97c786-8f30-433e-811f-0edace1af2d1] received
+[2026-10-11 12:08:39,609: WARNING/MainProcess] Restoring 1 unacknowledged message(s)

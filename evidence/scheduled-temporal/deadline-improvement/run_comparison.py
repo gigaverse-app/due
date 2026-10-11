@@ -1,0 +1,378 @@
+"""Live scenario/latency evidence; imports the pinned upstream workflow unchanged.
+
+Run from Due with uv run --with temporalio==1.34.0 --with playwright==1.63.0
+python PATH/run_comparison.py --repo ... --upstream ... --temporal-bin ... --output ...
+"""
+
+# ruff: noqa: E402
+import argparse
+import asyncio
+import json
+import os
+import platform
+import subprocess
+import sys
+import time
+from contextlib import ExitStack
+from datetime import UTC, datetime, timedelta
+from importlib.metadata import version
+from pathlib import Path
+from uuid import uuid4
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--repo", type=Path, required=True)
+parser.add_argument("--upstream", type=Path, required=True)
+parser.add_argument("--temporal-bin", type=Path, required=True)
+parser.add_argument("--output", type=Path, required=True)
+parser.add_argument(
+    "--chromium", type=Path, help="Optional existing Chromium executable; otherwise use Playwright installation"
+)
+parser.add_argument("--spread-phase", action="store_true")
+parser.add_argument("--database-url", required=True)
+parser.add_argument("--submission-keys", action="store_true")
+args = parser.parse_args()
+args.output.mkdir(parents=True, exist_ok=True)
+sys.path[:0] = [str(args.repo / "src"), str(args.repo), str(args.upstream)]
+os.chdir(args.repo)  # Subprocess -m imports must use the same checkout as the driver.
+os.environ.update(
+    DJANGO_SETTINGS_MODULE="examples.settings",
+    DUE_DATABASE_URL=args.database_url,
+    DUE_BROKER_URL="redis://127.0.0.1:26461/0",
+    DUE_QUEUE="due-live-comparison",
+    DUE_OUTPUT_DIR=str(args.output / "publications"),
+    TEMPORAL_ADDRESS="127.0.0.1:7239",
+    PYTHONPATH=os.pathsep.join([str(args.repo), str(args.upstream), str(args.repo / "src")]),
+)
+import django
+
+django.setup()
+from asgiref.sync import sync_to_async
+from django.core.management import call_command
+from playwright.async_api import async_playwright
+from temporalio.client import Client, WorkflowExecutionStatus, WorkflowFailureError
+from updatable_timer import TASK_QUEUE
+from updatable_timer.workflow import Workflow
+
+from examples.scheduled.models import Publication
+from examples.scheduled.services import cancel_publication, create_publication, reschedule_publication
+from tests.integration.processes import running_process
+
+RUN = uuid4().hex[:8]
+RESULT = {
+    "run": RUN,
+    "started_utc": datetime.now(UTC).isoformat(),
+    "python": sys.version,
+    "platform": platform.platform(),
+    "temporal_sdk": version("temporalio"),
+    "playwright": version("playwright"),
+    "django": django.get_version(),
+    "due_sha": subprocess.check_output(["git", "-C", str(args.repo), "rev-parse", "HEAD"], text=True).strip(),
+    "upstream_sha": subprocess.check_output(["git", "-C", str(args.upstream), "rev-parse", "HEAD"], text=True).strip(),
+    "phase_spread": args.spread_phase,
+    "submission_keys": args.submission_keys,
+    "samples": [],
+    "behaviors": {},
+}
+
+
+def save():
+    (args.output / "results.json").write_text(json.dumps(RESULT, indent=2))
+
+
+def due_state(pk):
+    row = Publication.objects.get(pk=pk)
+    if row.status == Publication.Status.PUBLISHED:
+        assert (args.output / "publications" / row.published_key).read_text() == row.text
+    return row.status
+
+
+async def wait_due(pk, deadline):
+    end = time.monotonic() + 30
+    while time.monotonic() < end:
+        status = await sync_to_async(due_state)(pk)
+        observed = time.time()
+        if status == Publication.Status.PUBLISHED:
+            assert observed >= deadline, "Due published early"
+            return observed
+        await asyncio.sleep(0.02)
+    raise TimeoutError(f"Due publication {pk}")
+
+
+async def wait_temporal(handle, deadline):
+    end = time.monotonic() + 30
+    while time.monotonic() < end:
+        description = await handle.describe()
+        observed = time.time()
+        if description.status == WorkflowExecutionStatus.COMPLETED:
+            assert observed >= deadline, "Temporal completed early"
+            await handle.result()
+            return observed
+        await asyncio.sleep(0.02)
+    raise TimeoutError(handle.id)
+
+
+async def scenario(client, arm, i, block, measured=True):
+    if measured and args.spread_phase:
+        await asyncio.sleep((i + block * 0.137) % 5)
+    # Same future timer then replacement. Original +30s, replaced by +0.75s.
+    start = time.perf_counter()
+    initial = time.time() + 30
+    if arm == "due":
+        row = await sync_to_async(create_publication)(
+            f"Benchmark {RUN} {block}-{i}",
+            datetime.fromtimestamp(initial, UTC),
+            **({"submission_key": uuid4()} if args.submission_keys else {}),
+        )
+        handle = row.pk
+    else:
+        handle = await client.start_workflow(
+            Workflow.run, initial, id=f"comparison-{RUN}-{block}-{i}", task_queue=TASK_QUEUE
+        )
+    admit_ms = (time.perf_counter() - start) * 1000
+    deadline = time.time() + 0.75
+    start = time.perf_counter()
+    if arm == "due":
+        outcome = await sync_to_async(reschedule_publication)(handle, datetime.fromtimestamp(deadline, UTC))
+        assert outcome.value == "scheduled"
+    else:
+        await handle.signal(Workflow.update_wake_up_time, deadline)
+    update_ms = (time.perf_counter() - start) * 1000
+    observed = await (wait_due(handle, deadline) if arm == "due" else wait_temporal(handle, deadline))
+    sample = {
+        "arm": arm,
+        "block": block,
+        "sample": i,
+        "admit_ms": admit_ms,
+        "update_ms": update_ms,
+        "deadline_unix": deadline,
+        "observed_unix": observed,
+        "lateness_ms": (observed - deadline) * 1000,
+    }
+    if measured:
+        RESULT["samples"].append(sample)
+        save()
+    print(json.dumps(sample), flush=True)
+
+
+async def capture(browser, name, url):
+    page = await browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+    await page.goto(url, wait_until="networkidle")
+    await page.screenshot(path=str(args.output / f"{name}.png"), full_page=True)
+    (args.output / f"{name}.txt").write_text(await page.locator("body").inner_text())
+    await page.close()
+
+
+async def main(stack):
+    env = dict(os.environ)
+    server = stack.enter_context(
+        running_process(
+            args.output,
+            "temporal-server",
+            [
+                str(args.temporal_bin),
+                "server",
+                "start-dev",
+                "--ip",
+                "127.0.0.1",
+                "--port",
+                "7239",
+                "--ui-port",
+                "8239",
+                "--db-filename",
+                str(args.output / "temporal.sqlite"),
+            ],
+            env,
+        )
+    )
+    server.wait_until(
+        lambda: "Temporal server is running" in server.log.read_text() or "Server:" in server.log.read_text()
+    )
+    client = await Client.connect("127.0.0.1:7239")
+    temporal_command = [sys.executable, str(args.upstream / "updatable_timer/worker.py")]
+    due_command = [
+        sys.executable,
+        "-m",
+        "celery",
+        "-A",
+        "examples.celery_app:app",
+        "worker",
+        "--pool=prefork",
+        "--concurrency=1",
+        "--loglevel=INFO",
+        "--without-gossip",
+        "--without-mingle",
+        "-Q",
+        "due-live-comparison",
+    ]
+    temporal_worker = stack.enter_context(running_process(args.output, "temporal-worker", temporal_command, env))
+    due_worker = stack.enter_context(running_process(args.output, "due-worker", due_command, env))
+    temporal_worker.wait_until(lambda: "Worker started" in temporal_worker.log.read_text())
+    due_worker.wait_until(lambda: "ready." in due_worker.log.read_text())
+    stack.enter_context(
+        running_process(
+            args.output,
+            "due-beat",
+            [
+                sys.executable,
+                "-m",
+                "celery",
+                "-A",
+                "examples.celery_app:app",
+                "beat",
+                "--loglevel=INFO",
+                "--schedule",
+                str(args.output / "beat-schedule"),
+            ],
+            env,
+        )
+    )
+    web = stack.enter_context(
+        running_process(
+            args.output, "due-web", [sys.executable, "-m", "django", "runserver", "127.0.0.1:8048", "--noreload"], env
+        )
+    )
+
+    def web_ready():
+        from urllib.error import URLError
+        from urllib.request import urlopen
+
+        try:
+            with urlopen("http://127.0.0.1:8048/scheduled/") as response:
+                return response.status == 200
+        except URLError:
+            return False
+
+    web.wait_until(web_ready)
+    # Execute the exact original CLI entry points, not a rewritten workflow.
+    for number, command in enumerate(["starter.py", "starter.py", "wake_up_time_updater.py"]):
+        completed = subprocess.run(
+            [sys.executable, str(args.upstream / "updatable_timer" / command)],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15,
+        )
+        (args.output / f"upstream-{number}-{command}.log").write_text(completed.stdout + completed.stderr)
+    assert "already running" in (args.output / "upstream-1-starter.py.log").read_text()
+    submission_key, submission_at = uuid4(), datetime.now(UTC) + timedelta(hours=1)
+    duplicate_rows = [
+        await sync_to_async(create_publication)(
+            "Repeated submission",
+            submission_at,
+            **({"submission_key": submission_key} if args.submission_keys else {}),
+        )
+        for _ in range(2)
+    ]
+    assert (duplicate_rows[0].pk == duplicate_rows[1].pk) == args.submission_keys
+    for row in duplicate_rows:
+        await sync_to_async(cancel_publication)(row.pk)
+    RESULT["behaviors"]["duplicate_start"] = (
+        "Due reused the submission key and returned one publication; Temporal starter kept one workflow"
+        if args.submission_keys
+        else "Baseline Due creates two publications; Temporal starter keeps one workflow"
+    )
+    original = client.get_workflow_handle("updatable-timer-workflow")
+    deadline = await original.query(Workflow.get_wake_up_time)
+    due = await sync_to_async(create_publication)(
+        "A publication with a movable deadline", datetime.fromtimestamp(time.time() + 60, UTC)
+    )
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(
+            headless=True, executable_path=str(args.chromium) if args.chromium else None, args=["--no-sandbox"]
+        )
+        try:
+            await capture(browser, "due-scheduled", f"http://127.0.0.1:8048/scheduled/{due.pk}/")
+            desc = await original.describe()
+            temporal_url = f"http://127.0.0.1:8239/namespaces/default/workflows/{original.id}/{desc.run_id}"
+            await capture(browser, "temporal-running", temporal_url)
+            await wait_temporal(original, deadline)
+            await sync_to_async(reschedule_publication)(due.pk, datetime.now(UTC))
+            await wait_due(due.pk, time.time() - 1)
+            await capture(browser, "due-published", f"http://127.0.0.1:8048/scheduled/{due.pk}/")
+            await capture(browser, "temporal-completed", temporal_url)
+            RESULT["behaviors"]["original_cli_start_signal_query_complete"] = "passed"
+            # Move later, observe beyond old deadline, then move earlier to finish.
+            initial = time.time() + 1
+            later = initial + 10
+            delayed = await client.start_workflow(Workflow.run, initial, id=f"later-{RUN}", task_queue=TASK_QUEUE)
+            delayed_due = await sync_to_async(create_publication)(
+                "Move later then earlier", datetime.fromtimestamp(initial, UTC)
+            )
+            await delayed.signal(Workflow.update_wake_up_time, later)
+            await sync_to_async(reschedule_publication)(delayed_due.pk, datetime.fromtimestamp(later, UTC))
+            await asyncio.sleep(1.5)
+            assert (await delayed.describe()).status == WorkflowExecutionStatus.RUNNING
+            assert await sync_to_async(due_state)(delayed_due.pk) == Publication.Status.SCHEDULED
+            assert abs(await delayed.query(Workflow.get_wake_up_time) - later) < 1e-6
+            earlier = time.time() + 0.5
+            await delayed.signal(Workflow.update_wake_up_time, earlier)
+            await sync_to_async(reschedule_publication)(delayed_due.pk, datetime.fromtimestamp(earlier, UTC))
+            await wait_temporal(delayed, earlier)
+            await wait_due(delayed_due.pk, earlier)
+            RESULT["behaviors"]["move_later_then_earlier_no_early_completion"] = "both passed"
+            # Worker outage: keep servers/DB/broker running, kill both workers.
+            for process in [temporal_worker, due_worker]:
+                process.handle.terminate()
+                await asyncio.to_thread(process.handle.wait, 10)
+            restart_deadline = time.time() + 1
+            recovery = await client.start_workflow(
+                Workflow.run, restart_deadline, id=f"restart-{RUN}", task_queue=TASK_QUEUE
+            )
+            recovery_due = await sync_to_async(create_publication)(
+                "Recovered after worker restart", datetime.fromtimestamp(restart_deadline, UTC)
+            )
+            await asyncio.sleep(2)
+            assert await sync_to_async(due_state)(recovery_due.pk) == Publication.Status.SCHEDULED
+            assert (await recovery.describe()).status == WorkflowExecutionStatus.RUNNING
+            temporal_worker = stack.enter_context(
+                running_process(args.output, "temporal-worker-restarted", temporal_command, env)
+            )
+            due_worker = stack.enter_context(running_process(args.output, "due-worker-restarted", due_command, env))
+            await wait_temporal(recovery, restart_deadline)
+            await wait_due(recovery_due.pk, restart_deadline)
+            RESULT["behaviors"]["worker_restart_after_deadline"] = "both passed"
+            # Generic Temporal SDK cancellation (not an upstream sample command).
+            cancel_deadline = time.time() + 1
+            cancelled = await client.start_workflow(
+                Workflow.run, cancel_deadline, id=f"cancel-{RUN}", task_queue=TASK_QUEUE
+            )
+            cancelled_due = await sync_to_async(create_publication)(
+                "Cancelled before provider entry", datetime.fromtimestamp(cancel_deadline, UTC)
+            )
+            await cancelled.cancel()
+            try:
+                await cancelled.result()
+            except WorkflowFailureError:
+                assert (await cancelled.describe()).status == WorkflowExecutionStatus.CANCELED
+            else:
+                raise AssertionError("Temporal did not cancel")
+            assert (await sync_to_async(cancel_publication)(cancelled_due.pk)).value == "cancelled"
+            await asyncio.sleep(5.2)
+            assert await sync_to_async(due_state)(cancelled_due.pk) == Publication.Status.CANCELLED
+            await capture(browser, "due-cancelled", f"http://127.0.0.1:8048/scheduled/{cancelled_due.pk}/")
+            cancel_desc = await cancelled.describe()
+            await capture(
+                browser,
+                "temporal-cancelled",
+                f"http://127.0.0.1:8239/namespaces/default/workflows/{cancelled.id}/{cancel_desc.run_id}",
+            )
+            RESULT["behaviors"]["pending_cancellation"] = "both passed; Temporal SDK extension, no provider activity"
+        finally:
+            await browser.close()
+    save()
+    for arm in ["due", "temporal"]:
+        await scenario(client, arm, -1, -1, measured=False)
+    for block in range(3):
+        for arm in ["due", "temporal"] if block % 2 == 0 else ["temporal", "due"]:
+            for i in range(5):
+                await scenario(client, arm, i, block)
+    history = await original.fetch_history()
+    (args.output / "temporal-history.json").write_text(history.to_json())
+    RESULT["finished_utc"] = datetime.now(UTC).isoformat()
+    save()
+
+
+call_command("migrate", verbosity=0)
+with ExitStack() as stack:
+    asyncio.run(main(stack))

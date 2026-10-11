@@ -1,0 +1,14 @@
+All publications
+
+Publication 6
+
+Status: cancelled. Deadline: 2026-10-11T11:59:27.938832+00:00.
+
+Refresh to see worker progress. “already_started” means the provider operation has begun; cancellation cannot promise to undo it.
+
+Publish at (UTC):  A past time publishes on the next worker/recovery pass.
+
+Reschedule
+Cancel pending publicationRetry failed publication
+Draft
+Cancelled before provider entry

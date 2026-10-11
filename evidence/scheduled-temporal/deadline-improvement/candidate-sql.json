@@ -1,0 +1,178 @@
+{
+  "create": {
+    "statement_counts": {
+      "BEGIN": 2,
+      "SELECT": 9,
+      "SAVEPOINT": 3,
+      "INSERT": 2,
+      "RELEASE": 3,
+      "UPDATE": 1,
+      "COMMIT": 2
+    },
+    "sql": [
+      "BEGIN",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"submission_key\" = 'd9f4072ffabf4af292a3c30180779f3d'::uuid LIMIT 21",
+      "SAVEPOINT \"s131982924588864_x1\"",
+      "INSERT INTO \"scheduled_publication\" (\"submission_key\", \"initial_publish_at\", \"text\", \"publish_at\", \"status\", \"published_key\") VALUES ('d9f4072ffabf4af292a3c30180779f3d'::uuid, '2026-10-11 12:09:28.607455+00:00'::timestamptz, 'SQL accounting', '2026-10-11 12:09:28.607455+00:00'::timestamptz, 'scheduled', '') RETURNING \"scheduled_publication\".\"id\"",
+      "RELEASE SAVEPOINT \"s131982924588864_x1\"",
+      "SAVEPOINT \"s131982924588864_x2\"",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"id\" = 1 LIMIT 21 FOR UPDATE",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"owner_id\" = 1 ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SAVEPOINT \"s131982924588864_x3\"",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"id\" = 1 LIMIT 21 FOR UPDATE",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"owner_id\" = 1 ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "INSERT INTO \"scheduled_publicationdeadline\" (\"state\", \"fencing_token\", \"claim_generation\", \"attempt_count\", \"rearm_count\", \"desired_revision\", \"applied_revision\", \"lease_expires_at\", \"available_at\", \"last_error_code\", \"created_at\", \"updated_at\", \"completed_at\", \"universe\", \"run_at\", \"cancelled\", \"owner_id\", \"text\") VALUES ('ready', '2addca4bbd174c27aaba1cdb855c4138'::uuid, 0, 0, 0, 1, NULL, NULL, '2026-10-11 12:09:28.607455+00:00'::timestamptz, '', '2026-10-11 12:08:58.612425+00:00'::timestamptz, '2026-10-11 12:08:58.612428+00:00'::timestamptz, NULL, 'example', '2026-10-11 12:09:28.607455+00:00'::timestamptz, false, 1, 'SQL accounting') RETURNING \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"available_at\"",
+      "RELEASE SAVEPOINT \"s131982924588864_x3\"",
+      "UPDATE \"scheduled_publication\" SET \"publish_at\" = '2026-10-11 12:09:28.607455+00:00'::timestamptz, \"status\" = 'scheduled' WHERE \"scheduled_publication\".\"id\" = 1",
+      "RELEASE SAVEPOINT \"s131982924588864_x2\"",
+      "COMMIT",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"available_at\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" > '2026-10-11 12:08:58.614726+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:08.614726+00:00'::timestamptz AND NOT \"scheduled_publicationdeadline\".\"cancelled\" AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1",
+      "BEGIN",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:08:58.615703+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE OF \"scheduled_publicationdeadline\"",
+      "COMMIT"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "replay": {
+    "statement_counts": {
+      "BEGIN": 1,
+      "SELECT": 1,
+      "COMMIT": 1
+    },
+    "sql": [
+      "BEGIN",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"submission_key\" = 'd9f4072ffabf4af292a3c30180779f3d'::uuid LIMIT 21",
+      "COMMIT"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "reschedule": {
+    "statement_counts": {
+      "BEGIN": 1,
+      "SELECT": 9,
+      "SAVEPOINT": 1,
+      "UPDATE": 4,
+      "RELEASE": 1,
+      "COMMIT": 1
+    },
+    "sql": [
+      "BEGIN",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"id\" = 1 LIMIT 21 FOR UPDATE",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"owner_id\" = 1 ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SAVEPOINT \"s131982924588864_x4\"",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"id\" = 1 LIMIT 21 FOR UPDATE",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"owner_id\" = 1 ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SELECT 1 AS \"a\" FROM \"due_effectattempt\" WHERE (\"due_effectattempt\".\"work_id\" = 1 AND \"due_effectattempt\".\"work_model\" = 'scheduled.publicationdeadline' AND \"due_effectattempt\".\"desired_revision\" = 1 AND NOT (\"due_effectattempt\".\"outcome\" = 'not_applied')) LIMIT 1",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"updated_at\" = '2026-10-11 12:08:58.621902+00:00'::timestamptz, \"universe\" = 'example', \"run_at\" = '2026-10-11 12:09:01.618881+00:00'::timestamptz, \"cancelled\" = false, \"text\" = 'SQL accounting' WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "SELECT clock_timestamp()",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"state\" = 'ready', \"desired_revision\" = (\"scheduled_publicationdeadline\".\"desired_revision\" + 1), \"rearm_count\" = 0, \"lease_expires_at\" = NULL, \"available_at\" = '2026-10-11 12:08:58.622421+00:00'::timestamptz, \"completed_at\" = NULL, \"last_error_code\" = '', \"updated_at\" = '2026-10-11 12:08:58.622421+00:00'::timestamptz WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"available_at\" = '2026-10-11 12:09:01.618881+00:00'::timestamptz WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"id\" = 1 LIMIT 21",
+      "RELEASE SAVEPOINT \"s131982924588864_x4\"",
+      "UPDATE \"scheduled_publication\" SET \"publish_at\" = '2026-10-11 12:09:01.618881+00:00'::timestamptz, \"status\" = 'scheduled' WHERE \"scheduled_publication\".\"id\" = 1",
+      "COMMIT",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"available_at\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" > '2026-10-11 12:08:58.625379+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:08.625379+00:00'::timestamptz AND NOT \"scheduled_publicationdeadline\".\"cancelled\" AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "lookahead": {
+    "statement_counts": {
+      "SELECT": 13,
+      "BEGIN": 1,
+      "COMMIT": 1
+    },
+    "sql": [
+      "SELECT \"due_effectattempt\".\"id\" AS \"pk\" FROM \"due_effectattempt\" WHERE (\"due_effectattempt\".\"outcome\" = 'applied' AND \"due_effectattempt\".\"repair_pending\" AND \"due_effectattempt\".\"work_model\" = 'scheduled.publicationdeadline' AND EXISTS(SELECT 1 AS \"a\" FROM \"scheduled_publicationdeadline\" U0 WHERE (U0.\"applied_revision\" = (\"due_effectattempt\".\"desired_revision\") AND U0.\"desired_revision\" = (\"due_effectattempt\".\"desired_revision\") AND U0.\"id\" = (\"due_effectattempt\".\"work_id\") AND U0.\"state\" = 'succeeded') LIMIT 1)) ORDER BY \"due_effectattempt\".\"observed_at\" ASC, 1 ASC LIMIT 100",
+      "SELECT clock_timestamp()",
+      "SELECT \"due_effectattempt\".\"id\" AS \"pk\" FROM \"due_effectattempt\" WHERE (NOT \"due_effectattempt\".\"repair_pending\" AND \"due_effectattempt\".\"work_model\" = 'scheduled.publicationdeadline' AND NOT (\"due_effectattempt\".\"repair_settled_by\" = 'policy_window') AND (\"due_effectattempt\".\"observed_at\" < '2026-10-04 12:08:58.631442+00:00'::timestamptz OR (\"due_effectattempt\".\"outcome\" = 'unknown' AND EXISTS(SELECT 1 AS \"a\" FROM \"due_effectattempt\" U0 WHERE (U0.\"desired_revision\" = (\"due_effectattempt\".\"desired_revision\") AND U0.\"work_id\" = (\"due_effectattempt\".\"work_id\") AND U0.\"work_model\" = 'scheduled.publicationdeadline' AND (U0.\"started_at\" > (\"due_effectattempt\".\"started_at\") OR (U0.\"id\" > (\"due_effectattempt\".\"id\") AND U0.\"started_at\" = (\"due_effectattempt\".\"started_at\"))) AND U0.\"observed_at\" < '2026-10-04 12:08:58.631442+00:00'::timestamptz AND U0.\"outcome\" = 'applied' AND NOT U0.\"repair_pending\") LIMIT 1))) AND (\"due_effectattempt\".\"outcome\" = 'not_applied' OR EXISTS(SELECT 1 AS \"a\" FROM \"due_effectattempt\" U0 WHERE (U0.\"desired_revision\" = (\"due_effectattempt\".\"desired_revision\") AND U0.\"work_id\" = (\"due_effectattempt\".\"work_id\") AND U0.\"work_model\" = 'scheduled.publicationdeadline' AND (U0.\"started_at\" > (\"due_effectattempt\".\"started_at\") OR (U0.\"id\" > (\"due_effectattempt\".\"id\") AND U0.\"started_at\" = (\"due_effectattempt\".\"started_at\"))) AND NOT (U0.\"outcome\" = 'not_applied')) LIMIT 1))) ORDER BY \"due_effectattempt\".\"observed_at\" ASC, 1 ASC LIMIT 100",
+      "BEGIN",
+      "COMMIT",
+      "SELECT clock_timestamp()",
+      "SELECT \"due_recoverydeferral\".\"phase\" AS \"phase\", \"due_recoverydeferral\".\"identity\" AS \"identity\", \"due_recoverydeferral\".\"retry_at\" AS \"retry_at\" FROM \"due_recoverydeferral\" WHERE \"due_recoverydeferral\".\"effect\" = 'scheduled.publicationdeadline'",
+      "SELECT \"scheduled_publicationdeadline\".\"id\" AS \"id\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"lease_expires_at\" < '2026-10-11 12:08:58.633725+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"state\" IN ('queued', 'claimed')) ORDER BY \"scheduled_publicationdeadline\".\"lease_expires_at\" ASC, 1 ASC LIMIT 100",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\" AS \"pk\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"state\" IN ('ready', 'queued', 'claimed', 'retryable', 'unknown') AND ((\"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:08:58.634946+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"state\" = 'ready') OR (\"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:08:58.634946+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"state\" = 'retryable'))) ORDER BY \"scheduled_publicationdeadline\".\"available_at\" ASC, \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 100",
+      "SELECT \"scheduled_publicationdeadline\".\"state\" AS \"state\", COUNT(\"scheduled_publicationdeadline\".\"id\") AS \"count\", MIN(\"scheduled_publicationdeadline\".\"created_at\") AS \"oldest\" FROM \"scheduled_publicationdeadline\" WHERE \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'queued', 'claimed', 'retryable', 'unknown', 'terminal_failed', 'exhausted') GROUP BY 1",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"available_at\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" > '2026-10-11 12:08:58.636630+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:08.636630+00:00'::timestamptz AND NOT \"scheduled_publicationdeadline\".\"cancelled\" AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) ORDER BY \"scheduled_publicationdeadline\".\"available_at\" ASC, \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 100",
+      "SELECT \"due_recoverydeferral\".\"phase\" AS \"phase\", COUNT(\"due_recoverydeferral\".\"id\") AS \"count\", MIN(\"due_recoverydeferral\".\"first_failed_at\") AS \"oldest\", COUNT(\"due_recoverydeferral\".\"id\") FILTER (WHERE \"due_recoverydeferral\".\"last_failed_at\" < '2026-10-04 12:08:58.633725+00:00'::timestamptz) AS \"forgettable\" FROM \"due_recoverydeferral\" WHERE \"due_recoverydeferral\".\"effect\" = 'scheduled.publicationdeadline' GROUP BY 1",
+      "SELECT clock_timestamp()"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "execution": {
+    "statement_counts": {
+      "SELECT": 16,
+      "BEGIN": 5,
+      "UPDATE": 7,
+      "COMMIT": 5,
+      "INSERT": 1
+    },
+    "sql": [
+      "SELECT clock_timestamp()",
+      "SELECT 1 AS \"a\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" = '2026-10-11 12:09:01.618881+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:01.740907+00:00'::timestamptz AND NOT \"scheduled_publicationdeadline\".\"cancelled\" AND \"scheduled_publicationdeadline\".\"desired_revision\" = 2 AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) LIMIT 1",
+      "BEGIN",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:01.742241+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE OF \"scheduled_publicationdeadline\"",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"state\" = 'queued', \"fencing_token\" = '2392621595314c569e717b61543cfd87'::uuid, \"claim_generation\" = 1, \"attempt_count\" = 1, \"lease_expires_at\" = '2026-10-11 12:14:01.742241+00:00'::timestamptz, \"last_error_code\" = '', \"updated_at\" = '2026-10-11 12:09:01.743200+00:00'::timestamptz WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "COMMIT",
+      "BEGIN",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"fencing_token\" = '2392621595314c569e717b61543cfd87'::uuid AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" = 'queued') ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SELECT clock_timestamp()",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"state\" = 'claimed', \"lease_expires_at\" = '2026-10-11 12:14:01.791840+00:00'::timestamptz, \"updated_at\" = '2026-10-11 12:09:01.792110+00:00'::timestamptz WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "COMMIT",
+      "SELECT 1 AS \"a\" FROM \"scheduled_publication\" WHERE (\"scheduled_publication\".\"id\" = 1 AND \"scheduled_publication\".\"status\" = 'scheduled') LIMIT 1",
+      "SELECT clock_timestamp()",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"lease_expires_at\" = '2026-10-11 12:14:01.795977+00:00'::timestamptz, \"updated_at\" = '2026-10-11 12:09:01.795977+00:00'::timestamptz WHERE (\"scheduled_publicationdeadline\".\"desired_revision\" = 2 AND \"scheduled_publicationdeadline\".\"fencing_token\" = '2392621595314c569e717b61543cfd87'::uuid AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" = 'claimed')",
+      "BEGIN",
+      "SELECT clock_timestamp()",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"desired_revision\" = 2 AND \"scheduled_publicationdeadline\".\"fencing_token\" = '2392621595314c569e717b61543cfd87'::uuid AND \"scheduled_publicationdeadline\".\"lease_expires_at\" > '2026-10-11 12:09:01.797615+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" = 'claimed') ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SELECT clock_timestamp()",
+      "INSERT INTO \"due_effectattempt\" (\"id\", \"work_model\", \"work_id\", \"claim_token\", \"desired_revision\", \"outcome\", \"rejection\", \"started_at\", \"observed_at\", \"repair_pending\", \"repair_settled_by\") VALUES ('79d7ecc35b9a484d890372f43ec17eaa'::uuid, 'scheduled.publicationdeadline', 1, '2392621595314c569e717b61543cfd87'::uuid, 2, 'unknown', NULL, '2026-10-11 12:09:01.798635+00:00'::timestamptz, NULL, true, '') RETURNING \"due_effectattempt\".\"started_at\"",
+      "COMMIT",
+      "BEGIN",
+      "SELECT \"due_effectattempt\".\"id\", \"due_effectattempt\".\"work_model\", \"due_effectattempt\".\"work_id\", \"due_effectattempt\".\"claim_token\", \"due_effectattempt\".\"desired_revision\", \"due_effectattempt\".\"outcome\", \"due_effectattempt\".\"rejection\", \"due_effectattempt\".\"started_at\", \"due_effectattempt\".\"observed_at\", \"due_effectattempt\".\"repair_pending\", \"due_effectattempt\".\"repair_settled_by\" FROM \"due_effectattempt\" WHERE \"due_effectattempt\".\"id\" = '79d7ecc35b9a484d890372f43ec17eaa'::uuid LIMIT 21 FOR UPDATE",
+      "SELECT clock_timestamp()",
+      "UPDATE \"due_effectattempt\" SET \"outcome\" = 'applied', \"observed_at\" = '2026-10-11 12:09:01.801286+00:00'::timestamptz, \"repair_pending\" = true, \"repair_settled_by\" = '' WHERE \"due_effectattempt\".\"id\" = '79d7ecc35b9a484d890372f43ec17eaa'::uuid",
+      "COMMIT",
+      "BEGIN",
+      "SELECT \"scheduled_publication\".\"id\", \"scheduled_publication\".\"submission_key\", \"scheduled_publication\".\"initial_publish_at\", \"scheduled_publication\".\"text\", \"scheduled_publication\".\"publish_at\", \"scheduled_publication\".\"status\", \"scheduled_publication\".\"published_key\" FROM \"scheduled_publication\" WHERE \"scheduled_publication\".\"id\" = 1 ORDER BY \"scheduled_publication\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SELECT \"scheduled_publicationdeadline\".\"id\", \"scheduled_publicationdeadline\".\"state\", \"scheduled_publicationdeadline\".\"fencing_token\", \"scheduled_publicationdeadline\".\"claim_generation\", \"scheduled_publicationdeadline\".\"attempt_count\", \"scheduled_publicationdeadline\".\"rearm_count\", \"scheduled_publicationdeadline\".\"desired_revision\", \"scheduled_publicationdeadline\".\"applied_revision\", \"scheduled_publicationdeadline\".\"lease_expires_at\", \"scheduled_publicationdeadline\".\"available_at\", \"scheduled_publicationdeadline\".\"last_error_code\", \"scheduled_publicationdeadline\".\"created_at\", \"scheduled_publicationdeadline\".\"updated_at\", \"scheduled_publicationdeadline\".\"completed_at\", \"scheduled_publicationdeadline\".\"universe\", \"scheduled_publicationdeadline\".\"run_at\", \"scheduled_publicationdeadline\".\"cancelled\", \"scheduled_publicationdeadline\".\"owner_id\", \"scheduled_publicationdeadline\".\"text\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"desired_revision\" = 2 AND \"scheduled_publicationdeadline\".\"fencing_token\" = '2392621595314c569e717b61543cfd87'::uuid AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" = 'claimed') ORDER BY \"scheduled_publicationdeadline\".\"id\" ASC LIMIT 1 FOR UPDATE",
+      "SELECT clock_timestamp()",
+      "UPDATE \"scheduled_publicationdeadline\" SET \"state\" = 'succeeded', \"applied_revision\" = 2, \"lease_expires_at\" = NULL, \"last_error_code\" = '', \"updated_at\" = '2026-10-11 12:09:01.804333+00:00'::timestamptz, \"completed_at\" = '2026-10-11 12:09:01.804207+00:00'::timestamptz WHERE \"scheduled_publicationdeadline\".\"id\" = 1",
+      "UPDATE \"scheduled_publication\" SET \"status\" = 'published', \"published_key\" = '4195c7143da47b7473cf3f55f3dbf33add62cc6df2763f776e602c9b31bc1b59' WHERE \"scheduled_publication\".\"id\" = 1",
+      "UPDATE \"due_effectattempt\" SET \"repair_pending\" = false, \"repair_settled_by\" = 'receipt' WHERE (\"due_effectattempt\".\"work_id\" = 1 AND \"due_effectattempt\".\"work_model\" = 'scheduled.publicationdeadline' AND \"due_effectattempt\".\"desired_revision\" = 2 AND \"due_effectattempt\".\"outcome\" = 'applied')",
+      "COMMIT"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "duplicate_hint": {
+    "statement_counts": {
+      "SELECT": 2
+    },
+    "sql": [
+      "SELECT clock_timestamp()",
+      "SELECT 1 AS \"a\" FROM \"scheduled_publicationdeadline\" WHERE (\"scheduled_publicationdeadline\".\"available_at\" = '2026-10-11 12:09:01.618881+00:00'::timestamptz AND \"scheduled_publicationdeadline\".\"available_at\" <= '2026-10-11 12:09:01.809276+00:00'::timestamptz AND NOT \"scheduled_publicationdeadline\".\"cancelled\" AND \"scheduled_publicationdeadline\".\"desired_revision\" = 2 AND \"scheduled_publicationdeadline\".\"id\" = 1 AND \"scheduled_publicationdeadline\".\"state\" IN ('ready', 'retryable')) LIMIT 1"
+    ],
+    "publication_rows": 1,
+    "work_rows": 1
+  },
+  "messages": {
+    "due.django.runtime.tasks.wake_scheduled_work_task": 2,
+    "due.django.runtime.tasks.run_durable_work_task": 1
+  },
+  "final_rows": {
+    "publication": 1,
+    "work": 1,
+    "attempt": 1,
+    "deferral": 0
+  }
+}

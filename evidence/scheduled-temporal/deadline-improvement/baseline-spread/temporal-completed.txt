@@ -1,0 +1,99 @@
+Skip to Main Content
+
+Web UI
+
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+Version
+2.54.1
+Select a Namespace
+local
+Back to Workflows
+COMPLETED
+updatable-timer-workflow
+Reset
+More Actions
+Start
+Oct 11, 2026, 12:05:25.41 PM UTC
+End
+Oct 11, 2026, 12:05:36.45 PM UTC
+Duration
+11s 40ms
+Run ID
+01a12ada-812a-7887-b102-3ab47bea12c5
+Workflow Type
+Workflow
+Task Queue
+updatable-timer
+History Size
+1.6 KB
+State Transitions
+9
+Workflow SDK
+
+Python 1.34.0
+Docs
+
+Timeline
+Event History
+16
+Relationships
+0
+Workers
+1
+Pending Activities
+0
+Call Stack
+Queries
+User Metadata
+Search Attributes
+Memo
+Input
+1791806724.817666
+Result
+⌄
+⌄
+{
+  "payloads": [
+    null
+  ]
+}
+Timeline
+Descending
+Hide idle time
+Filter
+Auto Refresh Off
+Download
+
+10/11/26, 12:05:25.41 PM UTC
+
+10/11/26, 12:05:36.45 PM UTC
+
+627ms
+1s 280ms
+1s 932ms
+2s 584ms
+3s 237ms
+3s 889ms
+4s 541ms
+5s 193ms
+5s 846ms
+6s 498ms
+7s 150ms
+7s 802ms
+8s 455ms
+9s 107ms
+9s 759ms
+10s 412ms
+1 (23h, 59m, 58s)
+update_wake_up_time
+2 (9s, 986ms)

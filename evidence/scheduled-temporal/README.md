@@ -4,6 +4,13 @@
 not a production performance claim. The maintained application and comparison
 guide are in [PR #18](https://github.com/gigaverse-app/due/pull/18).
 
+## Follow-up: deadline hints and retry-safe submissions
+
+[Read the before/after follow-up](deadline-improvement/README.md): transient timer
+hints and submission keys, 120 fresh timing samples, SQL write/row accounting,
+updated screenshots and preserved recovery guarantees. The original report below
+records the earlier baseline and its then-current gaps.
+
 ## Verdict
 
 The Due app is runnable, demoable and tested, and it adapts the original timer's
