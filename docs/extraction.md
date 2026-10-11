@@ -1,26 +1,26 @@
-# Initial extraction
+# Extraction boundary
 
-Due carries Gigaverse's obligation-oriented execution model into a standalone,
-public Python library. PostgreSQL owns durable intent, claims, revisions and
-evidence; queue deliveries are replaceable execution opportunities.
+Due's initial implementation is derived from Gigaverse's durable-work work-table
+implementation at source revision `04786fb2d`. The extraction preserves the
+coordination, producer, evidence, projection, scheduled-action, compensation and
+recovery mechanisms. It does not bring over application adopters or backend history.
 
-## Required stack
+The original library package becomes `due.django`. Pure rejection/completion
+contracts, observations and retry arithmetic live outside the Django namespace.
+Application tenant context and read-after-write routing become explicit hooks.
+Metrics use `due_` names to avoid registry collisions during consumer migration.
+Due owns migrations for its two concrete infrastructure tables; applications own
+their concrete work tables. Apache-2.0 is the public license.
 
-- Python 3.14 and uv, with a committed lockfile.
-- Pydantic for validated application input and evidence contracts.
-- PostgreSQL for durable state and transaction boundaries.
-- Celery for workers and periodic recovery.
-- Ruff and Pyrefly for formatting, linting and type checking.
-- pytest-obligation for generated behavioral contracts.
+Native-table composition (`CompletionLease`, `RecoveryRoute` and a public native
+`RecoveryLease`) is deliberately excluded. An internal observation delivery helper
+retains the shared arbitration needed by work-table observation workers.
 
-## Extraction checks
+Backend-specific test discovery, provider fixtures, alerts, old task aliases and
+repository-specific conformance generators are not shipped. Regression tests are
+ported to isolated rows and standalone settings. The public `pytest-obligation`
+package supplies the neutral generated proofs; work-table bindings delegate to Due.
 
-- Preserve atomic admission with the application's transaction.
-- Recover lost delivery and expired execution ownership.
-- Fence stale workers from database settlement.
-- Preserve unknown external outcomes without unsafe blind replay.
-- Bound retries and isolate poisoned recovery identities.
-- Document capabilities, provider responsibilities and limitations.
-- Exercise the standalone distribution against real PostgreSQL and Celery.
-
-Implementation and verification are in progress.
+Consumer adoption is a separate data/import/worker-route cutover; see
+[integration](integration.md). This release has no framework-neutral persistence
+adapter and does not publish or migrate any backend application data.

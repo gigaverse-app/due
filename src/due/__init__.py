@@ -1,0 +1,1 @@
+"""Durable obligations for Python."""
