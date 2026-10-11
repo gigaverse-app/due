@@ -160,6 +160,10 @@ are for local development only; both service ports bind to localhost.
 
 ## See recovery survive a lost message
 
+For a browser application with two independently recoverable stages, run the
+[books indexing demo](examples/books/README.md). See the
+[example catalog](examples/README.md) for setup and contribution conventions.
+
 With the local services running:
 
 ```bash

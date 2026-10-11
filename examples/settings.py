@@ -4,7 +4,11 @@ import os
 from urllib.parse import unquote, urlparse
 
 SECRET_KEY = "due-test-only"
-INSTALLED_APPS = ["due.django", "examples.documents"]
+INSTALLED_APPS = ["due.django", "examples.apps.ExamplesConfig", "examples.documents", "examples.books"]
+ROOT_URLCONF = "examples.urls"
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+MIDDLEWARE = ["django.middleware.csrf.CsrfViewMiddleware"]
+TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True}]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 TIME_ZONE = "UTC"
