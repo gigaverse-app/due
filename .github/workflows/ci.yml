@@ -5,9 +5,41 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --only-group lint
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync pre-commit validate-config
+      - name: Validate GitHub Actions
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --no-sync pyrefly check
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        django: [locked, minimum]
     services:
       postgres:
         image: postgres:17
@@ -33,21 +65,42 @@ jobs:
       DUE_DATABASE_URL: postgresql://due:due@localhost:5432/due
       DUE_BROKER_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run pyrefly check
-      - run: uv run pytest --due-work-profile-report=profiles.json
-      - run: uv run python -m django makemigrations --check --dry-run
+      - name: Exercise the declared Django lower bound
+        if: matrix.django == 'minimum'
+        run: uv pip install 'django==6.0.8'
+      - run: uv run --no-sync pytest --due-work-require-assessed --due-work-profile-report=profiles.json
+      - name: Require executed obligation guarantees
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
+      - run: uv run --no-sync python -m django makemigrations --check --dry-run
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
-      - run: uv build
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: obligation-profiles
+          name: obligation-profiles-${{ matrix.django }}
           path: profiles.json
+          if-no-files-found: error
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv build
+      - name: Install the wheel without development dependencies
+        run: |
+          uv venv /tmp/due-wheel
+          uv pip install --python /tmp/due-wheel dist/*.whl
+          /tmp/due-wheel/bin/python -I scripts/check_wheel.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error

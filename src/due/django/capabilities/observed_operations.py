@@ -14,7 +14,7 @@ from django.db.models.functions import Now
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.integration import current_universe_scope
 from due.django.models import DurableWorkState
-from due.django.runtime._delivery import RecoveryLease
+from due.django.runtime._delivery import RecoveryLease as _RecoveryLease
 from due.django.runtime.coordination import database_now
 from due.django.runtime.limits import (
     EXECUTION_SOFT_TIME_LIMIT_SECONDS,
@@ -61,8 +61,10 @@ class ObservedExternalOperation[OwnerT: models.Model, WorkT: ObservedExternalOpe
         """Return exactly correlated positive evidence; None means still unknown."""
 
     @property
-    def observation_lease(self) -> RecoveryLease[WorkT]:
-        return RecoveryLease(model=self.model, claimed_at="observation_claimed_at", duration=self.policy.lease_duration)
+    def _observation_lease(self) -> _RecoveryLease[WorkT]:
+        return _RecoveryLease(
+            model=self.model, claimed_at="observation_claimed_at", duration=self.policy.lease_duration
+        )
 
     def observations_due(self) -> models.QuerySet[WorkT]:
         return self.model.objects.filter(
@@ -75,7 +77,7 @@ class ObservedExternalOperation[OwnerT: models.Model, WorkT: ObservedExternalOpe
     def _recover_observations(self, recovery: RecoveryPass) -> int:
         # Only reserve and publish here. Slow inventory cannot hold up regular
         # claim recovery/dispatch; provider reads belong to bounded workers.
-        return self.observation_lease.recover(
+        return self._observation_lease.recover(
             self.observations_due(),
             publish=self._publish_observation,
             batch_size=self.policy.batch_size,
@@ -99,7 +101,7 @@ class ObservedExternalOperation[OwnerT: models.Model, WorkT: ObservedExternalOpe
         )
 
     def attempt_observation(self, work_id: int, delivery_token: str) -> bool:
-        return self.observation_lease.attempt_execution(
+        return self._observation_lease.attempt_execution(
             work_id, token=datetime.fromisoformat(delivery_token), run=self._observe
         )
 

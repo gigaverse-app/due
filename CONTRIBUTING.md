@@ -1,17 +1,66 @@
-# Contributing
+# Contributing to Due
 
-Use Python 3.14 and `uv sync --locked`. Start isolated PostgreSQL and Redis with
-`docker compose up -d`; run the checks listed in the README. Keep the lockfile
-current with `uv lock` when dependencies change.
+Due uses Python 3.14 and uv. Install Docker (or supply dedicated PostgreSQL and
+Redis instances), then:
 
-Keep product policy out of the coordinator. Fix reliability bugs with a failing
-real-boundary regression first. Preserve owner/work lock order, token/revision
-fencing, and committed evidence before changing recovery behavior. Never turn
-unknown external outcomes into replay permission based only on elapsed time.
+```bash
+uv sync --locked
+uv run pre-commit install
+docker compose up -d --wait
+uv run pre-commit run --all-files
+uv run pytest --due-work-require-assessed --due-work-profile-report=profiles.json
+uv run python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
+DJANGO_SETTINGS_MODULE=examples.settings uv run python -m django makemigrations --check --dry-run
+uv build
+```
 
-Prefer the existing pytest-obligation bindings and fault controls. Observe real
-product outcomes as well as work state. Run Ruff, Pyrefly, tests, migration checks
-and `uv build` before submitting a pull request. Contributions use Apache-2.0.
+`uv.lock` is committed. Dependency edits need `uv lock`; normal development and
+CI use `--locked`. Pre-commit runs Ruff lint/format on staged Python files and
+Pyrefly on the whole project. Hooks can modify formatting; review and stage those
+changes before committing again. Database and worker tests run separately from
+commit hooks so a commit does not depend on Docker availability.
 
-To build a distribution: `uv build`. PyPI publication is a separate maintainer
-release action; this repository has no automatic upload on push or pull request.
+Tests use real PostgreSQL. `pytest-django` creates and drops its test database;
+the configured user must be allowed to create databases. The worker integration
+test also uses Redis and a separate Celery prefork process. Set `DUE_DATABASE_URL`
+and `DUE_BROKER_URL` for dedicated test services, or use the defaults in
+[compose.yaml](compose.yaml). Stop local services with `docker compose down`.
+
+## Changes and proofs
+
+Keep the public API focused on work tables. The delivery lease in
+`runtime/_delivery.py` is private machinery for observation workers; it is not a
+public native-table composition API. Use [the capability guide](docs/capabilities.md)
+to find the existing owner of behavior before adding another abstraction.
+
+For behavioral fixes, first write a failing history at the boundary that broke:
+commit, publication, provider call, evidence, or local settlement. Prefer real
+transactions and selectors. Fault injection may replace transport or the
+provider; it must not replace the production decision being proved. Include a
+control that demonstrates the fault was reached, and observe the product result.
+
+## Pull requests and CI
+
+Use Conventional Commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`,
+`refactor:`, `build:`, `perf:`, `revert:`, `chore:`), enforced by the PR-title
+workflow. Explain the resulting behavior, relevant validation and limitations.
+
+CI has independent lint/workflow validation, Pyrefly, distribution, and
+PostgreSQL/Redis test jobs. The test suite runs against locked Django and the
+minimum supported Django version. Obligation reports and distributions are
+retained as run artifacts. The distribution job builds through the sdist, then
+imports the wheel with isolated Python and no development dependencies.
+
+To reproduce the installed-wheel check:
+
+```bash
+uv build
+uv venv /tmp/due-wheel
+uv pip install --python /tmp/due-wheel dist/*.whl
+/tmp/due-wheel/bin/python -I scripts/check_wheel.py
+```
+
+Releases are not automatic yet; the GitHub installation in the README is the
+supported distribution path. Creating a public repository does not reserve its
+PyPI package name. Configure and verify PyPI ownership and Trusted Publishing
+before adding a release workflow that uploads distributions.
