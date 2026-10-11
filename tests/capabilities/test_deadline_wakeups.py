@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from celery import Task
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
@@ -120,21 +121,22 @@ def test_failed_hint_does_not_block_due_work_or_other_hints(
 ) -> None:
     from due.django.models import RecoveryDeferral
     from due.django.runtime.recovery_pass import RecoveryIncomplete
-    from due.django.runtime.tasks import wake_scheduled_work_task
 
     with hold_nudges():
         due = create_publication("Due now", timezone.now())
         bad = create_publication("Bad hint", timezone.now() + timedelta(seconds=2))
         good = create_publication("Good hint", timezone.now() + timedelta(seconds=3))
     bad_id = bad.publicationdeadline.pk
-    send = wake_scheduled_work_task.apply_async
+    send = Task.apply_async
 
-    def fail_one(*args: Any, **kwargs: Any) -> object:
-        if kwargs["args"][1] == bad_id:
+    def fail_one(task: Task, *args: Any, **kwargs: Any) -> object:
+        if task.name == HINT and kwargs["args"][1] == bad_id:
             raise ConnectionError("broker unavailable for one hint")
-        return send(*args, **kwargs)
+        return send(task, *args, **kwargs)
 
-    monkeypatch.setattr(wake_scheduled_work_task, "apply_async", fail_one)
+    # Patch the class boundary: restoring an instance method while the driver
+    # is installed would leave that fake bound method shadowing real transport.
+    monkeypatch.setattr(Task, "apply_async", fail_one)
     with pytest.raises(RecoveryIncomplete):
         publish_at_deadline.recover()
     due.refresh_from_db()
