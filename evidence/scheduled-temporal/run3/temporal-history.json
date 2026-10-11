@@ -1,0 +1,265 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2026-10-11T11:24:33.972866456Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "taskId": "1048587",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "Workflow"
+        },
+        "taskQueue": {
+          "name": "updatable-timer",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "MTc5MTgwNDI3My45NzE2NzU="
+            }
+          ]
+        },
+        "workflowTaskTimeout": "10s",
+        "originalExecutionRunId": "01a12ab5-1934-7d34-aded-7547e165d2bd",
+        "identity": "362459@aviad-workstation",
+        "firstExecutionRunId": "01a12ab5-1934-7d34-aded-7547e165d2bd",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": "0s",
+        "workflowId": "updatable-timer-workflow",
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": "2026-10-11T11:24:33.972931019Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048588",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "updatable-timer",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": "2026-10-11T11:24:33.981366332Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048593",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "362442@aviad-workstation",
+        "requestId": "335e4d42-7bc8-4fd0-8cbb-8b68103970e6",
+        "historySizeBytes": "304",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        }
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": "2026-10-11T11:24:33.994617437Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048597",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "startedEventId": "3",
+        "identity": "362442@aviad-workstation",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        },
+        "sdkMetadata": {
+          "coreUsedFlags": [
+            3,
+            1,
+            2
+          ],
+          "sdkName": "temporal-python",
+          "sdkVersion": "1.34.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": "2026-10-11T11:24:33.994702009Z",
+      "eventType": "EVENT_TYPE_TIMER_STARTED",
+      "taskId": "1048598",
+      "timerStartedEventAttributes": {
+        "timerId": "1",
+        "startToFireTimeout": "86399.990s",
+        "workflowTaskCompletedEventId": "4"
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": "2026-10-11T11:24:34.290053646Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+      "taskId": "1048607",
+      "workflowExecutionSignaledEventAttributes": {
+        "signalName": "update_wake_up_time",
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "MTc5MTcxNzg4NC4yODg4MDI="
+            }
+          ]
+        },
+        "identity": "362479@aviad-workstation",
+        "requestId": "42b353cd-0839-4786-8b75-269483d5c62e"
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": "2026-10-11T11:24:34.290109601Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048608",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "362442@aviad-workstation-7a9b7b260d644bbe9e283675c0d6bfe5",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "updatable-timer"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": "2026-10-11T11:24:34.296626336Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048612",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "362442@aviad-workstation",
+        "requestId": "92b2b2f5-f482-445f-8917-6c4a9cbf7ea7",
+        "historySizeBytes": "879",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        }
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": "2026-10-11T11:24:34.305523712Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048616",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "startedEventId": "8",
+        "identity": "362442@aviad-workstation",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": "2026-10-11T11:24:34.305559250Z",
+      "eventType": "EVENT_TYPE_TIMER_CANCELED",
+      "taskId": "1048617",
+      "timerCanceledEventAttributes": {
+        "timerId": "1",
+        "startedEventId": "5",
+        "workflowTaskCompletedEventId": "9",
+        "identity": "362442@aviad-workstation"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": "2026-10-11T11:24:34.305579052Z",
+      "eventType": "EVENT_TYPE_TIMER_STARTED",
+      "taskId": "1048618",
+      "timerStartedEventAttributes": {
+        "timerId": "2",
+        "startToFireTimeout": "9.992s",
+        "workflowTaskCompletedEventId": "9"
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": "2026-10-11T11:24:44.299383519Z",
+      "eventType": "EVENT_TYPE_TIMER_FIRED",
+      "taskId": "1048621",
+      "timerFiredEventAttributes": {
+        "timerId": "2",
+        "startedEventId": "11"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": "2026-10-11T11:24:44.299457606Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "taskId": "1048622",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "362442@aviad-workstation-7a9b7b260d644bbe9e283675c0d6bfe5",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "updatable-timer"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": "2026-10-11T11:24:44.313230314Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "taskId": "1048626",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "13",
+        "identity": "362442@aviad-workstation",
+        "requestId": "d15e6f5d-941a-43ca-8d21-28b41218c653",
+        "historySizeBytes": "1353",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        }
+      }
+    },
+    {
+      "eventId": "15",
+      "eventTime": "2026-10-11T11:24:44.322792582Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "taskId": "1048630",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "13",
+        "startedEventId": "14",
+        "identity": "362442@aviad-workstation",
+        "workerVersion": {
+          "buildId": "f959c1131b0a7d7a04ee8b382b1bbd94"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "16",
+      "eventTime": "2026-10-11T11:24:44.322850529Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "taskId": "1048631",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "15"
+      }
+    }
+  ]
+}

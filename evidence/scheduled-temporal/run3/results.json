@@ -1,0 +1,322 @@
+{
+  "run": "37cd5252",
+  "started_utc": "2026-10-11T11:24:32.497242+00:00",
+  "python": "3.14.7 (main, Aug 25 2026, 14:02:56) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "temporal_sdk": "1.34.0",
+  "playwright": "1.63.0",
+  "django": "6.0.9",
+  "due_sha": "ff87b074a9e44391189a5246c356a9321f2139bb",
+  "upstream_sha": "ff0f1343822e532a5c377f02003002d2dcac4f79",
+  "phase_spread": true,
+  "samples": [
+    {
+      "arm": "due",
+      "block": 0,
+      "sample": 0,
+      "admit_ms": 6.699343000036606,
+      "update_ms": 6.6790949999813165,
+      "deadline_unix": 1791717912.9238553,
+      "observed_unix": 1791717916.1182764,
+      "lateness_ms": 3194.4210529327393
+    },
+    {
+      "arm": "due",
+      "block": 0,
+      "sample": 1,
+      "admit_ms": 10.589310999876034,
+      "update_ms": 7.961022000017692,
+      "deadline_unix": 1791717917.879857,
+      "observed_unix": 1791717921.1284094,
+      "lateness_ms": 3248.5523223876953
+    },
+    {
+      "arm": "due",
+      "block": 0,
+      "sample": 2,
+      "admit_ms": 7.525121000071522,
+      "update_ms": 7.695519999970202,
+      "deadline_unix": 1791717923.8872738,
+      "observed_unix": 1791717926.1185539,
+      "lateness_ms": 2231.2800884246826
+    },
+    {
+      "arm": "due",
+      "block": 0,
+      "sample": 3,
+      "admit_ms": 15.169084000035582,
+      "update_ms": 7.643496000127925,
+      "deadline_unix": 1791717929.8872108,
+      "observed_unix": 1791717931.1204264,
+      "lateness_ms": 1233.215570449829
+    },
+    {
+      "arm": "due",
+      "block": 0,
+      "sample": 4,
+      "admit_ms": 7.51484099987465,
+      "update_ms": 8.5570280000411,
+      "deadline_unix": 1791717937.8135293,
+      "observed_unix": 1791717938.0566635,
+      "lateness_ms": 243.1342601776123
+    },
+    {
+      "arm": "temporal",
+      "block": 0,
+      "sample": 0,
+      "admit_ms": 9.07394299997577,
+      "update_ms": 16.03731099999095,
+      "deadline_unix": 1791717938.8159113,
+      "observed_unix": 1791717939.1310937,
+      "lateness_ms": 315.1824474334717
+    },
+    {
+      "arm": "temporal",
+      "block": 0,
+      "sample": 1,
+      "admit_ms": 7.438627000055931,
+      "update_ms": 13.030071000002863,
+      "deadline_unix": 1791717940.890855,
+      "observed_unix": 1791717941.193386,
+      "lateness_ms": 302.53100395202637
+    },
+    {
+      "arm": "temporal",
+      "block": 0,
+      "sample": 2,
+      "admit_ms": 10.681307000140805,
+      "update_ms": 15.730020999853878,
+      "deadline_unix": 1791717943.9556375,
+      "observed_unix": 1791717944.2358978,
+      "lateness_ms": 280.2603244781494
+    },
+    {
+      "arm": "temporal",
+      "block": 0,
+      "sample": 3,
+      "admit_ms": 13.117963000013333,
+      "update_ms": 17.354024000042045,
+      "deadline_unix": 1791717948.0020382,
+      "observed_unix": 1791717948.3151624,
+      "lateness_ms": 313.1241798400879
+    },
+    {
+      "arm": "temporal",
+      "block": 0,
+      "sample": 4,
+      "admit_ms": 9.06622200000129,
+      "update_ms": 14.575975999832735,
+      "deadline_unix": 1791717953.0780091,
+      "observed_unix": 1791717953.3925028,
+      "lateness_ms": 314.49365615844727
+    },
+    {
+      "arm": "temporal",
+      "block": 1,
+      "sample": 0,
+      "admit_ms": 9.969725000019025,
+      "update_ms": 13.890732999925604,
+      "deadline_unix": 1791717954.291157,
+      "observed_unix": 1791717954.6007223,
+      "lateness_ms": 309.56530570983887
+    },
+    {
+      "arm": "temporal",
+      "block": 1,
+      "sample": 1,
+      "admit_ms": 16.100757000003796,
+      "update_ms": 12.918945000137683,
+      "deadline_unix": 1791717956.5064986,
+      "observed_unix": 1791717956.8206737,
+      "lateness_ms": 314.1751289367676
+    },
+    {
+      "arm": "temporal",
+      "block": 1,
+      "sample": 2,
+      "admit_ms": 12.198081000178718,
+      "update_ms": 17.075081000029968,
+      "deadline_unix": 1791717959.7236261,
+      "observed_unix": 1791717960.0349686,
+      "lateness_ms": 311.3424777984619
+    },
+    {
+      "arm": "temporal",
+      "block": 1,
+      "sample": 3,
+      "admit_ms": 9.985941999957504,
+      "update_ms": 15.227163999952609,
+      "deadline_unix": 1791717963.9368718,
+      "observed_unix": 1791717966.319288,
+      "lateness_ms": 2382.416248321533
+    },
+    {
+      "arm": "temporal",
+      "block": 1,
+      "sample": 4,
+      "admit_ms": 16.544053999950847,
+      "update_ms": 15.496985000027053,
+      "deadline_unix": 1791717971.2308686,
+      "observed_unix": 1791717971.5408797,
+      "lateness_ms": 310.0111484527588
+    },
+    {
+      "arm": "due",
+      "block": 1,
+      "sample": 0,
+      "admit_ms": 14.951767999946242,
+      "update_ms": 8.119703000147638,
+      "deadline_unix": 1791717972.444542,
+      "observed_unix": 1791717975.0582783,
+      "lateness_ms": 2613.736391067505
+    },
+    {
+      "arm": "due",
+      "block": 1,
+      "sample": 1,
+      "admit_ms": 15.655588000072385,
+      "update_ms": 7.151768999847263,
+      "deadline_unix": 1791717976.962404,
+      "observed_unix": 1791717980.076181,
+      "lateness_ms": 3113.776922225952
+    },
+    {
+      "arm": "due",
+      "block": 1,
+      "sample": 2,
+      "admit_ms": 9.953411999958917,
+      "update_ms": 6.979208999837283,
+      "deadline_unix": 1791717982.9748046,
+      "observed_unix": 1791717985.0705268,
+      "lateness_ms": 2095.722198486328
+    },
+    {
+      "arm": "due",
+      "block": 1,
+      "sample": 3,
+      "admit_ms": 14.976335000028485,
+      "update_ms": 6.998848999955953,
+      "deadline_unix": 1791717988.9750197,
+      "observed_unix": 1791717990.0592144,
+      "lateness_ms": 1084.1946601867676
+    },
+    {
+      "arm": "due",
+      "block": 1,
+      "sample": 4,
+      "admit_ms": 10.319797999954972,
+      "update_ms": 6.667499000059252,
+      "deadline_unix": 1791717994.9592812,
+      "observed_unix": 1791717995.0632453,
+      "lateness_ms": 103.96409034729004
+    },
+    {
+      "arm": "due",
+      "block": 2,
+      "sample": 0,
+      "admit_ms": 14.03674699986368,
+      "update_ms": 7.253678000097352,
+      "deadline_unix": 1791717996.1020553,
+      "observed_unix": 1791718002.1125722,
+      "lateness_ms": 6010.516881942749
+    },
+    {
+      "arm": "due",
+      "block": 2,
+      "sample": 1,
+      "admit_ms": 10.032415000068795,
+      "update_ms": 6.752599000037662,
+      "deadline_unix": 1791718004.147276,
+      "observed_unix": 1791718007.124741,
+      "lateness_ms": 2977.4651527404785
+    },
+    {
+      "arm": "due",
+      "block": 2,
+      "sample": 2,
+      "admit_ms": 14.496469000050638,
+      "update_ms": 6.623946999980035,
+      "deadline_unix": 1791718010.1656766,
+      "observed_unix": 1791718012.131292,
+      "lateness_ms": 1965.6155109405518
+    },
+    {
+      "arm": "due",
+      "block": 2,
+      "sample": 3,
+      "admit_ms": 15.240199000118082,
+      "update_ms": 21.50492100008705,
+      "deadline_unix": 1791718016.170958,
+      "observed_unix": 1791718017.1144028,
+      "lateness_ms": 943.4447288513184
+    },
+    {
+      "arm": "due",
+      "block": 2,
+      "sample": 4,
+      "admit_ms": 6.770231000018612,
+      "update_ms": 7.3251030000847095,
+      "deadline_unix": 1791718022.1464996,
+      "observed_unix": 1791718027.131596,
+      "lateness_ms": 4985.096454620361
+    },
+    {
+      "arm": "temporal",
+      "block": 2,
+      "sample": 0,
+      "admit_ms": 9.224242999835042,
+      "update_ms": 13.429287000008117,
+      "deadline_unix": 1791718028.1653607,
+      "observed_unix": 1791718030.6118405,
+      "lateness_ms": 2446.4797973632812
+    },
+    {
+      "arm": "temporal",
+      "block": 2,
+      "sample": 1,
+      "admit_ms": 12.770355999919047,
+      "update_ms": 15.332535999959873,
+      "deadline_unix": 1791718032.6513386,
+      "observed_unix": 1791718032.9631598,
+      "lateness_ms": 311.82122230529785
+    },
+    {
+      "arm": "temporal",
+      "block": 2,
+      "sample": 2,
+      "admit_ms": 8.893325999906665,
+      "update_ms": 12.888825000118231,
+      "deadline_unix": 1791718035.9998138,
+      "observed_unix": 1791718036.305307,
+      "lateness_ms": 305.4931163787842
+    },
+    {
+      "arm": "temporal",
+      "block": 2,
+      "sample": 3,
+      "admit_ms": 8.185082999943916,
+      "update_ms": 12.031663000016124,
+      "deadline_unix": 1791718040.3407562,
+      "observed_unix": 1791718040.6493263,
+      "lateness_ms": 308.57014656066895
+    },
+    {
+      "arm": "temporal",
+      "block": 2,
+      "sample": 4,
+      "admit_ms": 11.623690999840619,
+      "update_ms": 13.264724999999089,
+      "deadline_unix": 1791718045.6878035,
+      "observed_unix": 1791718046.0021222,
+      "lateness_ms": 314.3186569213867
+    }
+  ],
+  "behaviors": {
+    "duplicate_start": "Temporal starter keeps one running workflow; Due creates two publications (semantic difference)",
+    "original_cli_start_signal_query_complete": "passed",
+    "move_later_then_earlier_no_early_completion": "both passed",
+    "worker_restart_after_deadline": "both passed",
+    "pending_cancellation": "both passed; Temporal SDK extension, no provider activity"
+  },
+  "finished_utc": "2026-10-11T11:27:26.006667+00:00"
+}

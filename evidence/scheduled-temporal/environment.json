@@ -1,0 +1,15 @@
+{
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "logical_cpus": 6,
+  "cpu_model": "12th Gen Intel(R) Core(TM) i9-12900KS",
+  "versions": {
+    "django": "6.0.9",
+    "celery": "5.6.3",
+    "psycopg": "3.3.6"
+  },
+  "postgres_version": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "db_clock_minus_client_midpoint_ms": -0.05888938903808594,
+  "probe_round_trip_ms": 0.9348392486572266,
+  "probe_utc": "2026-10-11T11:26:28Z",
+  "load_isolation": "Shared local WSL machine; other processes not controlled. No fleet/resource/capacity claim."
+}

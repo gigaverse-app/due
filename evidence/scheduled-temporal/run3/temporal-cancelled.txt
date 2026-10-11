@@ -1,0 +1,95 @@
+Skip to Main Content
+
+Web UI
+
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+Version
+2.54.1
+Select a Namespace
+local
+Back to Workflows
+CANCELED
+cancel-37cd5252
+Reset
+More Actions
+Start
+Oct 11, 2026, 11:24:59.67 AM UTC
+End
+Oct 11, 2026, 11:24:59.70 AM UTC
+Duration
+34ms
+Run ID
+01a12ab5-7d96-7840-80ae-337f070d1846
+Workflow Type
+Workflow
+Task Queue
+updatable-timer
+History Size
+1.06 KB
+State Transitions
+5
+Workflow SDK
+
+Python 1.34.0
+Docs
+
+Timeline
+Event History
+11
+Relationships
+0
+Workers
+2
+Pending Activities
+0
+Call Stack
+Queries
+User Metadata
+Search Attributes
+Memo
+Input
+1791717900.6693707
+Result
+⌄
+{
+  "type": "workflowExecutionCanceledEventAttributes",
+  "workflowTaskCompletedEventId": "9"
+}
+Timeline
+Descending
+Show idle time
+Filter
+Auto Refresh Off
+Download
+
+10/11/26, 11:24:59.67 AM UTC
+
+10/11/26, 11:24:59.70 AM UTC
+
+27ms
+27ms
+27ms
+28ms
+28ms
+29ms
+29ms
+30ms
+30ms
+30ms
+31ms
+31ms
+32ms
+32ms
+33ms
+33ms
+1 (991ms)
