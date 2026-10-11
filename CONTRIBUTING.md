@@ -22,8 +22,10 @@ commit hooks so a commit does not depend on Docker availability.
 
 Tests use real PostgreSQL. `pytest-django` creates and drops its test database;
 the configured user must be allowed to create databases. The worker integration
-test also uses Redis and a separate Celery prefork process. Set `DUE_DATABASE_URL`
-and `DUE_BROKER_URL` for dedicated test services, or use the defaults in
+tests also use Redis and separate Celery prefork processes. The live books
+journeys additionally start a real Django HTTP server and Celery Beat, verifying
+normal form submission and scheduled recovery of either lost notification. Set
+`DUE_DATABASE_URL` and `DUE_BROKER_URL` for dedicated test services, or use the defaults in
 [compose.yaml](compose.yaml). Stop local services with `docker compose down`.
 
 ## Changes and proofs
@@ -47,9 +49,16 @@ workflow. Explain the resulting behavior, relevant validation and limitations.
 
 CI has independent lint/workflow validation, Pyrefly, distribution, and
 PostgreSQL/Redis test jobs. The test suite runs against locked Django and the
-minimum supported Django version. Obligation reports and distributions are
-retained as run artifacts. The distribution job builds through the sdist, then
-imports the wheel with isolated Python and no development dependencies.
+minimum supported Django version, including the live HTTP/worker/Beat journeys.
+Obligation reports, process logs and distributions are retained as run artifacts.
+The distribution job builds through the sdist, then imports the wheel with
+isolated Python and no development dependencies.
+
+`main` requires `lint`, `typecheck`, `tests (locked)`, `tests (minimum)`,
+`build` and `conventional-commit` to pass from GitHub Actions, with the branch
+up to date before merging. These repository protections apply to administrators
+too. Preserve these check names when changing CI, or update branch protection
+together with the workflow.
 
 To reproduce the installed-wheel check:
 
