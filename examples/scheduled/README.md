@@ -199,6 +199,8 @@ measurement, not incidental details.
 
 ## Deadline hints and retry-safe submission
 
+See the [before/after evidence](https://github.com/gigaverse-app/due/blob/54aba8e3ba93ef100578ec8ffa5897d4c95071c8/evidence/scheduled-temporal/deadline-improvement/README.md) for latency, SQL write/row and broker-message accounting, plus fresh screenshots.
+
 `PublishAtDeadline.deadline_wakeup_horizon = timedelta(seconds=10)` opts into
 Due's shared scheduled transport. A post-commit nudge publishes an ETA hint when
 eligibility is within ten seconds. Recovery also looks ahead, sending at most

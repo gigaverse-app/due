@@ -30,8 +30,20 @@ its final run status is linked from PR #18.
 
 ## Transient deadline hints and submission identity
 
-- [ ] Root scheduled mechanism: near deadlines execute without Beat; far deadlines enter a bounded lookahead; early/stale/duplicate hints cannot execute old work or skip backoff. Lost hints retain ordinary recovery.
-- [ ] Cost contract: publishing and inspecting future hints performs no SQL writes; one bounded page per recovery tick, no hint ledger. Broker failures cannot prevent ordinary due dispatch.
-- [ ] Submission identity: one product/work row across retries and concurrent callers; changed input conflicts; replay after reschedule/cancel/completion returns current state. Rollback leaves neither row. Browser and CLI retain caller keys.
-- [ ] Existing-row migration, generated conformance, real worker restart, full CI and live comparison with unchanged five-second recovery cadence.
-- [ ] Report latency plus SQL writes/row and message counts, retaining raw evidence outside mergeable history.
+- [x] Root scheduled mechanism: near deadlines execute without Beat; far deadlines enter a bounded lookahead; early/stale/duplicate hints cannot execute old work or skip backoff. Lost hints retain ordinary recovery.
+- [x] Cost contract: publishing and inspecting future hints performs no SQL writes; one bounded page per recovery tick, no hint ledger. Broker failures cannot prevent ordinary due dispatch.
+- [x] Submission identity: one product/work row across retries and concurrent callers; changed input conflicts; replay after reschedule/cancel/completion returns current state. Rollback leaves neither row. Browser and CLI retain caller keys.
+- [x] Existing-row migration, generated conformance, real worker restart, full CI and live comparison with unchanged five-second recovery cadence.
+- [x] Report latency plus SQL writes/row and message counts, retaining raw evidence outside mergeable history.
+
+
+Final validation: both CI dependency lanes pass 1,397 tests with the four existing
+xfails, including all required conformance gates. Twenty focused local cases
+cover the combined hint/submission/migration/live-worker sequence. The extra
+live case exposed a fault-injection test leaking a bound fake Celery method;
+patching the class boundary keeps later live delivery on the real broker.
+Production runtime did not require a change for that test-isolation defect.
+
+[Before/after evidence](https://github.com/gigaverse-app/due/blob/54aba8e3ba93ef100578ec8ffa5897d4c95071c8/evidence/scheduled-temporal/deadline-improvement/README.md) retains the baseline and candidate timing runs,
+SQL/row/message accounting, raw logs, outliers, screenshots and the pinned
+Temporal provenance. Evidence-only PR #19 remains closed without merging.
