@@ -78,6 +78,10 @@ jobs:
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
       - name: Require complete application conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_document --verified A B D E H I J --effect-report effects.json --effect publish_document
+      - name: Require complete book indexing conformance
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract index_book --verified A B D H I J --effect-report effects.json --effect index_book
+      - name: Require complete book publication conformance
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book
       - run: uv run --no-sync python -m django makemigrations --check --dry-run
         env:
           DJANGO_SETTINGS_MODULE: examples.settings

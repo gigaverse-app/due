@@ -11,6 +11,14 @@ key on a Django model. Follow the [root quickstart](../README.md#run-the-example
 Its [worker test](../tests/integration/test_celery_worker.py) drops the initial
 notification and checks recovery through PostgreSQL, Redis and a Celery worker.
 
+## Books and search
+
+The [books application](books/README.md) has a browser interface and a two-stage
+indexing workflow. It uses a local SQLite search provider and demonstrates
+recovery when either stage's notification is lost. Its tests import the same
+application code and include generated conformance, actual process death, and
+Redis/Celery integration journeys.
+
 ## Adding an example
 
 Keep application code here and import that same code from tests. Use Due's public

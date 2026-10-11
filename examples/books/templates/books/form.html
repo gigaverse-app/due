@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Add a book</title></head>
+<body>
+  <h1>Add a book</h1>
+  <form method="post">{% csrf_token %}{{ form.as_p }}<button>Add book</button></form>
+  <p><a href="{% url 'books' %}">Back to catalog</a></p>
+</body>
+</html>
