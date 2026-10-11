@@ -83,3 +83,11 @@ Retention prunes only successful work allowed by its policy. Evidence-required
 occurrences retain their identity and evidence. Product callbacks must commit any
 new obligation beside the state that owes it; a successful attempt alone does
 not establish that a whole application workflow is finished.
+
+## Verification integration
+
+Work-table adopters declare `EffectExamples` through `effect_contract_suite`.
+[The conformance guide](conformance.md) describes generated guarantees and
+[the replacement audit](backend-adoption.md) separates standalone parity from
+application migration. Shared fault oracles belong to pytest-obligation; Due owns
+the binding to its registered capability, PostgreSQL state and Celery workers.

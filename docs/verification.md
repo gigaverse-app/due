@@ -66,3 +66,40 @@ selected: verdicts are recomputed from canonical pytest-obligation models.
 [Follow-up CI](https://github.com/gigaverse-app/due/actions/runs/38099055025)
 passed all five jobs for implementation commit `2766c33`, including both Django
 versions.
+
+
+## Full work-table harness and replacement audit
+
+The public `effect_contract_suite` now ports the mature backend generator. Its
+application mode and policies require the appropriate examples instead of asking
+the author to select a convenient subset of profiles. Collection tests cover
+missing methods, ignored suites, named variants, skips/xfails, selected subsets,
+xdist merging and observation-report provenance. Enrollment tests independently
+require examples for every supported work-table mode.
+
+The document adopter claims A/B/D/E/H/I/J, including actual repeated file writes,
+revision fencing, partial-admission rollback and visible retry exhaustion. Due's
+extra histories check production schedule/worker options, poisoned identities,
+lock order, competing workers and the migrated indexes. Real child processes exit
+abruptly after admission, before the file write and after the file write. The
+shared pytest-obligation process oracle requires recovery to converge, and a
+negative control disables production recovery and must fail that oracle.
+
+Operation and observer tests cover UNKNOWN/no-resend, positive and negative
+evidence, interrupted local settlement, competing receipts, inconclusive reads,
+lost observation delivery and poisoned recovery. Root mutation controls reject
+inert observers, hidden provider calls, missing dispatch, stale tokens, early
+notifications, partial admission leaks and invisible exhaustion. These are local
+histories with controlled seams; they do not certify every remote provider or
+replace the backend's adopter suites.
+
+CI retains profile, application-suite and observation reports and checks complete
+executed application evidence. See [conformance authoring](conformance.md) and the
+[backend replacement audit](backend-adoption.md) for the API and remaining cutover
+work. The native-table API remains excluded.
+
+Local parity run: **821 tests pass** on Python 3.14.7, Django 6.0.9 and
+PostgreSQL 17, including the Redis/prefork worker and real process-death histories.
+The document suite has **64 generated cases**. Ruff, Pyrefly, migration drift,
+profile/application evidence gates, wheel/sdist build and an isolated runtime-only
+wheel install with Django 6.1.2 pass.

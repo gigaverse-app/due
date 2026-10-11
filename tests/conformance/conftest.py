@@ -1,5 +1,18 @@
-from pytest_obligation import configure
-from pytest_obligation.integrations.celery import celery_publications
-from pytest_obligation.integrations.django import django_host
+from collections.abc import Iterator
 
-configure(django_host(production_packages={"due", "examples"}, publication_recorder=celery_publications))
+import pytest
+from pytest_obligation import configure
+
+from due.django.conformance.host import work_table_host
+from examples.celery_app import app
+from tests.conformance.document_examples import environment
+
+configure(work_table_host(production_packages={"examples"}))
+app.set_default()
+app.set_current()
+
+
+@pytest.fixture
+def document_files() -> Iterator[None]:
+    with environment():
+        yield

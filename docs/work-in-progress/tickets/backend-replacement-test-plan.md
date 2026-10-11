@@ -4,12 +4,17 @@ The previous extraction retained the runtime but omitted the mature work-table
 suite generator. A replacement must preserve both application behavior and the
 proofs required from each adopter.
 
-- [ ] Inventory backend imports, registered modes and suite declarations against Due.
-- [ ] Port effect_contract_suite and EffectExamples using pytest-obligation as the proof owner.
-- [ ] Preserve missing-proof, collection, skip/xfail and enrollment guards.
-- [ ] Exercise replay, external operations, observation, projection, scheduling and compensation.
-- [ ] Include producer/rollback, synchronous caller, receipt repair, poison/stop,
+- [x] Inventory backend imports, registered modes and suite declarations against Due.
+- [x] Port effect_contract_suite and EffectExamples using pytest-obligation as the proof owner.
+- [x] Preserve missing-proof, collection, skip/xfail and enrollment guards.
+- [x] Exercise replay, external operations, observation, projection, scheduling and compensation.
+- [x] Include producer/rollback, synchronous caller, receipt repair, poison/stop,
   dependent wake, database index, discovery-edge and concurrency histories.
-- [ ] Run mutation controls that reject broken binding or production behavior.
-- [ ] Verify standalone PostgreSQL/Redis tests, typing, packaging and CI.
-- [ ] Document exact remaining backend cutover work; keep native APIs private.
+- [x] Run mutation controls that reject broken binding or production behavior.
+- [x] Verify standalone PostgreSQL/Redis tests, typing, packaging and CI.
+- [x] Document exact remaining backend cutover work; keep native APIs private.
+
+Local completion: 821 tests pass; Ruff, Pyrefly, migrations, profile/application
+report gates and isolated installed-wheel smoke pass. CI is tracked on Due PR #5.
+See [the cutover audit](../../backend-adoption.md) for remaining BE integration
+work; the application itself has not been migrated.

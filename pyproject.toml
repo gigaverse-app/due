@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-testing = ["pytest-obligation[django,celery]>=0.8,<0.9"]
+testing = ["pytest-obligation[django,celery,exploration] @ git+https://github.com/gigaverse-app/pytest-obligation.git@0992f189a55451946e0674ac9f6abfb0a50c3648"]
 redis = ["celery[redis]>=5.6,<6"]
 beat = ["django-celery-beat>=2.8"]
 
@@ -43,13 +43,15 @@ lint = ["ruff>=0.14", "pre-commit>=4.3"]
 dev = [
     { include-group = "lint" },
     "pytest>=8.4",
-    "pytest-obligation[celery,django]>=0.8,<0.9",
+    "pytest-obligation[celery,django,exploration] @ git+https://github.com/gigaverse-app/pytest-obligation.git@0992f189a55451946e0674ac9f6abfb0a50c3648",
     "pyrefly>=1,<2",
     "celery-types>=0.26",
     "django-stubs>=5.2",
     "django-celery-beat>=2.8",
     "redis>=5",
     "pytest-mock>=3.16.0",
+    "pytest-xdist>=3.8",
+    "pytest-asyncio>=1.2",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -74,3 +76,9 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 pythonpath = ["."]
 addopts = "--strict-markers"
 markers = ["no_db: does not access the database"]
+
+[project.entry-points.pytest11]
+due_work_tables = "due.pytest_plugin"
+
+[tool.hatch.metadata]
+allow-direct-references = true

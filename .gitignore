@@ -9,3 +9,6 @@ dist/
 
 profiles.json
 celerybeat-schedule*
+
+effects.json
+observations.json

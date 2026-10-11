@@ -163,17 +163,21 @@ initial notification. It then starts a **separate Celery prefork worker**, sends
 the recovery task through **Redis**, and checks the file and product state in
 **PostgreSQL**. [Read the complete failure history](tests/integration/test_celery_worker.py).
 
-For generated crash, ownership, retention, admission and retry checks:
+For application-bound recovery, replay, revision, admission and real process-death checks:
 
 ```bash
-uv run pytest tests/conformance --due-work-summary --due-work-profile-report=profiles.json
+uv run pytest tests/conformance -p due.django.conformance.reporting \
+  --due-work-summary --due-work-profile-report=profiles.json --durable-work-report=effects.json
 ```
 
 [pytest-obligation](https://github.com/gigaverse-app/pytest-obligation) generates
 the applicable tests from a contract bound to Due's actual coordinator. CI
 requires executed passing evidence for the claimed profiles; an empty or filtered
 report fails. These proofs cover the bound example, not arbitrary application
-callbacks. [What we verify →](docs/verification.md)
+callbacks. Enroll your own capability with `effect_contract_suite` and
+`EffectExamples`: [authoring guide](docs/conformance.md),
+[executable example](tests/conformance/document_examples.py),
+[verification scope](docs/verification.md).
 
 ## Inspect stopped work
 
