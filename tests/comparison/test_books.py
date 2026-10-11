@@ -15,17 +15,29 @@ from due.django.testing import hold_nudges
 from examples.books import search
 from examples.books.models import Book, IndexBookWork
 from examples.books.services import create_book as create_due_book
-from examples.comparison.tasks import QUEUE
+from examples.comparison.tasks import QUEUE, recover_stalled
 from examples.comparison.tasks import create_book as create_procrastinate_book
 from tests.conformance.book_examples import recover_process
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.mark.parametrize("backend", ["due", "procrastinate"])
-@pytest.mark.parametrize("fault", [None, "after admission", "after index write", "after activation"])
+@pytest.mark.parametrize(
+    ("backend", "fault", "queued_recovery"),
+    [
+        ("due", None, False),
+        ("procrastinate", None, False),
+        ("due", "after admission", False),
+        ("procrastinate", "after admission", False),
+        ("due", "after index write", False),
+        ("procrastinate", "after index write", False),
+        ("due", "after activation", False),
+        ("procrastinate", "after activation", False),
+        ("procrastinate", "after index write", True),
+    ],
+)
 def test_shared_book_outcome_after_process_death(
-    backend: str, fault: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    backend: str, fault: str | None, queued_recovery: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     title = uuid4().hex
     marker = tmp_path / "fault"
@@ -52,6 +64,13 @@ def test_shared_book_outcome_after_process_death(
         else:
             # The producer/worker subprocess is known dead. Only shorten the
             # detection clock; Procrastinate's own selector and retry own recovery.
+            if queued_recovery:
+                # Reproduce the periodic scheduler winning the race before the
+                # explicit recovery driver starts. The killed worker is gone.
+                if not ProcrastinateJob.objects.filter(
+                    queueing_lock="comparison-stalled-recovery", status="todo"
+                ).exists():
+                    recover_stalled.configure(task_kwargs={"timestamp": 0}).defer()
             env.update(fault_environment(None, marker))
             env["DUE_COMPARISON_STALE_SECONDS"] = "0"
             recovery = subprocess.run(
