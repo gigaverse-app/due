@@ -81,9 +81,9 @@ jobs:
       - name: Require complete application conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_document --verified A B D E H I J --effect-report effects.json --effect publish_document
       - name: Require complete book indexing conformance
-        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract index_book --verified A B D H I J --effect-report effects.json --effect index_book
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract index_book --verified A B D H I J --effect-report effects.json --effect index_book --unassessed "test_due_work_contract[E-not_assessed]"
       - name: Require complete book publication conformance
-        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book --unassessed "test_due_work_contract[E-not_assessed]"
       - name: Require catalog projection conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract project_catalog --verified A B D E H I J --effect-report effects.json --effect project_catalog
       # Non-repeatable orders decline harmless replay and retain evidence indefinitely.

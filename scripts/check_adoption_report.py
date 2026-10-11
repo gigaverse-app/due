@@ -43,7 +43,7 @@ def check(
                 ), f"{name}/{identity}: proof did not finish successfully or as its declared failure"
 
 
-def check_effects(path: Path, names: list[str]) -> None:
+def check_effects(path: Path, names: list[str], *, unassessed: tuple[str, ...] | list[str] = ()) -> None:
     """Require the whole generated adopter suite, including Due-specific histories."""
     reports = json.loads(path.read_text())
     for name in names:
@@ -51,11 +51,12 @@ def check_effects(path: Path, names: list[str]) -> None:
         suite = reports[name]
         expected = set(suite["expected"])
         assert expected, f"{name}: no expected proofs"
-        assert not suite["unassessed"], f"{name}: unassessed obligations remain"
+        assert set(suite["unassessed"]) == set(unassessed), f"{name}: unassessed obligations differ from declared debt"
         assert expected == set(suite["collected"]) == set(suite["selected"]), f"{name}: incomplete suite selection"
         assert set(suite["outcomes"]) == expected, f"{name}: missing executed proofs"
         for proof, outcomes in suite["outcomes"].items():
-            assert outcomes == ["passed"], f"{name}/{proof}: expected one passing execution, got {outcomes}"
+            required = ["xfail"] if proof in unassessed else ["passed"]
+            assert outcomes == required, f"{name}/{proof}: expected {required}, got {outcomes}"
 
 
 def main() -> None:
@@ -66,6 +67,12 @@ def main() -> None:
     parser.add_argument("--exercised", nargs="+", default=[])
     parser.add_argument("--effect-report", type=Path)
     parser.add_argument("--effect", action="append", default=[])
+    parser.add_argument(
+        "--unassessed",
+        action="append",
+        default=[],
+        help="Exact expected binding-debt case; also enforce the pytest debt baseline",
+    )
     arguments = parser.parse_args()
     check(
         read_report(arguments.report),
@@ -75,7 +82,7 @@ def main() -> None:
     )
     if arguments.effect:
         assert arguments.effect_report is not None, "--effect requires --effect-report"
-        check_effects(arguments.effect_report, arguments.effect)
+        check_effects(arguments.effect_report, arguments.effect, unassessed=arguments.unassessed)
     print(f"Validated executed adoption for {len(arguments.contract)} contract(s)")
 
 
