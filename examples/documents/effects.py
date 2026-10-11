@@ -4,7 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from due.django.public import DurableWorkPolicy, ReplaySafeEffect
+from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
 from examples.documents.models import Document, PublicationWork
 
 
@@ -21,7 +21,11 @@ class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
     def finalize_success(self, work: PublicationWork, result: str) -> None:
         # Due holds the owner/work locks and validates the captured revision
         # and fencing token before publishing this pointer.
-        Document.objects.filter(pk=work.owner_id).update(published_key=result)
+        Document.objects.filter(pk=work.owner_id).update(published_key=result, publication_failed=False)
+
+    def finalize_retry(self, work: PublicationWork, error: Exception) -> None:
+        if work.state == DurableWorkState.EXHAUSTED:
+            Document.objects.filter(pk=work.owner_id).update(publication_failed=True)
 
 
 publish_document = PublishDocument.for_owner(owner=Document, work=PublicationWork, policy=DurableWorkPolicy())
@@ -32,5 +36,15 @@ def request_publication(document_id: int, text: str) -> PublicationWork:
     with publish_document.atomic(document_id) as pending:
         document = pending.locked_owner
         document.text = text
-        document.save(update_fields=["text"])
+        document.publication_failed = False
+        document.save(update_fields=["text", "publication_failed"])
         return pending.request_work(PublicationWork(text=text, universe="example"))
+
+
+def retry_publication(document_id: int) -> bool:
+    """Explicitly grant an exhausted publication a fresh retry budget."""
+    with publish_document.atomic(document_id) as pending:
+        retried = pending.retry_failed()
+        if retried:
+            Document.objects.filter(pk=document_id).update(publication_failed=False)
+        return retried

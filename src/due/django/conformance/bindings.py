@@ -21,6 +21,7 @@ from pytest_obligation.profiles.automatic_recovery import (
     DueWorkSweep,
     InFlightExecution,
     OwedWorkVariant,
+    PoisonSwitch,
 )
 from pytest_obligation.profiles.bounded_ownership import FencedOwnership
 from pytest_obligation.profiles.durable_retention import Retention
@@ -64,8 +65,10 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
 
     @property
     def registration(self):
-        from due.django.runtime.registry import registration_for as registration_of
-        from due.django.runtime.tasks import capability_for as registered_capability
+        from due.django.conformance.registrations import (
+            registered_capability,
+            registration_of,
+        )
 
         entry = registration_of(self.capability.model)
         if registered_capability(entry.name) is not self.capability:
@@ -73,12 +76,9 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         return entry
 
     def assert_scheduled(self) -> None:
-        from django.conf import settings
+        from due.django.conformance.suite import assert_registered_schedule
 
-        from due.django.runtime.registry import recovery_schedules
-
-        for key, expected in recovery_schedules([self.registration]).items():
-            assert settings.CELERY_BEAT_SCHEDULE[key] == expected
+        assert_registered_schedule(self.registration)
 
     def make(self, *, age: timedelta = timedelta(minutes=1)) -> W:
         # ARRANGE: real requirement, with only timestamps aged to simulate time.
@@ -207,9 +207,11 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         counts = Counter()
         dispatched = []
         deliveries = []
+        refusals = PoisonSwitch()
 
         def publish(*, args, **options):
             # EXTERNAL SEAM: reserve in production, hold only the broker boundary.
+            refusals.check(args[1], f"broker refused work {args[1]}")
             deliveries.append(options)
             counts[args[1]] += 1
             dispatched.append(self.identity_of(self.capability.model.objects.get(pk=args[1])))
@@ -225,6 +227,10 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         def start(work, run_tick):
             run_tick()
             yield
+
+        def poison(work):
+            # EXTERNAL SEAM: the broker refuses this one work id on every publication.
+            return refusals.poisoned(work.pk)
 
         with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", publish):
             yield DueWorkSweep(
@@ -254,6 +260,10 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
                 if self.capability.policy.max_rearms != 0
                 else (),
                 lifecycle=self.lifecycle(),
+                poison=poison,
+                still_owed=lambda work: (
+                    coordination.outstanding_work(self.capability.model).filter(pk=work.pk).exists()
+                ),
             )
 
     def ownership(self) -> FencedOwnership:

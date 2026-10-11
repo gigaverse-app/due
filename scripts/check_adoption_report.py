@@ -43,12 +43,29 @@ def check(
                 ), f"{name}/{identity}: proof did not finish successfully or as its declared failure"
 
 
+def check_effects(path: Path, names: list[str]) -> None:
+    """Require the whole generated adopter suite, including Due-specific histories."""
+    reports = json.loads(path.read_text())
+    for name in names:
+        assert name in reports, f"missing work-table suite {name!r}"
+        suite = reports[name]
+        expected = set(suite["expected"])
+        assert expected, f"{name}: no expected proofs"
+        assert not suite["unassessed"], f"{name}: unassessed obligations remain"
+        assert expected == set(suite["collected"]) == set(suite["selected"]), f"{name}: incomplete suite selection"
+        assert set(suite["outcomes"]) == expected, f"{name}: missing executed proofs"
+        for proof, outcomes in suite["outcomes"].items():
+            assert outcomes == ["passed"], f"{name}/{proof}: expected one passing execution, got {outcomes}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path)
     parser.add_argument("--contract", action="append", required=True)
     parser.add_argument("--verified", nargs="+", default=[])
     parser.add_argument("--exercised", nargs="+", default=[])
+    parser.add_argument("--effect-report", type=Path)
+    parser.add_argument("--effect", action="append", default=[])
     arguments = parser.parse_args()
     check(
         read_report(arguments.report),
@@ -56,6 +73,9 @@ def main() -> None:
         verified=arguments.verified,
         exercised=arguments.exercised,
     )
+    if arguments.effect:
+        assert arguments.effect_report is not None, "--effect requires --effect-report"
+        check_effects(arguments.effect_report, arguments.effect)
     print(f"Validated executed adoption for {len(arguments.contract)} contract(s)")
 
 

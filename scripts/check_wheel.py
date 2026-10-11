@@ -2,7 +2,6 @@
 
 import importlib
 import importlib.metadata
-import pkgutil
 import sys
 from pathlib import Path
 
@@ -34,8 +33,12 @@ loader = MigrationLoader(None)
 assert ("due", "0001_initial") in loader.disk_migrations
 assert get_commands()["due_status"] == "due.django"
 # The optional conformance adapter requires due[testing]; runtime imports must not.
-for module in pkgutil.walk_packages([str(root)], "due."):
-    if module.name != "due.django.conformance":
-        importlib.import_module(module.name)
+for source in root.rglob("*.py"):
+    relative = source.relative_to(root)
+    if "conformance" in relative.parts or relative.name == "pytest_plugin.py":
+        continue
+    parts = relative.with_suffix("").parts
+    name = ".".join(("due", *(parts[:-1] if parts[-1] == "__init__" else parts)))
+    importlib.import_module(name)
 assert "pytest" not in sys.modules
 print("Installed wheel: runtime imports, types, migration and management command OK")

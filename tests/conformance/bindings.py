@@ -11,9 +11,11 @@ from due.django.conformance import DurableWorkBindings
 from due.django.models import DurableWorkState
 from due.django.runtime import transport
 from due.django.runtime.coordination import outstanding_work
+from due.django.testing import hold_nudges, make_due
 from examples.documents.effects import PublishDocument, request_publication
 from examples.documents.models import Document, PublicationWork
 from tests.harness import primitive as fixture
+from tests.harness.primitive import PrimitiveWork, primitive, record
 
 
 @contextmanager
@@ -109,3 +111,26 @@ def admission() -> Iterator[AdmissionAtomicity[str]]:
 
     with patch.object(PublishDocument, "perform_effect", counted):
         yield binding
+
+
+def publish() -> int:
+    with hold_nudges():
+        return record(notify_worker=True).pk
+
+
+def publish_retry() -> int:
+    from due.django.runtime.coordination import claim_work, terminal_work
+
+    work = record()
+    claim = claim_work(PrimitiveWork, work.pk, lease_duration=primitive.policy.lease_duration)
+    assert claim is not None
+    terminal_work(claim, error_code="configuration_invalid")
+    assert work.owner_id is not None
+    with hold_nudges():
+        with primitive.atomic(work.owner_id) as pending:
+            assert pending.retry_failed()
+    return work.pk
+
+
+def age(work_id: int) -> None:
+    make_due(PrimitiveWork.objects.get(pk=work_id))

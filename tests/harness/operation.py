@@ -9,6 +9,7 @@ from django.test.utils import isolate_apps
 from pydantic import BaseModel
 
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
+from due.django.conformance.suite import DeliveryExample
 from due.django.evidence.effect_evidence import (
     JsonAppliedEffectEvidenceStore,
     StoredAppliedEffectEvidence,
@@ -84,3 +85,13 @@ def operation_environment(
 def record(capability: Publication) -> PublicationWork:
     with capability.atomic(PrimitiveOwner.objects.create().pk, notify_worker=False) as pending:
         return pending.request_work(PublicationWork(payload="applied", universe="acme"))
+
+
+def delivery_example(work: PublicationWork, expected: str) -> DeliveryExample[PublicationWork, str]:
+    """Shared proofs observe the owner's mirrored value and, independently, provider calls."""
+    return DeliveryExample(
+        work=work,
+        observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+        expected=expected,
+        effect_calls=lambda: len(Publication.calls),
+    )

@@ -73,9 +73,11 @@ jobs:
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
-      - run: uv run --no-sync pytest --due-work-require-assessed --due-work-profile-report=profiles.json
+      - run: uv run --no-sync pytest -p due.django.conformance.reporting --due-work-require-assessed --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
       - name: Require executed obligation guarantees
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
+      - name: Require complete application conformance
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_document --verified A B D E H I J --effect-report effects.json --effect publish_document
       - run: uv run --no-sync python -m django makemigrations --check --dry-run
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
@@ -83,7 +85,10 @@ jobs:
         if: always()
         with:
           name: obligation-profiles-${{ matrix.django }}
-          path: profiles.json
+          path: |
+            profiles.json
+            effects.json
+            observations.json
           if-no-files-found: error
 
   build:

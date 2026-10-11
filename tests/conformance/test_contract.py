@@ -1,12 +1,13 @@
 """Generated guarantees bind Due's actual PostgreSQL coordinator."""
 
 from pytest_obligation import ObligationContract
-from pytest_obligation.contract import Claim, NotApplicable, Profile, due_work_contract_suite
+from pytest_obligation.contract import Claim, DueWorkSource, NotApplicable, Profile, due_work_contract_suite
 
+from due.django.capabilities.authoring import _DurableWorkTransaction
 from due.django.conformance import DurableWorkBindings
-from tests.conformance.bindings import admission, retries
+from tests.conformance.bindings import admission, age, publish, publish_retry, retries
+from tests.harness.primitive import PrimitiveWork, primitive, record
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
-from tests.harness.primitive import primitive, record
 
 bindings = DurableWorkBindings(primitive, record)
 
@@ -33,6 +34,7 @@ CONTRACT = ObligationContract(
         Profile.JOB_RETRY_LIMITS: Claim(),
     },
     sweep=bindings.sweep,
+    owed_model=PrimitiveWork,
     ownership=bindings.ownership,
     retention=bindings.retention,
     retry=retries,
@@ -40,6 +42,12 @@ CONTRACT = ObligationContract(
 )
 
 
-@due_work_contract_suite(CONTRACT)
+@due_work_contract_suite(
+    CONTRACT,
+    covers=(
+        DueWorkSource(_DurableWorkTransaction.request_work, publish=publish, make_recovery_eligible=age),
+        DueWorkSource(_DurableWorkTransaction.retry_failed, publish=publish_retry, make_recovery_eligible=age),
+    ),
+)
 class TestWorkTable:
     pass
