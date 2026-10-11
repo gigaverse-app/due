@@ -5,12 +5,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 
-import pytest
 import time_machine
-from celery import Celery, current_app
+from celery import Celery
 from django.utils import timezone
 
-from due.django.conformance.background import BackgroundWork, accounted_background_work, frozen_scheduler_clock
+from due.django.conformance.background import BackgroundWork, frozen_scheduler_clock, harness_owned_background_work
 from due.django.public import DurableWorkCapability, UniverseDurableWork
 from due.django.runtime.registry import registration_for
 
@@ -75,20 +74,14 @@ class WorkTableDelivery[W: UniverseDurableWork, ResultT]:
     @contextmanager
     def session(self) -> Iterator[_WorkTableSession]:
         entry = registration_for(self.capability.model)
-        app = self.app if self.app is not None else current_app
-        with frozen_scheduler_clock() as clock, pytest.MonkeyPatch.context() as patcher:
-            for task in app.tasks.values():
-                for method in ("delay", "apply_async"):
-                    if method in vars(task):
-                        patcher.delattr(task, method)
-            with accounted_background_work(patcher, clock) as driver:
-                driver.hold()
-                yield _WorkTableSession(
-                    name=entry.name,
-                    driver=driver,
-                    clock=clock,
-                    delay=max(self.capability.policy.lease_duration, self.capability.policy.delay_at(1))
-                    + timedelta(seconds=entry.cadence_seconds)
-                    + self.round_delay,
-                    rounds=self.rounds,
-                )
+        with frozen_scheduler_clock() as clock, harness_owned_background_work(clock, app=self.app) as driver:
+            driver.hold()
+            yield _WorkTableSession(
+                name=entry.name,
+                driver=driver,
+                clock=clock,
+                delay=max(self.capability.policy.lease_duration, self.capability.policy.delay_at(1))
+                + timedelta(seconds=entry.cadence_seconds)
+                + self.round_delay,
+                rounds=self.rounds,
+            )

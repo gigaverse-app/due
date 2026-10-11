@@ -60,7 +60,11 @@ from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance._binding import Binding
 from due.django.conformance._binding import entered_binding as _binding
-from due.django.conformance.background import accounted_background_work, frozen_scheduler_clock
+from due.django.conformance.background import (
+    accounted_background_work,
+    frozen_scheduler_clock,
+    harness_owned_background_work,
+)
 from due.django.conformance.bindings import (
     DurableWorkBindings,
     assert_registered_worker_options,
@@ -726,9 +730,8 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
         return result
 
     with (
-        pytest.MonkeyPatch.context() as patches,
         frozen_scheduler_clock() as clock,
-        accounted_background_work(patches, clock) as driver,
+        harness_owned_background_work(clock) as driver,
         examples.environment(),
         hold_nudges(),
         _binding(factory) as scenario,

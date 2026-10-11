@@ -428,10 +428,11 @@ def _gated_contract(monkeypatch: pytest.MonkeyPatch):
 
     from due.django.conformance.suite import DeliveryExample, EligibilityExample
     from due.django.public import ExecutionEligibility
+    from tests.harness.gated import GatedPrimitiveEffect
     from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner
 
     capability = replace(
-        primitive,
+        GatedPrimitiveEffect.for_owner(owner=PrimitiveOwner, work=primitive.model, policy=primitive.policy),
         eligibility=ExecutionEligibility(lambda now: Q(owner__value="ready"), recheck_after=timedelta(seconds=30)),
     )
     entry = installed.get()["primitive_self_test"]
@@ -515,7 +516,15 @@ def test_generated_gate_proof_detects_writes_hidden_by_unchanged_snapshots(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
-@pytest.mark.parametrize("proof", ["assert_periodic_inspection_is_bounded", "assert_blocked_gate_preserves_intent"])
+@pytest.mark.parametrize(
+    "proof",
+    [
+        "assert_gate_bindings_are_production_bound",
+        "assert_periodic_inspection_is_bounded",
+        "assert_blocked_gate_preserves_intent",
+        "assert_eligible_gate_recovers_lost_notification",
+    ],
+)
 def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest.MonkeyPatch, proof: str) -> None:
     from pytest_obligation.contract import contract_cases
 
