@@ -32,6 +32,8 @@ flowchart LR
 
 The message gets work started sooner. The database remembers what remains owed.
 
+[When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
+
 ## What happens when things go wrong?
 
 | Failure | Due's response |
@@ -219,6 +221,7 @@ replay. [Operations and monitoring →](docs/operations.md)
 
 | You want to… | Read |
 | --- | --- |
+| Decide whether Due fits your application | [Strengths and tradeoffs](docs/why-due.md), [alternatives](docs/alternatives.md) |
 | Integrate the runtime | [Django and Celery wiring](docs/integration.md), [capabilities](docs/capabilities.md) |
 | Prove your application's obligations | [Conformance walkthrough](docs/conformance.md), [executable document adopter](tests/conformance/document_examples.py) |
 | Find an interface or understand scope | [Conformance API, field reference and module boundaries](docs/conformance-api.md) |
