@@ -1,4 +1,11 @@
-# Backend replacement audit
+# Backend migration audit
+
+Audit in progress, 2026-10-11. Baselines: backend `04786fb2d`, Due
+`65e0bcf` (merged PR #5). The current verdict is **not ready for a backend
+cutover**: symbol parity is established, but schema ownership, pytest plugin
+coexistence, application wiring and adopter execution need separate evidence.
+This audit will record concrete blockers and acceptance gates below.
+
 
 The initial extraction retained the work-table runtime but only exposed a small
 `DurableWorkBindings` contract. It omitted the backend's mature suite generator
