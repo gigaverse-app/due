@@ -87,3 +87,20 @@ and worker connection scope; they do not create another broker simulation.
 Beat imports tasks once per Celery app, reads that app's schedule, executes
 selected real task bodies, and drains their published work. Interleaving controls
 capture/drop/release notifications and redeliver the exact captured message.
+
+The final port also preserves `HandoffHistory.expected` and `recovery_ticks`
+through pytest-obligation. `WorkTableDelivery` drives three bounded recovery
+rounds, including downstream ticks and delayed messages, and refuses leftover
+messages whose outcomes were not observed. It temporarily lifts application
+instance-level task recorders and restores them when the history ends.
+
+The conformance self-tests now include BE's generated-gate, dependent-wake,
+receipt-repair, rejection-policy and simple-callback race controls. The shared
+retained-history test checks actual PostgreSQL row visits and buffers, with
+renamed-index positive controls and missing-index/full-history-read mutants.
+Observation tests exercise closed execution gates, real Redis/prefork delivery,
+lost and stale observation tokens, and policy-window evidence retention.
+
+These close harness gaps; they do not establish a BE runtime cutover. Plugin
+ownership, persisted evidence/model identity, old task paths, application hooks,
+metrics and all 17 application bindings require a separate BE migration.

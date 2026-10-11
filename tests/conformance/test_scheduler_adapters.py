@@ -7,6 +7,7 @@ from celery import Celery
 
 from due.django.conformance.background_beat import beat_entries_for, tick
 from due.django.conformance.interleavings import BrokerControl, environment
+from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 
 pytestmark = pytest.mark.django_db
 
@@ -75,3 +76,42 @@ def test_environment_surfaces_unclaimed_failure_and_restores_transport(tasks: tu
             task.delay()  # Real task argument validation fails in the driver's worker.
             assert background.failures
     assert type(task).apply_async is original
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("forever", [False, True])
+def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
+    tasks: tuple[Celery, list[str]], monkeypatch: pytest.MonkeyPatch, forever: bool
+) -> None:
+    from due.django.conformance.delivery import WorkTableDelivery
+    from tests.harness.primitive import primitive
+
+    app, seen = tasks
+    child = app.tasks["scheduler.child"]
+    recorded: list[str] = []
+
+    def record_only(value: str) -> None:
+        recorded.append(value)
+
+    monkeypatch.setattr(child, "delay", record_only)
+    ticks = 0
+
+    def recover_successor() -> None:
+        nonlocal ticks
+        ticks += 1
+        if forever or ticks == 1:
+            child.apply_async(args=("downstream",), countdown=7200)
+
+    with WorkTableDelivery(primitive, app=app).session() as delivery:
+        child.delay("lost")
+        delivery.lose()
+        if forever:
+            with pytest.raises(AssertionError, match="still scheduled after 3 recovery rounds"):
+                delivery.recover_with((recover_successor,))
+        else:
+            delivery.recover_with((recover_successor,))
+            assert seen == ["downstream"]
+        assert ticks == 3
+        assert not recorded
+    assert child.delay is record_only

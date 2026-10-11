@@ -210,3 +210,45 @@ def test_database_refuses_rejection_payload_on_unknown_attempt(publication):
     attempt = operations.record_effect_attempt(claim)
     with pytest.raises(IntegrityError), transaction.atomic():
         EffectAttempt.objects.filter(pk=attempt.pk).update(rejection={"message": "not evidence"})
+
+
+@pytest.mark.parametrize("interruption", ["death", "late", "settlement_rollback"])
+@pytest.mark.parametrize("broken_recovery", [False, True], ids=["production", "detects-lost-policy"])
+def test_shared_rejection_proof_detects_lost_recovery_policy(
+    publication, monkeypatch: pytest.MonkeyPatch, interruption: str, broken_recovery: bool
+) -> None:
+    from contextlib import nullcontext
+
+    from due.django.conformance.suite import (
+        DeliveryExample,
+        RejectionExample,
+        assert_rejection_survives_recovery,
+    )
+
+    monkeypatch.setattr(
+        Publication,
+        "failure",
+        EffectNotAppliedError(
+            EffectRejection(message="permanent rejection", disposition=WorkFailureDisposition.TERMINAL)
+        ),
+    )
+    if broken_recovery:
+        monkeypatch.setattr(Publication, "_settle_rejection_locked", lambda self, work: False)
+
+    def example():
+        work = record(publication)
+        return RejectionExample(
+            delivery=DeliveryExample(
+                work=work,
+                observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+                expected="terminal",
+                effect_calls=lambda: len(Publication.calls),
+            ),
+            disposition=WorkFailureDisposition.TERMINAL,
+        )
+
+    expectation = (
+        pytest.raises(AssertionError, match="preserve the rejection decision") if broken_recovery else nullcontext()
+    )
+    with expectation:
+        assert_rejection_survives_recovery(publication, example, interruption=interruption)

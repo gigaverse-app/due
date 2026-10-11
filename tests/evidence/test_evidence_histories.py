@@ -363,3 +363,80 @@ def test_nonrepeatable_and_plain_replay_modes_refuse_repair_expiry() -> None:
         if isinstance(capability, (DurableExternalOperation, ReplaySafeEffect)):
             with pytest.raises(ValueError, match="only supported"):
                 replace(capability, policy=replace(capability.policy, max_repair_window=timedelta(hours=24)))
+
+
+@pytest.mark.usefixtures("evidence_tables")
+@pytest.mark.parametrize("confirmed_before_expiry", [False, True])
+def test_policy_window_stops_old_revision_repairs_but_preserves_unknown_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    confirmed_before_expiry: bool,
+) -> None:
+    from due.django.evidence.attempts import expire_repair_window
+    from due.django.models import RepairSettledBy
+    from due.django.testing import use_database_clock
+
+    window = timedelta(hours=24)
+    capability = capability_for("projection")
+    capability = replace(capability, policy=replace(capability.policy, max_repair_window=window))
+    work = record(capability)
+    calls: list[int] = []
+
+    def write(self: Projection, current: EvidenceWork) -> None:
+        calls.append(current.desired_revision)
+        Provider.write()
+
+    monkeypatch.setattr(Projection, "write_projection", write)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    escaped = attempts_for(work).get()
+    boundary = escaped.started_at + window
+    with use_database_clock(lambda: boundary):
+        assert expire_repair_window(EvidenceWork, window=window, batch_size=100) == 0
+    supersede_work(EvidenceWork, work.pk)
+    monkeypatch.setattr(Provider, "failure", None)
+    make_due(work)
+    if confirmed_before_expiry:
+        assert capability.attempt_execution(work.pk)
+        work.refresh_from_db()
+        assert work.state == DurableWorkState.READY  # current revision applied; older UNKNOWN queues repair
+    with use_database_clock(lambda: boundary + timedelta(seconds=1)):
+        assert capability.attempt_execution(work.pk)
+        for _ in range(10):
+            capability.recover()
+    work.refresh_from_db()
+    escaped.refresh_from_db()
+    assert calls == [1, 2]
+    assert work.state == DurableWorkState.SUCCEEDED
+    assert escaped.outcome == EffectAttemptOutcome.UNKNOWN
+    assert escaped.observed_at is None
+    assert escaped.repair_pending is False
+    assert escaped.repair_settled_by == RepairSettledBy.POLICY_WINDOW
+    import json
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from due.django.runtime.registry import DurableWorkRegistration, installed
+
+    monkeypatch.setitem(installed.get(), "policy_test", DurableWorkRegistration("policy_test", capability))
+    output = StringIO()
+    call_command("due_status", "policy_test", stdout=output)
+    shown = json.loads(output.getvalue())["unknown_attempts"]
+    assert len(shown) == 1
+    assert shown[0]["id"] == str(escaped.pk)
+    assert shown[0]["repair_settled_by"] == "policy_window"
+    scoped = EvidenceWork.objects.filter(pk=work.pk)
+    assert not unsettled_work(scoped).exists()
+    assert unsettled_work(scoped, strict=True).exists()
+    # Retention must never erase the policy decision or masquerade as a receipt.
+    with use_database_clock(lambda: boundary + timedelta(days=30)):
+        capability.derive()
+    escaped.refresh_from_db()
+    assert escaped.repair_settled_by == RepairSettledBy.POLICY_WINDOW
+    observe_effect_outcome(escaped, EffectAttemptOutcome.APPLIED)
+    capability.derive()
+    assert capability.attempt_execution(work.pk)  # a late old receipt owes one final repair
+    escaped.refresh_from_db()
+    assert escaped.repair_settled_by == RepairSettledBy.RECEIPT
+    assert not unsettled_work(scoped, strict=True).exists()

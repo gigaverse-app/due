@@ -151,6 +151,9 @@ def test_observer_handoff_reuses_the_example_and_rejects_broken_runtime(observer
         lambda: observation_example(observer),
         external_calls=(ExternalCall(ObservationProvider, "observe"),),
     )
+    history = history.model_copy(
+        update={"expected": {"product": True, "create_requests": 1}, "recovery_ticks": (observer.recover,)}
+    )
     expected = pytest.raises(AssertionError, match=message) if message else nullcontext()
     with expected:
         assert_crash_at_every_commit_converges(WorkTableDelivery(observer), history)
