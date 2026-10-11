@@ -52,6 +52,7 @@ dev = [
     "pytest-mock>=3.16.0",
     "pytest-xdist>=3.8",
     "pytest-asyncio>=1.2",
+    "procrastinate>=3,<4",
 ]
 
 [tool.hatch.build.targets.wheel]

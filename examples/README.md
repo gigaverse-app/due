@@ -19,6 +19,19 @@ recovery when either stage's notification is lost. Its tests import the same
 application code and include generated conformance, actual process death, and
 Redis/Celery integration journeys.
 
+## Mutable state, uncertain operations and comparison
+
+- [Mutable catalog](catalog/README.md): edit book metadata, fence stale product
+  completion and repair an escaped older provider write.
+- [Print orders](orders/README.md): retain an accepted-but-unknown occurrence;
+  observe its receipt without submitting another physical order.
+- [Procrastinate comparison](comparison/README.md): the same immutable-book
+  provider/outcomes under transactional rollback and actual process death.
+
+Run `DJANGO_SETTINGS_MODULE=examples.settings uv run python -m django due_check`
+to check the local registration, task imports and Beat routes before starting.
+See [operations](../docs/operations.md) for worker recovery freshness evidence.
+
 ## Adding an example
 
 Keep application code here and import that same code from tests. Use Due's public
