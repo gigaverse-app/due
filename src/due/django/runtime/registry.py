@@ -157,3 +157,13 @@ def registration_for(model: type[UniverseDurableWork]) -> DurableWorkRegistratio
     patches in another registration for the same model gets the later one.
     """
     return {registration.model: registration for registration in installed.get().values()}[model]
+
+
+def configure_durable_work(registrations: Iterable[DurableWorkRegistration]) -> None:
+    """Install one manifest and merge its recovery schedules during Django ready()."""
+    by_name = index_durable_work_registrations(registrations)
+    install_registrations(by_name)
+    settings.CELERY_BEAT_SCHEDULE = {
+        **getattr(settings, "CELERY_BEAT_SCHEDULE", {}),
+        **recovery_schedules(by_name.values()),
+    }

@@ -4,7 +4,14 @@ import os
 from urllib.parse import unquote, urlparse
 
 SECRET_KEY = "due-test-only"
-INSTALLED_APPS = ["due.django", "examples.apps.ExamplesConfig", "examples.documents", "examples.books"]
+INSTALLED_APPS = [
+    "due.django",
+    "examples.apps.ExamplesConfig",
+    "examples.documents",
+    "examples.books",
+    "examples.catalog",
+    "examples.orders",
+]
 ROOT_URLCONF = "examples.urls"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 MIDDLEWARE = ["django.middleware.csrf.CsrfViewMiddleware"]

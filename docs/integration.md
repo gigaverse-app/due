@@ -14,23 +14,22 @@ transaction connection; cross-database atomic admission is not supported.
 5. Run workers for the registered queues and a recurring scheduler. Alert on
    outstanding work and stale recovery heartbeats.
 
-The complete registration pattern is in `examples/documents/apps.py`:
+The complete registration pattern is in `examples/apps.py`:
 
 ```python
-from due.django.runtime.registry import (
-    DurableWorkRegistration,
-    index_durable_work_registrations,
-    install_registrations,
-    recovery_schedules,
-)
+from due.django.runtime.registry import configure_durable_work
+from myapp.registry import REGISTRATIONS
 
-routes = [DurableWorkRegistration(name="publish_document", capability=publication)]
-install_registrations(index_durable_work_registrations(routes))
-settings.CELERY_BEAT_SCHEDULE = {
-    **settings.CELERY_BEAT_SCHEDULE,
-    **recovery_schedules(routes),
-}
+# In AppConfig.ready(): one manifest owns routes and Beat schedules.
+configure_durable_work(REGISTRATIONS)
 ```
+
+This validates/installs the registrations and merges their recovery schedules
+with existing Django settings. Configure the Celery app to read those settings
+and import `due.django.runtime.tasks`, then run `python -m django due_check` in
+the same environment as each process. This command verifies configuration, not
+remote broker connectivity or worker availability. The lower-level registry
+functions remain available for applications that own their setup explicitly.
 
 Resolve registrations before executing work. Missing registration is a startup
 or deployment defect, not a retryable provider failure. Stable names are part of

@@ -6,7 +6,7 @@ code to reject stale completion, reconcile uncertain provider requests, or finis
 local state after the external operation succeeded. The migration should remove
 that code and preserve its guarantees.
 
-[All migration guides](../migrations.md) · [How Due fits](../alternatives.md)
+[All migration guides](../migrations.md) · [How Due fits](../alternatives.md) · [Runnable comparison and shared failure tests](../../examples/comparison/README.md)
 
 Reviewed **2026-10-11** against Due `65e0bcf`; upstream versions and source
 snapshots are recorded in the [source register](../alternatives.md#source-register).
