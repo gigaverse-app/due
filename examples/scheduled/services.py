@@ -1,6 +1,7 @@
 """The browser, CLI and conformance bindings share these application commands."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
@@ -15,13 +16,32 @@ def _check_deadline(at: datetime) -> None:
         raise ValueError("Publication time must include a timezone")
 
 
+class SubmissionConflict(ValueError):
+    """A submission identity was already used for a different initial request."""
+
+
 @transaction.atomic
-def create_publication(text: str, at: datetime) -> Publication:
+def create_publication(text: str, at: datetime, *, submission_key: UUID | None = None) -> Publication:
     _check_deadline(at)
-    publication = Publication(text=text, publish_at=at)
-    publication.full_clean()
-    publication.save()
-    reschedule_publication(publication.pk, at)
+    candidate = Publication(
+        text=text,
+        publish_at=at,
+        initial_publish_at=at,
+        submission_key=submission_key if submission_key is not None else uuid4(),
+    )
+    candidate.full_clean(validate_unique=False)
+    # The row's unique key arbitrates concurrent callers; get_or_create retries
+    # the lookup after a competing insert commits. Intent joins the same commit.
+    publication, created = Publication.objects.get_or_create(
+        submission_key=candidate.submission_key,
+        defaults={"text": candidate.text, "publish_at": at, "initial_publish_at": at},
+    )
+    if created:
+        reschedule_publication(publication.pk, at)
+    elif publication.text != text or publication.initial_publish_at != at:
+        raise SubmissionConflict("Submission key was already used for a different request")
+    # Compare original input, not the mutable deadline/status: a lost response
+    # retried after cancellation or rescheduling must never undo that change.
     return publication
 
 

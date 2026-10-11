@@ -17,7 +17,7 @@ Temporal's official Python **updatable timer** sample:
 | --- | --- | --- |
 | Start a deadline | Start a workflow with a wake-up time | `create_publication()` commits product and scheduled work together |
 | Move the deadline | Signal the running workflow to update its timer | `reschedule_publication()` replaces the pending desired revision |
-| Wait until due | Workflow waits for a timeout or changed deadline | PostgreSQL stores the due time; worker/recovery claims eligible work |
+| Wait until due | Workflow waits for a timeout or changed deadline | PostgreSQL owns the due time; short-lived timer hints wake the normal fenced claim, with Beat as fallback |
 | Completion | Timer finishes | Real file bytes and the product's published pointer become observable |
 
 The original demonstrates a timer, not a publication service. File publication,
@@ -104,7 +104,7 @@ of every upstream command or of Temporal's execution model**:
 | --- | --- |
 | `worker.py` executes the timer workflow | Celery worker executes `PublishAtDeadline`; Beat finds due rows |
 | `starter.py` starts tomorrow's timer | `scheduled_publication create --at …` accepts any timezone-aware deadline |
-| Re-running starter while its fixed workflow ID is running | **Different:** each Due create currently makes a new publication; no caller-supplied submission key |
+| Re-running starter while its fixed workflow ID is running | Reuse the same submission key to return the existing publication; a fresh key intentionally starts a separate one |
 | `wake_up_time_updater.py` signals ten seconds from now | `reschedule ID --at …` changes pending desired state synchronously |
 | `get_wake_up_time` workflow query | `show ID` / the detail page reads the committed product deadline |
 | Timer returns when its current deadline passes | Due additionally writes a file and settles a product pointer |
@@ -182,8 +182,8 @@ components universally, lower operational cost, or equivalent orchestration.
 
 | Priority | Gap | Improvement and acceptance proof |
 | --- | --- | --- |
-| 1 | Future deadlines depend on the five-second recovery cadence in this configuration | Add a bounded, best-effort deadline wake-up while retaining DB eligibility and periodic recovery; measure lateness and prove lost/obsolete wake-ups still recover and never publish early |
-| 1 | Retried create requests can create separate publications | Add a caller-supplied admission key with defined same-key/different-input behavior; prove retries and concurrent duplicate submissions create one product/obligation |
+| Delivered | Polling delayed future deadlines | Ten-second lookahead sends transient Celery ETA hints; the five-second recovery cadence remains unchanged. Lost/obsolete hints are tested through the real task and recovery paths |
+| Delivered | Retried creates could make separate publications | Reuse `submission_key` for one original request; conflicting input is rejected, including concurrent callers |
 | 2 | Product status alone does not explain a late or failed publication | Surface desired/applied revisions, last attempt/error, next recovery and cancellation refusal in an operator view; make the incident/retry journey executable |
 | 2 | `retention=None` grows retained scheduled evidence | Design safe archival/retention that preserves stale-delivery and unresolved-attempt protection; benchmark selection with retained history before allowing pruning |
 | 2 | Local files assume shared storage, and the browser needs manual refresh | Provide a shared/object-storage example and clearer live status/actions; keep its provider guarantees explicit |
@@ -196,3 +196,50 @@ sequential local runs can reveal polling latency, but cannot establish productio
 throughput, CPU/memory efficiency, cost, or comparative failure rates. Treat
 arrival phase, persistence configuration and observation interval as part of the
 measurement, not incidental details.
+
+## Deadline hints and retry-safe submission
+
+`PublishAtDeadline.deadline_wakeup_horizon = timedelta(seconds=10)` opts into
+Due's shared scheduled transport. A post-commit nudge publishes an ETA hint when
+eligibility is within ten seconds. Recovery also looks ahead, sending at most
+`policy.batch_size` hints per pass in earliest-deadline order. Long deadlines
+stay solely in PostgreSQL until they enter that window. Other scheduled adopters
+retain their current behavior unless they opt in; the supported horizon is
+positive and at most five minutes, and requires a registered Celery route.
+Choose a horizon greater than the recovery cadence if every future deadline
+should normally be discovered before it becomes due.
+
+Hints contain the row ID, desired revision and eligibility timestamp. They never
+reserve work early, change retry backoff, or grant authority to publish. Delivery
+rechecks PostgreSQL time and then uses the ordinary claim/fenced worker path.
+Cancellation or replacement invalidates an old hint; duplicates are harmless.
+A lost hint, early delivery, broker outage or page overflow can increase lateness,
+but the existing due-work sweep still owns eventual progress. This is not a
+hard real-time guarantee. Worker/broker capacity must accommodate the short ETA
+window; repeated sweeps can send duplicate hints, and rapid rescheduling leaves
+obsolete hints until delivery. There is no persisted “hint sent” marker.
+
+**SQL cost:** hints add reads and broker messages, but no SQL rows or writes.
+Successful hint execution uses the existing claim, attempt and settlement writes.
+No additional deduplication table is introduced: `submission_key` (unique UUID)
+and `initial_publish_at` live on the publication row. Retrying an already committed
+submission does a lookup without creating another publication, work row or hint.
+The schema migration backfills existing publication rows once.
+
+The browser puts a new UUID in each creation form and preserves it on repost.
+The CLI and Python API accept an explicit key:
+
+```bash
+uv run python -m django scheduled_publication create "One edition" \
+  --at 2030-01-01T12:00:00+00:00 \
+  --submission-key 70525b27-3d85-456c-9a21-f2f1e6b1d518
+```
+
+Reuse that exact key, text and original deadline after a timeout. The response is
+the existing publication in its current state, even after rescheduling,
+cancellation or completion. Reusing a key with different original input raises
+`SubmissionConflict` (HTTP 409 in the browser). A fresh form or omitted API/CLI
+key intentionally creates a new publication. Keys are global to this demo;
+a multi-tenant adopter should scope its unique constraint and lookup to its
+canonical tenant identity. Keep the row for as long as the retry promise lasts;
+deleting it also deletes that promise. The demo already retains scheduled rows.

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
@@ -19,6 +20,7 @@ class Command(BaseCommand):
         commands = parser.add_subparsers(dest="action", required=True)
         create = commands.add_parser("create")
         create.add_argument("text")
+        create.add_argument("--submission-key", type=UUID)
         create.add_argument("--at", required=True, type=datetime.fromisoformat)
         for name in ("reschedule", "cancel", "retry", "show"):
             command = commands.add_parser(name)
@@ -30,12 +32,16 @@ class Command(BaseCommand):
         action = options["action"]
         try:
             if action == "create":
-                publication = create_publication(options["text"], options["at"])
-                self.stdout.write(f"Publication {publication.pk}: scheduled at {publication.publish_at.isoformat()}")
+                publication = create_publication(
+                    options["text"], options["at"], submission_key=options["submission_key"]
+                )
+                self.stdout.write(
+                    f"Publication {publication.pk}: {publication.status} at {publication.publish_at.isoformat()}; submission_key={publication.submission_key}"
+                )
             elif action == "show":
                 publication = Publication.objects.get(pk=options["id"])
                 self.stdout.write(
-                    f"Publication {publication.pk}: {publication.status}; {publication.publish_at.isoformat()}; key={publication.published_key}"
+                    f"Publication {publication.pk}: {publication.status}; {publication.publish_at.isoformat()}; key={publication.published_key}; submission_key={publication.submission_key}"
                 )
             elif action == "reschedule":
                 self.stdout.write(reschedule_publication(options["id"], options["at"]).value)

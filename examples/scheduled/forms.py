@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from django import forms
 
 
@@ -10,4 +12,5 @@ class DeadlineForm(forms.Form):
 
 
 class PublicationForm(DeadlineForm):
+    submission_key = forms.UUIDField(initial=uuid4, widget=forms.HiddenInput)
     text = forms.CharField(widget=forms.Textarea)

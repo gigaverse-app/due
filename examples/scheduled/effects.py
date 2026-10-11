@@ -1,3 +1,6 @@
+from datetime import timedelta
+from typing import ClassVar
+
 from due.django.capabilities.scheduled import ActionOutcome, ScheduledAction
 from due.django.public import DurableWorkPolicy, DurableWorkState
 from examples.documents import storage
@@ -5,6 +8,8 @@ from examples.scheduled.models import Publication, PublicationDeadline
 
 
 class PublishAtDeadline(ScheduledAction[Publication, PublicationDeadline]):
+    deadline_wakeup_horizon: ClassVar[timedelta] = timedelta(seconds=10)
+
     def is_still_needed(self, work: PublicationDeadline) -> bool:
         return Publication.objects.filter(pk=work.owner_id, status=Publication.Status.SCHEDULED).exists()
 

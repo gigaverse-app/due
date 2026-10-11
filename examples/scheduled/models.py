@@ -1,4 +1,5 @@
 from typing import ClassVar
+from uuid import uuid4
 
 from django.db import models
 
@@ -13,6 +14,8 @@ class Publication(models.Model):
         CANCELLED = "cancelled"
         FAILED = "failed"
 
+    submission_key = models.UUIDField(default=uuid4, unique=True, editable=False)
+    initial_publish_at = models.DateTimeField()
     text = models.TextField()
     publish_at = models.DateTimeField()
     status = models.CharField(max_length=12, choices=Status, default=Status.SCHEDULED)

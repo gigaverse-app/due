@@ -8,6 +8,7 @@ from django.views import View
 from examples.scheduled.forms import DeadlineForm, PublicationForm
 from examples.scheduled.models import Publication
 from examples.scheduled.services import (
+    SubmissionConflict,
     cancel_publication,
     create_publication,
     reschedule_publication,
@@ -25,14 +26,24 @@ class PublicationListView(View):
 
     def post(self, request: HttpRequest) -> HttpResponse:
         form = PublicationForm(request.POST)
+        status = 400
         if form.is_valid():
-            publication = create_publication(form.cleaned_data["text"], form.cleaned_data["at"])
-            return redirect("publication", pk=publication.pk)
+            try:
+                publication = create_publication(
+                    form.cleaned_data["text"],
+                    form.cleaned_data["at"],
+                    submission_key=form.cleaned_data["submission_key"],
+                )
+            except SubmissionConflict as error:
+                form.add_error(None, str(error))
+                status = 409
+            else:
+                return redirect("publication", pk=publication.pk)
         return render(
             request,
             "scheduled/list.html",
             {"publications": Publication.objects.order_by("-pk"), "form": form},
-            status=400,
+            status=status,
         )
 
 

@@ -27,3 +27,11 @@ process-local patch made the lost-wakeup journey fail on missing published file
 bytes, despite the product reporting published. Removing the patch restores the
 passing test. CI runs the same application in locked and minimum-Django lanes;
 its final run status is linked from PR #18.
+
+## Transient deadline hints and submission identity
+
+- [ ] Root scheduled mechanism: near deadlines execute without Beat; far deadlines enter a bounded lookahead; early/stale/duplicate hints cannot execute old work or skip backoff. Lost hints retain ordinary recovery.
+- [ ] Cost contract: publishing and inspecting future hints performs no SQL writes; one bounded page per recovery tick, no hint ledger. Broker failures cannot prevent ordinary due dispatch.
+- [ ] Submission identity: one product/work row across retries and concurrent callers; changed input conflicts; replay after reschedule/cancel/completion returns current state. Rollback leaves neither row. Browser and CLI retain caller keys.
+- [ ] Existing-row migration, generated conformance, real worker restart, full CI and live comparison with unchanged five-second recovery cadence.
+- [ ] Report latency plus SQL writes/row and message counts, retaining raw evidence outside mergeable history.

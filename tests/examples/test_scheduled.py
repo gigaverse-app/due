@@ -2,6 +2,7 @@
 from datetime import timedelta
 from io import StringIO
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from django.core.management import call_command
@@ -115,7 +116,9 @@ def test_change_after_provider_entry_does_not_lie_about_product(
 
 def test_browser_and_cli_use_shared_commands(client: Client, background_work: BackgroundWork, tmp_path: Path) -> None:
     at = timezone.now() + timedelta(hours=1)
-    response = client.post("/scheduled/", {"text": "Browser draft", "at": at.isoformat()})
+    response = client.post(
+        "/scheduled/", {"text": "Browser draft", "at": at.isoformat(), "submission_key": str(uuid4())}
+    )
     assert response.status_code == 302
     publication = Publication.objects.get()
     detail = f"/scheduled/{publication.pk}/"
