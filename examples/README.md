@@ -20,6 +20,13 @@ recovery when either stage's notification is lost. Its tests import the same
 application code and include generated conformance, actual process death, and
 Redis/Celery integration journeys.
 
+## Scheduled publication
+
+The [scheduled publication application](scheduled/README.md) adapts Temporal’s
+updatable timer scenario. It adds a browser/CLI, real file publication, movable
+deadlines, cancellation, and recovery after a worker restart. Its README pins the
+upstream provenance and separates the shared scenario from our additions.
+
 ## Celery migration add-on
 
 The [Celery comparison](celery_migration/README.md) uses the document app’s model

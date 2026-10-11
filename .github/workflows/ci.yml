@@ -89,6 +89,8 @@ jobs:
       # Non-repeatable orders decline harmless replay and retain evidence indefinitely.
       - name: Require observed print-order conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C I J --effect-report effects.json --effect print_order
+      - name: Require scheduled publication conformance
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_at_deadline --verified A B E H I J --effect-report effects.json --effect publish_at_deadline
       - name: Validate application setup
         run: uv run --no-sync python -m django due_check
         env:
