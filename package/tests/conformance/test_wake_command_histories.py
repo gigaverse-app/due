@@ -79,6 +79,7 @@ def wake(capability: FactReader, work: PrimitiveWork) -> None:
 def rerequest(capability: FactReader, work: PrimitiveWork) -> None:
     # Defect: requests the new value as a new revision instead of waking the existing work.
     FACTS[work.owner_id] = "new facts"
+    assert work.owner_id is not None
     with capability.atomic(work.owner_id) as pending:
         pending.request_work(PrimitiveWork(payload="new facts", universe="acme"))
 
@@ -139,7 +140,7 @@ def test_wake_commands_require_wakeable_work() -> None:
     publication = Publication.for_owner(
         owner=PrimitiveOwner, work=PublicationWork, policy=DurableWorkPolicy(retention=None)
     )
-    examples = EffectExamples(
+    examples: EffectExamples[PublicationWork] = EffectExamples(
         make_work=declared_only,
         delivery=declared_only,
         retry=declared_only,
@@ -151,5 +152,9 @@ def test_wake_commands_require_wakeable_work() -> None:
         immutable_inputs="An immutable provider occurrence.",
         wake_commands={"declared": declared_only},
     )
-    with pytest.raises(ObligationContractDesignError, match="wake_commands require work a command can wake"):
+    entry = DurableWorkRegistration(name="publication", capability=publication, cadence_seconds=60, queue="celery")
+    with (
+        durable_work_installed(entry),
+        pytest.raises(ObligationContractDesignError, match="wake_commands require work a command can wake"),
+    ):
         effect_contract(publication, examples=examples)

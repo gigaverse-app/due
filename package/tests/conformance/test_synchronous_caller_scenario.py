@@ -171,6 +171,15 @@ def abandoning_on_timeout_caller(owner: PrimitiveOwner) -> object:
         raise
 
 
+def latest_created_value() -> str:
+    # OBSERVE: the owner the creating caller made, or "before" until it has made one.
+    if PrimitiveOwner.objects.count() < 2:
+        return "before"
+    latest = PrimitiveOwner.objects.order_by("pk").last()
+    assert latest is not None
+    return latest.value
+
+
 def creating_caller(owner: PrimitiveOwner) -> object:
     # Each call creates another owner, so repeating call() is not a repeat of the same value.
     return deferring_caller(PrimitiveOwner.objects.create())
@@ -192,8 +201,7 @@ def test_broken_callers_fail_the_new_histories(
     scenario = caller_example(call)
     if call is creating_caller:
         # The first call's owner is the one whose outcome is observed.
-        owners = PrimitiveOwner.objects.order_by("pk")
-        scenario = replace(scenario, observe=lambda: owners.last().value if owners.count() > 1 else "before")
+        scenario = replace(scenario, observe=latest_created_value)
     with pytest.raises(AssertionError, match=defect):
         assert_synchronous_caller(primitive, scenario, history=history)
 
