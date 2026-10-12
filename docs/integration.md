@@ -204,3 +204,37 @@ must never be removed by a suffix match.
 `due.django.runtime.metrics.metric_schemas()` exposes read-only label schemas and
 enum vocabularies from the declarations that construct the metrics. Applications
 can check alerts against this catalog without duplicating metric definitions.
+
+### Short database transitions and application completion
+
+Use `DatabaseEffect` for short PostgreSQL-only transitions whose business writes
+and continuation must commit together. Its `transition(work)` callback receives a
+work row with the canonical owner already locked and loaded; return `ContinueAfter`
+to release the worker. Existing eligibility, atomic admission, retry policy,
+exhaustion mirrors and dependent wakeups compose with it. Provider I/O continues
+to use `ReplaySafeEffect`, `Projection`, `ScheduledAction` or an evidence-aware
+operation. Database atomicity cannot protect a remote side effect.
+
+For conformance, bind `EffectExamples.delivery_replays` using
+`due.django.conformance.database_replay.database_replay`. It counts production
+delivery entries separately from callback entries and requires a declared product
+outcome. This mode does not claim profile H's raw external-effect idempotency.
+Use `EffectExamples.completions` with
+`due.django.conformance.completion.completion` to require the final outcome under
+the real registered cadence, optionally losing every transient hint. The books
+example checks searchable publication across both stages; Widget Store checks
+paid and refunded outcomes with full one-second waits. These are additional
+proofs, not replacements for crash, concurrency or external-effect contracts.
+
+The originating backend still has its vendored engine. These APIs become usable
+there through the package migration described above, preserving its existing
+tables and message names. Copying a second implementation into that engine would
+create drift. Its provider-backed capabilities should retain their current modes;
+the reusable terminal-outcome bindings can strengthen their application proofs
+without moving provider I/O under database locks.
+
+The standalone storefront uses Django's supported psycopg connection pool
+(`psycopg-pool` in the demo environment) to avoid reconnecting after each task and
+HTTP request. This is deployment configuration, not an engine requirement. Pools
+are per process and have bounded size; callers still need a connection budget for
+their worker count. See [Django's connection-pool documentation](https://docs.djangoproject.com/en/6.0/ref/databases/#connection-pool).
