@@ -18,10 +18,9 @@ from due.django.conformance.suite import (
     TerminalExample,
 )
 from due.django.testing import hold_nudges
-from examples.books import search
+from examples.books import search, services
 from examples.books.effects import index_book, publish_book
 from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
-from examples.books.services import create_book, retry_indexing
 from tests.conformance.index_examples import BookContent, examples_for
 from tests.examples.books_support import calls, index_environment
 from tests.harness.processes import run_child
@@ -34,7 +33,7 @@ type ProcessResult = tuple[str, int]
 
 def make_index_work() -> IndexBookWork:
     with hold_nudges():
-        book = create_book(TITLE, AUTHOR)
+        book = services.create_book(TITLE, AUTHOR)
     return IndexBookWork.objects.get(owner=book)
 
 
@@ -69,13 +68,44 @@ def activated(work: PublishBookWork) -> BookContent | None:
     return (entry.title, entry.author) if entry and entry.published else None
 
 
+def revisit_indexing(works: tuple[IndexBookWork, ...]) -> None:
+    for work in works:
+        assert work.owner_id is not None
+        services.retry_indexing(work.owner_id)
+
+
+def perturb_book(work: BookWork) -> None:
+    # ARRANGE: move source facts, never the obligation under proof. The submitted
+    # work must retain its captured content/key even if product metadata changes.
+    Book.objects.filter(pk=work.owner_id).update(title="Changed title", author="Changed author", index_key="changed")
+
+
+@contextmanager
+def publication_producer() -> Iterator[ProducerExample[PublishBookWork, bool]]:
+    with index_environment():
+        work = make_index_work()
+        result = index_book.perform_effect(work)
+
+        def produce() -> tuple[PublishBookWork, ...]:
+            # REAL PRODUCTION: the same settlement callback that admits the successor.
+            index_book.finalize_success(work, result)
+            return (PublishBookWork.objects.get(owner_id=work.owner_id),)
+
+        yield ProducerExample(
+            produce=produce,
+            observe=lambda: PublishBookWork.objects.filter(owner_id=work.owner_id).exists(),
+            expected=True,
+            effect_calls=lambda: calls.get().publications.total,
+        )
+
+
 @contextmanager
 def create_producer() -> Iterator[ProducerExample[IndexBookWork, bool]]:
     with index_environment():
         title = uuid4().hex
 
         def produce() -> tuple[IndexBookWork, ...]:
-            book = create_book(title, AUTHOR)
+            book = services.create_book(title, AUTHOR)
             return (IndexBookWork.objects.get(owner=book),)
 
         yield ProducerExample(
@@ -83,6 +113,7 @@ def create_producer() -> Iterator[ProducerExample[IndexBookWork, bool]]:
             observe=lambda: Book.objects.filter(title=title).exists(),
             expected=True,
             effect_calls=lambda: calls.get().writes.total,
+            revisit=revisit_indexing,
         )
 
 
@@ -128,7 +159,7 @@ def recover_process(title: str) -> None:
 
 def rearm_book(work: BookWork) -> None:
     assert work.owner_id is not None
-    assert retry_indexing(work.owner_id)
+    assert services.retry_indexing(work.owner_id)
 
 
 BOOK_TERMINAL = TerminalExample(
@@ -147,6 +178,7 @@ INDEX_SEAM = ProviderSeam(
     observe=lambda provider, work: indexed(work),
     provider_state=lambda provider, work: index_content(work),
     delivered=lambda provider, work: (TITLE, AUTHOR),
+    provider_expected=lambda provider, work: (TITLE, AUTHOR),
     calls=lambda provider: provider.writes.total,
     calls_for=lambda provider, work: provider.writes.count(index_key(work)),
     refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),
@@ -154,6 +186,8 @@ INDEX_SEAM = ProviderSeam(
 INDEX_EXAMPLES = examples_for(index_book, INDEX_SEAM, BOOK_TERMINAL)
 INDEX_EXAMPLES = replace(
     INDEX_EXAMPLES,
+    immutable_inputs="Indexing captures the submission once; operator retry preserves that input and its identity.",
+    perturb_inputs=perturb_book,
     admissions={"create book": create_producer},
     admission_failures={"create book": create_admission_failure},
     process_handoffs=(
@@ -185,6 +219,7 @@ PUBLISH_SEAM = ProviderSeam(
     observe=lambda provider, work: published(work),
     provider_state=lambda provider, work: activated(work),
     delivered=lambda provider, work: (TITLE, AUTHOR),
+    provider_expected=lambda provider, work: (TITLE, AUTHOR),
     calls=lambda provider: provider.publications.total,
     calls_for=lambda provider, work: provider.publications.count(work.index_key),
     refuse=lambda provider: provider.publications.reject(lambda: OSError("search unavailable")),
@@ -192,5 +227,8 @@ PUBLISH_SEAM = ProviderSeam(
 PUBLISH_EXAMPLES = examples_for(publish_book, PUBLISH_SEAM, BOOK_TERMINAL)
 PUBLISH_EXAMPLES = replace(
     PUBLISH_EXAMPLES,
+    immutable_inputs="Publication captures the upstream result key; later metadata and repeated settlement cannot replace it.",
+    perturb_inputs=perturb_book,
+    producers={"index settlement": publication_producer},
     admission_not_applicable="Publication admission writes one successor row; the upstream handoff is covered by index_book process histories and the interrupted-settlement journey.",
 )

@@ -141,14 +141,14 @@ Schema index proofs reuse pytest-obligation's PostgreSQL catalog records, includ
 
 `seams.ProviderSeam` names the provider environment, real admission, independent
 observed/expected outcomes and call counters. `seam_examples(capability, seam,
-**overrides)` derives delivery, bounded retry, supported replay and projection
+**overrides)` derives delivery, bounded or persistent retry, supported replay and projection
 convergence bindings. It never replaces the coordinator with test code.
 
 | Interface | Meaning |
 | --- | --- |
 | `environment`, `make_work`, `arrange` | Enter the provider fake, admit through production, optionally script the provider after admission |
 | `observe`, `delivered` | Independent observed and reviewed expected outcomes |
-| `calls`, `calls_for`, `provider_state` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement |
+| `calls`, `calls_for`, `provider_state`, `provider_expected` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement; a distinct provider observation requires its independent expected outcome |
 | `refuse` | Configure rejection in place or return a context manager kept active through every retry; required, since every policy derives `retry` from it |
 | `outcome`, `rejection` | Scoped outcome/rejection factories with optional admission and observation overrides |
 | `producer`, `caller`, `interrupted` | Bind real admission, inline attempts and interruption after a persisted work row |
@@ -219,6 +219,14 @@ Application adapters that preserve a live manifest's identity can use this
 selection before the runtime's normal registration validation. Most standalone
 tests should use `durable_work_installed()` directly.
 
-Derived `ProviderSeam` replay proofs check `delivered` as their expected outcome.
-If provider observation has a different shape, declare `replay_expected` from
-the admitted input, or pass an explicit replay binding with independent `expected`. Equal but wrong provider results must fail.
+Generated replay contracts require `expected` before executing any proof. A
+`ProviderSeam` reuses `delivered` when replay observes the same result; with a
+separate `provider_state`, supply `provider_expected` explicitly. This prevents
+settled product state from standing in for an external replay result.
+
+For create-only commands, `ProducerExample.revisit(works)` binds a real command
+on the originally admitted owners for the immutable-input proof. It receives
+the originally returned work rows, must enter their capability transactions,
+and may not write the test's desired work state itself. See the
+[books binding](../tests/conformance/book_examples.py) and
+[mutation controls](../tests/conformance/test_books_contract_controls.py).

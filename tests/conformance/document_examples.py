@@ -113,6 +113,7 @@ SEAM = ProviderSeam(
     make_work=make_work,
     observe=lambda provider, work: product(work),
     delivered=lambda provider, work: work.text,
+    provider_expected=lambda provider, work: work.text,
     calls=lambda provider: provider.writes.total,
     calls_for=lambda provider, work: provider.writes.count(work.provider_idempotency_key()),
     provider_state=lambda provider, work: destination(work).read_text() if destination(work).exists() else None,

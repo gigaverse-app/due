@@ -71,6 +71,9 @@ class ProducerExample[W: UniverseDurableWork, ObservationT]:
     observe: Callable[[], ObservationT]
     expected: ObservationT
     effect_calls: Callable[[], int]
+    # Create-only admission cannot target an existing aggregate. Bind its real
+    # same-owner command for the immutable-input revisit; the oracle verifies entry.
+    revisit: Callable[[tuple[W, ...]], object] | None = None
 
 
 # pytest-global: Shared fault contract composes the existing producer example; no application setup on import.

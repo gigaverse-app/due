@@ -71,6 +71,7 @@ SEAM = ProviderSeam(
     observe=lambda provider, work: content(work),
     provider_state=lambda provider, work: content(work),
     delivered=lambda provider, work: (TITLE, AUTHOR),
+    provider_expected=lambda provider, work: (TITLE, AUTHOR),
     calls=lambda provider: provider.writes.total,
     calls_for=lambda provider, work: provider.writes.count(work.index_key),
     refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),

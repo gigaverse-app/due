@@ -18,6 +18,5 @@ def examples_for[W: UniverseDurableWork, ResultT](
         seam,
         fixtures=("book_index",),
         terminal=lambda: terminal,
-        convergence_not_assessed="Book creation admits a fresh owner; the existing admission bindings do not revisit admitted work to prove input immutability.",
         environment=index_environment,
     )
