@@ -21,6 +21,9 @@ from django.db import OperationalError, transaction
 from pytest_obligation.evidence.observation import assert_observation
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
+from due.django.capabilities.compensation import IndependentCompensation
+
+# pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.capabilities.operations import DurableExternalOperation
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
@@ -397,6 +400,104 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
         assert_registered_worker_options(entry, options)
         assert run_durable_work_task(*args), "recovered delivery did not execute"
     return deliveries
+
+
+def acknowledgement_replays(capability: DurableWorkCapability[Any, Any]) -> bool:
+    """
+    Whether recovery replays an executed claim whose acknowledgement was lost.
+
+    Evidence-required work proves receipt repair instead; compensation is born
+    claimed by its producer; a zero retry budget exhausts on the lost claim.
+    """
+    return (
+        not capability.model.requires_effect_evidence
+        and not isinstance(capability, IndependentCompensation)
+        and capability.policy.max_rearms != 0
+    )
+
+
+def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT, ObservationT](
+    capability: DurableWorkCapability[W, ResultT],
+    example: DeliveryExample[W, ObservationT],
+    *,
+    rounds: int = 3,
+) -> None:
+    """
+    The effect ran, its acknowledgement was lost, and recovery replays it to one settled outcome.
+
+    The worker dies inside settlement, after the real effect returned, so the
+    success never commits and the claim is left to expire. Registered recovery
+    must deliver the same revision again. The replay must reach the effect
+    boundary a second time (a recovery that never redelivers, or a redelivery
+    that selects nothing to do, proves no replay), the product must show one
+    logical effect, and the work must settle without a third call.
+    """
+    assert not capability.model.requires_effect_evidence, "evidence-required work proves receipt repair instead"
+    assert type(example.work) is capability.model, "delivery example must use the capability model"
+    effect_calls = example.effect_calls
+    assert effect_calls is not None, "a lost-acknowledgement replay requires an independent provider-call observation"
+    entry = DurableWorkBindings(capability, lambda: pytest.fail("the delivery example admits the work")).registration
+    work = example.work
+    assert example.observe() != example.expected, "positive control: the example must initially owe a visible effect"
+    make_due(work)
+    work.refresh_from_db()
+    revision = work.desired_revision
+    calls = effect_calls()
+    settle = type(capability)._finalize_success
+    sent: list[_SentTask] = []
+
+    def lose_acknowledgement(self: DurableWorkCapability[W, ResultT], current: W, result: ResultT) -> object:
+        # The product write runs inside the settlement transaction that the death rolls back.
+        settle(self, current, result)
+        raise WorkerDied("effect applied; its acknowledgement was lost before settlement committed")
+
+    def capture(*, args: tuple[str, int, str], **options: object) -> None:
+        sent.append((args, options))
+
+    with patch.object(run_durable_work_task, "apply_async", capture):
+        with patch.object(type(capability), "_finalize_success", lose_acknowledgement), pytest.raises(WorkerDied):
+            capability.attempt_execution(work.pk)
+        assert effect_calls() == calls + 1, (
+            f"{entry.name}: positive control: the lost-acknowledgement attempt must reach the effect boundary once"
+        )
+        work.refresh_from_db()
+        assert work.state == DurableWorkState.CLAIMED and work.desired_revision == revision, (
+            f"{entry.name}: positive control: a lost acknowledgement leaves its claim unsettled, got {work.state}"
+        )
+        for _ in range(rounds):
+            work.refresh_from_db()
+            if work.state == DurableWorkState.SUCCEEDED:
+                break
+            if work.state in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
+                expire_lease(work)
+            make_due(work)
+            sent.clear()
+            recover_durable_work_task(entry.name)
+            for args, options in [(args, options) for args, options in sent if args[:2] == (entry.name, work.pk)]:
+                assert_registered_worker_options(entry, options)
+                # A failed replay is judged by the settled state below, as a real worker's would be.
+                with suppress(Exception):
+                    run_durable_work_task(*args)
+        work.refresh_from_db()
+        replayed = effect_calls()
+        assert replayed == calls + 2, (
+            f"{entry.name}: recovery reached the effect boundary {replayed - calls - 1} more time(s) after the "
+            "lost acknowledgement, against exactly 1. Zero means the replay never ran (recovery stranded the "
+            "applied work, or its redelivery selected nothing); more means it did not settle on the first replay"
+        )
+        assert work.state == DurableWorkState.SUCCEEDED, (
+            f"{entry.name}: the replayed effect never settled; recovery left it {work.state}"
+        )
+        assert work.desired_revision == revision, f"{entry.name}: a lost acknowledgement must not start a new revision"
+        assert_observation(
+            example.observe(),
+            example.expected,
+            because="a replay after a lost acknowledgement leaves one logical effect",
+        )
+        sent.clear()
+        recover_durable_work_task(entry.name)
+        assert not [args for args, _ in sent if args[:2] == (entry.name, work.pk)], "settled work was redispatched"
+        assert effect_calls() == replayed, f"{entry.name}: settled work repeated provider I/O"
 
 
 # pytest-global: Both evidence kinds run the same fault histories; this tuple creates no fixtures.

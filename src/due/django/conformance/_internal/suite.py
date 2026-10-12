@@ -115,7 +115,9 @@ from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
     RECEIPT_RECOVERY_HISTORIES,
     SYNCHRONOUS_CALLER_HISTORIES,
+    acknowledgement_replays,
     admission_atomicity,
+    assert_lost_acknowledgement_replay_converges,
     assert_producer_transaction,
     assert_receipt_repairs_product,
     assert_synchronous_caller,
@@ -1294,6 +1296,17 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             @proof
             def test_lost_delivery_spends_no_retry_budget(self):
                 assert_lost_delivery_spends_no_retry_budget(capability, examples)
+
+        if acknowledgement_replays(capability):
+
+            @proof
+            def test_lost_acknowledgement_replay_converges(self):
+                with (
+                    _binding(examples.environment),
+                    hold_nudges(),
+                    _binding(examples.delivery) as example,
+                ):
+                    assert_lost_acknowledgement_replay_converges(capability, example)
 
         if isinstance(capability, DurableExternalOperation):
             assert examples.uncertainties is not None
