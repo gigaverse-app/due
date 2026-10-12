@@ -12,6 +12,10 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        reverse: [false, true]
     services:
       postgres:
         image: postgres:17
@@ -49,10 +53,10 @@ jobs:
       - run: uv run --directory .widget-upstream/python/widget-store alembic upgrade head
       - run: uv run --directory .widget-upstream/python/widget-store python -m migrations.reset_database
       - name: Benchmark both real applications and exercise their crash buttons in Chromium
-        run: uv run python -m scripts.widget_benchmark --upstream .widget-upstream --samples 5 --browser
+        run: uv run python -m scripts.widget_benchmark --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: widget-store-comparison
+          name: widget-store-comparison-reverse-${{ matrix.reverse }}
           path: test-results/widgets/
           if-no-files-found: error
