@@ -68,3 +68,21 @@ def test_rejects_unusable_profiles(tmp_path, fault):
         (tmp_path / "cpu.json").write_text(json.dumps(profile))
     with pytest.raises(AssertionError):
         validate_capture(tmp_path, "cpu")
+
+
+def test_unattributed_thread_sample_is_reported_and_does_not_inflate_coverage(tmp_path):
+    profile, _ = capture(tmp_path)
+    profile["profiles"][0]["samples"].append([0])
+    (tmp_path / "cpu.json").write_text(json.dumps(profile))
+    (tmp_path / "profiler.log").write_text("Samples: 241 Errors: 0\n")
+    summary = validate_capture(tmp_path, "cpu")
+    assert summary["samples_by_role"]["due_web"] == 40
+    assert summary["unattributed_samples_by_role"] == {"due_web": 1}
+
+
+def test_missing_python_frames_cannot_pass_as_application_coverage(tmp_path):
+    profile, _ = capture(tmp_path)
+    profile["profiles"][2]["samples"] = [[2]] * 100
+    (tmp_path / "cpu.json").write_text(json.dumps(profile))
+    with pytest.raises(AssertionError):
+        validate_capture(tmp_path, "cpu")

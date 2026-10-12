@@ -51,6 +51,7 @@ def validate_capture(directory: Path, mode: str) -> dict:
     document = json.loads((directory / f"{mode}.json").read_text())
     frames = document["shared"]["frames"]
     roles: Counter[str] = Counter()
+    unattributed: Counter[str] = Counter()
     leaves: dict[str, Counter[str]] = defaultdict(Counter)
     inclusive: dict[str, Counter[str]] = defaultdict(Counter)
     for profile in document["profiles"]:
@@ -58,16 +59,21 @@ def validate_capture(directory: Path, mode: str) -> dict:
         for sample in profile["samples"]:
             stack = [frames[index] for index in sample]
             role = role_for(stack)
-            roles[role] += 1
             named = [
                 f"{frame.get('file', '')}:{frame.get('line', '')} {frame['name']}"
                 for frame in stack
                 if frame.get("file")
             ]
-            assert named, "empty Python stack"
+            if not named:
+                # A native/exiting thread can have no Python frame. Account for
+                # it explicitly; it cannot satisfy application coverage.
+                unattributed[role] += 1
+                continue
+            roles[role] += 1
             leaves[role][named[-1]] += 1
             inclusive[role].update(set(named))
-    assert sum(roles.values()) == count, "log and profile sample counts disagree"
+    assert sum(roles.values()) + sum(unattributed.values()) == count, "log and profile sample counts disagree"
+    assert sum(unattributed.values()) <= count * 0.01, "too many unattributed thread samples"
     assert roles["due_web"] >= 20 and roles["due_worker"] >= 20, "missing Due web or worker coverage"
     assert roles["due_web"] + roles["due_worker"] >= 100, "insufficient Due samples"
     assert roles["dbos"] >= 100, "insufficient DBOS samples"
@@ -76,6 +82,7 @@ def validate_capture(directory: Path, mode: str) -> dict:
         "samples": count,
         "errors": errors,
         "samples_by_role": dict(roles),
+        "unattributed_samples_by_role": dict(unattributed),
         "top_self_stacks": {role: value.most_common(30) for role, value in leaves.items()},
         "top_inclusive_stacks": {role: value.most_common(30) for role, value in inclusive.items()},
         "scope": "CPU mode: active GIL-held Python stack samples, not total/native CPU. Wall mode: all-thread snapshots including idle waits, not additive elapsed time. Inclusive functions overlap. Instrumented durations are not benchmark evidence.",
