@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/gigaverse-app/due/compare/v0.3.1...v0.4.0) (2026-10-12)
+
+
+### Features
+
+* a retired provider target settles repair without inventing a receipt ([#46](https://github.com/gigaverse-app/due/issues/46)) ([43abdd4](https://github.com/gigaverse-app/due/commit/43abdd4cf94a9bd25266646ed19fd9fd34ce600b))
+
 ## [0.3.1](https://github.com/gigaverse-app/due/compare/v0.3.0...v0.3.1) (2026-10-12)
 
 
