@@ -16,5 +16,5 @@ proofs required from each adopter.
 
 Local completion: 821 tests pass; Ruff, Pyrefly, migrations, profile/application
 report gates and isolated installed-wheel smoke pass. CI is tracked on Due PR #5.
-See [the cutover audit](../../backend-adoption.md) for remaining BE integration
+See [the cutover audit](../../../package/docs/backend-adoption.md) for remaining BE integration
 work; the application itself has not been migrated.

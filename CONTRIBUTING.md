@@ -4,14 +4,15 @@ Due uses Python 3.14 and uv. Install Docker (or supply dedicated PostgreSQL and
 Redis instances), then:
 
 ```bash
-uv sync --locked
+uv sync --all-packages --locked
 uv run pre-commit install
 docker compose up -d --wait
 uv run pre-commit run --all-files
-uv run pytest --due-work-require-assessed --due-work-profile-report=profiles.json
+(cd package && ../.venv/bin/python -m pytest --due-work-check-fixtures)
+uv run --no-sync pytest --due-work-require-assessed --due-work-profile-report=profiles.json
 uv run python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
 DJANGO_SETTINGS_MODULE=examples.settings uv run python -m django makemigrations --check --dry-run
-uv build
+uv build --project package --out-dir dist
 ```
 
 `uv.lock` is committed. Dependency edits need `uv lock`; normal development and
@@ -32,7 +33,7 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 Keep the public API focused on work tables. The delivery lease in
 `runtime/_delivery.py` is private machinery for observation workers; it is not a
-public native-table composition API. Use [the capability guide](docs/capabilities.md)
+public native-table composition API. Use [the capability guide](package/docs/capabilities.md)
 to find the existing owner of behavior before adding another abstraction.
 
 For behavioral fixes, first write a failing history at the boundary that broke:
@@ -63,13 +64,12 @@ together with the workflow.
 To reproduce the installed-wheel check:
 
 ```bash
-uv build
+uv build --project package --out-dir dist
 uv venv /tmp/due-wheel
 uv pip install --python /tmp/due-wheel dist/*.whl
 /tmp/due-wheel/bin/python -I scripts/check_wheel.py
 ```
 
-Releases are not automatic yet; the GitHub installation in the README is the
-supported distribution path. Creating a public repository does not reserve its
-PyPI package name. Configure and verify PyPI ownership and Trusted Publishing
-before adding a release workflow that uploads distributions.
+Release versions and manual publishing approvals are described in [RELEASING.md](RELEASING.md).
+
+See [package ownership and subtree development](package/docs/development.md) for library edits made inside an adopter checkout.

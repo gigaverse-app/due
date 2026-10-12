@@ -6,9 +6,9 @@ that exercise it can be reviewed and tested together. They share
 
 ## Document publication
 
-The [document application](documents/) writes an immutable file and publishes its
+The [document application](documents) writes an immutable file and publishes its
 key on a Django model. Follow the [root quickstart](../README.md#run-the-example).
-Its [worker test](../tests/integration/test_celery_worker.py) drops the initial
+Its [worker test](../integration_tests/integration/test_celery_worker.py) drops the initial
 notification and checks recovery through PostgreSQL, Redis and a Celery worker.
 
 ## Books and search
@@ -44,7 +44,7 @@ the Books/Procrastinate port and keeps both original examples intact.
 
 Run `DJANGO_SETTINGS_MODULE=examples.settings uv run python -m django due_check`
 to check the local registration, task imports and Beat routes before starting.
-See [operations](../docs/operations.md) for worker recovery freshness evidence.
+See [operations](../package/docs/operations.md) for worker recovery freshness evidence.
 
 ## Adding an example
 
@@ -56,7 +56,7 @@ Keep UI/provider dependencies out of Due's runtime dependencies.
 ## Executable provider bindings
 
 The six capability declarations in these five applications use the public
-[`ProviderSeam` API](../docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam).
+[`ProviderSeam` API](../package/docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam).
 The same provider handles supply independently read outcomes, per-work call
 counts and scoped refusal/reply-loss faults. Generated proofs run real admission,
 workers, settlement and recovery.
@@ -80,3 +80,5 @@ Print orders intentionally do not derive harmless replay: a second physical
 submission is a different effect. Catalog convergence tests a captured settled
 revision; it does not claim that arbitrary provider writes commute. Application
 CI checks complete generated proof inventories as well as the resulting outcomes.
+
+The [Widget Store](widget_store/README.md) ports the DBOS checkout scenario: stock contention, payment gating, compensation, checkpointed dispatch, and a real crash/restart UI.
