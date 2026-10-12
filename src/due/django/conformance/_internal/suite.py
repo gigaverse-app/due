@@ -216,19 +216,21 @@ def fact_bindings[OwnerT: models.Model, W: UniverseDurableWork, ResultT](
 
 @contextmanager
 def failing_external_call(path: str) -> Iterator[FailureExample]:
-    """Replace a one-work-argument provider seam with a counted OSError.
+    """Replace a provider seam with a counted OSError.
 
-    ``path`` is the patch target production calls. The context yields a retry
-    example whose counter observes actual provider entries and restores the seam
-    on exit. Use a custom Binding when the provider has a different signature."""
-    counts = Counter()
+    ``path`` is the patch target production calls, whatever its arguments (a
+    work row, a source key, a request). The context yields a retry example whose
+    counter observes every provider entry and restores the seam on exit. The
+    retry proofs drive one work at a time, so every entry belongs to it."""
+    calls = 0
 
-    def fail(work):
-        counts[work.pk] += 1
+    def fail(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
         raise OSError("injected provider outage")
 
     with patch(path, fail):
-        yield FailureExample(attempts=lambda work: counts[work.pk])
+        yield FailureExample(attempts=lambda work: calls)
 
 
 @contextmanager
