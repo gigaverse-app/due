@@ -16,9 +16,8 @@ plain-value factories and context-manager cleanup semantics.
 - [x] Obligation core: 948 passed, one optional-dependency skip; Django: 366 passed,
   one existing expected failure. Includes generated suppression and handoff cleanup controls.
 - [x] Ruff and types pass for the changed obligation modules and the full Due project.
-- [x] Paired backend adopter validation: **2,093 passed, 70 existing expected
-  failures and six collection exclusions**; the separate 19-test policy directory
-  also passes. One rendition history was intentionally consolidated on main.
+- [x] Paired backend adopter validation: **2,112 passed, 70 existing expected
+  failures and six collection exclusions**, including the 19-test policy directory. One rendition history was intentionally consolidated on main.
 - Final source CI is enforced by [Due #22](https://github.com/gigaverse-app/due/pull/22/checks)
   and [obligation #57](https://github.com/gigaverse-app/pytest-obligation/pull/57/checks).
 

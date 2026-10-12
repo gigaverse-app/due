@@ -53,4 +53,3 @@ obligation source: **1,461 passed, four existing expected failures** on real
 PostgreSQL and Redis. The recovered phase-exhaustiveness control caught a missing
 deadline-wakeup proof entry; it now names the existing broker-failure history.
 The current public revision's checks are on [Due #22](https://github.com/gigaverse-app/due/pull/22/checks).
-
