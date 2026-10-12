@@ -172,3 +172,11 @@ replay now forwards the independent expected outcome introduced by the latest
 obligation contracts. A real SQLite book-provider corruption control failed
 before that forwarding fix and passes only when both replay proofs reject the
 wrong content. File and book process-death histories from main remain connected.
+
+Three more generic BE broker control suites now run here: exact failure claims
+(including repeated exception instances), exhausted and deferred Celery retries,
+retry arguments/options and deterministic backoff, host/database clock skew,
+and accepted provider requests completing after a lost response. BE retains its
+application registration adapter while delegating failure accounting. Nested
+registration overlays and sweep scopes restore prior bindings after exceptions;
+real Celery downstream-delay controls reject recovery that leaves work pending.

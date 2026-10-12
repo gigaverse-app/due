@@ -214,5 +214,5 @@ selection before the runtime's normal registration validation. Most standalone
 tests should use `durable_work_installed()` directly.
 
 Derived `ProviderSeam` replay proofs check `delivered` as their expected outcome.
-If provider observation has a different shape, pass an explicit replay binding
-with its own independent `expected`. Equal but wrong provider results must fail.
+If provider observation has a different shape, declare `replay_expected` from
+the admitted input, or pass an explicit replay binding with independent `expected`. Equal but wrong provider results must fail.

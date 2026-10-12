@@ -105,6 +105,13 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     Declare it when ``observe`` reads product state the worker settles, since a replay
     repeats only the provider call and never settles the work.
     """
+    replay_expected: Callable[[P, W], Any] | None = None
+    """Independent provider outcome for replay, when its shape differs from ``delivered``.
+
+    Defaults to ``delivered``. Derive this from the admitted input, never from
+    observed output; for example compare the exact accepted payload while the
+    delivery observation checks only a product completion flag.
+    """
     arrange: Callable[[P, W], object] = field(default=lambda provider, work: None)
     """ARRANGE: provider-side state one delivery needs, such as a scripted receipt or stored source."""
 
@@ -330,7 +337,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     execute=execute,
                     observe=lambda work: (self.provider_state or self.observe)(provider, work),
                     execution_count_for=lambda work: self.count_for(provider, work),
-                    expected=lambda work: self.delivered(provider, work),
+                    expected=lambda work: (self.replay_expected or self.delivered)(provider, work),
                 )
 
         return binding
