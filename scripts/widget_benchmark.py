@@ -116,6 +116,9 @@ def sample(
     checkout_ms = (time.perf_counter() - start) * 1000
     assert post(client, arm, f"/checkout/{key}") == receipt, "duplicate submission changed receipt"
     payment_key = json.loads(receipt)["payment_id"] if arm.name == "due" else receipt
+    clock_row = connection.execute("SELECT clock_timestamp()").fetchone()
+    assert clock_row is not None
+    payment_db_start = clock_row[0]
     start = time.perf_counter()
     decision = "failed" if scenario == "failed" else "paid"
     response = post(client, arm, f"/payment_webhook/{payment_key}/{decision}")
@@ -151,6 +154,11 @@ def sample(
         connection, identity, (cancelled,) if decision == "failed" else (dispatched,), max_progress=crash_progress
     )
     total_ms = (time.perf_counter() - start) * 1000
+    clock_row = connection.execute("SELECT clock_timestamp()").fetchone()
+    assert clock_row is not None
+    database_elapsed = (clock_row[0] - payment_db_start).total_seconds()
+    if decision == "paid":
+        assert database_elapsed >= 10, "paid order bypassed the required business waits"
     after_row = connection.execute(count_query).fetchone()
     assert after_row is not None
     assert after_row[0] == before_count + 1, "duplicate checkout created extra orders"
@@ -165,6 +173,7 @@ def sample(
         "callback_receipt_ms": callback_ms,
         "payment_to_decision_ms": decision_ms,
         "payment_to_terminal_ms": total_ms,
+        "payment_to_terminal_database_ms": database_elapsed * 1000,
         "crash_to_terminal_ms": (time.perf_counter() - recovery_start) * 1000 if recovery_start is not None else 0,
     }
 
@@ -192,6 +201,10 @@ def benchmark(arm: Arm, samples: int, pid: int) -> dict:
             table: {kind: count - before.get(table, {}).get(kind, 0) for kind, count in values.items()}
             for table, values in after.items()
         }
+    if arm.name == "due":
+        # One product order and one obligation per accepted submission; timers
+        # and connection cleanup must not introduce a durable per-stage ledger.
+        assert sum(row["inserted"] for row in writes.values()) == 2 * len(records), "Due added unexpected SQL rows"
     metrics = {}
     for field in ("checkout_receipt_ms", "callback_receipt_ms", "payment_to_decision_ms", "payment_to_terminal_ms"):
         values = [float(record[field]) for record in records if record["scenario"] == "paid"]
@@ -337,6 +350,8 @@ def main() -> None:
     assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=due_source), (
         "Source changed during benchmark"
     )
+    results["complete"] = True
+    save_results()
 
 
 if __name__ == "__main__":

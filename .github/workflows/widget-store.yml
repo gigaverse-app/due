@@ -84,7 +84,7 @@ jobs:
         if: matrix.reverse == false
         run: |
           mkdir -p test-results/widgets/profile
-          uvx --from py-spy==0.4.2 py-spy record --subprocesses --gil --rate 100 --format speedscope --output test-results/widgets/profile/cpu.json -- .venv/bin/python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2 --profiled --output test-results/widgets/profile
+          uvx --from py-spy==0.4.2 py-spy record --subprocesses --nonblocking --gil --rate 25 --format speedscope --output test-results/widgets/profile/cpu.json -- .venv/bin/python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2 --profiled --output test-results/widgets/profile
       - uses: actions/upload-artifact@v7
         if: always()
         with:
