@@ -293,8 +293,8 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'selftest'", specifier = ">=8.4" },
     { name = "pytest-asyncio", marker = "extra == 'selftest'", specifier = ">=1.2" },
     { name = "pytest-mock", marker = "extra == 'selftest'", specifier = ">=3.16" },
-    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'selftest'", git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=2b5a1c56ef4f3442640c62b0375a2705a54294ff" },
-    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=2b5a1c56ef4f3442640c62b0375a2705a54294ff" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'selftest'", git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=51d681e0b531730658fcd8c0a037544945d82515" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=51d681e0b531730658fcd8c0a037544945d82515" },
     { name = "pytest-xdist", marker = "extra == 'selftest'", specifier = ">=3.8" },
     { name = "sentry-sdk", specifier = ">=2,<3" },
 ]
@@ -880,7 +880,7 @@ wheels = [
 [[package]]
 name = "pytest-obligation"
 version = "0.9.1.dev0"
-source = { git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=2b5a1c56ef4f3442640c62b0375a2705a54294ff#2b5a1c56ef4f3442640c62b0375a2705a54294ff" }
+source = { git = "https://github.com/gigaverse-app/pytest-obligation.git?subdirectory=package&rev=51d681e0b531730658fcd8c0a037544945d82515#51d681e0b531730658fcd8c0a037544945d82515" }
 dependencies = [
     { name = "pydantic" },
     { name = "pytest" },

@@ -66,7 +66,7 @@ fallback_version = "0.1.0.dev0"
 [tool.uv.sources]
 # Normal CI keeps main's reviewed replay-outcome implementation until its next
 # manual PyPI release. This development source is not emitted into wheel metadata.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "2b5a1c56ef4f3442640c62b0375a2705a54294ff", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "51d681e0b531730658fcd8c0a037544945d82515", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]

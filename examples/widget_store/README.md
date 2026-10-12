@@ -101,7 +101,8 @@ There is no new per-stage table, separate application deadline or step-identity
 protocol to maintain.
 
 The standalone settings enable Django's supported psycopg pool (one to four
-connections per process), with Celery recycling its connections after five tasks; DBOS already pools through SQLAlchemy. Crash testing
+connections per process), pool checkout health checks, and Celery recycling its
+connections after five tasks; DBOS already pools through SQLAlchemy. Crash testing
 still kills every application process, including these pools. The comparison
 therefore includes reconnect/startup work after the crash, as well as steady
 operation. No durability setting or recovery cadence is relaxed.
