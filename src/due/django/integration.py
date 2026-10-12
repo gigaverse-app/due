@@ -1,0 +1,72 @@
+"""Application hooks for tenant context, read routing and fatal recovery errors.
+
+Install once during application startup, before registering capabilities. The
+standalone default keeps a context-local tenant identifier and uses the default
+Django database. Applications with their own tenancy/routing install their
+existing context manager and pin callback; Due imports no application code.
+"""
+
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+
+_tenant: ContextVar[str] = ContextVar("due_tenant", default="")
+
+
+@contextmanager
+def _tenant_scope(tenant: str) -> Iterator[None]:
+    token = _tenant.set(tenant)
+    try:
+        yield
+    finally:
+        _tenant.reset(token)
+
+
+def current_tenant() -> str:
+    return _tenant.get()
+
+
+def _no_pin(user_id: int) -> None:
+    """The default Django database needs no read-replica pin."""
+
+
+@dataclass(frozen=True)
+class ApplicationHooks:
+    """Process-start integration, installed before registering or running work.
+
+    ``abort_recovery_on`` names application errors that invalidate the whole
+    tick, rather than one identity. Causes and contexts are inspected too.
+    See docs/integration.md for tenant restoration and the failure boundary.
+    """
+
+    tenant_scope: Callable[[str], AbstractContextManager[object]] = _tenant_scope
+    pin_after_write: Callable[[int], None] = _no_pin
+    # These application failures invalidate every identity in a recovery pass.
+    # Their class identity belongs to the application, not to Due's private slots.
+    abort_recovery_on: tuple[type[Exception], ...] = ()
+
+
+_hooks = ApplicationHooks()
+
+
+def configure(hooks: ApplicationHooks) -> None:
+    """Configure process-wide integration before workers or request threads start."""
+    global _hooks
+    _hooks = hooks
+
+
+@contextmanager
+def current_universe_scope(tenant: str) -> Iterator[None]:
+    # Retain the original work_universe() contract for source-compatible adoption.
+    with _tenant_scope(tenant), _hooks.tenant_scope(tenant):
+        yield
+
+
+def pin_after_write(user_id: int) -> None:
+    _hooks.pin_after_write(user_id)
+
+
+def aborts_recovery(error: BaseException) -> bool:
+    """Whether the application classifies this error as fatal to the whole tick."""
+    return isinstance(error, _hooks.abort_recovery_on)
