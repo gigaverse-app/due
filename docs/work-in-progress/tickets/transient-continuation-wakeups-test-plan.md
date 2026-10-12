@@ -8,7 +8,7 @@ The broker hint is disposable, bounded, and creates no SQL ledger.
 - [x] Lost hints and broker failure preserve one work row, retry budget, and full recovery.
 - [x] Generated pytest-obligation process histories kill the worker after the continuation commits but before its hint and recover with every hint suppressed; negative controls reject missing recovery and corrupt progress/refunds.
 - [x] Shared scheduled-action cancellation, replacement, timing and recovery tests still pass.
-- [ ] Locked/minimum CI, package selftests, paired real DBOS/Due benchmarks and browser crash journeys pass.
+- [x] Wire the new proofs into locked/minimum CI and package selftests; keep paired real DBOS/Due benchmarks and browser crash journeys required. Final run results belong in the PR.
 
 Use the existing BackgroundWork broker/clock driver and real PostgreSQL commands.
 Benchmark both arm orders on CI with unchanged upstream source and identical waits;

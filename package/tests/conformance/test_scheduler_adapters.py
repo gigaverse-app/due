@@ -190,7 +190,7 @@ def test_work_table_history_selectively_loses_optional_tasks(tasks: tuple[Celery
         work = record()
         child.apply_async(args=("before recovery",), countdown=1)
         if lose:
-            delivery.recover_with((lambda: child.apply_async(args=("during recovery",), countdown=1),))
+            delivery.recover_with((lambda: child.apply_async(args=("during recovery",)),))
         else:
             delivery.recover()
         assert PrimitiveOwner.objects.get(pk=work.owner_id).value == "after"
