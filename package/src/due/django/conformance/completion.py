@@ -16,8 +16,8 @@ from due.django.runtime.tasks import wake_scheduled_work_task
 
 
 @contextmanager
-def completion[W: UniverseDurableWork, O](
-    capability: DurableWorkCapability,
+def completion[W: UniverseDurableWork, O, ResultT](
+    capability: DurableWorkCapability[W, ResultT],
     example: Binding[DeliveryExample[W, O]],
     *,
     within_seconds: float,
