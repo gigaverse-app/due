@@ -148,3 +148,10 @@ fixture-resolution safeguard found outside the harness was ported to
 pytest-obligation, and this repository's CI enables it. The paired suite runs
 against that reviewed candidate. The [obligation audit](https://github.com/gigaverse-app/pytest-obligation/pull/58)
 records the remaining differences, scoped lifecycle findings and control owners.
+
+Consumer consolidation found an additional boundary issue: the generic
+`transaction_in_progress` helper lived beside Due's test model. It now has one
+model-free owner in `pytest_obligation.integrations.django.transactions`, with a
+bare import alias here for compatibility. BE also uses the public worker scopes,
+lock recorder and Beat driver instead of its remaining implementation copies.
+The public lock ledger is shared, and missing scope/SQL controls now run upstream.
