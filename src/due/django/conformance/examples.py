@@ -183,6 +183,11 @@ class EffectExamples[W: UniverseDurableWork]:
     snapshot: Binding[SupersessionExample[W, Any]] | None = None
     derivation: Binding[FactExamples[W]] | None = None
     applied_receipt: Callable[[W], Any] | None = None
+    # The application's production entry point for a late provider receipt (its
+    # webhook handler or reconciliation command), called with the work and
+    # applied_receipt(work). When bound, crash-ambiguity proofs settle through it
+    # and registered recovery instead of the library's evidence recorder.
+    evidence_entry: Callable[[W, Any], object] | None = None
     receipt_repair: Binding[DeliveryExample[W, Any]] | None = None
     producers: dict[str, Binding[ProducerExample[W, Any]]] = field(default_factory=dict)
     admissions: dict[str, Binding[ProducerExample[W, Any]]] = field(default_factory=dict)

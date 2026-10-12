@@ -360,12 +360,17 @@ def projection_retention[W: UniverseDurableWork, ResultT](bindings: DurableWorkB
 
 @contextmanager
 def operation_ambiguity[W: UniverseDurableWork, ResultT](
-    bindings: DurableWorkBindings[W, ResultT], receipt: Callable[[W], Any]
+    bindings: DurableWorkBindings[W, ResultT],
+    receipt: Callable[[W], Any],
+    evidence_entry: Callable[[W, Any], object] | None = None,
 ) -> Iterator[AmbiguityAware]:
     """Bind an external operation to uncertainty, receipt repair and retention proofs.
 
     Application examples supply canonical applied evidence; the production
-    capability owns attempt entry, ambiguity handling and local settlement."""
+    capability owns attempt entry, ambiguity handling and local settlement.
+    With ``evidence_entry``, late evidence enters through the application's own
+    receipt path and settles through registered recovery, so an entry point that
+    drops, misroutes or bypasses the receipt leaves the ambiguity unresolved."""
     capability = bindings.capability
     assert isinstance(capability, DurableExternalOperation)
     claims, attempts = {}, {}
@@ -390,8 +395,14 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
         return state(pk)
 
     def apply_late(pk):
-        capability.record_applied_effect_evidence(attempts[pk], receipt(model.objects.get(pk=pk)))
-        capability.settle_from_applied_effect_evidence(pk)
+        work = model.objects.get(pk=pk)
+        if evidence_entry is None:
+            capability.record_applied_effect_evidence(attempts[pk], receipt(work))
+            capability.settle_from_applied_effect_evidence(pk)
+        else:
+            # REAL PRODUCTION: the application's receipt path, then the recovery a webhook relies on.
+            evidence_entry(work, receipt(work))
+            capability.recover()
         return state(pk)
 
     def expire(pk) -> None:
@@ -547,6 +558,8 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         raise ObligationContractDesignError(f"{name}: derivation examples require registered production discovery")
     if not operation and examples.applied_receipt is not None:
         raise ObligationContractDesignError(f"{name}: ambiguity examples require the operation execution mode")
+    if not operation and examples.evidence_entry is not None:
+        raise ObligationContractDesignError(f"{name}: evidence_entry requires the operation execution mode")
     if examples.admission_not_applicable is not None:
         if examples.admission_failures:
             raise ObligationContractDesignError(
@@ -628,7 +641,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             # EXTERNAL SEAM: only the example's provider/fault seam is substituted.
             # OBSERVE: independent product observations and persisted work/evidence.
             assert examples.applied_receipt is not None
-            return operation_ambiguity(bindings, examples.applied_receipt)
+            return operation_ambiguity(bindings, examples.applied_receipt, examples.evidence_entry)
 
     def bound[T](factory: Binding[T] | None) -> Binding[T] | None:
         return _in_environment(examples, factory) if factory else None

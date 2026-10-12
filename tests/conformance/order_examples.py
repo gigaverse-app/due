@@ -21,7 +21,7 @@ from examples.orders import provider
 from examples.orders.effects import print_order
 from examples.orders.models import PrintOrder, PrintWork
 from examples.orders.provider import PrintReceipt
-from examples.orders.services import order_print
+from examples.orders.services import order_print, receive_printer_receipt
 from tests.examples.books_support import index_environment
 
 
@@ -137,6 +137,8 @@ EXAMPLES = seam_examples(
     ),
     immutable_inputs="A submitted print order is immutable and cannot become a different physical order.",
     applied_receipt=lambda work: provider.submit(str(work.reference), work.title),
+    # REAL PRODUCTION: the printer callback; generated ambiguity proofs settle through it.
+    evidence_entry=lambda work, receipt: receive_printer_receipt(receipt),
     receipt_repair=delivery,
     rejections={"printer refused before acceptance": rejected},
     uncertainties={"accepted but response lost": uncertainty},
