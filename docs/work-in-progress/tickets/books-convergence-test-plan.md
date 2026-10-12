@@ -1,0 +1,3 @@
+# Books immutable-input proofs and replay outcomes
+
+Bind independent external outcomes for every search-provider stage. Replace books E assessment debt with checked immutable inputs: creation binds its real same-owner operator retry as the revisit command; publication binds the upstream settlement callback. Perturb source product facts and require unchanged admitted inputs, revision and claim. Reuse the shared oracle, preserve its production-entry/vacuity guards, and add generated-case controls for missing/wrong replay outcomes and moved indexing/publication inputs. CI must require these exact cases and an empty debt baseline.

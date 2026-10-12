@@ -137,6 +137,7 @@ SEAM = ProviderSeam(
     observe=lambda provider, work: product(work),
     provider_state=lambda provider, work: external(work),
     delivered=lambda provider, work: TEXT,
+    provider_expected=lambda provider, work: TEXT,
     calls=lambda provider: provider.writes.total,
     calls_for=lambda provider, work: provider.writes.count(work.provider_idempotency_key()),
     refuse=lambda provider: provider.writes.reject(lambda: OSError("file store unavailable")),

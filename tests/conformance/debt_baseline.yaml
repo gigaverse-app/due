@@ -11,16 +11,4 @@
 #
 # Canonical doc: docs/debt-baseline.md
 
-suites:
-- suite: tests.conformance.test_book_contracts.TestBookIndexing
-  debt:
-  - case: E-not_assessed
-    kind: binding-debt
-    reason: Book creation admits a fresh owner; the existing admission bindings do not revisit admitted work to
-      prove input immutability.
-- suite: tests.conformance.test_book_contracts.TestBookPublication
-  debt:
-  - case: E-not_assessed
-    kind: binding-debt
-    reason: Book creation admits a fresh owner; the existing admission bindings do not revisit admitted work to
-      prove input immutability.
+suites: []
