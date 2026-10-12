@@ -47,6 +47,7 @@ from due.django.runtime.coordination import (
     publish_work_census,
     reap_expired_work,
     require_autocommit,
+    require_fenced_settlement,
     run_work,
     supersede_work,
     wake_work,
@@ -202,6 +203,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     wakes: tuple[Dependent[WorkT], ...] = dataclass_field(default=(), kw_only=True)
     execution_contract: ClassVar[ReplayContract] = ReplayContract.REPLAY_SAFE
     supports_repair_window: ClassVar[bool] = False
+    _database_only: ClassVar[bool] = False
     #: Whether other code may wake this work; a capability whose rows are claimed by another's protocol opts out.
     wakeable: ClassVar[bool] = True
 
@@ -239,6 +241,8 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             # Celery supports this Kombu publish option; celery-types omits it.
             delivery_mode=1,  # pyrefly: ignore [unexpected-keyword]
             queue=registration.queue,
+            time_limit=registration.execution_time_limit,
+            soft_time_limit=registration.execution_soft_time_limit,
         )
 
     def deliver_deadline_hint(self, work_id: int, revision: int, available_at: datetime) -> None:
@@ -255,7 +259,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             )
             .exists()
         ):
-            self.enqueue_execution(work_id)
+            self.attempt_execution(work_id, expected_revision=revision)
 
     def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
         assert self.deadline_wakeup_horizon is not None
@@ -432,6 +436,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             finalize_unknown=self._finalize_unknown,
             finalize_retry=self._finalize_retry,
             retry_delay_for=self.retry_delay_for,
+            database_only=self._database_only,
             eligibility=self.eligibility,
         )
         if transitioned and self.deadline_wakeup_horizon is not None:
@@ -1151,6 +1156,33 @@ class ReplaySafeEffect[OwnerT: models.Model, WorkT: UniverseDurableWork, ResultT
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> ResultT | ContinueAfter:
         with context.external_call():
             return effect_result(self.perform_effect(work))
+
+
+class DatabaseEffect[OwnerT: models.Model, WorkT: UniverseDurableWork, ResultT = None](
+    OwnedDurableWorkCapability[OwnerT, WorkT, ResultT]
+):
+    """One short PostgreSQL transition, committed with its continuation or result.
+
+    Return ContinueAfter to release the worker until the next transition. The
+    runtime owns claim fencing, locking, rollback and recovery. All writes must
+    use Due's database connection; provider calls belong in ReplaySafeEffect or
+    an evidence-aware capability. No checkpoint table or workflow history is added.
+    """
+
+    _database_only: ClassVar[bool] = True
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _validate_simple_callbacks(self, DatabaseEffect)
+
+    @abstractmethod
+    def transition(self, work: WorkT) -> ResultT | ContinueAfter:
+        """Change product rows inside this work's fenced transaction."""
+
+    @final
+    def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> ResultT | ContinueAfter:
+        require_fenced_settlement(work)
+        return self.transition(work)
 
 
 def _validate_simple_callbacks(

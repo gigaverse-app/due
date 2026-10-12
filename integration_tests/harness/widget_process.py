@@ -5,6 +5,7 @@ from unittest.mock import patch
 from uuid import UUID
 
 import django
+from django.db import transaction
 from django.test import override_settings
 from pytest_obligation.process_histories import die_here
 
@@ -14,7 +15,7 @@ from due.django.runtime import coordination  # noqa: E402
 from due.django.testing import hold_nudges, make_due  # noqa: E402
 from examples.widget_store import services  # noqa: E402
 from examples.widget_store.effects import checkout_order  # noqa: E402
-from examples.widget_store.models import CheckoutWork  # noqa: E402
+from examples.widget_store.models import CheckoutWork, Order  # noqa: E402
 
 
 def main() -> None:
@@ -25,19 +26,20 @@ def main() -> None:
     def continued(*args, **kwargs):
         result = continue_work(*args, **kwargs)
         if result:
-            die_here("after continuation commit")
+            transaction.on_commit(lambda: die_here("after continuation commit"))
         return result
 
-    def transition(key: UUID, stage: int) -> float | None:
+    def transition(work: CheckoutWork) -> None:
+        order = Order.objects.get(pk=work.owner_id)
+        stage = 11 if order.status == Order.Status.PENDING else order.progress_remaining
         die_here("before transition")
-        result = advance(key, stage)
+        advance(work)
         if stage == 11:
-            die_here("after decision")
+            die_here("before decision commit")
         if stage == 6:
-            die_here("mid dispatch")
+            die_here("before mid-dispatch commit")
         if stage == 1:
-            die_here("after dispatch")
-        return result
+            die_here("before dispatch commit")
 
     with (
         hold_nudges(),

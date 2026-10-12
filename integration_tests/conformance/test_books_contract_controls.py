@@ -70,3 +70,22 @@ def test_generated_books_replay_rejects_consistently_wrong_provider_result(
     )
     with pytest.raises(AssertionError, match="declared product outcome"):
         case.run()
+
+
+def test_generated_terminal_proof_rejects_unpublished_index(monkeypatch):
+    original = search.publish
+
+    def hidden(key):
+        result = original(key)
+        with search.connection() as connection:
+            connection.execute("UPDATE books SET published=0 WHERE key=?", (key,))
+        return result
+
+    monkeypatch.setattr(search, "publish", hidden)
+    case = next(
+        row.values[0]
+        for row in contract_cases(effect_contract(index_book, examples=INDEX_EXAMPLES))
+        if row.id.startswith("completion-")
+    )
+    with pytest.raises(AssertionError, match="terminal outcome"):
+        case.run()

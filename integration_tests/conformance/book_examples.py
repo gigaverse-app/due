@@ -10,7 +10,9 @@ from uuid import uuid4
 
 from pytest_obligation.process_histories import ProcessHistory
 
+from due.django.conformance.completion import completion
 from due.django.conformance.delivery import WorkTableDelivery
+from due.django.conformance.examples import DeliveryExample
 from due.django.conformance.seams import ProviderSeam
 from due.django.conformance.suite import (
     AdmissionFailureExample,
@@ -183,9 +185,32 @@ INDEX_SEAM = ProviderSeam(
     calls_for=lambda provider, work: provider.writes.count(index_key(work)),
     refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),
 )
+
+
+@contextmanager
+def searchable_completion():
+    # ARRANGE: create through the real command, losing its initial wakeup.
+    # REAL PRODUCTION: indexing settlement admits and wakes publication.
+    # EXTERNAL SEAM: the existing SQLite search provider stays real and observed.
+    # OBSERVE: require published title and author, beyond first-stage indexing.
+    def example():
+        work = make_index_work()
+
+        def outcome():
+            book = Book.objects.get(pk=work.owner_id)
+            entry = search.get(book.index_key) if book.index_key else None
+            return (entry.title, entry.author) if entry and entry.published else None
+
+        return DeliveryExample(work, outcome, (TITLE, AUTHOR))
+
+    with completion(index_book, example, within_seconds=10) as bound:
+        yield bound
+
+
 INDEX_EXAMPLES = examples_for(index_book, INDEX_SEAM, BOOK_TERMINAL)
 INDEX_EXAMPLES = replace(
     INDEX_EXAMPLES,
+    completions={"searchable book": searchable_completion},
     immutable_inputs="Indexing captures the submission once; operator retry preserves that input and its identity.",
     perturb_inputs=perturb_book,
     admissions={"create book": create_producer},

@@ -58,8 +58,8 @@ def test_compensation_happens_once_even_after_replay(decision):
     else:
         payment(order.submission_key, decision)
     work = CheckoutWork.objects.get(owner=order)
-    checkout_order.perform_effect(work)
-    checkout_order.perform_effect(work)
+    checkout_order.attempt_execution(work.pk)
+    checkout_order.attempt_execution(work.pk)
     order.refresh_from_db()
     assert (order.status, order.progress_remaining) == (Order.Status.CANCELLED, 10)
     assert Product.objects.get().inventory == 100
@@ -112,18 +112,22 @@ def test_http_ui_and_validation(client):
 
 @pytest.mark.parametrize("stage", range(11, 0, -1))
 def test_repeating_any_exact_stage_preserves_committed_progress(stage: int) -> None:
-    from examples.widget_store.services import advance
-
     order = checkout(uuid4())
     payment(order.submission_key, "paid")
-    for prior in range(11, stage, -1):
-        advance(order.submission_key, prior)
-    advance(order.submission_key, stage)
+    work = CheckoutWork.objects.get(owner=order)
+    for _ in range(11, stage, -1):
+        make_due(work)
+        checkout_order.attempt_execution(work.pk)
+    make_due(work)
+    checkout_order.enqueue_execution(work.pk)
+    work.refresh_from_db()
+    token = work.fencing_token
+    checkout_order.attempt_execution(work.pk, token)
     order.refresh_from_db()
-    expected = (order.status, order.progress_remaining, order.next_stage_at)
-    advance(order.submission_key, stage)
+    expected = (order.status, order.progress_remaining)
+    checkout_order.attempt_execution(work.pk, token)
     order.refresh_from_db()
-    assert (order.status, order.progress_remaining, order.next_stage_at) == expected
+    assert (order.status, order.progress_remaining) == expected
 
 
 def test_concurrent_duplicate_submission_reserves_only_once() -> None:
@@ -161,3 +165,65 @@ def test_waiting_dispatch_releases_claim_and_preserves_budget() -> None:
     assert work.available_at > timezone.now() + timedelta(seconds=50)
     assert not checkout_order.attempt_execution(work.pk)
     assert CheckoutWork.objects.count() == 1
+
+
+def test_payment_accepted_before_expiry_survives_delayed_worker():
+    restock()
+    order = checkout(uuid4())
+    payment(order.submission_key, "paid")
+    Order.objects.filter(pk=order.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+    finish(order)
+    order.refresh_from_db()
+    assert (order.status, order.progress_remaining, Product.objects.get().inventory) == (Order.Status.DISPATCHED, 0, 99)
+
+
+def test_payment_racing_expired_recovery_cannot_consume_refunded_stock():
+    restock()
+    order = checkout(uuid4())
+    Order.objects.filter(pk=order.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+    work = CheckoutWork.objects.get(owner=order)
+
+    def act(action):
+        close_old_connections()
+        try:
+            if action == "pay":
+                with pytest.raises(ValueError, match="closed"):
+                    payment(order.submission_key, "paid")
+            else:
+                checkout_order.attempt_execution(work.pk)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(act, ("pay", "recover")))
+    order.refresh_from_db()
+    assert (order.status, order.reserved, Product.objects.get().inventory) == (Order.Status.CANCELLED, False, 100)
+
+
+def test_repeated_failed_commits_exhaust_visibly_then_operator_retry_finishes(monkeypatch):
+    from examples.widget_store import services
+
+    restock()
+    order = checkout(uuid4())
+    payment(order.submission_key, "paid")
+    work = CheckoutWork.objects.get(owner=order)
+    original = services.advance
+
+    def fail(work):
+        original(work)
+        raise OSError("lost transaction before commit")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(services, "advance", fail)
+        for _ in range(4):
+            make_due(work)
+            with pytest.raises(OSError, match="before commit"):
+                checkout_order.attempt_execution(work.pk)
+            order.refresh_from_db()
+            assert (order.status, order.progress_remaining) == (Order.Status.PENDING, 10)
+    work.refresh_from_db()
+    assert work.state == "exhausted" and order.needs_attention
+    assert services.retry_order(order.pk)
+    finish(order)
+    order.refresh_from_db()
+    assert (order.status, order.progress_remaining, Product.objects.get().inventory) == (Order.Status.DISPATCHED, 0, 99)

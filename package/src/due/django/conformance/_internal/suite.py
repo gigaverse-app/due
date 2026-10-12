@@ -141,6 +141,7 @@ from due.django.evidence.attempts import (
 )
 from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
+    DatabaseEffect,
     DurableWork,
     DurableWorkCapability,
     DurableWorkState,
@@ -495,6 +496,8 @@ MODES = (
 def required_examples_for(mode: type[DurableWorkCapability[Any, Any]]) -> tuple[str, ...]:
     """Unconditional proof requirements of a mode; application features add obligations below."""
     common = ("delivery", "retry")
+    if issubclass(mode, DatabaseEffect):
+        return (*common, "delivery_replays")
     if issubclass(mode, DurableExternalOperation):
         required = (*common, "applied_receipt", "receipt_repair", "rejections", "uncertainties")
         return (*required, "observation") if issubclass(mode, ObservedExternalOperation) else required
@@ -583,7 +586,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         "compensation": bool(compensations_for(capability)),
         "eligibility": capability.eligibility is not None,
     }
-    missing = [field for field, needed in required.items() if needed and getattr(examples, field) is None]
+    missing = [field for field, needed in required.items() if needed and not getattr(examples, field)]
     convergent = moving or bool(examples.in_flight or examples.evidence_confluence) or examples.convergence is not None
     missing.extend(_convergence_decline_defects(capability, examples, convergent=convergent, name=name))
     if missing:
@@ -777,6 +780,10 @@ def effect_contract[W: UniverseDurableWork, ResultT](
                 "Production requires definite provider evidence; another call can duplicate an occurrence."
             )
             if operation
+            else NotApplicable(
+                "DatabaseEffect commits its callback with the work fence; the separate delivery replay proof checks that boundary, not raw external-call idempotency."
+            )
+            if isinstance(capability, DatabaseEffect)
             else Claim(),
             # Bounded: exhaustion at the budget. Unbounded: the obligation stays owed and paced.
             Profile.JOB_RETRY_LIMITS: Claim(),
@@ -800,6 +807,8 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         process_handoffs=examples.process_handoffs,
         handoff_delivery=WorkTableDelivery(capability) if examples.handoffs else None,
         replay=bound(examples.replay),
+        completions={name: bound(factory) for name, factory in examples.completions.items()},
+        delivery_replays={name: bound(factory) for name, factory in examples.delivery_replays.items()},
         retry=bound(retry) if capability.policy.max_rearms is not None else None,
         persistent_retry=bound(persistent_retry) if capability.policy.max_rearms is None else None,
         classified_failures=classified_failures,

@@ -16,6 +16,7 @@ from datetime import timedelta
 from typing import Any
 
 from pytest_obligation.binding import is_real_reason
+from pytest_obligation.completion import BoundedCompletion, DeliveryReplay
 from pytest_obligation.contract import (
     NotApplicable,
 )
@@ -214,6 +215,8 @@ class EffectExamples[W: UniverseDurableWork]:
     # the real workers even when the transition hands off to another capability.
     handoffs: tuple[HandoffHistory[Any, Any], ...] = ()
     process_handoffs: tuple[ProcessHistory[Any, Any], ...] = ()
+    completions: Mapping[str, Binding[BoundedCompletion]] = field(default_factory=dict)
+    delivery_replays: Mapping[str, Binding[DeliveryReplay]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for history in self.process_handoffs:
