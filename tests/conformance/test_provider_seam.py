@@ -75,6 +75,7 @@ def seam(**changes: Any) -> ProviderSeam[PrimitiveWork, Provider, str]:
         "calls_for": lambda provider, work: provider.calls.count(work.payload),
         "refuse": lambda provider: setattr(provider, "refusing", True),
         "provider_state": lambda provider, work: provider.stored.get(work.pk),
+        "provider_expected": lambda provider, work: work.payload,
     }
     # ARRANGE: the primitive's own producer admits each work row.
     # REAL PRODUCTION: the primitive's perform_effect and its registered worker run unchanged.
@@ -201,10 +202,26 @@ def test_replay_can_declare_a_provider_outcome_different_from_delivery(expected:
         primitive,
         seam(
             provider_state=lambda provider, work: work.pk in provider.stored,
-            replay_expected=lambda provider, work: expected,
+            provider_expected=lambda provider, work: expected,
         ),
     )
     assert examples.replay is not None
     with entered_binding(examples.replay) as replay:
         with nullcontext() if expected else pytest.raises(AssertionError, match="declared product outcome"):
             assert_replay_behaviour(replay)
+
+
+def test_provider_replay_cannot_infer_its_requirement_from_observation() -> None:
+    with pytest.raises(ObligationContractDesignError, match="provider_expected"):
+        seam_examples(primitive, seam(provider_expected=None), immutable_inputs="An immutable test occurrence.")
+
+
+def test_provider_replay_checks_the_independent_outcome() -> None:
+    examples = seam_examples(
+        primitive,
+        seam(provider_expected=lambda provider, work: "wrong"),
+        immutable_inputs="An immutable test occurrence.",
+    )
+    assert examples.replay is not None
+    with entered_binding(examples.replay) as replay, pytest.raises(AssertionError, match="declared product outcome"):
+        assert_first_execution_has_visible_effect(replay)

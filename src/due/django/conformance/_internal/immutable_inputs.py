@@ -31,8 +31,8 @@ The check, per bound real admission path (``producers``, ``admissions``,
    Work its execution gate parks cannot be claimed yet and is revisited parked.
 3. ``perturb_inputs(work)`` moves the product facts the inputs derive from.
    Positive control: it must write at least one row outside the work table.
-4. Re-run the same path, then the registered recovery tick (reap, dispatch and
-   discovery). A refusal raised by the path is production's answer and is kept
+4. Re-run the same path (or its explicit same-owner revisit command), then the
+   registered recovery tick (reap, dispatch and discovery). A refusal raised by the path is production's answer and is kept
    for the failure message; the oracle still runs. Positive control: a second
    call that only admitted fresh obligations, without entering ``atomic()`` for
    an admitted owner, revisited nothing.
@@ -188,14 +188,19 @@ def _admit(path: AdmissionPath, example: object) -> Callable[[], object]:
     assert isinstance(example, ProducerExample), f"{path.id}: unsupported admission binding {type(example)}"
     if path.kind == "producer":
         # Producers join their caller's transaction, as the producer-transaction proof runs them.
-        def produce_in_caller_transaction() -> object:
+        def produce_in_caller_transaction() -> tuple[UniverseDurableWork, ...]:
             with transaction.atomic():
                 return example.produce()
 
-        produce_in_caller_transaction()
-        return produce_in_caller_transaction
-    example.produce()
-    return example.produce
+        admitted = produce_in_caller_transaction()
+        if example.revisit is None:
+            return produce_in_caller_transaction
+    else:
+        admitted = example.produce()
+    if example.revisit is None:
+        return example.produce
+    revisit = example.revisit
+    return lambda: revisit(admitted)
 
 
 def assert_immutable_inputs_hold[W: UniverseDurableWork](
@@ -216,6 +221,8 @@ def assert_immutable_inputs_hold[W: UniverseDurableWork](
         _entered_owners(capability) as entered,
         entered_binding(path.binding) as example,
     ):
+        producer = example.admission if isinstance(example, AdmissionFailureExample) else example
+        explicit_revisit = isinstance(producer, ProducerExample) and producer.revisit is not None
         before = _revisions(capability)
         revisit = _admit(path, example)
         after_admission = _revisions(capability)
@@ -275,6 +282,9 @@ def assert_immutable_inputs_hold[W: UniverseDurableWork](
             + ". Bind the profile E families this movement needs (snapshot=, in_flight=, convergence=, "
             "evidence_confluence=) instead of declaring immutable inputs, or declare convergence_not_assessed "
             "with the reason until they are bound"
+        )
+        assert not explicit_revisit or owners.issubset(revisited), (
+            f"{name}: positive control: the explicit revisit did not enter atomic() for every admitted owner"
         )
         assert revisited or refusal is not None or not fresh, (
             f"{name}: positive control: re-running {path.id} admitted fresh {capability.work_name} work "

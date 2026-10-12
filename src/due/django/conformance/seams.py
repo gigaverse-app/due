@@ -4,7 +4,7 @@ One provider seam per adopter, from which the work-table suite derives its routi
 Most work-table adopters bind the same few shapes by hand: enter the provider fake,
 make a work row, observe the product and provider outcome, count provider calls,
 and script a failure. A :class:`ProviderSeam` declares those facts once. From it,
-:func:`seam_examples` derives ``delivery``, ``retry`` (bounded policies only),
+:func:`seam_examples` derives ``delivery``, ``retry`` (bounded or persistent, according to policy),
 ``replay`` (from the mode's own effect method) and projection ``convergence``.
 ``outcome`` and ``rejection`` build the provider-outcome scenarios.
 
@@ -106,13 +106,8 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     Declare it when ``observe`` reads product state the worker settles, since a replay
     repeats only the provider call and never settles the work.
     """
-    replay_expected: Callable[[P, W], Any] | None = None
-    """Independent provider outcome for replay, when its shape differs from ``delivered``.
-
-    Defaults to ``delivered``. Derive this from the admitted input, never from
-    observed output; for example compare the exact accepted payload while the
-    delivery observation checks only a product completion flag.
-    """
+    provider_expected: Callable[[P, W], Any] | None = None
+    """Independent replay outcome; required with provider_state, otherwise delivered is reused."""
     arrange: Callable[[P, W], object] = field(default=lambda provider, work: None)
     """ARRANGE: provider-side state one delivery needs, such as a scripted receipt or stored source."""
 
@@ -325,6 +320,10 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         return binding
 
     def replay(self, name: str, execute: Callable[[W], object]) -> Callable[[], AbstractContextManager[ReplayProof]]:
+        if self.provider_state is not None and self.provider_expected is None:
+            raise ObligationContractDesignError("provider_state needs an independent provider_expected replay outcome")
+        expected = self.provider_expected if self.provider_expected is not None else self.delivered
+
         @contextmanager
         def binding() -> Iterator[ReplayProof]:
             # EXTERNAL SEAM: the declared environment substitutes only the provider boundary.
@@ -336,9 +335,9 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     name=name,
                     prepare=lambda: self.prepare(provider),
                     execute=execute,
+                    expected=lambda work: expected(provider, work),
                     observe=lambda work: (self.provider_state or self.observe)(provider, work),
                     execution_count_for=lambda work: self.count_for(provider, work),
-                    expected=lambda work: (self.replay_expected or self.delivered)(provider, work),
                 )
 
         return binding
@@ -405,7 +404,8 @@ def seam_examples[W: UniverseDurableWork](
     ``retry`` is derived for every policy (it feeds profile J's bounded or persistent
     proofs), ``replay`` only when the mode's
     effect method is the provider boundary, and ``convergence`` only for projections.
-    Replay checks the independently declared ``delivered`` outcome as well as convergence.
+    Replay checks the independently declared ``provider_expected`` (or ``delivered``
+    when observing the delivery result) as well as convergence.
     An adopter whose replay must repeat a lower layer or observe a different outcome
     passes ``replay=`` explicitly.
     """

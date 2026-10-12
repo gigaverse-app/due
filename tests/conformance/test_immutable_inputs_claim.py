@@ -236,3 +236,19 @@ def test_plain_example_factories_follow_the_public_binding_contract() -> None:
     with entered_binding(declared.producers["command"]) as example:
         path = AdmissionPath("producer", "plain", lambda: example)
         assert_immutable_inputs_hold(primitive, declared, path, name="primitive_self_test")
+
+
+def test_explicit_revisit_must_reach_the_original_owner() -> None:
+    from dataclasses import replace
+
+    declared = examples(keeps_first)
+    binding = declared.producers["command"]
+
+    @contextmanager
+    def inert_revisit():
+        with entered_binding(binding) as example:
+            yield replace(example, revisit=lambda works: None)
+
+    declared = replace(declared, producers={"command": inert_revisit})
+    with pytest.raises(AssertionError, match="revisit.*admitted owner"):
+        assert_immutable_inputs_hold(primitive, declared, paths(declared)["producer"], name="control")

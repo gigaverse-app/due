@@ -223,6 +223,10 @@ uv run pytest tests/conformance/test_book_contracts.py \
 
 - Browser submission, validation, CSRF and external-search outcomes call the real views.
 - A successor-save interruption proves upstream settlement and successor admission roll back together.
+- Generated replay proofs independently require exact indexed content and successful activation.
+- Immutable-input proofs change product metadata, revisit indexing through operator retry
+  and publication through settlement, then require unchanged input, revision and claim.
+  Mutations that recapture metadata or replace the index key fail; no convergence debt remains.
 - Generated contracts exercise each stage's recovery, ownership, replay, retry limits and product outcomes.
 - Actual child processes exit after admission, before/after the index write,
   after the handoff, and before/after activation. Both production recovery routes
