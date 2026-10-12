@@ -3,7 +3,7 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from celery import shared_task
@@ -47,3 +47,13 @@ def observe_durable_work_task(name: str, work_id: int, delivery_token: str) -> b
     if not isinstance(capability, ObservedExternalOperation):
         raise TypeError(f"{name}: capability does not declare UNKNOWN observation")
     return capability.attempt_observation(work_id, delivery_token)
+
+
+@shared_task(time_limit=60, soft_time_limit=50)
+def wake_scheduled_work_task(name: str, work_id: int, revision: int, available_at: str) -> None:
+    from due.django.capabilities.scheduled import DurableScheduledAction
+
+    capability = capability_for(name)
+    if not isinstance(capability, DurableScheduledAction):
+        raise TypeError(f"{name}: capability does not declare scheduled deadlines")
+    capability.deliver_deadline_hint(work_id, revision, datetime.fromisoformat(available_at))

@@ -12,7 +12,7 @@ post-commit notifications appear to succeed. [Complete setup](integration.md).
 | Repeating captured input is safe | `due.django.public.ReplaySafeEffect` | [Document publication](../examples/documents/effects.py) |
 | Several calls need explicit ownership checks | `due.django.public.OwnedDurableWorkCapability` | [Guarded provider calls](../tests/capabilities/test_provider_calls.py) |
 | Current desired state must reach an external view | `due.django.capabilities.projection.Projection` | [Projection callbacks](../tests/declarations/test_simple_callbacks.py) |
-| A deadline moves or becomes unnecessary | `due.django.capabilities.scheduled.ScheduledAction` | [Scheduled callbacks](../tests/declarations/test_simple_callbacks.py) |
+| A deadline moves or becomes unnecessary | `due.django.capabilities.scheduled.ScheduledAction` | [Scheduled publication demo](../examples/scheduled/README.md) |
 | An occurrence must not be repeated without evidence | `due.django.capabilities.operations.DurableExternalOperation` | [Operation and receipt models](../tests/harness/operation.py) |
 | A provider can report the outcome of an uncertain occurrence | `due.django.capabilities.observed_operations.ObservedExternalOperation` | [Observed operation](../tests/harness/observation.py) |
 | An output needs independently recoverable cleanup | `due.django.capabilities.compensation.IndependentCompensation` | [Compensation histories](../tests/capabilities/test_compensation.py) |

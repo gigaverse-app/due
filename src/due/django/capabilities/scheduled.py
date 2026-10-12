@@ -28,12 +28,16 @@ from due.django.models import (
     UniverseDurableWork,
 )
 from due.django.runtime.coordination import (
+    CLAIMABLE_STATES,
     ContinueAfter,
     WorkExecutionContext,
+    database_now,
+    require_autocommit,
     require_fenced_settlement,
     settle_locked_work,
 )
-from due.django.runtime.recovery_pass import RecoveryStep
+from due.django.runtime.metrics import RecoveryPhase
+from due.django.runtime.recovery_pass import RecoveryPass, RecoveryStep
 from due.observations import AppliedEffectEvidence, effect_result
 
 
@@ -72,6 +76,84 @@ class DurableScheduledAction[OwnerT: models.Model, WorkT: ScheduledWork](
 
     supports_repair_window: ClassVar[bool] = True
     attempt_retention: ClassVar[timedelta] = timedelta(days=7)
+    # Opt in for registered Celery transport. Bound broker/worker timer storage;
+    # PostgreSQL owns long deadlines, and recovery needs no hint receipts.
+    deadline_wakeup_horizon: ClassVar[timedelta | None] = None
+
+    def enqueue_execution(self, work_id: int) -> None:
+        require_autocommit()
+        if self.deadline_wakeup_horizon is not None:
+            now = database_now()
+            work = (
+                self.model.objects.filter(
+                    pk=work_id,
+                    state__in=CLAIMABLE_STATES,
+                    cancelled=False,
+                    available_at__gt=now,
+                    available_at__lte=now + self.deadline_wakeup_horizon,
+                )
+                .only("pk", "desired_revision", "available_at")
+                .first()
+            )
+            if work is not None:
+                self._publish_deadline_hint(work)
+                return
+        super().enqueue_execution(work_id)
+
+    def _publish_deadline_hint(self, work: WorkT) -> None:
+        from due.django.runtime.registry import registration_for
+        from due.django.runtime.tasks import wake_scheduled_work_task
+
+        registration = registration_for(self.model)
+        wake_scheduled_work_task.apply_async(
+            args=(registration.name, work.pk, work.desired_revision, work.available_at.isoformat()),
+            eta=work.available_at,
+            # Celery supports this Kombu publish option; celery-types omits it.
+            delivery_mode=1,  # pyrefly: ignore [unexpected-keyword]
+            queue=registration.queue,
+        )
+
+    def deliver_deadline_hint(self, work_id: int, revision: int, available_at: datetime) -> None:
+        require_autocommit()
+        # A hint grants no authority. Even a matching hint must pass the ordinary
+        # atomic due-time/eligibility claim and fenced delivery protocol below.
+        if self.model.objects.filter(
+            pk=work_id,
+            desired_revision=revision,
+            available_at=available_at,
+            available_at__lte=database_now(),
+            state__in=CLAIMABLE_STATES,
+            cancelled=False,
+        ).exists():
+            super().enqueue_execution(work_id)
+
+    def recorded_work_steps(self) -> tuple[RecoveryStep, ...]:
+        steps = super().recorded_work_steps()
+        if self.deadline_wakeup_horizon is None:
+            return steps
+        return (*steps, RecoveryStep(RecoveryPhase.DEADLINE_WAKEUP, self._wake_near_deadlines))
+
+    def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
+        assert self.deadline_wakeup_horizon is not None
+        now = database_now()
+        upcoming = (
+            self.model.objects.filter(
+                state__in=CLAIMABLE_STATES,
+                cancelled=False,
+                available_at__gt=now,
+                available_at__lte=now + self.deadline_wakeup_horizon,
+            )
+            .only("pk", "desired_revision", "available_at")
+            .order_by("available_at", "pk")[: self.policy.batch_size]
+        )
+        sent = 0
+        for work in upcoming:
+            # Optional hints deliberately have no persisted RecoveryDeferral:
+            # ordinary due dispatch ran first and remains the liveness owner.
+            with recovery.isolate(RecoveryPhase.DEADLINE_WAKEUP, work.pk):
+                self._publish_deadline_hint(work)
+                sent += 1
+        return sent
 
     def derivation_steps(self) -> tuple[RecoveryStep, ...]:
         return attempt_recovery_steps(
@@ -84,6 +166,10 @@ class DurableScheduledAction[OwnerT: models.Model, WorkT: ScheduledWork](
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.deadline_wakeup_horizon is not None and not (
+            timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
+        ):
+            raise ValueError("deadline_wakeup_horizon must be positive and at most five minutes")
         if self.input_fields is not None and not {"run_at", "cancelled"}.issubset(self.input_fields):
             raise ValueError("scheduled input_fields must include run_at and cancelled")
         if self.policy.retention is not None:

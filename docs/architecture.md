@@ -141,3 +141,25 @@ Work-table adopters declare `EffectExamples` through `effect_contract_suite`.
 [the replacement audit](backend-adoption.md) separates standalone parity from
 application migration. Shared fault oracles belong to pytest-obligation; Due owns
 the binding to its registered capability, PostgreSQL state and Celery workers.
+
+### Scheduled deadline hints
+
+`DurableScheduledAction` and `ScheduledAction` can opt into registered Celery ETA
+hints with `deadline_wakeup_horizon: ClassVar[timedelta | None]` (default `None`,
+maximum five minutes). Recovery reads one bounded page of future `available_at`
+values in that horizon, after ordinary due dispatch. Admission also publishes a
+hint when within the horizon. Neither path creates SQL hint rows or claims future
+work. The window bounds timer distance, not total broker memory under arbitrary
+submission/reschedule volume; duplicate hints can occur on successive sweeps.
+
+A hint carries the work ID, revision and eligibility timestamp. Its task checks
+current DB eligibility and then enters the normal atomic claim and fenced worker
+path; it cannot shorten retry backoff or authorize an old revision. Timer loss,
+queue delay, stale hints and lookahead overflow leave ordinary periodic recovery
+as the liveness owner. Hint failures are isolated and reported, but never create
+persisted recovery deferrals. Optional timer transport is not durable truth.
+
+The [scheduled publication example](../examples/scheduled/README.md#deadline-hints-and-retry-safe-submission)
+also demonstrates caller submission identity on its existing product row. That
+application-level unique key protects initial admission, independently of Due's
+work revision and provider idempotency identity.
