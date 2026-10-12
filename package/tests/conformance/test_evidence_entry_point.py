@@ -18,11 +18,14 @@ from pytest_obligation.profiles.crash_ambiguity import assert_ambiguity_contract
 from due.django.conformance.bindings import DurableWorkBindings
 from due.django.conformance.examples import EffectExamples
 from due.django.conformance.suite import effect_contract, operation_ambiguity
-from tests.harness.operation import Publication, ProviderResult, PublicationWork, record
+from tests.harness.operation import ProviderResult, Publication, PublicationWork, record
 from tests.harness.operation import operation_environment as operation_environment
-from tests.harness.primitive import PrimitiveOwner, primitive
+from tests.harness.primitive import PrimitiveOwner, PrimitiveWork, primitive
 from tests.harness.primitive import (
     isolated_primitive_fixture as isolated_primitive_fixture,
+)
+from tests.harness.primitive import (
+    root_registration_fixture as root_registration_fixture,
 )
 
 type EntryPoint = Callable[[PublicationWork, ProviderResult], object]
@@ -77,7 +80,7 @@ def declared_only(*args: object, **kwargs: object) -> Any:
 
 @pytest.mark.no_db
 def test_evidence_entry_requires_an_operation() -> None:
-    examples = EffectExamples(
+    examples: EffectExamples[PrimitiveWork] = EffectExamples(
         make_work=declared_only,
         delivery=declared_only,
         retry=declared_only,
