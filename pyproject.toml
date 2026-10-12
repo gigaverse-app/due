@@ -1,7 +1,7 @@
 [dependency-groups]
 lint = ["ruff>=0.14", "pre-commit>=4.3"]
 dev = [
-    "due[selftest]",
+    "django-due[selftest]",
     { include-group = "lint" },
     "pyrefly>=1,<2",
     "celery-types>=0.26",
@@ -35,4 +35,8 @@ markers = ["no_db: does not access the database"]
 members = ["package"]
 
 [tool.uv.sources]
-due = { workspace = true }
+django-due = { workspace = true }
+
+# Normal CI keeps main's reviewed replay-outcome implementation until its next
+# manual PyPI release. This development source is not emitted into wheel metadata.
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" }

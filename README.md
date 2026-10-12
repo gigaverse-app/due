@@ -8,6 +8,9 @@
 [![Typed](https://img.shields.io/badge/typing-py.typed-blue)](package/src/due/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](package/LICENSE)
 
+The PyPI distribution name is **`django-due`** (`pip install django-due`).
+Python imports remain **`due`**. See [releasing](RELEASING.md) for the manual release process.
+
 ## The database committed. The worker never heard.
 
 You save a document and queue its publication. The broker is unavailable. Or the

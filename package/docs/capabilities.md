@@ -85,7 +85,7 @@ See [dependent wakes](../tests/capabilities/test_dependent_wake.py),
 
 ## Test your application boundary
 
-Install `due[testing]` for `due.django.conformance.DurableWorkBindings`.
+Install `django-due[testing]` for `due.django.conformance.DurableWorkBindings`.
 [The generated contract](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_contract.py) binds production
 selectors and transitions for recovery, ownership, retention, admission and
 retry limits. Its unclaimed profiles describe that fixture's scope.

@@ -4,14 +4,14 @@ requires-python = ">=3.14"
 
 [manifest]
 members = [
-    "due",
+    "django-due",
 ]
 
 [manifest.dependency-groups]
 dev = [
     { name = "celery-types", specifier = ">=0.26" },
+    { name = "django-due", extras = ["selftest"], editable = "package" },
     { name = "django-stubs", specifier = ">=5.2" },
-    { name = "due", extras = ["selftest"], editable = "package" },
     { name = "pre-commit", specifier = ">=4.3" },
     { name = "procrastinate", specifier = ">=3,<4" },
     { name = "pyrefly", specifier = ">=1,<2" },
@@ -243,6 +243,61 @@ wheels = [
 ]
 
 [[package]]
+name = "django-due"
+source = { editable = "package" }
+dependencies = [
+    { name = "asgiref" },
+    { name = "celery" },
+    { name = "django" },
+    { name = "prometheus-client" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
+    { name = "sentry-sdk" },
+]
+
+[package.optional-dependencies]
+beat = [
+    { name = "django-celery-beat" },
+]
+redis = [
+    { name = "celery", extra = ["redis"] },
+]
+selftest = [
+    { name = "celery", extra = ["redis"] },
+    { name = "django-celery-beat" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+    { name = "pytest-obligation", extra = ["celery", "debt", "django", "exploration"] },
+    { name = "pytest-xdist" },
+]
+testing = [
+    { name = "pytest-obligation", extra = ["celery", "debt", "django", "exploration"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asgiref", specifier = ">=3.9" },
+    { name = "celery", specifier = ">=5.6,<6" },
+    { name = "celery", extras = ["redis"], marker = "extra == 'redis'", specifier = ">=5.6,<6" },
+    { name = "celery", extras = ["redis"], marker = "extra == 'selftest'", specifier = ">=5.6,<6" },
+    { name = "django", specifier = ">=6.0.8,<7" },
+    { name = "django-celery-beat", marker = "extra == 'beat'", specifier = ">=2.8" },
+    { name = "django-celery-beat", marker = "extra == 'selftest'", specifier = ">=2.8" },
+    { name = "prometheus-client", specifier = ">=0.22" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "pytest", marker = "extra == 'selftest'", specifier = ">=8.4" },
+    { name = "pytest-asyncio", marker = "extra == 'selftest'", specifier = ">=1.2" },
+    { name = "pytest-mock", marker = "extra == 'selftest'", specifier = ">=3.16" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'selftest'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" },
+    { name = "pytest-xdist", marker = "extra == 'selftest'", specifier = ">=3.8" },
+    { name = "sentry-sdk", specifier = ">=2,<3" },
+]
+provides-extras = ["beat", "redis", "selftest", "testing"]
+
+[[package]]
 name = "django-stubs"
 version = "6.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -281,60 +336,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/12/0b/22654abc2355f3b84
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/5f/c8dfb67105c4ef391a3e9d0bcd35b7eae4c4c9d023d612c3999ae1cb32ef/django_timezone_field-7.2.2-py3-none-any.whl", hash = "sha256:30354d0f37462a0b9b5c289e271580a6be9b58dea30e7bf88435372882c8fa7a", size = 13322, upload-time = "2026-06-06T05:28:22.454Z" },
 ]
-
-[[package]]
-name = "due"
-version = "0.1.0a1"
-source = { editable = "package" }
-dependencies = [
-    { name = "asgiref" },
-    { name = "celery" },
-    { name = "django" },
-    { name = "prometheus-client" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pydantic" },
-    { name = "sentry-sdk" },
-]
-
-[package.optional-dependencies]
-beat = [
-    { name = "django-celery-beat" },
-]
-redis = [
-    { name = "celery", extra = ["redis"] },
-]
-selftest = [
-    { name = "celery", extra = ["redis"] },
-    { name = "django-celery-beat" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-obligation", extra = ["celery", "debt", "django", "exploration"] },
-    { name = "pytest-xdist" },
-]
-testing = [
-    { name = "pytest-obligation", extra = ["celery", "debt", "django", "exploration"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asgiref", specifier = ">=3.9" },
-    { name = "celery", specifier = ">=5.6,<6" },
-    { name = "celery", extras = ["redis"], marker = "extra == 'redis'", specifier = ">=5.6,<6" },
-    { name = "django", specifier = ">=6.0.8,<7" },
-    { name = "django-celery-beat", marker = "extra == 'beat'", specifier = ">=2.8" },
-    { name = "due", extras = ["testing", "redis", "beat"], marker = "extra == 'selftest'", editable = "package" },
-    { name = "prometheus-client", specifier = ">=0.22" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
-    { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "pytest", marker = "extra == 'selftest'", specifier = ">=8.4" },
-    { name = "pytest-asyncio", marker = "extra == 'selftest'", specifier = ">=1.2" },
-    { name = "pytest-mock", marker = "extra == 'selftest'", specifier = ">=3.16" },
-    { name = "pytest-obligation", extras = ["django", "celery", "exploration", "debt"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" },
-    { name = "pytest-xdist", marker = "extra == 'selftest'", specifier = ">=3.8" },
-    { name = "sentry-sdk", specifier = ">=2,<3" },
-]
-provides-extras = ["selftest", "testing", "redis", "beat"]
 
 [[package]]
 name = "execnet"
