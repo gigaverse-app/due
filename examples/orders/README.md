@@ -35,6 +35,8 @@ PY
 uv run pytest tests/examples/test_orders.py tests/conformance/test_order_contract.py -v
 ```
 
+`receive_printer_receipt` in `services.py` is the printer's callback: it correlates a receipt with its order and records it as evidence, and recovery settles the product. The generated contract binds it as `evidence_entry`, so the late-evidence proofs enter through it.
+
 `DUE_PRINTER_REJECT=1` models a definite refusal before acceptance and permits a
 bounded retry. A timeout after acceptance never does. The generated contracts
 exercise lost observation delivery, inconclusive reads, duplicate delivery,
