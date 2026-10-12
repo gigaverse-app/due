@@ -116,6 +116,8 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
     ) == tuple(history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in examples.handoffs), (
         f"{cls.__name__}: handoff histories differ from declared product transitions"
     )
+    assert set(contract.completions) == set(examples.completions), "terminal completion bindings differ"
+    assert set(contract.delivery_replays) == set(examples.delivery_replays), "database delivery replay bindings differ"
     assert contract.process_handoffs == examples.process_handoffs, (
         f"{cls.__name__}: process histories differ from declared product transitions"
     )

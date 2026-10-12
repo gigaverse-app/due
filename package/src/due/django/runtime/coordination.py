@@ -5,7 +5,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 
 import logging
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -521,13 +521,14 @@ def _owner_relation(model: type[DurableWork]) -> models.OneToOneField[Any, Any] 
     return field
 
 
-def lock_work_owner(work: DurableWork) -> None:
+def lock_work_owner(work: DurableWork) -> models.Model | None:
     """Use the same owner-before-work order as requirement creation."""
     field = _owner_relation(type(work))
     if field is not None:
         # Immutable work outlives owner deletion (SET_NULL). The original
         # snapshot may still carry the deleted id; absence needs no owner lock.
-        field.remote_field.model.objects.select_for_update().filter(pk=getattr(work, field.attname)).first()
+        return field.remote_field.model.objects.select_for_update().filter(pk=getattr(work, field.attname)).first()
+    return None
 
 
 def lock_owner_of_work(model: type[DurableWork], work_id: int) -> None:
@@ -970,6 +971,7 @@ def run_work[WorkT: DurableWork, ResultT](
     finalize_unknown: Callable[[WorkT], None] | None = None,
     finalize_retry: Callable[[WorkT, Exception], None] | None = None,
     retry_delay_for: Callable[[WorkT], timedelta] | None = None,
+    database_only: bool = False,
 ) -> bool:
     """Claim, run outside transactions in-domain, and fenced-finalize."""
 
@@ -1003,6 +1005,7 @@ def run_work[WorkT: DurableWork, ResultT](
             finalize_unknown=finalize_unknown,
             finalize_retry=finalize_retry,
             retry_delay_for=retry_delay_for,
+            database_only=database_only,
         )
 
 
@@ -1019,21 +1022,40 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     finalize_unknown: Callable[[WorkT], None] | None,
     finalize_retry: Callable[[WorkT, Exception], None] | None,
     retry_delay_for: Callable[[WorkT], timedelta] | None,
+    database_only: bool,
 ) -> bool:
     model = claim.model
     context = WorkExecutionContext(claim=claim, lease_duration=lease_duration)
     try:
-        with current_universe_scope(claim.work.work_universe()):
-            result = handler(claim.work, context)
-        if isinstance(result, ContinueAfter):
-            return continue_work(
-                claim,
-                result,
-                finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
-            )
-        # A failed domain settlement rolls back success before retry classification.
-        # No handler I/O runs under the owner/work transaction.
-        completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
+        # Database callbacks and their settlement share one commit. Acquire the
+        # producer's owner-before-work locks and revalidate authority before any
+        # application write; external handlers retain their autocommit boundary.
+        with transaction.atomic() if database_only else nullcontext():
+            current = claim.work
+            if database_only:
+                owner = lock_work_owner(current)
+                current = claim.owned_work().select_for_update().first()
+                if current is None:
+                    return False
+                field = _owner_relation(type(current))
+                if field is not None:
+                    setattr(current, field.name, owner)
+            with current_universe_scope(current.work_universe()):
+                result = (
+                    finalize_under_fence(current, lambda work: handler(work, context))
+                    if database_only
+                    else handler(current, context)
+                )
+            if isinstance(result, ContinueAfter):
+                completed = continue_work(
+                    claim,
+                    result,
+                    finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
+                )
+            else:
+                completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
+            if database_only and not completed:
+                raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
         disposition = WorkFailureDisposition.UNKNOWN if possible_attempt else classify_error(error)

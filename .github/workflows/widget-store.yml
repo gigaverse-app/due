@@ -48,12 +48,27 @@ jobs:
       - run: uv sync --all-packages --locked
       - run: uv run playwright install --with-deps chromium
       - run: uv sync --directory .widget-upstream/python/widget-store --locked --python 3.14
+      - name: Enable measured PostgreSQL execution and WAL statistics
+        env:
+          WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          psql -h localhost -U due -d widget_due -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'"
+          psql -h localhost -U due -d widget_due -c "ALTER SYSTEM SET track_io_timing = on"
+          docker restart "$WIDGET_POSTGRES_CONTAINER"
+          for _ in $(seq 1 30); do
+            pg_isready -h localhost -U due && break
+            sleep 1
+          done
+          psql -h localhost -U due -d widget_due -c "CREATE EXTENSION pg_stat_statements"
       - run: createdb -h localhost -U due widget_dbos
       - run: uv run python -m django migrate --noinput
       - run: uv run python -m django due_check
       - run: uv run --directory .widget-upstream/python/widget-store alembic upgrade head
       - run: uv run --directory .widget-upstream/python/widget-store python -m migrations.reset_database
       - name: Benchmark both real applications and exercise their crash buttons in Chromium
+        env:
+          WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          WIDGET_REDIS_CONTAINER: ${{ job.services.redis.id }}
         run: uv run python -m scripts.widget_benchmark --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
       - uses: actions/upload-artifact@v7
         if: always()

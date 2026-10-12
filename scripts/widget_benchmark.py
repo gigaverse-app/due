@@ -25,6 +25,7 @@ from psycopg import sql
 
 from examples.widget_store.supervisor import supervise
 from integration_tests.integration.processes import running_process
+from scripts.widget_resources import Resources
 
 UPSTREAM_SHA = "ddaf50e71fa8e19364d9c70b5d87a9c8203af152"
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,17 +128,25 @@ def sample(
     decision_ms = (time.perf_counter() - start) * 1000
     recovery_start = None
     crash_progress = 10
-    if scenario == "crash":
+    if scenario in {"crash", "connection loss"}:
         deadline = time.monotonic() + 20
         while arm.row(connection, identity)[1] > 7:
             assert time.monotonic() < deadline, "dispatch never reached crash point"
             time.sleep(0.02)
         crash_progress = arm.row(connection, identity)[1]
         recovery_start = time.perf_counter()
-        try:
-            post(client, arm, "/crash_application")
-        except OSError, urllib.error.URLError:
-            pass  # DBOS deliberately closes its HTTP connection with os._exit.
+        if scenario == "connection loss":
+            # Both arms lose every application SQL session in their isolated DB.
+            # The observer remains alive; the existing runtime must reconnect.
+            connection.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname=current_database() AND pid <> pg_backend_pid()"
+            ).fetchall()
+        else:
+            try:
+                post(client, arm, "/crash_application")
+            except OSError, urllib.error.URLError:
+                pass  # DBOS deliberately closes its HTTP connection with os._exit.
     terminal, remaining = arm.wait(
         connection, identity, (cancelled,) if decision == "failed" else (dispatched,), max_progress=crash_progress
     )
@@ -149,7 +158,7 @@ def sample(
     assert arm.inventory(connection) == inventory - (decision == "paid")
     return {
         "scenario": scenario,
-        "progress_at_crash": crash_progress if scenario == "crash" else -1,
+        "progress_at_crash": crash_progress if recovery_start is not None else -1,
         "order_id": identity,
         "terminal": terminal,
         "checkout_receipt_ms": checkout_ms,
@@ -160,18 +169,23 @@ def sample(
     }
 
 
-def benchmark(arm: Arm, samples: int) -> dict:
+def benchmark(arm: Arm, samples: int, pid: int) -> dict:
     client = arm.client()
     post(client, arm, "/restock")
     with psycopg.connect(arm.database, autocommit=True) as connection:
+        connection.execute("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+        connection.execute("SET pg_stat_statements.track = 'none'")
         sample(arm, client, connection, "paid")  # same excluded warmup in both arms
         time.sleep(2)
         before = stats(connection)
         postgres_version = connection.info.server_version
         window_start = time.perf_counter()
-        records = [sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]]
-        time.sleep(2)
-        after = stats(connection)
+        with Resources(connection, pid) as resources:
+            records = [
+                sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]
+            ]
+            time.sleep(2)
+            after = stats(connection)
         window_seconds = time.perf_counter() - window_start
         writes = {
             table: {kind: count - before.get(table, {}).get(kind, 0) for kind, count in values.items()}
@@ -182,6 +196,7 @@ def benchmark(arm: Arm, samples: int) -> dict:
         values = [float(record[field]) for record in records if record["scenario"] == "paid"]
         metrics[field] = {"median": statistics.median(values), "min": min(values), "max": max(values), "n": len(values)}
     return {
+        "resources": resources.result(),
         "samples": records,
         "paid_summary": metrics,
         "table_writes": writes,
@@ -245,6 +260,10 @@ def main() -> None:
         "method": "sequential HTTP; one excluded paid warmup; 10 x 1s stages; 20ms SQL observation; separate databases; full application restart, DB/broker preserved; counts include recovery and 2s observation tail; no capacity claim",
         "arms": {},
     }
+
+    def save_results() -> None:
+        (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+
     if args.reverse:
         arms.reverse()
     results["arm_order"] = ",".join(arm.name for arm in arms)
@@ -271,10 +290,17 @@ def main() -> None:
                     return False
 
             process.wait_until(ready, timeout=60)
-            results["arms"][arm.name] = benchmark(arm, args.samples)
+            results["arms"][arm.name] = benchmark(arm, args.samples, process.handle.pid)
+            save_results()
             assert process.log.read_text().count("WIDGET_CRASH") >= 1, "crash endpoint did not restart application"
             assert process.log.read_text().count("WIDGET_STARTED") >= 2, "application did not restart"
             print(f"{arm.name}: {results['arms'][arm.name]['paid_summary']}", flush=True)
+            # Separate correctness journey, excluded from all measured cost windows.
+            with psycopg.connect(arm.database, autocommit=True) as connection:
+                results["arms"][arm.name]["connection_loss_journey"] = sample(
+                    arm, arm.client(), connection, "connection loss"
+                )
+            save_results()
             if args.browser:
                 subprocess.run(
                     [
@@ -293,7 +319,7 @@ def main() -> None:
                 assert process.log.read_text().count("WIDGET_CRASH") >= 2, (
                     "browser crash button did not restart application"
                 )
-        (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+        save_results()
     assert results["due_sha"] == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), (
         "Source commit changed during benchmark"
     )
