@@ -39,7 +39,7 @@ work-table-specific proofs   generic proofs + integrations + scanners
 | Metric names, label names and allowed values are inspectable without mutating the schema | `runtime.metrics.metric_schemas`; deployment and metric tests |
 | Beat cleanup removes only owned or explicitly declared historical task names | `runtime.registry.remove_stale_recovery_schedules`; registry controls |
 | Collection does not enroll embedded libraries' own test projects | `due._suite_inventory`; enrollment and collection controls |
-| Lazy application hosts, reviewed suite aliases, configured task names, shared row delivery and archive builds | [pytest-obligation's cutover audit](https://github.com/gigaverse-app/pytest-obligation/blob/codex/upstream-cutover-improvements/docs/backend-harness-port.md#cutover-follow-through-october-2026) |
+| Lazy application hosts, reviewed suite aliases, configured task names, shared row delivery and archive builds | [pytest-obligation's cutover audit](https://github.com/gigaverse-app/pytest-obligation/blob/0906f2f/docs/backend-harness-port.md#cutover-follow-through-october-2026) |
 
 The public module boundary stays unchanged: `due.django.public` is the capability
 entry point, `runtime` owns operational integration, and `conformance` owns the
