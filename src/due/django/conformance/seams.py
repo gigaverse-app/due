@@ -4,7 +4,7 @@ One provider seam per adopter, from which the work-table suite derives its routi
 Most work-table adopters bind the same few shapes by hand: enter the provider fake,
 make a work row, observe the product and provider outcome, count provider calls,
 and script a failure. A :class:`ProviderSeam` declares those facts once. From it,
-:func:`seam_examples` derives ``delivery``, ``retry`` (bounded policies only),
+:func:`seam_examples` derives ``delivery``, ``retry`` (bounded or persistent, according to policy),
 ``replay`` (from the mode's own effect method) and projection ``convergence``.
 ``outcome`` and ``rejection`` build the provider-outcome scenarios.
 
@@ -24,7 +24,7 @@ a ``calls`` that never counts, or a ``refuse`` that never fails all fail their p
 import ast
 import sys
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, overload
@@ -39,6 +39,7 @@ from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect as Repla
 from due.django.capabilities.authoring import DurableWorkCapability, ReplaySafeEffect
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance.binding import entered_binding
 from due.django.conformance.examples import (
     DeliveryExample,
     EffectExamples,
@@ -89,9 +90,12 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     """OBSERVE: provider calls at the effect boundary, for every work."""
     refuse: Callable[[P], object] | None = None
     """
-    EXTERNAL SEAM: make every later provider call fail with an error production classifies as retryable.
+    EXTERNAL SEAM: make later provider calls fail with an error production classifies as retryable.
+    Return a context manager for scoped faults (for example ``ProviderProbe.reject``);
+    callbacks that configure the provider in place may return a plain value.
 
-    Required when the policy is bounded (max_rearms), which is when ``retry`` is derived.
+    Required, since every policy derives ``retry`` from it: a bounded policy must exhaust
+    at its budget, an unbounded one must keep the work owed and paced (profile J).
     """
     calls_for: Callable[[P, W], int] | None = None
     """OBSERVE: provider calls for one work's identity; defaults to ``calls``."""
@@ -140,9 +144,11 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     @contextmanager
     def retry(self) -> Iterator[FailureExample[W]]:
         assert self.refuse is not None, "seam_examples derives retry only from a seam that declares refuse"
-        with self.environment() as provider:
-            self.refuse(provider)
-            yield FailureExample(attempts=lambda work: self.count_for(provider, work))
+        with entered_binding(self.environment) as provider:
+            # A fault scope must remain active for every retry, and its cleanup
+            # must not swallow the proof's failing verdict.
+            with entered_binding(lambda: self.refuse(provider)):
+                yield FailureExample(attempts=lambda work: self.count_for(provider, work))
 
     @overload
     def outcome(
@@ -176,14 +182,23 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         A delivery whose provider is scripted to answer differently: an uncertainty, or a rejection's core.
 
         ``script`` runs after the work exists and replaces ``arrange``. ``observe`` overrides the
-        seam's observation when the outcome shows in other product fields.
+        seam's observation when the outcome shows in other product fields. A
+        context manager returned by ``script`` stays entered through the proof.
         """
         read: Callable[[P, W], Any] = observe if observe is not None else self.observe
 
         @contextmanager
         def binding() -> Iterator[DeliveryExample[W, Any]]:
-            with self.environment() as provider:
-                work = self.prepare(provider, script=script, make_work=make_work)
+            with entered_binding(self.environment) as provider, ExitStack() as scripts:
+                # Keep a returned provider-fault scope active through delivery;
+                # use the same failure-preserving owner as generated proofs.
+                work = self.prepare(
+                    provider,
+                    script=lambda resource, work: scripts.enter_context(
+                        entered_binding(lambda: script(resource, work))
+                    ),
+                    make_work=make_work,
+                )
                 yield DeliveryExample(
                     work=work,
                     observe=lambda: read(provider, work),
@@ -386,15 +401,20 @@ def seam_examples[W: UniverseDurableWork](
     """
     Routine bindings derived from the seam; anything in ``overrides`` replaces or adds to them.
 
-    ``retry`` is derived only for a bounded policy, ``replay`` only when the mode's
+    ``retry`` is derived for every policy (it feeds profile J's bounded or persistent
+    proofs), ``replay`` only when the mode's
     effect method is the provider boundary, and ``convergence`` only for projections.
-    An adopter whose replay must repeat a lower layer passes ``replay=`` explicitly.
+    Replay checks the independently declared ``provider_expected`` (or ``delivered``
+    when observing the delivery result) as well as convergence.
+    An adopter whose replay must repeat a lower layer or observe a different outcome
+    passes ``replay=`` explicitly.
     """
     derived: dict[str, Any] = {"make_work": seam.make_work, "delivery": seam.delivery}
-    if capability.policy.max_rearms is not None and "retry" not in overrides:
+    if "retry" not in overrides:
         if seam.refuse is None:
             raise ObligationContractDesignError(
-                f"{type(capability).__name__}: a bounded policy exhausts work, so its seam must declare refuse"
+                f"{type(capability).__name__}: profile J drives a persistent provider failure, "
+                "so the seam must declare refuse"
             )
         derived["retry"] = seam.retry
     target = _replay_target(capability)

@@ -147,11 +147,11 @@ def test_a_call_count_that_never_counts_fails_replay() -> None:
         assert_replay_behaviour(replay)
 
 
-def test_retry_is_derived_only_for_a_bounded_policy() -> None:
+def test_retry_is_derived_for_every_policy_and_needs_refuse() -> None:
     unbounded = replace(primitive, policy=DurableWorkPolicy(max_rearms=None))
-    assert seam_examples(unbounded, seam(refuse=None)).retry is None
+    assert seam_examples(unbounded, seam()).retry is not None
     with pytest.raises(ObligationContractDesignError, match="must declare refuse"):
-        seam_examples(primitive, seam(refuse=None))
+        seam_examples(unbounded, seam(refuse=None))
 
 
 def test_an_unannotated_seam_is_refused() -> None:
@@ -194,6 +194,21 @@ def test_seam_examples_compile_through_the_public_contract_api() -> None:
     )
     contract = effect_contract(primitive, examples=examples)
     assert contract.replay is not None
+
+
+@pytest.mark.parametrize("expected", [True, False])
+def test_replay_can_declare_a_provider_outcome_different_from_delivery(expected: bool) -> None:
+    examples = seam_examples(
+        primitive,
+        seam(
+            provider_state=lambda provider, work: work.pk in provider.stored,
+            provider_expected=lambda provider, work: expected,
+        ),
+    )
+    assert examples.replay is not None
+    with entered_binding(examples.replay) as replay:
+        with nullcontext() if expected else pytest.raises(AssertionError, match="declared product outcome"):
+            assert_replay_behaviour(replay)
 
 
 def test_provider_replay_cannot_infer_its_requirement_from_observation() -> None:

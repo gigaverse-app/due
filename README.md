@@ -75,6 +75,7 @@ models, transactions and product logic.
 | A non-repeatable operation, such as a provider request with an uncertain outcome | `DurableExternalOperation` |
 | Periodic observation of an uncertain operation | `ObservedExternalOperation` |
 | Cleanup owed even if the original worker dies | `IndependentCompensation` |
+| Fenced completion on a row with an existing lifecycle | [Completion leases](docs/completion-leases.md) |
 
 The same work-table runtime also supports dependent wakes, discovery from
 persisted facts, execution gates, continuations, status mirrors and captured

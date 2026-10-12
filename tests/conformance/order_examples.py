@@ -9,18 +9,16 @@ from unittest.mock import patch
 
 from due.django.conformance.observations import ObservationExample
 from due.django.conformance.provider import ProviderProbe
+from due.django.conformance.seams import ProviderSeam, seam_examples
 from due.django.conformance.suite import (
     AdmissionFailureExample,
-    DeliveryExample,
-    EffectExamples,
-    FailureExample,
     ProducerExample,
-    RejectionExample,
     TerminalExample,
 )
 from due.django.testing import hold_nudges
 from due.errors import WorkFailureDisposition
 from examples.orders import provider
+from examples.orders.effects import print_order
 from examples.orders.models import PrintOrder, PrintWork
 from examples.orders.provider import PrintReceipt
 from examples.orders.services import order_print
@@ -37,7 +35,7 @@ calls: ContextVar[PrinterCalls] = ContextVar("printer_calls")
 
 
 @contextmanager
-def environment() -> Iterator[None]:
+def environment() -> Iterator[PrinterCalls]:
     observed = PrinterCalls(
         submits=ProviderProbe(provider.submit, key=lambda reference, title: reference),
         reads=ProviderProbe(provider.observe, key=lambda reference: reference),
@@ -49,7 +47,7 @@ def environment() -> Iterator[None]:
             observed.submits.patch(provider, "submit"),
             observed.reads.patch(provider, "observe"),
         ):
-            yield
+            yield observed
     finally:
         calls.reset(token)
 
@@ -59,37 +57,39 @@ def make_work() -> PrintWork:
         return order_print("A physical book")
 
 
-def delivery() -> DeliveryExample[PrintWork, str]:
-    work = make_work()
-    return DeliveryExample(
-        work=work,
-        observe=lambda: PrintOrder.objects.get(pk=work.owner_id).status,
-        expected="printed",
-        effect_calls=lambda: calls.get().submits.count(str(work.reference)),
-    )
+# ARRANGE: order a physical book through the application command.
+# REAL PRODUCTION: submit once, settle a receipt, or observe an accepted unknown occurrence.
+# EXTERNAL SEAM: real SQLite printer ledger with refusal/response-loss scopes.
+# OBSERVE: persisted order status and independently counted submission calls.
+SEAM = ProviderSeam(
+    environment=environment,
+    make_work=make_work,
+    observe=lambda printer, work: PrintOrder.objects.get(pk=work.owner_id).status,
+    delivered=lambda printer, work: "printed",
+    calls=lambda printer: printer.submits.total,
+    calls_for=lambda printer, work: printer.submits.count(str(work.reference)),
+    refuse=lambda printer: printer.submits.reject(
+        lambda: provider.PrinterRejected("Printer refused before acceptance")
+    ),
+)
+delivery = SEAM.delivery
+rejected = SEAM.rejection(
+    lambda printer, work: printer.submits.reject(lambda: provider.PrinterRejected("Printer refused before acceptance")),
+    lambda printer, work: "retrying",
+    WorkFailureDisposition.RETRYABLE,
+)
 
 
 @contextmanager
-def retry() -> Iterator[FailureExample[PrintWork]]:
-    with calls.get().submits.reject(lambda: provider.PrinterRejected("Printer refused before acceptance")):
-        yield FailureExample(attempts=lambda work: calls.get().submits.count(str(work.reference)))
-
-
-@contextmanager
-def rejected() -> Iterator[RejectionExample[PrintWork, str]]:
-    with retry():
-        yield RejectionExample(
-            delivery=replace(delivery(), expected="retrying"), disposition=WorkFailureDisposition.RETRYABLE
-        )
-
-
-@contextmanager
-def uncertainty() -> Iterator[DeliveryExample[PrintWork, str]]:
+def lost_response(printer: PrinterCalls) -> Iterator[None]:
     with (
-        calls.get().submits.lose_response(lambda: TimeoutError("Printer response lost after acceptance")),
+        printer.submits.lose_response(lambda: TimeoutError("Printer response lost after acceptance")),
         patch.dict(os.environ, {"DUE_PRINTER_HIDE_RECEIPTS": "1"}),
     ):
-        yield replace(delivery(), expected="unknown")
+        yield
+
+
+uncertainty = SEAM.outcome(lambda printer, work: lost_response(printer), lambda printer, work: "unknown")
 
 
 @contextmanager
@@ -126,12 +126,11 @@ def admission_failure() -> Iterator[AdmissionFailureExample[PrintWork, bool]]:
         yield AdmissionFailureExample.after_save(scenario, PrintWork)
 
 
-EXAMPLES = EffectExamples(
+EXAMPLES = seam_examples(
+    print_order,
+    SEAM,
     fixtures=("printer",),
     environment=environment,
-    make_work=make_work,
-    delivery=delivery,
-    retry=retry,
     terminal=lambda: TerminalExample(
         observe=lambda work: PrintOrder.objects.get(pk=work.owner_id).status == "stopped",
         no_rearm_because="A print order is one immutable occurrence; the demo exposes no operator command to authorize another print.",

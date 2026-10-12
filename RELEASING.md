@@ -87,10 +87,10 @@ for different source.
 
 ## Current dependency release prerequisite
 
-The latest merged Due conformance code requires obligation's new independent
-replay outcomes, introduced after pytest-obligation 0.10.0. Normal development
+The latest merged Due conformance code requires obligation's new replay and retry
+proofs, introduced after pytest-obligation 0.10.0. Normal development
 and CI retain main's reviewed Git pin through `tool.uv.sources`. Wheel metadata
-contains only `pytest-obligation>=0.10.1.dev6,<1`, with no direct Git dependency.
+contains only `pytest-obligation>=0.11.0,<1`, with no direct Git dependency.
 Publish the next pytest-obligation release containing those changes before
 merging Due's first release PR. The release build installs the wheel's testing
 extra from published packages and refuses to publish if that dependency is not

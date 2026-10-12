@@ -60,7 +60,7 @@ behavior they checked had been extracted. They now run in standalone CI:
 | Database-legal discovery, rejected desired state and poison stopping a discovery page | [`test_discovery_admissibility.py`](../tests/conformance/test_discovery_admissibility.py) |
 | Every recovery phase declares a proof and every shared proof names an existing test | [`test_recovery_isolation_phase_proofs.py`](../tests/conformance/test_recovery_isolation_phase_proofs.py) |
 | Inline caller histories and unbounded discovery appear in reports and cannot disappear from collection | [`test_conformance_collection_declared_scenarios.py`](../tests/conformance/test_conformance_collection_declared_scenarios.py) |
-| An unbounded retry policy refuses a retry example that could never be exercised | [`test_conformance_enrollment.py`](../tests/conformance/test_conformance_enrollment.py) |
+| An unbounded retry policy claims profile J through the persistent-failure proof, so its retry example must keep the work owed | [`test_conformance_enrollment.py`](../tests/conformance/test_conformance_enrollment.py), [`test_persistent_retry.py`](../tests/conformance/test_persistent_retry.py) |
 
 Generic crash histories, narrow gap semantics, SQL commit observation, bounded
 ownership, eligibility, edge cases, terminal states, source scanners and debt
@@ -132,3 +132,51 @@ names the existing real broker-failure test, which proves due work and other
 hints still progress. Proof factories also share obligation's guarded scope:
 adopter cleanup cannot swallow a failed delivery verdict. See the
 [proof resource test plan](work-in-progress/tickets/proof-resource-ownership-test-plan.md).
+
+## Third pass: exercise the public bindings in every application
+
+The five runnable applications now use `ProviderSeam` for all six capability
+bindings. Real provider refusals and reply loss exposed discarded context
+managers in the derived retry/outcome factories. Those scopes now remain active
+through the proof and preserve failures during cleanup. Explicit admissions,
+terminal behavior, cancellation and process-death histories remain alongside the
+derived proofs. See the [application evidence matrix](../examples/README.md#executable-provider-bindings).
+
+The repeated source audit covered the current pre-cutover runtime/harness and
+adjacent session tooling. No additional runtime behavior was missing; the
+fixture-resolution safeguard found outside the harness was ported to
+pytest-obligation, and this repository's CI enables it. The paired suite runs
+against that reviewed candidate. The [obligation audit](https://github.com/gigaverse-app/pytest-obligation/pull/58)
+records the remaining differences, scoped lifecycle findings and control owners.
+
+Consumer consolidation found an additional boundary issue: the generic
+`transaction_in_progress` helper lived beside Due's test model. It now has one
+model-free owner in `pytest_obligation.integrations.django.transactions`, with a
+bare import alias here for compatibility. BE also uses the public worker scopes,
+lock recorder and Beat driver instead of its remaining implementation copies.
+The public lock ledger is shared, and missing scope/SQL controls now run upstream.
+
+
+## Follow-up against newly merged backend behavior
+
+A later main-branch merge introduced an actual recording-lifecycle consumer of
+`CompletionLease`. The earlier decision to drop unused native APIs did not cover
+this newly shipped use. The focused [completion API](completion-leases.md) and
+its database/cancellation histories are now public; the unused native runtime
+facades remain removed. BE consumes this public owner.
+
+The repeated audit also removed a dead BE suite-inventory copy and consolidated
+registration overlay selection and existing-lifecycle delivery. `SweepDelivery`
+shares work-table recovery's bounded loop and downstream ticks. Provider-seam
+replay now forwards the independent expected outcome introduced by the latest
+obligation contracts. A real SQLite book-provider corruption control failed
+before that forwarding fix and passes only when both replay proofs reject the
+wrong content. File and book process-death histories from main remain connected.
+
+Three more generic BE broker control suites now run here: exact failure claims
+(including repeated exception instances), exhausted and deferred Celery retries,
+retry arguments/options and deterministic backoff, host/database clock skew,
+and accepted provider requests completing after a lost response. BE retains its
+application registration adapter while delegating failure accounting. Nested
+registration overlays and sweep scopes restore prior bindings after exceptions;
+real Celery downstream-delay controls reject recovery that leaves work pending.
