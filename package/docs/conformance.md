@@ -94,7 +94,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
 | Replay-safe effect | `replay`; `delivery.effect_calls` | An actual second external execution leaves the same observable result; a lost acknowledgement replays through recovery to one settled outcome |
-| External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties` | UNKNOWN blocks resend; receipts repair publication through interruption histories |
+| External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
 | Projection or scheduled action | `snapshot` | Supersession; late projection repair or cancellation after external entry |
 | Canonical discovery | `derivation` | Fact-derived obligations, admissible database edge values, poisoned candidates |
