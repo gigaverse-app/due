@@ -454,13 +454,21 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
 
     def apply_late(pk):
         work = model.objects.get(pk=pk)
+        expected = receipt(work)
         if evidence_entry is None:
-            capability.record_applied_effect_evidence(attempts[pk], receipt(work))
+            capability.record_applied_effect_evidence(attempts[pk], expected)
             capability.settle_from_applied_effect_evidence(pk)
         else:
             # REAL PRODUCTION: the application's receipt path, then the recovery a webhook relies on.
-            evidence_entry(work, receipt(work))
+            evidence_entry(work, expected)
             capability.recover()
+        # Applied evidence must settle as success, not merely one of profile C's terminal states.
+        assert state(pk) == DurableWorkState.SUCCEEDED, "applied receipt did not settle the operation as SUCCEEDED"
+        attempt = attempts[pk]
+        attempt.refresh_from_db()
+        assert attempt.outcome == EffectAttemptOutcome.APPLIED, "applied receipt was discarded instead of retained"
+        assert capability.evidence_store.read(attempt) == expected, "settlement retained a different applied receipt"
+        assert not attempt.repair_pending, "applied receipt still owes product settlement"
         return state(pk)
 
     def expire(pk) -> None:

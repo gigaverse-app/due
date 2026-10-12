@@ -18,6 +18,7 @@ from pytest_obligation.profiles.crash_ambiguity import assert_ambiguity_contract
 from due.django.conformance.bindings import DurableWorkBindings
 from due.django.conformance.examples import EffectExamples
 from due.django.conformance.suite import effect_contract, operation_ambiguity
+from due.django.public import DurableWorkState
 from tests.harness.operation import ProviderResult, Publication, PublicationWork, record
 from tests.harness.operation import operation_environment as operation_environment
 from tests.harness.primitive import PrimitiveOwner, PrimitiveWork, primitive
@@ -51,15 +52,28 @@ def product_only_webhook(publication: Publication) -> EntryPoint:
     return lambda work, result: PrimitiveOwner.objects.filter(pk=work.owner_id).update(value=result.value)
 
 
+def state_only_webhook(state: DurableWorkState) -> Callable[[Publication], EntryPoint]:
+    # Defect: a terminal marker cannot replace the applied receipt and its product settlement.
+    return lambda publication: lambda work, result: PublicationWork.objects.filter(pk=work.pk).update(state=state)
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
     ("entry", "defect"),
     [
         (correlating_webhook, None),
-        (uncorrelated_webhook, "not terminal"),
-        (product_only_webhook, "not terminal"),
+        (uncorrelated_webhook, "did not settle"),
+        (product_only_webhook, "did not settle"),
+        (state_only_webhook(DurableWorkState.TERMINAL_FAILED), "did not settle"),
+        (state_only_webhook(DurableWorkState.SUCCEEDED), "discarded"),
     ],
-    ids=["correlates-and-records", "drops-the-receipt", "bypasses-evidence"],
+    ids=[
+        "correlates-and-records",
+        "drops-the-receipt",
+        "bypasses-evidence",
+        "fails-applied",
+        "success-without-receipt",
+    ],
 )
 def test_late_evidence_settles_only_through_a_working_entry_point(
     publication: Publication, entry: Callable[[Publication], EntryPoint], defect: str | None
