@@ -30,19 +30,17 @@ on every update. This is a [GitHub token rule](https://docs.github.com/en/action
 not PyPI approval and not a request to publish. Approving those workflows only runs
 CI; **merging the release PR** is the publishing decision.
 
-Release PR checks use `RELEASE_PLEASE_TOKEN` from the `release-automation`
-environment, restricted to the `main` branch without required reviewers. Normal
-PR jobs do not reference that environment. The release job fails clearly when
-the credential is absent; it never falls back to `GITHUB_TOKEN` and recreates the
-approval prompt.
+Release Please uses the existing organization secret `GV_CI_CROSS_REPO_TOKEN`.
+In the organization's Actions secret settings, include this repository in that
+secret's selected repositories. The credential needs Contents and Pull requests
+read/write access. The release job fails clearly when it is absent; it never
+falls back to `GITHUB_TOKEN` and recreates the approval prompt.
 
-The current credential is the maintainer's existing GitHub CLI OAuth credential,
-provisioned through the API. It has `repo`, `workflow`, `admin:org` and `gist`
-scopes, broader than release automation needs. Revoking that CLI authorization
-also revokes this release credential. Prefer replacing it with a dedicated
-fine-grained token limited to these OSS repositories with Contents and Pull
-requests read/write, or an installation token from a dedicated GitHub App. Keep
-any replacement in the same main-only environment.
+The `release-automation` environment restricts the release job to `main` without
+required reviewers. The shared secret is repository-accessible, not scoped to
+that environment; maintainers who can change trusted workflows can use it.
+Release automation follows the shared CI credential's existing rotation lifecycle
+and no longer stores a separate copy of the maintainer's GitHub CLI credential.
 
 ## Distribution name
 

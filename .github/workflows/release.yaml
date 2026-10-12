@@ -58,19 +58,19 @@ jobs:
             core.setOutput('matches', branch.commit.sha === context.payload.workflow_run.head_sha);
       - name: Require release PR authentication
         env:
-          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+          HAS_RELEASE_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN != '' }}
         run: |
           if [[ "$HAS_RELEASE_TOKEN" != "true" ]]; then
-            echo "::error::Configure RELEASE_PLEASE_TOKEN in the main-only release-automation environment."
+            echo "::error::Share the organization GV_CI_CROSS_REPO_TOKEN secret with this repository."
             exit 1
           fi
       - id: release
         if: steps.current.outputs.matches == 'true'
         uses: googleapis/release-please-action@v4
         with:
-          # A non-GITHUB_TOKEN credential triggers ordinary PR CI. The main-only
-          # environment keeps it unavailable to pull-request test jobs.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          # The shared organization credential triggers ordinary PR CI.
+          # The release-automation environment restricts this job to main.
+          token: ${{ secrets.GV_CI_CROSS_REPO_TOKEN }}
           target-branch: main
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
