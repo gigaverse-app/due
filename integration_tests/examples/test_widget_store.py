@@ -23,8 +23,9 @@ def instant_stages():
 
 def finish(order: Order) -> None:
     work = CheckoutWork.objects.get(owner=order)
-    make_due(work)
-    checkout_order.attempt_execution(work.pk)
+    for _ in range(11):
+        make_due(work)
+        checkout_order.attempt_execution(work.pk)
 
 
 def test_checkout_payment_dispatch_and_duplicate_requests():
@@ -142,3 +143,21 @@ def test_concurrent_duplicate_submission_reserves_only_once() -> None:
     assert identities[0] == identities[1]
     assert Product.objects.get().inventory == 99
     assert CheckoutWork.objects.count() == Order.objects.count() == 1
+
+
+def test_waiting_dispatch_releases_claim_and_preserves_budget() -> None:
+    from due.django.public import DurableWorkState
+
+    order = checkout(uuid4())
+    payment(order.submission_key, "paid")
+    work = CheckoutWork.objects.get(owner=order)
+    with override_settings(WIDGET_STAGE_SECONDS=60):
+        checkout_order.attempt_execution(work.pk)
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.READY
+    assert work.lease_expires_at is None
+    assert work.applied_revision != work.desired_revision
+    assert work.rearm_count == 0
+    assert work.available_at > timezone.now() + timedelta(seconds=50)
+    assert not checkout_order.attempt_execution(work.pk)
+    assert CheckoutWork.objects.count() == 1

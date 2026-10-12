@@ -57,7 +57,7 @@ SEAM = ProviderSeam(
     environment=environment,
     make_work=make_work,
     observe=lambda calls, work: observe(work),
-    delivered=lambda calls, work: (Order.Status.DISPATCHED, 0, True),
+    delivered=lambda calls, work: (Order.Status.PAID, 10, True),
     calls=lambda calls: calls.total,
     calls_for=lambda calls, work: sum(calls.count((work.submission_key, stage)) for stage in range(11, 0, -1)),
     refuse=lambda calls: calls.reject(lambda: OSError("database command unavailable")),
@@ -178,7 +178,7 @@ def process_history(decision: str):
 
     def recover(key: str) -> None:
         # REAL PRODUCTION: the registered recovery owner, never direct settlement.
-        with environment(), WorkTableDelivery(checkout_order).session() as delivery:
+        with environment(), WorkTableDelivery(checkout_order, rounds=12).session() as delivery:
             delivery.recover()
 
     return ProcessHistory(

@@ -1,21 +1,27 @@
-import time
 from datetime import timedelta
 
 from django.db.models import Q
+from django.utils import timezone
 
-from due.django.public import DurableWorkPolicy, DurableWorkState, ExecutionEligibility, ReplaySafeEffect
+from due.django.public import ContinueAfter, DurableWorkPolicy, DurableWorkState, ExecutionEligibility, ReplaySafeEffect
 from examples.widget_store import services
 from examples.widget_store.models import CheckoutWork, Order
 
 
 class CheckoutOrder(ReplaySafeEffect[Order, CheckoutWork]):
-    def perform_effect(self, work: CheckoutWork) -> None:
-        # PostgreSQL owns progress and compensation. Death after any committed
-        # transition is safe: repeat this command, never blindly repeat a decrement.
-        for stage in range(11, 0, -1):
-            while (delay := services.advance(work.submission_key, stage)) is not None:
-                if delay:
-                    time.sleep(delay)
+    def perform_effect(self, work: CheckoutWork) -> ContinueAfter | None:
+        # Each delivery advances one exact DB stage and releases its worker slot.
+        # The same obligation remains owed; losing a timer/broker message cannot
+        # lose progress because the registered sweep owns the next delivery.
+        order = Order.objects.get(submission_key=work.submission_key)
+        stage = 11 if order.status == Order.Status.PENDING else order.progress_remaining
+        delay = services.advance(work.submission_key, stage)
+        order.refresh_from_db()
+        if order.status in {Order.Status.CANCELLED, Order.Status.DISPATCHED}:
+            return None
+        assert order.next_stage_at is not None
+        remaining = delay if delay is not None else (order.next_stage_at - timezone.now()).total_seconds()
+        return ContinueAfter(timedelta(seconds=max(remaining, 0.001)), until=None)
 
     def finalize_retry(self, work: CheckoutWork, error: Exception) -> None:
         if work.state == DurableWorkState.EXHAUSTED:

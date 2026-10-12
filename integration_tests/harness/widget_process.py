@@ -10,7 +10,7 @@ from pytest_obligation.process_histories import die_here
 
 django.setup()
 
-from due.django.testing import hold_nudges  # noqa: E402
+from due.django.testing import hold_nudges, make_due  # noqa: E402
 from examples.widget_store import services  # noqa: E402
 from examples.widget_store.effects import checkout_order  # noqa: E402
 from examples.widget_store.models import CheckoutWork  # noqa: E402
@@ -38,7 +38,13 @@ def main() -> None:
             die_here("after reservation")
         services.payment(order.submission_key, decision)
         die_here("after payment receipt")
-        assert checkout_order.attempt_execution(CheckoutWork.objects.get(owner=order).pk)
+        work = CheckoutWork.objects.get(owner=order)
+        for _ in range(11):
+            make_due(work)
+            assert checkout_order.attempt_execution(work.pk)
+            work.refresh_from_db()
+            if work.state == "succeeded":
+                break
 
 
 if __name__ == "__main__":
