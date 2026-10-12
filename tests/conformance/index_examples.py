@@ -24,6 +24,7 @@ class Stage[W: UniverseDurableWork, ResultT]:
     execute: Callable[[W], object]
     terminal: TerminalExample[W]
     expected: BookContent
+    external_expected: BookContent | bool
 
 
 def examples_for[W: UniverseDurableWork, ResultT](stage: Stage[W, ResultT]) -> EffectExamples[W]:
@@ -46,6 +47,7 @@ def examples_for[W: UniverseDurableWork, ResultT](stage: Stage[W, ResultT]) -> E
             prepare=stage.make_work,
             execute=stage.execute,
             observe=stage.external_observe,
+            expected=stage.external_expected,
             execution_count_for=stage.effect_calls,
         )
 
@@ -56,6 +58,5 @@ def examples_for[W: UniverseDurableWork, ResultT](stage: Stage[W, ResultT]) -> E
         retry=retry,
         terminal=lambda: stage.terminal,
         replay=replay,
-        convergence_not_assessed="Book creation admits a fresh owner; the existing admission bindings do not revisit admitted work to prove input immutability.",
         environment=index_environment,
     )

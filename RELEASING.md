@@ -56,7 +56,7 @@ Configure the PyPI Trusted Publisher for project `django-due`:
 
 - Owner: `gigaverse-app`
 - Repository: `due`
-- Workflow filename: `release.yml`
+- Workflow filename: `release.yaml`
 - Environment: `pypi`
 
 For a new project, use a pending publisher under PyPI Account → Publishing.
@@ -84,3 +84,14 @@ Production retries still require successful main CI for the resolved tag commit.
 Re-run that commit's failed CI first. An empty tag is allowed only for a TestPyPI
 development rehearsal. A successful upload is immutable; do not reuse a version
 for different source.
+
+## Current dependency release prerequisite
+
+The latest merged Due conformance code requires obligation's new independent
+replay outcomes, introduced after pytest-obligation 0.10.0. Normal development
+and CI retain main's reviewed Git pin through `tool.uv.sources`. Wheel metadata
+contains only `pytest-obligation>=0.10.1.dev6,<1`, with no direct Git dependency.
+Publish the next pytest-obligation release containing those changes before
+merging Due's first release PR. The release build installs the wheel's testing
+extra from published packages and refuses to publish if that dependency is not
+yet available. A runtime-only install does not need pytest-obligation.
