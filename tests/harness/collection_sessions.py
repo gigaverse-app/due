@@ -251,6 +251,35 @@ def add_room_handoff(child: ChildSession) -> None:
     )
 
 
+def add_discovery_and_inline_caller(child: ChildSession) -> None:
+    """Bind discovery and the real inline-caller history without running fixtures at collection."""
+    child.edit(
+        "effects.py",
+        "entries = [",
+        """
+from due.django.public import AppliedEvidenceContract, Discovery
+from tests.harness.primitive import PrimitiveOwner
+discovery = Discovery(
+    candidates=lambda: PrimitiveOwner.objects.order_by("pk"),
+    desired_for=lambda owner, work: None,
+    page_size=2,
+    applied_evidence=AppliedEvidenceContract.CANONICAL_OWNER_STATE,
+    unbounded_because="Every owed owner in this specimen belongs to this candidate set.",
+)
+room_storage_cleanup = replace(room_storage_cleanup, discovery=discovery)
+profile_rendition_cleanup = replace(profile_rendition_cleanup, discovery=discovery)
+entries = [
+""",
+    )
+    child.edit(
+        "test_effects.py",
+        "examples = EffectExamples(",
+        "examples = EffectExamples(derivation=unused, snapshot=unused, synchronous_callers={'cleanup': unused},",
+    )
+    child.edit("test_effects.py", "immutable_inputs='An immutable captured cleanup identity.',", "")
+    child.edit("test_effects.py", "perturb_inputs=unused,", "")
+
+
 def lost_proofs(result: pytest.RunResult, suite: str) -> list[str]:
     """The one collection failure the hook raised, parsed back into the missing case names."""
     marker = f"{suite}: registered capability lost collected proofs: "

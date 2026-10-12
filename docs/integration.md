@@ -160,7 +160,7 @@ and unresolved provider evidence during a separate consumer cutover.
   existing uncertain operations or copy only the work rows.
 - Drain or route old task names before removing their worker entry points. Only
   after the data/route cutover should all processes use Due's registrations.
-- Configure existing tenant/routing/fatal-error hooks and update monitoring to `due_*` metrics.
+- Configure existing tenant/routing/fatal-error hooks and preserve or explicitly migrate the configured metric namespace.
 - Run the existing application lifecycle tests and generated contracts through
   the new imports before removing the original implementation.
 
@@ -169,8 +169,38 @@ compatibility still require deliberate handling; this is not a zero-migration sw
 All 17 registrations in the originating backend are work tables; there are no
 direct production adopters of its native lifecycle APIs. Two production modules
 use a counter helper located in the old `native` package; that arithmetic import
-can stay backend-owned or be relocated separately. Older application workflows
+can import the existing `due.django.runtime.counters` arithmetic helper. Older application workflows
 and their tests do not need to adopt a native API to survive the work-table port.
 
 Use the [backend audit](backend-adoption.md) for application migration gates and
 the [conformance guide](conformance.md) to bind the existing domain suites.
+
+
+## Migrating an existing application
+
+Configure these settings before Django imports Due:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `DUE_EFFECT_ATTEMPT_TABLE` | `due_effectattempt` | Existing evidence table name |
+| `DUE_RECOVERY_DEFERRAL_TABLE` | `due_recoverydeferral` | Existing recovery-deferral table name |
+| `DUE_TASK_NAMESPACE` | `due.django.runtime.tasks` | Stable names understood by existing workers |
+| `DUE_METRIC_NAMESPACE` | `due` | Stable Prometheus family prefix |
+
+Changing a table setting does not move data or rewrite migrations. An adopter
+with existing tables must supply its reviewed Django migration module, preserve
+physical constraints and foreign keys, and prove forward/backward migration with
+populated rows. Keep that application migration history current when adopting
+future Due schema changes. New applications should use the default tables and
+shipped migrations.
+
+Keep task names stable during rolling deployments: changing a Python import is
+separate from changing the Celery message name. Older historical aliases can be
+bound by the application's Celery registry to the same task objects. Pass exact
+`retired_task_names=(...)` to `remove_stale_recovery_schedules` when reconciling
+persisted Beat entries under previous names; another application's recovery task
+must never be removed by a suffix match.
+
+`due.django.runtime.metrics.metric_schemas()` exposes read-only label schemas and
+enum vocabularies from the declarations that construct the metrics. Applications
+can check alerts against this catalog without duplicating metric definitions.

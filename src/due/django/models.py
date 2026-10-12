@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC
 from typing import ClassVar
 
+from django.conf import settings
 from django.db import models
 from django.db.models import F
 from django.db.models.functions import Now
@@ -60,6 +61,7 @@ class EffectAttempt(models.Model):
     repair_settled_by = models.CharField(max_length=20, choices=RepairSettledBy.choices, blank=True)
 
     class Meta:
+        db_table = getattr(settings, "DUE_EFFECT_ATTEMPT_TABLE", "due_effectattempt")
         indexes = [
             models.Index(fields=["work_model", "work_id", "started_at"], name="effect_attempt_work_ix"),
             models.Index(
@@ -114,6 +116,7 @@ class RecoveryDeferral(models.Model):
     last_error = models.CharField(max_length=255, blank=True)
 
     class Meta:
+        db_table = getattr(settings, "DUE_RECOVERY_DEFERRAL_TABLE", "due_recoverydeferral")
         constraints = [
             models.UniqueConstraint(fields=["effect", "phase", "identity"], name="recovery_deferral_identity_uq"),
         ]

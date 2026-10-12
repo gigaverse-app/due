@@ -46,6 +46,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
+                "db_table": "due_effectattempt",
                 "indexes": [
                     models.Index(fields=["work_model", "work_id", "started_at"], name="effect_attempt_work_ix"),
                     models.Index(
@@ -89,6 +90,7 @@ class Migration(migrations.Migration):
                 ("last_error", models.CharField(blank=True, max_length=255)),
             ],
             options={
+                "db_table": "due_recoverydeferral",
                 "indexes": [models.Index(fields=["effect", "retry_at"], name="recovery_deferral_retry_ix")],
                 "constraints": [
                     models.UniqueConstraint(

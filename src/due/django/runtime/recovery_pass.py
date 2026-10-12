@@ -219,6 +219,20 @@ class RecoveryPass:
         chosen = {*retried, *[*fresh, *ended[len(retried) :]][: size - len(retried)]}
         return [identity for identity in unique if identity in chosen]
 
+    def run_page[IdentityT](
+        self,
+        phase: RecoveryPhase,
+        ordered_ids: QuerySet[Any, IdentityT],
+        size: int,
+        step: Callable[[IdentityT], int],
+    ) -> int:
+        """Count successful transitions in one page, isolating and deferring each failed identity."""
+        changed = 0
+        for identity in self.page(phase, ordered_ids, size):
+            with self.isolate(phase, identity):
+                changed += step(identity)
+        return changed
+
     def held(self, phase: RecoveryPhase, selection: QuerySet[Any, Any]) -> frozenset[str]:
         """
         The identities this phase holds out right now, for a loop that picks one identity at a time.

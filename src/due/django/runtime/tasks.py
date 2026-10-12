@@ -13,6 +13,7 @@ from due.django.runtime.limits import (
     EXECUTION_SOFT_TIME_LIMIT_SECONDS,
     EXECUTION_TIME_LIMIT_SECONDS,
 )
+from due.django.runtime.names import OBSERVE_TASK, RECOVERY_TASK, RUN_TASK
 from due.django.runtime.registry import registration_named
 
 
@@ -26,17 +27,19 @@ def capability_for(name: str) -> DurableWorkCapability:
     return capability
 
 
-@shared_task(time_limit=EXECUTION_TIME_LIMIT_SECONDS, soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS)
+@shared_task(name=RUN_TASK, time_limit=EXECUTION_TIME_LIMIT_SECONDS, soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS)
 def run_durable_work_task(name: str, work_id: int, delivery_token: str) -> bool:
     return capability_for(name).attempt_execution(work_id, UUID(delivery_token))
 
 
-@shared_task(time_limit=60, soft_time_limit=50)
+@shared_task(name=RECOVERY_TASK, time_limit=60, soft_time_limit=50)
 def recover_durable_work_task(name: str) -> int:
     return capability_for(name).recover()
 
 
-@shared_task(time_limit=EXECUTION_TIME_LIMIT_SECONDS, soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS)
+@shared_task(
+    name=OBSERVE_TASK, time_limit=EXECUTION_TIME_LIMIT_SECONDS, soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS
+)
 def observe_durable_work_task(name: str, work_id: int, delivery_token: str) -> bool:
     from due.django.capabilities.observed_operations import ObservedExternalOperation
 

@@ -79,7 +79,7 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 
 **Alpha, Django-backed.** Extracted from Gigaverse's work-table primitive; the API
 may change before 1.0. Only work-table composition is public. Native-table
-composition is excluded. [Extraction scope →](docs/extraction.md)
+composition is excluded. [Extraction scope →](docs/extraction.md) · [Cutover audit and regression controls →](docs/cutover-audit.md)
 
 ## Coming from another library?
 
@@ -251,3 +251,6 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 Conformance declarations include [checked immutable inputs](docs/conformance.md#prove-an-immutable-input-declaration), with real admission and recovery controls.
 
 The [conformance API](docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam) includes provider-seam factories and unbounded-discovery completeness; [operations](docs/operations.md#failed-infrequent-recovery) describes failed-tick evidence.
+
+
+For an existing application, see [migration settings and stable wire names](docs/integration.md#migrating-an-existing-application).

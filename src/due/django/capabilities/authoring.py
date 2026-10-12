@@ -893,20 +893,12 @@ class OwnedDurableWorkCapability[
         # Owners this phase isolated recently are held out with backoff, so a
         # poisoned owner stops leading every page; they are still candidates
         # (undiscovered_count counts them) and are retried when their hold ends.
-        page = recovery.page(
+        return recovery.run_page(
             RecoveryPhase.DISCOVERY,
             discovery.bounded_candidates(now=recovery.clock()).values_list("pk", flat=True),
             discovery.page_size,
+            lambda owner_id: self._derive_owner(discovery, owner_id),
         )
-
-        repaired = 0
-        for owner_id in page:
-            # One owner whose fact cannot become valid work (e.g. desired input
-            # failing full_clean) is that owner's failure, not the page's: its
-            # transaction has rolled back and the next owner proceeds.
-            with recovery.isolate(RecoveryPhase.DISCOVERY, owner_id):
-                repaired += self._derive_owner(discovery, owner_id)
-        return repaired
 
     def _derive_owner(self, discovery: Discovery[OwnerT, WorkT], owner_id: int | str | UUID) -> bool:
         try:

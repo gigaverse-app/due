@@ -7,6 +7,7 @@ from celery import Celery
 from django.conf import settings
 from prometheus_client.parser import text_string_to_metric_families
 
+from due.django.runtime.names import METRIC_NAMESPACE
 from due.django.runtime.registry import RECOVERY_TASK, DurableWorkRegistration
 
 
@@ -46,7 +47,10 @@ def recovery_errors(registrations: Iterable[DurableWorkRegistration], metrics: s
     samples: dict[str, dict[str, float]] = {}
     for family in text_string_to_metric_families(metrics):
         for sample in family.samples:
-            if sample.name in {"due_last_recovery_timestamp_seconds", "due_recovery_stale_after_seconds"}:
+            if sample.name in {
+                f"{METRIC_NAMESPACE}_last_recovery_timestamp_seconds",
+                f"{METRIC_NAMESPACE}_recovery_stale_after_seconds",
+            }:
                 effect = sample.labels.get("effect")
                 if effect is not None:
                     values = samples.setdefault(sample.name, {})
@@ -54,8 +58,8 @@ def recovery_errors(registrations: Iterable[DurableWorkRegistration], metrics: s
     errors = []
     for entry in registrations:
         effect = entry.model._meta.label_lower
-        last = samples.get("due_last_recovery_timestamp_seconds", {}).get(effect)
-        threshold = samples.get("due_recovery_stale_after_seconds", {}).get(effect)
+        last = samples.get(f"{METRIC_NAMESPACE}_last_recovery_timestamp_seconds", {}).get(effect)
+        threshold = samples.get(f"{METRIC_NAMESPACE}_recovery_stale_after_seconds", {}).get(effect)
         if last is None or threshold is None or last <= 0 or threshold <= 0:
             errors.append(f"{entry.name}: missing recovery heartbeat or stale threshold in worker metrics")
         elif not 0 <= now.timestamp() - last <= threshold:
