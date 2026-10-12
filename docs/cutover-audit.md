@@ -60,7 +60,7 @@ behavior they checked had been extracted. They now run in standalone CI:
 | Database-legal discovery, rejected desired state and poison stopping a discovery page | [`test_discovery_admissibility.py`](../tests/conformance/test_discovery_admissibility.py) |
 | Every recovery phase declares a proof and every shared proof names an existing test | [`test_recovery_isolation_phase_proofs.py`](../tests/conformance/test_recovery_isolation_phase_proofs.py) |
 | Inline caller histories and unbounded discovery appear in reports and cannot disappear from collection | [`test_conformance_collection_declared_scenarios.py`](../tests/conformance/test_conformance_collection_declared_scenarios.py) |
-| An unbounded retry policy refuses a retry example that could never be exercised | [`test_conformance_enrollment.py`](../tests/conformance/test_conformance_enrollment.py) |
+| An unbounded retry policy claims profile J through the persistent-failure proof, so its retry example must keep the work owed | [`test_conformance_enrollment.py`](../tests/conformance/test_conformance_enrollment.py), [`test_persistent_retry.py`](../tests/conformance/test_persistent_retry.py) |
 
 Generic crash histories, narrow gap semantics, SQL commit observation, bounded
 ownership, eligibility, edge cases, terminal states, source scanners and debt

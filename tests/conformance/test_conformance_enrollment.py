@@ -43,12 +43,11 @@ from due.django.runtime.tasks import capability_for
 from due.django.testing import hold_nudges
 from tests.harness.enrollment import TEST_OWNED_CAPABILITIES, no_fixture
 from tests.harness.primitive import (
-    PrimitiveWork,
-    primitive,
-    record,
+    isolated_primitive_fixture as isolated_primitive_fixture,
 )
 from tests.harness.primitive import (
-    isolated_primitive_fixture as isolated_primitive_fixture,
+    primitive,
+    record,
 )
 from tests.harness.primitive import (
     root_registration_fixture as root_registration_fixture,
@@ -211,12 +210,12 @@ def test_shared_bindings_follow_nondefault_retry_and_retention_policy(rearms):
 
 
 EXPECTED_REQUIREMENTS: dict[type[DurableWorkCapability[Any, Any]], tuple[str, ...]] = {
-    ReplaySafeEffect: ("delivery", "replay"),
-    DurableExternalOperation: ("delivery", "applied_receipt", "receipt_repair", "rejections", "uncertainties"),
-    DurableScheduledAction: ("delivery", "replay", "snapshot"),
-    DurableProjection: ("delivery", "replay", "snapshot"),
-    IndependentCompensation: ("delivery", "replay"),
-    OwnedDurableWorkCapability: ("delivery", "replay"),
+    ReplaySafeEffect: ("delivery", "retry", "replay"),
+    DurableExternalOperation: ("delivery", "retry", "applied_receipt", "receipt_repair", "rejections", "uncertainties"),
+    DurableScheduledAction: ("delivery", "retry", "replay", "snapshot"),
+    DurableProjection: ("delivery", "retry", "replay", "snapshot"),
+    IndependentCompensation: ("delivery", "retry", "replay"),
+    OwnedDurableWorkCapability: ("delivery", "retry", "replay"),
 }
 
 
@@ -224,7 +223,8 @@ def _expected_requirements(capability: DurableWorkCapability[Any, Any]) -> tuple
     mode = next(mode for mode in EXPECTED_REQUIREMENTS if isinstance(capability, mode))
     required = EXPECTED_REQUIREMENTS[mode]
     if capability.policy.max_rearms is not None:
-        required += ("retry", "terminal")
+        # Only a bounded policy exhausts; the terminal example observes that exhaustion.
+        required += ("terminal",)
     if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
         required += ("derivation",)
         if not isinstance(capability, DurableExternalOperation):
@@ -284,15 +284,20 @@ def test_capabilities_require_their_examples(capability, required, monkeypatch):
 
 
 @pytest.mark.no_db
-def test_unbounded_policies_refuse_a_retry_example_nothing_would_run(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unbounded_policies_claim_retry_through_the_persistent_proof(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pytest_obligation.contract import Claim, Profile
+
     from due.django.runtime.registry import DurableWorkRegistration
 
-    capability = replace(primitive, policy=replace(primitive.policy, max_rearms=None))
-    entry = DurableWorkRegistration("enrollment_negative", capability)
-    monkeypatch.setitem(installed.get(), entry.name, entry)
-    examples = EffectExamples[PrimitiveWork](make_work=no_fixture, delivery=no_fixture, retry=no_fixture)
-    with pytest.raises(ObligationContractDesignError, match="never reaches"):
-        effect_contract(capability, examples=examples)
+    # One failure example drives either half of profile J; the policy decides which.
+    for max_rearms, field in ((None, "persistent_retry"), (3, "retry")):
+        capability = replace(primitive, policy=replace(primitive.policy, max_rearms=max_rearms))
+        entry = DurableWorkRegistration("enrollment_negative", capability)
+        monkeypatch.setitem(installed.get(), entry.name, entry)
+        contract = effect_contract(capability, examples=_immutable_examples())
+        assert isinstance(contract.profiles[Profile.J], Claim)
+        bound = {name for name in ("retry", "persistent_retry") if getattr(contract, name) is not None}
+        assert bound == {field}
 
 
 @pytest.mark.no_db
@@ -344,7 +349,7 @@ def declared_only(*args: object, **kwargs: object) -> Any:
 
 def _declared_examples(**declared: Any) -> EffectExamples:
     """The root primitive's required bindings, with no profile E decision, plus the decisions under test."""
-    assert _expected_requirements(primitive) == ("delivery", "replay", "retry", "terminal", "perturb_inputs")
+    assert _expected_requirements(primitive) == ("delivery", "retry", "replay", "terminal", "perturb_inputs")
     return replace(
         EffectExamples(
             make_work=declared_only,
@@ -515,11 +520,11 @@ def test_perturb_inputs_is_refused_where_the_library_cannot_move_inputs(monkeypa
     # No perturb_inputs requirement: the library already refuses to move an operation's inputs.
     assert _expected_requirements(operation) == (
         "delivery",
+        "retry",
         "applied_receipt",
         "receipt_repair",
         "rejections",
         "uncertainties",
-        "retry",
         "terminal",
     )
     reason = "An evidence-required occurrence refuses new input and supersession."

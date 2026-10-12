@@ -94,7 +94,8 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     Return a context manager for scoped faults (for example ``ProviderProbe.reject``);
     callbacks that configure the provider in place may return a plain value.
 
-    Required when the policy is bounded (max_rearms), which is when ``retry`` is derived.
+    Required, since every policy derives ``retry`` from it: a bounded policy must exhaust
+    at its budget, an unbounded one must keep the work owed and paced (profile J).
     """
     calls_for: Callable[[P, W], int] | None = None
     """OBSERVE: provider calls for one work's identity; defaults to ``calls``."""
@@ -393,15 +394,17 @@ def seam_examples[W: UniverseDurableWork](
     """
     Routine bindings derived from the seam; anything in ``overrides`` replaces or adds to them.
 
-    ``retry`` is derived only for a bounded policy, ``replay`` only when the mode's
+    ``retry`` is derived for every policy (it feeds profile J's bounded or persistent
+    proofs), ``replay`` only when the mode's
     effect method is the provider boundary, and ``convergence`` only for projections.
     An adopter whose replay must repeat a lower layer passes ``replay=`` explicitly.
     """
     derived: dict[str, Any] = {"make_work": seam.make_work, "delivery": seam.delivery}
-    if capability.policy.max_rearms is not None and "retry" not in overrides:
+    if "retry" not in overrides:
         if seam.refuse is None:
             raise ObligationContractDesignError(
-                f"{type(capability).__name__}: a bounded policy exhausts work, so its seam must declare refuse"
+                f"{type(capability).__name__}: profile J drives a persistent provider failure, "
+                "so the seam must declare refuse"
             )
         derived["retry"] = seam.retry
     target = _replay_target(capability)
