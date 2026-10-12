@@ -16,23 +16,36 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 @pytest.mark.parametrize("mutation", ["wrong dispatch", "double dispatch"])
 def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
-    original = services.advance
+    if mutation == "double dispatch":
+        original_apply = type(checkout_order).apply
 
-    def corrupt(key, stage):
-        already_done = Order.objects.get(submission_key=key).status == Order.Status.DISPATCHED
-        result = original(key, stage)
-        if stage == 1 and (mutation == "wrong dispatch" or already_done):
-            order = Order.objects.get(submission_key=key)
-            order.progress_remaining = 1 if mutation == "wrong dispatch" else order.progress_remaining + 1
-            order.save(update_fields=["progress_remaining"])
-        return result
+        def duplicate(self, work, context):
+            final = Order.objects.get(pk=work.owner_id).progress_remaining == 1
+            result = original_apply(self, work, context)
+            if final:
+                original_apply(self, work, context)
+            return result
 
-    monkeypatch.setattr(services, "advance", corrupt)
+        monkeypatch.setattr(type(checkout_order), "apply", duplicate)
+    else:
+        original = services.advance
+
+        def corrupt(work):
+            result = original(work)
+            order = Order.objects.get(pk=work.owner_id)
+            if order.status == Order.Status.DISPATCHED:
+                order.progress_remaining = 1
+                order.save(update_fields=["progress_remaining"])
+            return result
+
+        monkeypatch.setattr(services, "advance", corrupt)
     contract = effect_contract(checkout_order, examples=EXAMPLES)
     case = next(
-        row.values[0] for row in contract_cases(contract) if row.id == "REPLAY_SAFE_EXECUTION-assert_replay_converges"
+        row.values[0]
+        for row in contract_cases(contract)
+        if row.id == "delivery-replay-final dispatch-assert_delivery_replay"
     )
-    with pytest.raises(AssertionError, match="declared product outcome"):
+    with pytest.raises(AssertionError, match="declared product outcome|repeated or skipped its callback"):
         case.run()
 
 
@@ -47,9 +60,9 @@ def test_process_contract_rejects_disabled_recovery(monkeypatch, history):
 def test_process_contract_rejects_wrong_stock_compensation(monkeypatch: pytest.MonkeyPatch, inventory: int) -> None:
     original = services.advance
 
-    def corrupt(key, stage):
-        before = Order.objects.get(submission_key=key)
-        result = original(key, stage)
+    def corrupt(work):
+        before = Order.objects.get(pk=work.owner_id)
+        result = original(work)
         if before.reserved and Order.objects.get(pk=before.pk).status == Order.Status.CANCELLED:
             # Fault injection: corrupt the actual refund, losing or duplicating stock.
             Product.objects.filter(pk=before.product_id).update(inventory=inventory)
@@ -75,6 +88,40 @@ def test_generated_gate_rejects_selection_before_payment(monkeypatch: pytest.Mon
 
 
 def test_process_contract_rejects_dropped_continuation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(type(checkout_order), "perform_effect", lambda self, work: None)
+    monkeypatch.setattr(type(checkout_order), "transition", lambda self, work: None)
     with pytest.raises(HistoriesDiverged, match="after payment receipt"):
         assert_process_deaths_converge(EXAMPLES.process_handoffs[0])
+
+
+@pytest.mark.parametrize("fault", ["early", "stalled", "reversed"])
+def test_generated_completion_rejects_broken_progress(monkeypatch, fault):
+    from django.test import override_settings
+
+    original = services.advance
+
+    def corrupt(work):
+        original(work)
+        assert work.owner is not None
+        if work.owner.progress_remaining == 5:
+            work.owner.progress_remaining = 9
+            work.owner.save(update_fields=["progress_remaining"])
+
+    if fault == "stalled":
+        monkeypatch.setattr(type(checkout_order), "recover", lambda self: 0)
+    elif fault == "reversed":
+        monkeypatch.setattr(services, "advance", corrupt)
+    else:
+        transition = type(checkout_order).transition
+
+        def early(self, work):
+            with override_settings(WIDGET_STAGE_SECONDS=0.001):
+                return transition(self, work)
+
+        monkeypatch.setattr(type(checkout_order), "transition", early)
+    case = next(
+        row.values[0]
+        for row in contract_cases(effect_contract(checkout_order, examples=EXAMPLES))
+        if row.id == "completion-paid hints-assert_completes_within"
+    )
+    with pytest.raises(AssertionError, match="time bound|minimum wait|reversed"):
+        case.run()

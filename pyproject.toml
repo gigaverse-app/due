@@ -8,6 +8,8 @@ dev = [
     "django-stubs>=5.2",
     "procrastinate>=3,<4",
     "playwright>=1.58,<2",
+    "psutil>=7,<8",
+    "psycopg-pool>=3.2,<4",
 ]
 
 [tool.ruff]
