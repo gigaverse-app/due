@@ -96,7 +96,7 @@ replace the backend's adopter suites.
 CI retains profile, application-suite and observation reports and checks complete
 executed application evidence. See [conformance authoring](conformance.md) and the
 [backend replacement audit](backend-adoption.md) for the API and remaining cutover
-work. Native-table composition is covered by the standalone `tests/native` controls.
+work. The native-table API remains excluded.
 
 Local parity run: **821 tests pass** on Python 3.14.7, Django 6.0.9 and
 PostgreSQL 17, including the Redis/prefork worker and real process-death histories.

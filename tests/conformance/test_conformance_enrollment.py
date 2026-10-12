@@ -43,11 +43,12 @@ from due.django.runtime.tasks import capability_for
 from due.django.testing import hold_nudges
 from tests.harness.enrollment import TEST_OWNED_CAPABILITIES, no_fixture
 from tests.harness.primitive import (
-    isolated_primitive_fixture as isolated_primitive_fixture,
-)
-from tests.harness.primitive import (
+    PrimitiveWork,
     primitive,
     record,
+)
+from tests.harness.primitive import (
+    isolated_primitive_fixture as isolated_primitive_fixture,
 )
 from tests.harness.primitive import (
     root_registration_fixture as root_registration_fixture,
@@ -279,6 +280,18 @@ def test_capabilities_require_their_examples(capability, required, monkeypatch):
     # Deliberate invalid declaration: even a dynamically supplied missing field must fail collection.
     examples = replace(examples, **{required: None})  # pyrefly: ignore[bad-argument-type]
     with pytest.raises(ObligationContractDesignError, match=required):
+        effect_contract(capability, examples=examples)
+
+
+@pytest.mark.no_db
+def test_unbounded_policies_refuse_a_retry_example_nothing_would_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    from due.django.runtime.registry import DurableWorkRegistration
+
+    capability = replace(primitive, policy=replace(primitive.policy, max_rearms=None))
+    entry = DurableWorkRegistration("enrollment_negative", capability)
+    monkeypatch.setitem(installed.get(), entry.name, entry)
+    examples = EffectExamples[PrimitiveWork](make_work=no_fixture, delivery=no_fixture, retry=no_fixture)
+    with pytest.raises(ObligationContractDesignError, match="never reaches"):
         effect_contract(capability, examples=examples)
 
 

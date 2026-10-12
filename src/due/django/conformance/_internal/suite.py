@@ -60,6 +60,7 @@ from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance._internal.immutable_inputs import (
+    AdmissionPath,
     admission_paths,
     assert_immutable_inputs_hold,
     checks_immutable_inputs,
@@ -1164,7 +1165,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
 
             @proof
             @pytest.mark.parametrize("path", paths, ids=[path.id for path in paths])
-            def test_immutable_inputs_hold(self, path):
+            def test_immutable_inputs_hold(self, path: AdmissionPath):
                 # Each admission binding owns its boundary fakes, as in the producer proofs.
                 assert_immutable_inputs_hold(owned, examples, path, name=entry.name)
 

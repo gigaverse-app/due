@@ -13,9 +13,8 @@ application's dashboard contract during migration.
 Due owns migrations for its two concrete infrastructure tables; applications own
 their concrete work tables. Apache-2.0 is the public license.
 
-The initial extraction excluded native-table composition. The complete port now
-exports `CompletionLease`, `RecoveryRoute` and `RecoveryLease` in `due.django.native`,
-and work-table observations reuse that same lease. See [native helpers](native-lifecycles.md).
+Native-table composition remains out of scope: no application used that API.
+Work-table observations retain their private delivery arbitration helper.
 
 Backend-specific provider fixtures, alert destinations and old task aliases are
 not shipped. Generic conformance generators and collection guards live in
@@ -32,9 +31,8 @@ adapter and does not publish or migrate any backend application data.
 The runtime audit compared every named definition in the source work-table
 modules against Due. All authoring, declarations, models, evidence, coordination,
 transport, recovery and telemetry modules remain present. The observation lease
-accessor stays private to its capability, but uses the same public
-`due.django.native.RecoveryLease` that applications can compose with native rows.
-Coordination delegates bounded delivery to the native recovery-page helper.
+accessor and lease stay private to the observation capability. Coordination
+reuses its bounded delivery-page helper; no unused native API is exposed.
 
 The source operator command is ported as `due_status`, resolving Due's installed
 registry and omitting raw exception strings. Additional standalone regression

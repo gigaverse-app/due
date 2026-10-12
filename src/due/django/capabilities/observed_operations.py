@@ -14,7 +14,7 @@ from django.db.models.functions import Now
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.integration import current_universe_scope
 from due.django.models import DurableWorkState
-from due.django.native.recovery import RecoveryLease as _RecoveryLease
+from due.django.runtime._delivery import RecoveryLease as _RecoveryLease
 from due.django.runtime.coordination import database_now
 from due.django.runtime.limits import (
     EXECUTION_SOFT_TIME_LIMIT_SECONDS,

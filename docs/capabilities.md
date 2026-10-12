@@ -17,9 +17,9 @@ post-commit notifications appear to succeed. [Complete setup](integration.md).
 | A provider can report the outcome of an uncertain occurrence | `due.django.capabilities.observed_operations.ObservedExternalOperation` | [Observed operation](../tests/harness/observation.py) |
 | An output needs independently recoverable cleanup | `due.django.capabilities.compensation.IndependentCompensation` | [Compensation histories](../tests/capabilities/test_compensation.py) |
 
-These are work-table capabilities, including observation and compensation. Existing
-lifecycle rows can instead use [native recovery/completion](native-lifecycles.md).
-Observation workers use the same recovery lease implementation.
+These are work-table capabilities, including observation and compensation. Due
+does not expose a native-row recovery/completion API. The private delivery
+arbitration used by observations is an implementation detail.
 
 ## Inputs, I/O and settlement
 

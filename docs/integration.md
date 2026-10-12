@@ -169,7 +169,7 @@ compatibility still require deliberate handling; this is not a zero-migration sw
 All 17 registrations in the originating backend are work tables; there are no
 direct production adopters of its native lifecycle APIs. Two production modules
 use a counter helper located in the old `native` package; that arithmetic import
-now imports the public `due.django.native.counters` owner. Older application workflows
+can import the existing `due.django.runtime.counters` arithmetic helper. Older application workflows
 and their tests do not need to adopt a native API to survive the work-table port.
 
 Use the [backend audit](backend-adoption.md) for application migration gates and
@@ -204,4 +204,3 @@ must never be removed by a suffix match.
 `due.django.runtime.metrics.metric_schemas()` exposes read-only label schemas and
 enum vocabularies from the declarations that construct the metrics. Applications
 can check alerts against this catalog without duplicating metric definitions.
-For lifecycles that already own their rows, see [native helpers](native-lifecycles.md).

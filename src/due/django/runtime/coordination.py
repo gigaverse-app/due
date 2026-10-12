@@ -25,7 +25,7 @@ from due.django.models import (
     DurableWork,
     DurableWorkState,
 )
-from due.django.native.recovery import dispatch_recovery_page as _dispatch_recovery_page
+from due.django.runtime._delivery import dispatch_recovery_page as _dispatch_recovery_page
 from due.django.runtime.counters import saturating_increment
 from due.django.runtime.metrics import (
     DurableWorkOperation,

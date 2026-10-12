@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pytest
 from django.utils import timezone
 
-from due.django.native.recovery import RecoveryLease
+from due.django.runtime._delivery import RecoveryLease
 from due.django.runtime.recovery_pass import RecoveryIncomplete
 from tests.harness.primitive import PrimitiveOwner
 from tests.harness.primitive import (

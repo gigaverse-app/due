@@ -79,7 +79,7 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 
 **Alpha, Django-backed.** Extracted from Gigaverse's work-table primitive; the API
 may change before 1.0. Only work-table composition is public. Native-table
-composition is excluded. [Extraction scope →](docs/extraction.md)
+composition is excluded. [Extraction scope →](docs/extraction.md) · [Cutover audit and regression controls →](docs/cutover-audit.md)
 
 ## Coming from another library?
 
@@ -254,4 +254,3 @@ The [conformance API](docs/conformance-api.md#derive-routine-bindings-from-one-p
 
 
 For an existing application, see [migration settings and stable wire names](docs/integration.md#migrating-an-existing-application).
-For an existing lifecycle row, see [native recovery and completion](docs/native-lifecycles.md).
