@@ -156,6 +156,7 @@ def observation_handoff(
         arrange=arrange,
         transition=lambda handle: capability.attempt_observation(*handle.message.args[1:]),
         observe=observe,
+        expected={"product": True, "create_requests": 1},
         external_calls=external_calls,
     )
 

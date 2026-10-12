@@ -77,6 +77,7 @@ def replay() -> ReplaySafeEffect:
         execute=publish_document.perform_effect,
         observe=lambda work: destination(work).read_text() if destination(work).exists() else None,
         execution_count_for=calls,
+        expected="published content",
     )
 
 

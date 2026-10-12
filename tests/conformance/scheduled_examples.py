@@ -90,6 +90,7 @@ def replay() -> ReplaySafeEffect:
         execute=publish_at_deadline.perform_effect,
         observe=external,
         execution_count_for=calls,
+        expected=TEXT,
     )
 
 

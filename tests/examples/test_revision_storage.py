@@ -69,17 +69,80 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 from examples.documents.storage import write_revision
-original = Path.write_bytes
+from contextlib import contextmanager
+original = Path.open
 
-def interrupted(path, content):
-    original(path, content[:3])
-    os._exit(73)
+class InterruptedFile:
+    def __init__(self, file):
+        self.file = file
+    def write(self, content):
+        self.file.write(content[:3])
+        self.file.flush()
+        os._exit(73)
 
-with patch.object(Path, "write_bytes", interrupted):
+@contextmanager
+def interrupted(path, mode="r", *args, **kwargs):
+    with original(path, mode, *args, **kwargs) as file:
+        yield InterruptedFile(file) if any(flag in mode for flag in "wx") else file
+
+with patch.object(Path, "open", interrupted):
     write_revision("Complete edition", "crashed-revision")
 """
     result = subprocess.run([sys.executable, "-c", child], timeout=20)
     assert result.returncode == 73
     assert not (tmp_path / revision_key("crashed-revision")).exists()
     key = write_revision("Complete edition", "crashed-revision")
+    assert (tmp_path / key).read_text() == "Complete edition"
+
+
+def test_first_publication_needs_no_per_revision_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The output directory already exists. No staging-directory lifecycle is
+    # needed to atomically install one complete immutable file.
+    import os
+
+    mkdir = os.mkdir
+
+    def existing_output_only(path: str | Path, mode: int = 0o777, *, dir_fd: int | None = None) -> None:
+        assert Path(path) == tmp_path, "one publication must not allocate a staging directory"
+        mkdir(path, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "mkdir", existing_output_only)
+    key = write_revision("Complete edition", "no-directory")
+    assert (tmp_path / key).read_text() == "Complete edition"
+
+
+def test_publication_preserves_normal_file_creation_permissions(tmp_path: Path) -> None:
+    reference = tmp_path / "ordinary"
+    reference.write_bytes(b"reference")
+    key = write_revision("Complete edition", "permissions")
+    assert (tmp_path / key).stat().st_mode & 0o777 == reference.stat().st_mode & 0o777
+
+
+def test_staging_collision_never_removes_another_writers_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from uuid import UUID
+
+    from examples.documents import storage
+
+    identity = UUID(int=1)
+    occupied = tmp_path / f".pending-{identity.hex}"
+    occupied.write_bytes(b"other writer's unfinished content")
+    monkeypatch.setattr(storage, "uuid4", lambda: identity)
+    with pytest.raises(FileExistsError):
+        write_revision("Complete edition", "collision")
+    assert occupied.read_bytes() == b"other writer's unfinished content"
+    assert not (tmp_path / revision_key("collision")).exists()
+
+
+def test_failed_publication_cleans_staging_and_can_be_retried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    def unavailable(source: Path, destination: Path) -> None:
+        raise OSError("publication unavailable")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "link", unavailable)
+        with pytest.raises(OSError, match="publication unavailable"):
+            write_revision("Complete edition", "failed-link")
+    assert list(tmp_path.iterdir()) == []
+    key = write_revision("Complete edition", "failed-link")
     assert (tmp_path / key).read_text() == "Complete edition"

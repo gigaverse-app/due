@@ -56,14 +56,15 @@ requests, independently of whether the provider actually writes bytes.
   shared Procrastinate job table. Its deployment also uses Redis, Celery and Beat;
   Procrastinate's example needs PostgreSQL and a worker. Shared file/index proof
   bindings reduce repeated test setup but do not remove this operational cost.
-- First file publication now needs staging and atomic installation. It can cost
+- First file publication needs one exclusive staging file and atomic installation.
+  It no longer allocates and recursively cleans a directory for each revision. It can cost
   more than a direct write; retries avoid rewriting bytes but still read and
   compare the payload. This is a correctness/resource tradeoff, not a claim that
   every operation is faster.
 - The file provider assumes an exclusively owned local filesystem supporting
   hard links. It does not provide distributed object-store semantics or a
   power-loss durability guarantee. A killed writer can leave a hidden staging
-  directory; live writers must be quiesced before removing stale staging data.
+  file; live writers must be quiesced before removing stale staging data.
 - Deadline hints remain transient optimizations. Persisted product/work identity
   and periodic recovery own liveness. This change adds no SQL tables, rows or
   writes and does not change that recovery mechanism.

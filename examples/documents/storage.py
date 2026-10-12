@@ -3,7 +3,7 @@
 import hashlib
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 
 def revision_key(operation_key: str) -> str:
@@ -25,7 +25,7 @@ def write_revision(text: str, operation_key: str) -> str:
 
     A same-filesystem hard link atomically installs the completed file without
     replacing a winner. Process death before linking can leave a hidden staging
-    directory, but never a partially visible revision. This local demo provider
+    file, but never a partially visible revision. This local demo provider
     assumes its directory is exclusively owned; it does not promise power-loss
     durability or reclaim staging files left by killed writers.
     """
@@ -36,13 +36,18 @@ def write_revision(text: str, operation_key: str) -> str:
     if _matches(destination, content):
         return key
     output.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(prefix=".pending-", dir=output) as staging:
-        pending = Path(staging) / "content"
-        pending.write_bytes(content)
+    pending = output / f".pending-{uuid4().hex}"
+    # Exclusive creation preserves ordinary file permissions and cannot clobber
+    # another writer's staging file. Own cleanup only after acquisition succeeds.
+    staged = pending.open("xb")
+    try:
+        with staged as stream:
+            stream.write(content)
         try:
             os.link(pending, destination)
         except FileExistsError:
-            # Another writer won between the initial read and atomic install.
             if not _matches(destination, content):
                 raise FileNotFoundError("published revision disappeared during a write") from None
+    finally:
+        pending.unlink()
     return key
