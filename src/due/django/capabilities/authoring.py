@@ -31,6 +31,7 @@ from due.django.models import (
 )
 from due.django.runtime import transport
 from due.django.runtime.coordination import (
+    CLAIMABLE_STATES,
     ContinueAfter,
     NowFn,
     Publisher,
@@ -204,7 +205,87 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     #: Whether other code may wake this work; a capability whose rows are claimed by another's protocol opts out.
     wakeable: ClassVar[bool] = True
 
+    # Opt in for registered Celery transport. Bound broker/worker timer storage;
+    # PostgreSQL owns long deadlines, and recovery needs no hint receipts.
+    deadline_wakeup_horizon: ClassVar[timedelta | None] = None
+
+    def _enqueue_deadline_hint(self, work_id: int) -> bool:
+        require_autocommit()
+        if self.deadline_wakeup_horizon is not None:
+            now = database_now()
+            work = (
+                self._deadline_candidates()
+                .filter(
+                    pk=work_id,
+                    available_at__gt=now,
+                    available_at__lte=now + self.deadline_wakeup_horizon,
+                )
+                .only("pk", "desired_revision", "available_at")
+                .first()
+            )
+            if work is not None:
+                self._publish_deadline_hint(work)
+                return True
+        return False
+
+    def _publish_deadline_hint(self, work: WorkT) -> None:
+        from due.django.runtime.registry import registration_for
+        from due.django.runtime.tasks import wake_scheduled_work_task
+
+        registration = registration_for(self.model)
+        wake_scheduled_work_task.apply_async(
+            args=(registration.name, work.pk, work.desired_revision, work.available_at.isoformat()),
+            eta=work.available_at,
+            # Celery supports this Kombu publish option; celery-types omits it.
+            delivery_mode=1,  # pyrefly: ignore [unexpected-keyword]
+            queue=registration.queue,
+        )
+
+    def deliver_deadline_hint(self, work_id: int, revision: int, available_at: datetime) -> None:
+        require_autocommit()
+        # A hint grants no authority. Even a matching hint must pass the ordinary
+        # atomic due-time/eligibility claim and fenced delivery protocol below.
+        if (
+            self._deadline_candidates()
+            .filter(
+                pk=work_id,
+                desired_revision=revision,
+                available_at=available_at,
+                available_at__lte=database_now(),
+            )
+            .exists()
+        ):
+            self.enqueue_execution(work_id)
+
+    def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
+        assert self.deadline_wakeup_horizon is not None
+        now = database_now()
+        upcoming = (
+            self._deadline_candidates()
+            .filter(
+                available_at__gt=now,
+                available_at__lte=now + self.deadline_wakeup_horizon,
+            )
+            .only("pk", "desired_revision", "available_at")
+            .order_by("available_at", "pk")[: self.policy.batch_size]
+        )
+        sent = 0
+        for work in upcoming:
+            # Optional hints deliberately have no persisted RecoveryDeferral:
+            # ordinary due dispatch ran first and remains the liveness owner.
+            with recovery.isolate(RecoveryPhase.DEADLINE_WAKEUP, work.pk):
+                self._publish_deadline_hint(work)
+                sent += 1
+        return sent
+
+    def _deadline_candidates(self) -> models.QuerySet[WorkT]:
+        return self.model.objects.filter(state__in=CLAIMABLE_STATES)
+
     def __post_init__(self) -> None:
+        if self.deadline_wakeup_horizon is not None and not (
+            timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
+        ):
+            raise ValueError("deadline_wakeup_horizon must be positive and at most five minutes")
         if self.policy.max_repair_window is not None and not self.supports_repair_window:
             raise ValueError("max_repair_window is only supported by replay-safe projections and scheduled actions")
         expected = (
@@ -336,7 +417,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def attempt_execution(
         self, work_id: int, delivery_token: UUID | None = None, *, expected_revision: int | None = None
     ) -> bool:
-        return run_work(
+        transitioned = run_work(
             self.model,
             work_id,
             handler=self.apply,
@@ -353,9 +434,16 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             retry_delay_for=self.retry_delay_for,
             eligibility=self.eligibility,
         )
+        if transitioned and self.deadline_wakeup_horizon is not None:
+            # Settlement committed before this disposable notification. Failure
+            # cannot undo it or spend retry budget; the sweep still owns liveness.
+            transport.notify_after_commit(self.work_name, self._enqueue_deadline_hint, work_id)
+        return transitioned
 
     def enqueue_execution(self, work_id: int) -> None:
         require_autocommit()
+        if self._enqueue_deadline_hint(work_id):
+            return
         claim = claim_work(
             self.model, work_id, lease_duration=self.policy.lease_duration, queued=True, eligibility=self.eligibility
         )
@@ -526,12 +614,15 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     def recorded_work_steps(self) -> tuple[RecoveryStep, ...]:
         """Phases over work rows that are already recorded; they never read product facts."""
-        return (
+        steps = (
             RecoveryStep(RecoveryPhase.REAP, self._reap),
             RecoveryStep(RecoveryPhase.DISPATCH, self._dispatch),
             RecoveryStep(RecoveryPhase.CENSUS, self._census),
             RecoveryStep(RecoveryPhase.RETENTION, self._retain),
         )
+        if self.deadline_wakeup_horizon is not None:
+            steps += (RecoveryStep(RecoveryPhase.DEADLINE_WAKEUP, self._wake_near_deadlines),)
+        return steps
 
     def _reap(self, recovery: RecoveryPass) -> int:
         # The tick's clock, read once (its holds use the same instant), not a

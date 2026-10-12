@@ -51,9 +51,8 @@ def observe_durable_work_task(name: str, work_id: int, delivery_token: str) -> b
 
 @shared_task(time_limit=60, soft_time_limit=50)
 def wake_scheduled_work_task(name: str, work_id: int, revision: int, available_at: str) -> None:
-    from due.django.capabilities.scheduled import DurableScheduledAction
-
     capability = capability_for(name)
-    if not isinstance(capability, DurableScheduledAction):
-        raise TypeError(f"{name}: capability does not declare scheduled deadlines")
+    # Keep the existing task name compatible with already queued scheduled hints.
+    if capability.deadline_wakeup_horizon is None:
+        raise TypeError(f"{name}: capability does not enable deadline wakeups")
     capability.deliver_deadline_hint(work_id, revision, datetime.fromisoformat(available_at))
