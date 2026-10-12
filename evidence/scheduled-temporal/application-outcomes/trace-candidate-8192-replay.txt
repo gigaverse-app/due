@@ -1,0 +1,7 @@
+write(3</tmp/e18mh_o5>, "blat", 4)      = 4
+write(3</tmp/due-provider-bench-axwn7m22/.pending-ufxcrqia/content>, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"..., 8192) = 8192
+write(3</tmp/due-provider-bench-axwn7m22/.pending-_k6thrdn/content>, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"..., 8192) = 8192
+write(2<pipe:[1752718]>, "MEASURE_START\n", 14) = 14
+write(2<pipe:[1752718]>, "MEASURE_END\n", 12) = 12
+write(1<pipe:[1752717]>, "{\"source\": \"/home/aviadr1/worktr"..., 436) = 436
++++ exited with 0 +++
