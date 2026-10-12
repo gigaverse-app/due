@@ -136,3 +136,31 @@ def test_database_callback_cannot_replace_runtime_guard():
         Unguarded.for_owner(
             owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
         )
+
+
+@pytest.mark.parametrize("fail_settlement", [False, True])
+def test_database_transition_admits_successor_in_same_commit(monkeypatch, fail_settlement):
+    target = PrimitiveOwner.objects.create()
+
+    class Handoff(DatabaseEffect[PrimitiveOwner, PrimitiveWork]):
+        def transition(self, work):
+            with primitive.atomic(target.pk) as pending:
+                pending.request_work(PrimitiveWork(universe="acme", payload="successor"))
+            PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="handed off")
+
+    capability = Handoff.for_owner(
+        owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
+    )
+    work = record()
+    if fail_settlement:
+
+        def fail(*args, **kwargs):
+            raise OSError("settlement failed")
+
+        monkeypatch.setattr(coordination, "complete_work", fail)
+        with pytest.raises(OSError, match="settlement failed"):
+            capability.attempt_execution(work.pk)
+    else:
+        assert capability.attempt_execution(work.pk)
+    assert PrimitiveWork.objects.filter(owner=target).exists() is not fail_settlement
+    assert value(work) == ("before" if fail_settlement else "handed off")

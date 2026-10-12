@@ -99,3 +99,9 @@ bindings. A backend can use the same mode for short database-only transitions;
 its provider calls continue to require replay-safe or evidence-aware effects.
 There is no new per-stage table, separate application deadline or step-identity
 protocol to maintain.
+
+The standalone settings enable Django's supported psycopg pool (one to four
+connections per process); DBOS already pools through SQLAlchemy. Crash testing
+still kills every application process, including these pools. The comparison
+therefore includes reconnect/startup work after the crash, as well as steady
+operation. No durability setting or recovery cadence is relaxed.
