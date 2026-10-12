@@ -14,7 +14,7 @@ its actual runtime and policy. Native-table composition is not public.
 
 ## Audit follow-through: package gaps versus application migration
 
-The detailed [migration audit (PR #6)](https://github.com/gigaverse-app/due/pull/6)
+The detailed [migration audit from 2026-10-11](investigations/backend-migration-audit-2026-10-11.md)
 identified separate runtime, harness and application migration issues. The code
 on this branch builds on the restored harness in PR #9; it does not imply those
 changes are all released or that BE has cut over.
