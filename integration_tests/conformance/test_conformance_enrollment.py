@@ -257,7 +257,12 @@ def test_capabilities_require_their_examples(capability, required, monkeypatch):
     from due.django.runtime.registry import DurableWorkRegistration
 
     # One route at a time permits mode fixtures to share test-owned tables.
-    entry = DurableWorkRegistration("enrollment_negative", capability)
+    original = next((entry for entry in installed.get().values() if entry.capability is capability), None)
+    entry = (
+        replace(original, name="enrollment_negative")
+        if original is not None
+        else DurableWorkRegistration("enrollment_negative", capability)
+    )
     monkeypatch.setitem(installed.get(), entry.name, entry)
     needed = _expected_requirements(capability)
     examples = EffectExamples(
