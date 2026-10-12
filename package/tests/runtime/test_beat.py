@@ -98,3 +98,17 @@ def test_early_adjustment_preserves_heap_order_for_neighboring_deadlines(tmp_pat
             assert 0 < delay + final_delay <= 0.005, "later entry delayed the earliest deadline"
         finally:
             scheduler.close()
+
+
+def test_final_remainder_respects_the_configured_maximum_sleep(tmp_path):
+    Clock.now = datetime(2026, 10, 13, tzinfo=UTC)
+    with (
+        patch.object(Celery, "now", lambda self: Clock.now),
+        Celery("bounded-sleep", broker="memory://", set_as_current=False) as app,
+    ):
+        app.conf.beat_schedule = {"near": {"task": "near", "schedule": 0.005}}
+        scheduler = RecoveryScheduler(app, schedule_filename=str(tmp_path / "bounded"), max_interval=0.001)
+        try:
+            assert 0 < scheduler.tick() <= 0.001
+        finally:
+            scheduler.close()

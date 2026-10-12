@@ -16,7 +16,10 @@ class RecoveryScheduler(PersistentScheduler):
         delay = super().tick(*args, **kwargs)
         # Repair only the service's sleep interval. Changing adjust() also
         # changes heap ordering and can delay a neighboring earlier deadline.
-        return delay + 0.010 if delay < 0 else delay
+        if delay < 0:
+            assert self.max_interval is not None  # Resolved by Celery's constructor.
+            return min(delay + 0.010, self.max_interval)
+        return delay
 
 
 def recovery_scheduler(configured: object, *, default: object = "due.django.runtime.beat:RecoveryScheduler") -> object:

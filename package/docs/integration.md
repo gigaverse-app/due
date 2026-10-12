@@ -257,7 +257,9 @@ fleets should retain one dedicated scheduler.
 Manifest setup selects `due.django.runtime.beat:RecoveryScheduler` when
 Celery's stock persistent scheduler is configured. It preserves Celery's
 intentional 10 ms early check and existing schedule file, then sleeps the final
-positive remainder instead of spinning. Custom scheduler classes remain owned
+positive remainder instead of spinning, bounded by Beat's maximum sleep. OS
+sleep can overshoot; this does not promise drift-free relative intervals or
+sub-millisecond dispatch. Custom scheduler classes remain owned
 by the application. The recovery cadence and Due's transient deadline hints do
 not change.
 
