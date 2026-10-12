@@ -52,7 +52,12 @@ from due.django.conformance.examples import (
     TerminalExample,
 )
 from due.django.conformance.observations import ObservationExample
-from due.django.conformance.scenarios import AdmissionFailureExample, ProducerExample, SynchronousCallerExample
+from due.django.conformance.scenarios import (
+    AdmissionFailureExample,
+    ProducerExample,
+    SynchronousCallerExample,
+    WakeExample,
+)
 
 __all__ = [
     "AdmissionFailureExample",
@@ -71,6 +76,7 @@ __all__ = [
     "RejectionExample",
     "SupersessionExample",
     "SynchronousCallerExample",
+    "WakeExample",
     "TerminalExample",
     "WorkTableDelivery",
     "assert_lock_order_is_consistent",
