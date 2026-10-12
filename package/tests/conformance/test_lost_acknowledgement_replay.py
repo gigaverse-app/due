@@ -7,8 +7,10 @@ outcome. Each negative control changes one adopter seam the way a real
 adopter gets it wrong, and the same generated assertion must reject it.
 """
 
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -19,7 +21,7 @@ from due.django.conformance.scenarios import (
     acknowledgement_replays,
     assert_lost_acknowledgement_replay_converges,
 )
-from due.django.public import DurableWorkPolicy, WorkClaim, WorkFailureDisposition
+from due.django.public import ContinueAfter, DurableWorkPolicy, WorkClaim, WorkFailureDisposition
 from due.django.testing import hold_nudges
 from tests.harness import primitive as example
 from tests.harness.operation import Publication, PublicationWork
@@ -35,9 +37,10 @@ pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("
 PROVIDER: dict[int | None, list[str]] = {}
 
 
-def delivery() -> DeliveryExample[PrimitiveWork, tuple[str, tuple[str, ...]]]:
+def delivery(*, clear: bool = True) -> DeliveryExample[PrimitiveWork, tuple[str, tuple[str, ...]]]:
     # ARRANGE: the real producer admits one owed effect.
-    PROVIDER.clear()
+    if clear:
+        PROVIDER.clear()
     with hold_nudges():
         work = record()
     return DeliveryExample(
@@ -90,7 +93,7 @@ def guarded_call(work: PrimitiveWork) -> str:
     [
         (appending_call, None, "one logical effect"),
         (conflicting_call, WorkFailureDisposition.TERMINAL, "never settled"),
-        (guarded_call, None, "Zero means the replay never ran"),
+        (guarded_call, None, "never reached the effect boundary again"),
     ],
     ids=["duplicates-the-effect", "replay-classified-permanent", "replay-never-reaches-provider"],
 )
@@ -130,3 +133,41 @@ class _Cleanup(IndependentCompensation[PrimitiveWork, PrimitiveWork]):
 def test_history_is_generated_only_where_recovery_replays(capability) -> None:
     # Receipt repair owns operations; compensation is born claimed; budget 0 exhausts on the lost claim.
     assert not acknowledgement_replays(capability)
+
+
+def stepping_effect(self: PrimitiveEffect, work: PrimitiveWork) -> str | ContinueAfter:
+    # A two-step effect that reads the provider's progress, so a replayed step advances instead of repeating.
+    PrimitiveEffect.calls.append(work.payload)
+    steps = PROVIDER.setdefault(work.owner_id, [])
+    steps.append(f"step {len(steps) + 1}")
+    if len(steps) < 2:
+        return ContinueAfter(timedelta(seconds=1), until=None)
+    return work.payload
+
+
+def refusing_replay_effect(self: PrimitiveEffect, work: PrimitiveWork) -> str | ContinueAfter:
+    # The provider refuses to run any step twice; the adopter classifies that refusal as permanent.
+    if work.owner_id in PROVIDER:
+        PrimitiveEffect.calls.append(work.payload)
+        raise FileExistsError("step already applied")
+    return stepping_effect(self, work)
+
+
+@pytest.mark.parametrize("effect", [stepping_effect, refusing_replay_effect], ids=["advances", "replay-refused"])
+def test_a_lost_continuation_replays_like_two_uninterrupted_steps(effect) -> None:
+    compared: list[bool] = []
+
+    @contextmanager
+    def fresh() -> Iterator[DeliveryExample[PrimitiveWork, tuple[str, tuple[str, ...]]]]:
+        compared.append(True)
+        yield delivery(clear=False)
+
+    scenario = replace(delivery(), expected=("before", ("step 1",)))
+    with (
+        patch.object(PrimitiveEffect, "perform_effect", effect),
+        patch.object(PrimitiveEffect, "classify_error", lambda self, error: WorkFailureDisposition.TERMINAL),
+        pytest.raises(AssertionError, match="never committed") if effect is refusing_replay_effect else nullcontext(),
+    ):
+        assert_lost_acknowledgement_replay_converges(primitive, scenario, reference=fresh)
+    # Positive control: a continuing execution is judged against the uninterrupted reference.
+    assert compared == ([True] if effect is stepping_effect else [])

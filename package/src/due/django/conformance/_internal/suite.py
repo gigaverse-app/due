@@ -1383,7 +1383,10 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     hold_nudges(),
                     _binding(examples.delivery) as example,
                 ):
-                    assert_lost_acknowledgement_replay_converges(capability, example)
+                    # A continuing execution is compared with a fresh, uninterrupted delivery.
+                    assert_lost_acknowledgement_replay_converges(
+                        capability, example, reference=lambda: _binding(examples.delivery)
+                    )
 
         if isinstance(capability, DurableExternalOperation):
             assert examples.uncertainties is not None

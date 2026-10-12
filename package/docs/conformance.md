@@ -128,7 +128,10 @@ after the real effect returned, so success never commits. Registered recovery
 must reach the effect boundary exactly once more (the `delivery.effect_calls`
 counter goes `+1`, then `+2`), the `delivery` observation must equal `expected`
 (one logical effect), the same revision must settle, and a further recovery tick
-must not call the provider again. A provider that refuses the second create and
+must not call the provider again. When the execution continues
+(`ContinueAfter`) instead of completing, only one step has run, so the replayed
+step is compared with a fresh `delivery` given two uninterrupted executions: the
+same outcome and the same number of provider entries. A provider that refuses the second create and
 is classified permanent, an effect that adds a record per call, and a local
 "already sent" guard that skips the provider each fail this case; see the
 [self-test](../tests/conformance/test_lost_acknowledgement_replay.py).
