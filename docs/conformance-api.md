@@ -79,7 +79,8 @@ capability requires it. Use the generated report to see the actual assessment;
 | `producers`, `admissions`, `admission_failures` | Named producer/standalone command paths and an interruption after a partial write. These bindings own their scopes. |
 | `admission_not_applicable` | A substantive reason there is no partial admission state to roll back; product-plus-work writes require failure evidence. |
 | `synchronous_callers` | Named request paths that admit and attempt inline; each binding owns its scope. |
-| `rejections`, `uncertainties` | Named provider decisions and ambiguous outcomes; evidence recovery must preserve their meaning. |
+| `rejections` | The provider outcome matrix: each named rejection, its intended `RETRYABLE`/`TERMINAL` disposition and product outcome. Any mode; an operation's evidence recovery must also preserve the decision. |
+| `uncertainties` | Named ambiguous outcomes of an external operation; evidence recovery must preserve their meaning. |
 | `observation` | Read-only reconciliation of an uncertain external operation. |
 | `identity_of` | Stable canonical identity for comparing obligations across generated cases. |
 | `in_flight`, `evidence_confluence` | Named shared `Scenario` bindings for concurrent work and conflicting evidence. |

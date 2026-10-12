@@ -49,7 +49,7 @@ from pytest_obligation.profiles.gated_execution import (
     ExecutionGateBinding,
 )
 from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity
-from pytest_obligation.profiles.job_retry_limits import BoundedRetry, PersistentRetry
+from pytest_obligation.profiles.job_retry_limits import BoundedRetry, ClassifiedFailure, FailureClass, PersistentRetry
 
 from due.django.capabilities.authoring import FAILED_TERMINAL_STATES
 from due.django.capabilities.authoring import ReplaySafeEffect as ReplaySafeCapability
@@ -303,6 +303,64 @@ def persistent_retry_bindings[W: UniverseDurableWork, ResultT](
 
 
 @contextmanager
+def classified_failure_bindings[W: UniverseDurableWork, ResultT](
+    bindings: DurableWorkBindings[W, ResultT], factory: Binding[RejectionExample[W, Any]], *, outcome: str
+) -> Iterator[ClassifiedFailure]:
+    """Bind one named provider rejection to the shared outcome-classification proof.
+
+    The example admits work whose provider will reject it, the disposition the
+    application intends, and the product outcome that rejection must leave.
+    Production classifies the failure; the proof checks it took the declared class."""
+    capability = bindings.capability
+    with hold_nudges(), _binding(factory) as scenario:
+        name = f"{bindings.registration.name} {outcome!r}"
+        if scenario.disposition is WorkFailureDisposition.UNKNOWN:
+            raise ObligationContractDesignError(
+                f"{name}: an UNKNOWN outcome needs provider observation to resolve, which only an observed "
+                f"external operation has. Classify it RETRYABLE or TERMINAL, or use that mode"
+            )
+        if scenario.expected_attempts != 1:
+            raise ObligationContractDesignError(
+                f"{name}: a classified rejection is one provider call per execution; "
+                f"expected_attempts={scenario.expected_attempts} describes a different shape"
+            )
+        if scenario.disposition is WorkFailureDisposition.RETRYABLE and capability.policy.max_rearms == 0:
+            raise ObligationContractDesignError(
+                f"{name}: max_rearms=0 exhausts on the first failure, so nothing is retryable"
+            )
+        delivery = scenario.delivery
+        effect_calls = delivery.effect_calls
+        assert effect_calls is not None, (
+            f"{name}: a classified rejection requires an independent provider-call observation"
+        )
+
+        def make():
+            bindings.age(delivery.work)
+            delivery.work.refresh_from_db()
+            return delivery.work
+
+        def execute(work):
+            with suppress(Exception):
+                capability.attempt_execution(work.pk)
+
+        yield ClassifiedFailure(
+            name=name,
+            classification=FailureClass(scenario.disposition.value),
+            make_failing=make,
+            due_work=lambda: capability.due_work(),
+            run_once=execute,
+            advance_to_due=bindings.age,
+            is_terminal=lambda work: bindings.observe(work)[0] in TERMINAL_WORK_STATES,
+            failure_attempt_count=lambda work: effect_calls(),
+            observe=bindings.observe,
+            identity_of=lambda work: work.pk,
+            waits=capability.policy.delay_at(0) > timedelta(0),
+            product_outcome=lambda work: delivery.observe(),
+            expected_product_outcome=lambda work: delivery.expected,
+        )
+
+
+@contextmanager
 def snapshot_bindings[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT], factory: Binding[SupersessionExample[W, Any]]
 ) -> Iterator[SupersededSnapshot]:
@@ -531,12 +589,12 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         ("rejections", examples.rejections),
         ("uncertainties", examples.uncertainties),
     ):
-        if operation and scenario_bindings is not None and not scenario_bindings:
+        if scenario_bindings is not None and not scenario_bindings:
             raise ObligationContractDesignError(f"{name}: {scenario_name} needs at least one real provider scenario")
-        if not operation and scenario_bindings is not None:
-            raise ObligationContractDesignError(
-                f"{name}: {scenario_name} examples require the operation execution mode"
-            )
+    # Every mode may declare its rejection matrix (profile J's classified failures);
+    # only an operation records uncertainty evidence it can later resolve.
+    if not operation and examples.uncertainties is not None:
+        raise ObligationContractDesignError(f"{name}: uncertainties examples require the operation execution mode")
     if examples.observation is not None and not isinstance(capability, ObservedExternalOperation):
         raise ObligationContractDesignError(f"{name}: observation examples require the observed operation mode")
     if operation and examples.replay is not None:
@@ -650,6 +708,24 @@ def effect_contract[W: UniverseDurableWork, ResultT](
     elif eligibility is not None:
         gates = gate_binding(eligibility)
 
+    def classified_binding(outcome: str, factory: Binding[RejectionExample[W, Any]]) -> Binding[ClassifiedFailure]:
+        def classified():
+            # ARRANGE: the domain example admits work its provider will reject.
+            # REAL PRODUCTION: the registered capability executes and classifies the failure.
+            # EXTERNAL SEAM: only the example's provider rejection is scripted.
+            # OBSERVE: provider calls, persisted work state and the example's product outcome.
+            return classified_failure_bindings(bindings, factory, outcome=outcome)
+
+        return classified
+
+    # An operation proves its rejections through recorded evidence instead
+    # (test_rejection_decision_survives_recovery); every other mode routes them here.
+    classified_failures = {
+        outcome: _in_environment(examples, classified_binding(outcome, factory))
+        for outcome, factory in (examples.rejections or {}).items()
+        if not operation
+    }
+
     def admission_binding(
         factory: Binding[AdmissionFailureExample[W, Any]],
     ) -> Callable[[], AbstractContextManager[AdmissionAtomicity]]:
@@ -718,6 +794,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         replay=bound(examples.replay),
         retry=bound(retry) if capability.policy.max_rearms is not None else None,
         persistent_retry=bound(persistent_retry) if capability.policy.max_rearms is None else None,
+        classified_failures=classified_failures,
     )
     return contract
 
