@@ -19,12 +19,14 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 
 @contextmanager
-def worker_database(*, health_checks=True):
+def worker_database(*, health_checks=None):
     previous = connections["default"]
     previous.close()
     config = deepcopy(previous.settings_dict)
     config["OPTIONS"]["pool"] = DATABASES["default"]["OPTIONS"]["pool"]
-    config["CONN_HEALTH_CHECKS"] = health_checks
+    config["CONN_HEALTH_CHECKS"] = (
+        DATABASES["default"]["CONN_HEALTH_CHECKS"] if health_checks is None else health_checks
+    )
     config["CONN_MAX_AGE"] = 0
     # A distinct pool alias prevents replacing any preexisting host pool.
     wrapper = DatabaseWrapper(config, alias=f"worker-proof-{uuid4().hex}")
@@ -56,7 +58,7 @@ def test_serial_worker_has_no_spare_stale_socket_after_session_loss():
         assert pool.get_stats().get("connections_lost", 0) - before.get("connections_lost", 0) == 1
 
 
-@pytest.mark.parametrize("health_checks", [True, False], ids=["healthy", "negative-control-unchecked-socket"])
+@pytest.mark.parametrize("health_checks", [None, False], ids=["healthy", "negative-control-unchecked-socket"])
 def test_generated_reconnected_dispatch_with_the_real_worker_pool(health_checks):
     case = next(
         row.values[0]
@@ -64,7 +66,7 @@ def test_generated_reconnected_dispatch_with_the_real_worker_pool(health_checks)
         if row.id == "delivery-replay-reconnected dispatch-assert_delivery_replay"
     )
     with worker_database(health_checks=health_checks):
-        if health_checks:
+        if health_checks is None:
             case.run()
         else:
             with pytest.raises(AssertionError, match="worker delivery failed after connection loss"):
