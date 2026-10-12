@@ -75,6 +75,7 @@ capability requires it. Use the generated report to see the actual assessment;
 | `eligibility` | One gate example or a mapping of named variants; keep readiness transitions in production. |
 | `immutable_inputs`, `perturb_inputs`, `convergence_not_assessed`, `snapshot` | [Prove fixed inputs by perturbing product facts and revisiting admission](conformance.md#prove-an-immutable-input-declaration), record missing E evidence, or exercise real supersession. |
 | `derivation` | Canonical fact arrangement and independent desired-state observation. |
+| `discovery_edges` | Related rows the discovery reads, by family name, as `EdgeFamily(model=..., edge_row=owner -> row)`; their database-legal edge values get the discovery admissibility cases. |
 | `applied_receipt`, `receipt_repair` | A canonical applied receipt and a scoped delivery proving recovery repairs product state without repeating the effect. |
 | `producers`, `admissions`, `admission_failures` | Named producer/standalone command paths and an interruption after a partial write. These bindings own their scopes. |
 | `admission_not_applicable` | A substantive reason there is no partial admission state to roll back; product-plus-work writes require failure evidence. |
@@ -199,6 +200,27 @@ that derivation would enroll cannot silently disappear from recovery. Discovery
 with an explicit horizon does not claim to cover every possible owner and does
 not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/docs/selection-completeness.md)
 apply; the generated case participates in normal collection and outcome guards.
+
+Discovery also generates two admissibility cases per database-legal edge value
+(`test_database_legal_candidate_is_admissible[...]`,
+`test_inadmissible_candidate_does_not_block_the_next[...]`). Each case writes the
+value into a valid implied owner without model validation, the way legacy rows
+get it, and requires production `derive()` to admit or exclude that row without
+stalling the owner behind it. Owner fields are always covered. A discovery that
+also reads a related row, such as a parent's scope that the candidate query joins
+or a tenant that `desired_for` copies, declares it:
+
+```python
+EffectExamples(
+    ...,
+    derivation=derivation_facts,
+    discovery_edges={"parent": EdgeFamily(model=Parent, edge_row=lambda owner: owner.parent)},
+)
+```
+
+The related row's edges are collected as `[parent-<field>-<kind>]`. `make_implied`
+must create a distinct related row per owner, or the liveness case refuses to run:
+poisoning a shared parent would poison both owners.
 
 `process_handoffs` requires an independent `ProcessHistory.expected` value or input-derived callback for every entry. Omitted expectations raise at binding construction; plain pytest-obligation convergence-only histories remain available outside this application binding.
 
