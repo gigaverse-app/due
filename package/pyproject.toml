@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "due"
+version = "0.1.0a1"
+description = "Durable obligations for Django and PostgreSQL"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Gigaverse" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: System :: Distributed Computing",
+  "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.12,<3",
+    "psycopg[binary]>=3.2,<4",
+    "celery>=5.6,<6",
+    "django>=6.0.8,<7",
+    "prometheus-client>=0.22",
+    "sentry-sdk>=2,<3",
+    "asgiref>=3.9",
+]
+
+[project.optional-dependencies]
+# Dependencies for the reusable tests shipped alongside the source.
+selftest = ["due[testing,redis,beat]", "pytest>=8.4", "pytest-mock>=3.16", "pytest-xdist>=3.8", "pytest-asyncio>=1.2"]
+testing = ["pytest-obligation[django,celery,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@eaa2385c8e4cfdc7711e9e37d972e162dd01e50d"]
+redis = ["celery[redis]>=5.6,<6"]
+beat = ["django-celery-beat>=2.8"]
+
+[project.urls]
+Homepage = "https://github.com/gigaverse-app/due"
+Repository = "https://github.com/gigaverse-app/due"
+Issues = "https://github.com/gigaverse-app/due/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/due"]
+
+[project.entry-points.pytest11]
+due_work_tables = "due.pytest_plugin"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = ["."]
+addopts = "--strict-markers"
+markers = ["no_db: does not access the database"]

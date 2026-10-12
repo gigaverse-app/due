@@ -1,0 +1,44 @@
+name: Publish package subtree
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-package-subtree
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require green CI on the exact main revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source_sha=$(git rev-parse HEAD)
+          count=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&head_sha=$source_sha" --jq '.total_count')
+          test "$count" -gt 0 || { echo 'Main has no successful CI at this revision'; exit 1; }
+      - name: Publish the standard package split without rewriting history
+        run: |
+          source_sha=$(git rev-parse HEAD)
+          package_sha=$(git subtree split --prefix=package "$source_sha")
+          test "$(git rev-parse "$source_sha:package")" = "$(git rev-parse "$package_sha^{tree}")"
+          git push origin "$package_sha:refs/heads/package"
+          printf 'Source: `%s`\n\nPackage: `%s`\n' "$source_sha" "$package_sha" >> "$GITHUB_STEP_SUMMARY"

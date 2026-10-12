@@ -54,7 +54,7 @@ recovery must find the committed work and eventually publish the right file
 A repeated file write is allowed because this example uses a stable revision key
 and safely repeatable contents. This is not a recipe for replaying a charge, a
 provider create operation, or another non-repeatable action. Use
-[the evidence-required lifecycle](architecture.md#an-unknown-outcome-needs-evidence)
+[the evidence-required lifecycle](../package/docs/architecture.md#an-unknown-outcome-needs-evidence)
 when the external operation cannot safely be repeated.
 
 Run the full generated application contract and emit its actual evidence:
@@ -79,7 +79,7 @@ that this example exercises every possible interleaving family.
 ## Make a proof fail on purpose
 
 A green history is useful only if the proof notices the behavior it claims.
-[The process negative control](../tests/conformance/test_document_process_control.py)
+[The process negative control](../integration_tests/conformance/test_document_process_control.py)
 disables the production recovery method and requires the canonical process oracle
 to reject the resulting unfinished publication. The test itself passes only when
 the broken behavior is detected:
@@ -89,7 +89,7 @@ uv run pytest tests/conformance/test_document_process_control.py -v
 ```
 
 The same pattern guards [gates, dependent wakes, receipt repair, rejection policy
-and query scale](conformance.md#prove-the-proof-and-use-exploration-where-it-applies).
+and query scale](../package/docs/conformance.md#prove-the-proof-and-use-exploration-where-it-applies).
 These controls belong beside the library's generated assertions; an adopter
 should bind its domain examples rather than copy the assertions into each app.
 
@@ -115,7 +115,7 @@ provider can complete after a timeout. Observe required cleanup and successors,
 not just the first successful step. Use an independent `HandoffHistory.expected`
 value so every history agreeing on a wrong result still fails.
 
-Next: [bind a capability](conformance.md), [install application hooks](integration.md),
-or [inspect stopped and uncertain work](operations.md). The
-[backend migration status](backend-adoption.md) keeps package guarantees separate
+Next: [bind a capability](../package/docs/conformance.md), [install application hooks](../package/docs/integration.md),
+or [inspect stopped and uncertain work](../package/docs/operations.md). The
+[backend migration status](../package/docs/backend-adoption.md) keeps package guarantees separate
 from the originating application's unexecuted migration gates.

@@ -32,7 +32,7 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 Keep the public API focused on work tables. The delivery lease in
 `runtime/_delivery.py` is private machinery for observation workers; it is not a
-public native-table composition API. Use [the capability guide](docs/capabilities.md)
+public native-table composition API. Use [the capability guide](package/docs/capabilities.md)
 to find the existing owner of behavior before adding another abstraction.
 
 For behavioral fixes, first write a failing history at the boundary that broke:

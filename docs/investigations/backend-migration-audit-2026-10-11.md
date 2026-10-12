@@ -1,6 +1,6 @@
 # Backend migration audit — 2026-10-11
 
-For current package support and follow-through, see the [backend adoption guide](../backend-adoption.md). The findings below describe the pinned revisions, not the latest release.
+For current package support and follow-through, see the [backend adoption guide](../../package/docs/backend-adoption.md). The findings below describe the pinned revisions, not the latest release.
 
 **Historical verdict at the pinned audit revisions: not ready to replace BE's embedded primitive.** The mature work-table
 runtime is substantially ported. Import availability and the standalone library
