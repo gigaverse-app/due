@@ -74,6 +74,7 @@ EXAMPLES = replace(
                 observe=lambda work: CatalogEntry.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm
             ),
             expected=(TITLE, AUTHOR),
+            external_expected=(TITLE, AUTHOR),
         )
     ),
     immutable_inputs=None,

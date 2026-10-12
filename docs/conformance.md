@@ -443,12 +443,19 @@ Claimed E families cannot also declare immutable inputs or unassessed E.
 Evidence-required operations and independent compensations cannot move their
 inputs through these runtime paths, so they do not accept `perturb_inputs`.
 
-The book examples currently record E binding debt: their creation bindings always
-admit a new owner and do not prove input immutability on a revisit. Other book
-proofs still run. `--due-work-require-assessed` deliberately rejects those suites
-until that evidence is supplied. CI instead enforces the exact two entries in
-[`debt_baseline.yaml`](../tests/conformance/debt_baseline.yaml); adding other
-unassessed guarantees or silently removing these declarations fails collection.
+For create-only admission, bind `ProducerExample.revisit(works)` to the real
+same-owner command (for example an operator retry). Without it the original
+producer is repeated. The explicit revisit must enter `atomic()` for every
+admitted owner; an inert callback or a command targeting a fresh owner fails.
+It changes only the immutable-input proof, never the admission or rollback proofs.
+
+Books bind their create command plus `retry_indexing` for indexing, and the real
+upstream settlement callback for publication. After title, author and product-key
+changes, the three generated paths preserve captured inputs, revision and claim.
+This establishes immutable submissions rather than claiming mutable-projection
+convergence. The debt baseline is empty, and CI requires these exact cases.
+Mutation controls make retry recapture edited metadata and settlement replace
+the captured key; both fail the generated application proof.
 
 Runnable positive and negative controls are in
 [`test_immutable_inputs_claim.py`](../tests/conformance/test_immutable_inputs_claim.py),
