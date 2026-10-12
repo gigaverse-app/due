@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/gigaverse-app/due/compare/v0.2.0...v0.3.0) (2026-10-12)
+
+
+### Features
+
+* crash-ambiguity proofs settle through the application's evidence entry point ([#38](https://github.com/gigaverse-app/due/issues/38)) ([b07b879](https://github.com/gigaverse-app/due/commit/b07b879e2113eca939ac197d7af96f70c9306f3b))
+* discovery admissibility perturbs the related rows a registration names ([#40](https://github.com/gigaverse-app/due/issues/40)) ([d87ca84](https://github.com/gigaverse-app/due/commit/d87ca845a49e63ed7c96a02796ebb05982ec3312))
+* generated caller and wake-command histories through the adopter's real entry points ([#39](https://github.com/gigaverse-app/due/issues/39)) ([0be6f9b](https://github.com/gigaverse-app/due/commit/0be6f9bcb186ddaa0ddb1cbb7cf12548c2e3b7d4))
+* replay-safe work tables prove a lost acknowledgement replays to one settled outcome ([#37](https://github.com/gigaverse-app/due/issues/37)) ([c0d1be0](https://github.com/gigaverse-app/due/commit/c0d1be08d471a7a54dc1d15d109a874529d6c502))
+* simplify transactional continuations and measure workflow resource cost ([#36](https://github.com/gigaverse-app/due/issues/36)) ([a3024eb](https://github.com/gigaverse-app/due/commit/a3024ebafbbf816c9d2a0b9fbe1a1bf92a2d0028))
+
+
+### Performance
+
+* reduce worker CPU and connection-loss recovery overhead ([#41](https://github.com/gigaverse-app/due/issues/41)) ([7a8be87](https://github.com/gigaverse-app/due/commit/7a8be874b5558905d7756e7f2e06f0a91ad724d5))
+
 ## [0.2.0](https://github.com/gigaverse-app/due/compare/v0.1.0...v0.2.0) (2026-10-12)
 
 
