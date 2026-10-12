@@ -79,3 +79,22 @@ def test_reconfiguring_an_owned_schedule_updates_its_route_without_duplication(s
         configure_durable_work([changed], celery_app=app)
         assert not schedule_errors(changed, app)
         assert len(settings.CELERY_BEAT_SCHEDULE) == len(app.conf.beat_schedule) == 1
+
+
+@pytest.mark.parametrize("explicit_app", [False, True])
+@pytest.mark.parametrize("custom", [None, "django_celery_beat.schedulers:DatabaseScheduler"])
+def test_setup_uses_sleeping_scheduler_unless_application_selects_another(settings, explicit_app, custom):
+    from due.django.runtime.beat import RecoveryScheduler
+
+    entries = tuple(installed.get().values())
+    settings.CELERY_BEAT_SCHEDULE = {}
+    settings.CELERY_BEAT_SCHEDULER = custom or "celery.beat:PersistentScheduler"
+    with installed.installed(dict(installed.get())), Celery("scheduler-binding", set_as_current=False) as app:
+        if custom:
+            app.conf.beat_scheduler = custom
+        configure_durable_work(entries, celery_app=app if explicit_app else None)
+        if not explicit_app:
+            app.config_from_object("django.conf:settings", namespace="CELERY")
+        expected = custom or f"{RecoveryScheduler.__module__}:{RecoveryScheduler.__name__}"
+        assert settings.CELERY_BEAT_SCHEDULER == expected
+        assert app.conf.beat_scheduler == expected

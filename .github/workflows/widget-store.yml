@@ -48,7 +48,7 @@ jobs:
         if: matrix.revision == 'baseline'
         with:
           repository: gigaverse-app/due
-          ref: a3024ebafbbf816c9d2a0b9fbe1a1bf92a2d0028
+          ref: 1f1562416a0c0bc62f6c429dad88a2d7d84728f3
           path: .widget-baseline
       - uses: astral-sh/setup-uv@v7
         with:

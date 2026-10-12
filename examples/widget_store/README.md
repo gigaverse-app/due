@@ -173,3 +173,17 @@ callback. Disabling the entry cleanup must fail that same case. The separate
 benchmark journey terminates every SQL session in the app's isolated database
 while its real prefork worker is dispatching, then checks completion, inventory,
 and a subsequent browser checkout.
+
+### Scheduler and pool follow-up
+
+The supervisor uses `examples.widget_store.worker_settings` for its Celery
+prefork worker (one connection per serial child) and the existing four-connection
+pool for the threaded web server. Manual worker launches should set
+`DJANGO_SETTINGS_MODULE=examples.widget_store.worker_settings`; do not use
+that serial configuration for a threaded worker.
+
+Shared Due manifest setup installs a persistent Beat scheduler that retains
+Celery's early drift check and sleeps its final remainder. No work-table rows,
+deadline hints, recovery cadence, health checks or transaction retry behavior
+are added or removed. See the [archaeology and proof plan](../../docs/work-in-progress/tickets/widget-scheduler-pool-test-plan.md)
+and [PR #43](https://github.com/gigaverse-app/due/pull/43) for measurements.

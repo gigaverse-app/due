@@ -68,6 +68,8 @@ def main() -> None:
         [
             [python, "-m", "django", "runserver", f"127.0.0.1:{args.port}", "--noreload"],
             [
+                "env",
+                "DJANGO_SETTINGS_MODULE=examples.widget_store.worker_settings",
                 python,
                 "-m",
                 "celery",
