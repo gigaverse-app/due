@@ -21,6 +21,7 @@ from pytest_obligation.contract import (
     NotApplicable,
 )
 from pytest_obligation.crash_histories import HandoffHistory
+from pytest_obligation.integrations.django.owed_rows import EdgeFamily
 from pytest_obligation.interleavings.bindings import Scenario
 from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
@@ -183,6 +184,10 @@ class EffectExamples[W: UniverseDurableWork]:
     convergence_not_assessed: str | None = None
     snapshot: Binding[SupersessionExample[W, Any]] | None = None
     derivation: Binding[FactExamples[W]] | None = None
+    # Related rows the discovery reads (a parent's scope the candidate query joins, a tenant desired_for
+    # copies), by family name: each family's edge_row maps the owner to the row whose database-legal
+    # edge values the discovery admissibility cases write. Owner fields are always perturbed.
+    discovery_edges: Mapping[str, EdgeFamily] = field(default_factory=dict)
     applied_receipt: Callable[[W], Any] | None = None
     # The application's production entry point for a late provider receipt (its
     # webhook handler or reconciliation command), called with the work and
@@ -221,3 +226,13 @@ class EffectExamples[W: UniverseDurableWork]:
     def __post_init__(self) -> None:
         for history in self.process_handoffs:
             history.require_expected_outcome()
+        for name, family in self.discovery_edges.items():
+            if not name.strip() or "[" in name or "]" in name:
+                raise ValueError(f"discovery_edges family name {name!r} must be a nonempty case-id fragment")
+            if family.edge_row is None:
+                raise ValueError(
+                    f"discovery_edges[{name!r}] declares no edge_row: the owner's own fields are already perturbed, "
+                    f"so a family names the related row the discovery reads"
+                )
+        if self.discovery_edges and self.derivation is None:
+            raise ValueError("discovery_edges perturb the derivation example's owners; declare derivation")
