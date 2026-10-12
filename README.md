@@ -102,7 +102,7 @@ The integration suite uses PostgreSQL 17 and Redis 7.
 Until a PyPI release is published, install from GitHub:
 
 ```bash
-uv add 'due[redis] @ git+https://github.com/gigaverse-app/due.git'
+uv add 'django-due[redis] @ git+https://github.com/gigaverse-app/due.git#subdirectory=package'
 ```
 
 Add `"due.django"` to `INSTALLED_APPS`, then run your application's migrations.

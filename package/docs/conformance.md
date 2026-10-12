@@ -300,8 +300,9 @@ isolation/owed-row proofs, scoped handoff arrangements, independent outcomes and
 downstream recovery declarations. See
 [pytest-obligation #49](https://github.com/gigaverse-app/pytest-obligation/pull/49)
 and [#50](https://github.com/gigaverse-app/pytest-obligation/pull/50).
-Before a PyPI release, use a released pytest-obligation version containing those
-changes; the current Git dependency is for integration review, not PyPI publication.
+Published metadata depends on a released pytest-obligation range. The package's
+development source override pins the reviewed implementation used by self-tests;
+it is not emitted into wheel metadata.
 
 ## Walk through the executable example
 
@@ -309,8 +310,8 @@ From a checkout of this repository, with PostgreSQL and Redis running as in the
 [README](https://github.com/gigaverse-app/due/blob/main/README.md#run-the-example):
 
 ```bash
-uv sync --locked
-uv run pytest tests/conformance/test_document_contract.py -v \
+uv sync --all-packages --locked
+uv run pytest integration_tests/conformance/test_document_contract.py -v \
   -p due.django.conformance.reporting \
   --due-work-require-assessed --due-work-profile-report=profiles.json \
   --durable-work-report=effects.json
