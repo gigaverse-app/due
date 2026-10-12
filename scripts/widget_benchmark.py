@@ -128,17 +128,25 @@ def sample(
     decision_ms = (time.perf_counter() - start) * 1000
     recovery_start = None
     crash_progress = 10
-    if scenario == "crash":
+    if scenario in {"crash", "connection loss"}:
         deadline = time.monotonic() + 20
         while arm.row(connection, identity)[1] > 7:
             assert time.monotonic() < deadline, "dispatch never reached crash point"
             time.sleep(0.02)
         crash_progress = arm.row(connection, identity)[1]
         recovery_start = time.perf_counter()
-        try:
-            post(client, arm, "/crash_application")
-        except OSError, urllib.error.URLError:
-            pass  # DBOS deliberately closes its HTTP connection with os._exit.
+        if scenario == "connection loss":
+            # Both arms lose every application SQL session in their isolated DB.
+            # The observer remains alive; the existing runtime must reconnect.
+            connection.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname=current_database() AND pid <> pg_backend_pid()"
+            ).fetchall()
+        else:
+            try:
+                post(client, arm, "/crash_application")
+            except OSError, urllib.error.URLError:
+                pass  # DBOS deliberately closes its HTTP connection with os._exit.
     terminal, remaining = arm.wait(
         connection, identity, (cancelled,) if decision == "failed" else (dispatched,), max_progress=crash_progress
     )
@@ -150,7 +158,7 @@ def sample(
     assert arm.inventory(connection) == inventory - (decision == "paid")
     return {
         "scenario": scenario,
-        "progress_at_crash": crash_progress if scenario == "crash" else -1,
+        "progress_at_crash": crash_progress if recovery_start is not None else -1,
         "order_id": identity,
         "terminal": terminal,
         "checkout_receipt_ms": checkout_ms,
@@ -282,6 +290,11 @@ def main() -> None:
             assert process.log.read_text().count("WIDGET_CRASH") >= 1, "crash endpoint did not restart application"
             assert process.log.read_text().count("WIDGET_STARTED") >= 2, "application did not restart"
             print(f"{arm.name}: {results['arms'][arm.name]['paid_summary']}", flush=True)
+            # Separate correctness journey, excluded from all measured cost windows.
+            with psycopg.connect(arm.database, autocommit=True) as connection:
+                results["arms"][arm.name]["connection_loss_journey"] = sample(
+                    arm, arm.client(), connection, "connection loss"
+                )
             if args.browser:
                 subprocess.run(
                     [

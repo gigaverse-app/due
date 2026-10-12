@@ -10,7 +10,7 @@ from due.django.capabilities import authoring
 from due.django.conformance.binding import Binding, entered_binding
 from due.django.conformance.examples import DeliveryExample
 from due.django.conformance.provider import ProviderProbe
-from due.django.public import DatabaseEffect, UniverseDurableWork
+from due.django.public import DatabaseEffect, DurableWork, UniverseDurableWork
 from due.django.testing import hold_nudges
 
 
@@ -25,11 +25,15 @@ def database_replay[W: UniverseDurableWork, O](
         delivery.work.refresh_from_db()
         token = delivery.work.fencing_token
         assert delivery.effect_calls is not None, "database replay needs actual callback entry counts"
-        entries = ProviderProbe(authoring.run_work, key=lambda *args, **kwargs: args[1])
+
+        def identity(model: type[DurableWork], work_id: int, **kwargs: object) -> tuple[type[DurableWork], int]:
+            return model, work_id
+
+        entries = ProviderProbe(authoring.run_work, key=identity)
         with entries.patch(authoring, "run_work"):
             yield DeliveryReplay(
                 deliver=partial(capability.attempt_execution, delivery.work.pk, token),
-                entries=lambda: entries.count(delivery.work.pk),
+                entries=lambda: entries.count((capability.model, delivery.work.pk)),
                 observe=delivery.observe,
                 expected=delivery.expected,
                 callback_entries=delivery.effect_calls,

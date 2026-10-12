@@ -65,7 +65,7 @@ Timing is descriptive (small sample, runner-dependent), with no flaky faster-tha
 
 The original transient-hint comparison recorded **14 inserts for Due versus 339
 for DBOS across seven orders: 24.2× fewer inserts (95.9% fewer)**. That is an
-advantage in retained history volume, not proof of lower total cost: that run also
+advantage in insert volume, not proof of lower total cost: that run also
 recorded 357 Due updates versus 110 DBOS updates. See [PR 34's benchmark discussion](https://github.com/gigaverse-app/due/pull/34).
 
 The current runner also records application SQL calls/execution time, buffer
@@ -101,7 +101,11 @@ There is no new per-stage table, separate application deadline or step-identity
 protocol to maintain.
 
 The standalone settings enable Django's supported psycopg pool (one to four
-connections per process); DBOS already pools through SQLAlchemy. Crash testing
+connections per process), with Celery recycling its connections after five tasks; DBOS already pools through SQLAlchemy. Crash testing
 still kills every application process, including these pools. The comparison
 therefore includes reconnect/startup work after the crash, as well as steady
 operation. No durability setting or recovery cadence is relaxed.
+
+A separate, unmeasured correctness journey terminates both apps' live database
+sessions during dispatch. Each must reconnect and finish without resetting
+progress or changing inventory. This fault is excluded from the cost table.

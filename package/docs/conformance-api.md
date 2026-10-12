@@ -231,3 +231,24 @@ the originally returned work rows, must enter their capability transactions,
 and may not write the test's desired work state itself. See the
 [books binding](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/book_examples.py) and
 [mutation controls](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_books_contract_controls.py).
+
+## Terminal completion and database delivery
+
+`EffectExamples.completions` contains named bindings for pytest-obligation's
+`BoundedCompletion`: a required terminal product outcome, controlled clock,
+recovery and explicit time bounds. `due.django.conformance.completion.completion`
+provides the production task/scheduler wiring, observes registered cadence, and
+can discard every optional timer hint. A minimum wait catches skipped business
+delays; an independent remaining-progress observer catches reversal. See the
+Widget Store and books bindings for complete workflows.
+
+`DatabaseEffect` requires `delivery_replays`. Bind the repeated token and counted
+application callback with `due.django.conformance.database_replay.database_replay`.
+It generates a separately named delivery proof and deliberately leaves profile H
+not applicable: the raw transactional callback is not independently replay-safe.
+External-effect modes retain their existing mandatory profile H bindings.
+
+Both families are included in the collected expected-case set and effect report.
+CI can require their full `test_due_work_contract[...]` IDs with
+`check_adoption_report.py --required-effect-case`, so removing enrollment cannot
+silently turn terminal correctness into a first-stage-only proof.

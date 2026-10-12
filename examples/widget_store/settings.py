@@ -15,3 +15,6 @@ DATABASES = {
         "OPTIONS": {"pool": {"min_size": 1, "max_size": 4, "timeout": 5}},
     }
 }
+# Celery prefork otherwise closes Django's entire pool before/after each task.
+# Recycle after five tasks; recovery/fencing and transaction boundaries are unchanged.
+CELERY_DB_REUSE_MAX = 5
