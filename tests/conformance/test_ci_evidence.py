@@ -68,3 +68,26 @@ def test_ci_accepts_only_exact_declared_unassessed_cases(tmp_path: Path, fault: 
             check_effects(path, ["example"], unassessed=[declined])
     else:
         check_effects(path, ["example"], unassessed=[declined])
+
+
+@pytest.mark.parametrize("required", ["delivery", "process publication"])
+def test_ci_requires_a_named_process_proof_even_if_its_binding_is_deleted(tmp_path: Path, required: str) -> None:
+    path = tmp_path / "effects.json"
+    path.write_text(
+        json.dumps(
+            {
+                "example": {
+                    "expected": ["delivery"],
+                    "collected": ["delivery"],
+                    "selected": ["delivery"],
+                    "unassessed": [],
+                    "outcomes": {"delivery": ["passed"]},
+                }
+            }
+        )
+    )
+    if required == "delivery":
+        check_effects(path, ["example"], required=[required])
+    else:
+        with pytest.raises(AssertionError, match="missing required proof"):
+            check_effects(path, ["example"], required=[required])

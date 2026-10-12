@@ -1,5 +1,6 @@
 """A real child process exits at each book workflow boundary."""
 
+import os
 import sys
 from unittest.mock import patch
 
@@ -20,6 +21,8 @@ def main() -> None:
 
     def write(entry: search.IndexEntry) -> str:
         die_here("before index write")
+        if os.environ.get("DUE_TEST_CORRUPT_PROVIDER"):
+            entry = entry.model_copy(update={"author": "wrong author"})
         result = put(entry)
         die_here("after index write")
         return result

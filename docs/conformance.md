@@ -451,3 +451,15 @@ including all four admission families, changing inputs, waking in-flight work,
 missing perturbations and bindings that never revisit an owner. Factories may
 return examples directly or provide context managers, following the public
 [binding interface](conformance-api.md).
+
+
+### Independent outcomes for real process deaths
+
+Each `EffectExamples.process_handoffs` entry must declare
+`ProcessHistory(expected=...)`. Use a value or a callback derived from immutable
+input; `None` is a valid expected result. The binding refuses an omitted oracle.
+The shared pytest-obligation assertion first checks the normal run against that
+requirement, then checks each recovered death against the correct normal result.
+Observe actual provider content and user-visible product state, not only a
+successful work row. See the [demo comparison](demo-comparisons.md) for positive
+histories, deliberately incorrect provider replies and CI enrollment gates.

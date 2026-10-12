@@ -1,20 +1,20 @@
 """Scenario bindings observe real file bytes and enter the production commands."""
 
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
-from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from uuid import uuid4
 
 from django.utils import timezone
 from pytest_obligation.contract import NotApplicable
+from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect
 
-from due.django.conformance.provider import ProviderProbe
+from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.suite import (
     AdmissionFailureExample,
     CancellationExample,
@@ -29,25 +29,11 @@ from examples.documents import storage
 from examples.scheduled.effects import publish_at_deadline
 from examples.scheduled.models import Publication, PublicationDeadline
 from examples.scheduled.services import cancel_publication, create_publication, retry_publication
+from tests.examples.file_support import environment as environment
+from tests.examples.file_support import probe
+from tests.harness.processes import run_child
 
 TEXT = "The next edition is ready."
-probe: ContextVar[ProviderProbe[[str, str], str, str]] = ContextVar("scheduled_files")
-
-
-@contextmanager
-def environment() -> Iterator[None]:
-    writer: Callable[[str, str], str] = storage.write_revision
-    writes = ProviderProbe(writer, key=lambda text, operation_key: operation_key)
-    token = probe.set(writes)
-    try:
-        with (
-            TemporaryDirectory() as directory,
-            patch.dict(os.environ, {"DUE_OUTPUT_DIR": directory}),
-            writes.patch(storage, "write_revision"),
-        ):
-            yield
-    finally:
-        probe.reset(token)
 
 
 def make_work() -> PublicationDeadline:
@@ -138,8 +124,52 @@ def admission_failure() -> Iterator[AdmissionFailureExample[PublicationDeadline,
         yield AdmissionFailureExample.after_save(scenario, PublicationDeadline)
 
 
+def run_process(point: str | None) -> tuple[str, int]:
+    key = str(uuid4())
+    marker = Path(os.environ["DUE_OUTPUT_DIR"]) / f"fault-{key}"
+    return key, run_child("tests.harness.scheduled_process", key, point, marker)
+
+
+@dataclass(frozen=True)
+class PublicationOutcome:
+    """Independent product/provider projection used across fresh child identities."""
+
+    status: str | None
+    content: str | None
+    deadline_obligations: int
+
+
+def process_outcome(key: str) -> PublicationOutcome:
+    publication = Publication.objects.filter(submission_key=key).first()
+    if publication is None:
+        return PublicationOutcome(None, None, 0)
+    content = None
+    if publication.published_key:
+        path = Path(os.environ["DUE_OUTPUT_DIR"]) / publication.published_key
+        content = path.read_text() if path.exists() else None
+    return PublicationOutcome(
+        publication.status, content, PublicationDeadline.objects.filter(owner=publication).count()
+    )
+
+
+def recover_process(key: str) -> None:
+    with WorkTableDelivery(publish_at_deadline).session() as delivery_session:
+        delivery_session.recover()
+
+
 EXAMPLES = EffectExamples(
     fixtures=("scheduled_files",),
+    process_handoffs=(
+        ProcessHistory(
+            name="scheduled publication process death",
+            initial=PublicationOutcome(None, None, 0),
+            expected=PublicationOutcome(Publication.Status.PUBLISHED, TEXT, 1),
+            run=run_process,
+            observe=process_outcome,
+            recover=recover_process,
+            death_points=("after admission", "before file write", "after file write", "after settlement"),
+        ),
+    ),
     environment=environment,
     make_work=make_work,
     delivery=delivery,

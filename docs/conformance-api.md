@@ -178,3 +178,5 @@ that derivation would enroll cannot silently disappear from recovery. Discovery
 with an explicit horizon does not claim to cover every possible owner and does
 not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/docs/selection-completeness.md)
 apply; the generated case participates in normal collection and outcome guards.
+
+`process_handoffs` requires an independent `ProcessHistory.expected` value or input-derived callback for every entry. Omitted expectations raise at binding construction; plain pytest-obligation convergence-only histories remain available outside this application binding.

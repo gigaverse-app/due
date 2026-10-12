@@ -237,3 +237,6 @@ uv run pytest tests/conformance/test_book_contracts.py \
 
 These checks establish this application's contracts with its local provider.
 They do not establish another search provider's idempotency or editing semantics.
+
+See [migration findings and proof boundaries](../../docs/demo-comparisons.md) for
+the cross-demo comparison and independently declared process outcomes.
