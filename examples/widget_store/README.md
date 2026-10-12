@@ -130,11 +130,41 @@ existing obligation/fence/recovery protocol still owns that decision.
 The comparison workflow measures the pinned pre-change Due checkout and the
 candidate through the same controller, each against the unmodified DBOS app,
 with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
-warm order processing from crash/startup work. Separate py-spy profiles include
-both applications and their descendants, sampled without pausing them at 25 Hz.
-GIL-held samples identify Python call paths, not native CPU time; nonblocking
-sampling can omit inconsistent stacks. Profiled runs are labelled and excluded from timing
-claims. Raw profiles and benchmark results remain CI artifacts.
+warm order processing from crash/startup work. Two separate CPU captures and one wall-clock capture use
+pinned Yappi 1.7.6 in both applications. The opt-in bootstrap covers all threads,
+fresh prefork counters and crash restarts; it changes no upstream source or
+application configuration. Only the profiler module and its extension are injected;
+each app keeps its own dependency environment. CPU captures use five paid orders; wall captures use
+two. Both include failed payment, a crash and SQL-session loss.
+
+Each capture must finish both applications' correctness journeys and contain
+profiles for every supervised process before and after the crash. It must show
+actual checkout, advance and dispatch calls in each application's corresponding
+process generation. Negative controls reject incomplete journeys, missing
+processes or business calls, clock mismatches, snapshot errors and corrupt data.
+Real-process tests also check that the main thread is not counted twice and a
+fork cannot retain counters or overwrite its parent's file.
+
+Yappi's per-thread CPU clock profiles Python functions and builtins. Wall-clock
+profiles include waits and overlap across threads. The snapshot writer thread is
+excluded. Live snapshots are written every second so SIGKILL cannot discard the
+whole profile; the final interval can be missing, scheduling delays can extend
+it, and active calls may have incomplete inclusive totals. These profiles locate
+hot functions, not exact whole-journey call counts or production CPU percentages.
+
+Profiled runs are labelled and excluded from timing claims. Raw per-process
+functions, self/inclusive summaries, source provenance and validation results
+remain CI artifacts. A failed capture fails the job. There is no silent retry or
+collector fallback. Blocking py-spy was rejected after it stalled DBOS in CI;
+nonblocking py-spy produced too many inconsistent reads. See the [profiling report in PR #43](https://github.com/gigaverse-app/due/pull/43)
+for the retained evidence and limitations.
+
+To reproduce a CPU capture against the pinned upstream checkout (after the
+database setup above), use a fresh output directory:
+
+```bash
+uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 5
+```
 
 The generated `delivery-replay-reconnected dispatch` contract terminates the real
 PostgreSQL session before each of two deliveries through Celery's production
@@ -143,3 +173,17 @@ callback. Disabling the entry cleanup must fail that same case. The separate
 benchmark journey terminates every SQL session in the app's isolated database
 while its real prefork worker is dispatching, then checks completion, inventory,
 and a subsequent browser checkout.
+
+### Scheduler and pool follow-up
+
+The supervisor uses `examples.widget_store.worker_settings` for its Celery
+prefork worker (one connection per serial child) and the existing four-connection
+pool for the threaded web server. Manual worker launches should set
+`DJANGO_SETTINGS_MODULE=examples.widget_store.worker_settings`; do not use
+that serial configuration for a threaded worker.
+
+Shared Due manifest setup installs a persistent Beat scheduler that retains
+Celery's early drift check and sleeps its final remainder. No work-table rows,
+deadline hints, recovery cadence, health checks or transaction retry behavior
+are added or removed. See the [archaeology and proof plan](../../docs/work-in-progress/tickets/widget-scheduler-pool-test-plan.md)
+and [PR #43](https://github.com/gigaverse-app/due/pull/43) for measurements.
