@@ -1,10 +1,11 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [project]
-name = "due"
-version = "0.1.0a1"
+name = "django-due"
+# Release tags own the version; subtrees use the explicit development fallback.
+dynamic = ["version"]
 description = "Durable obligations for Django and PostgreSQL"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -29,7 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-testing = ["pytest-obligation[django,celery,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@eaa2385c8e4cfdc7711e9e37d972e162dd01e50d"]
+testing = ["pytest-obligation[django,celery,exploration,debt]>=0.11.0,<1"]
 redis = ["celery[redis]>=5.6,<6"]
 beat = ["django-celery-beat>=2.8"]
 
@@ -43,7 +44,7 @@ lint = ["ruff>=0.14", "pre-commit>=4.3"]
 dev = [
     { include-group = "lint" },
     "pytest>=8.4",
-    "pytest-obligation[celery,django,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@eaa2385c8e4cfdc7711e9e37d972e162dd01e50d",
+    "pytest-obligation[celery,django,exploration,debt]>=0.11.0,<1",
     "pyrefly>=1,<2",
     "celery-types>=0.26",
     "django-stubs>=5.2",
@@ -81,5 +82,15 @@ markers = ["no_db: does not access the database"]
 [project.entry-points.pytest11]
 due_work_tables = "due.pytest_plugin"
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+# Embedded subtrees must not take a version from their parent repository's tags.
+fallback_version = "0.1.0.dev0"
+
+[tool.uv.sources]
+# Normal CI keeps main's reviewed replay-outcome implementation until its next
+# manual PyPI release. This development source is not emitted into wheel metadata.
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" }

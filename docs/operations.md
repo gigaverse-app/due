@@ -97,7 +97,7 @@ allows other rows to progress and exposes the deferred identity for diagnosis.
 
 ## Database-backed Beat
 
-The optional `due[beat]` extra supports `django-celery-beat`.
+The optional `django-due[beat]` extra supports `django-celery-beat`.
 `remove_stale_recovery_schedules(registrations)` removes only unowned entries
 whose task is Due's exact recovery task. Call it intentionally during scheduler
 startup; it never sweeps unrelated tasks or old backend namespaces. Applications
