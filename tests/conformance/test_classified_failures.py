@@ -9,6 +9,8 @@ classification the product never shows, must fail.
 
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
+from dataclasses import replace
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -16,8 +18,10 @@ from pytest_obligation.contract import ObligationContractDesignError
 from pytest_obligation.profiles.job_retry_limits import assert_classified_failure_contract
 
 from due.django.conformance.bindings import DurableWorkBindings
+from due.django.conformance.registrations import durable_work_installed
 from due.django.conformance.suite import DeliveryExample, RejectionExample, classified_failure_bindings
 from due.django.public import WorkFailureDisposition
+from due.django.runtime.registry import DurableWorkRegistration
 from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner, PrimitiveWork, primitive, record
 from tests.harness.primitive import (
     isolated_primitive_fixture as isolated_primitive_fixture,
@@ -97,6 +101,30 @@ def test_a_terminal_rejection_must_reach_the_product(visible: bool) -> None:
         nullcontext() if visible else pytest.raises(AssertionError, match="invisible to the product"),
     ):
         assert_classified(rejected(TERMINAL, expected="rejected"))
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("visible", [True, False], ids=["recorded", "invisible"])
+def test_a_retryable_rejection_waits_and_must_reach_the_product(visible: bool) -> None:
+    # A positive retry delay makes an immediately due retry a hot loop (waits=True).
+    delayed = replace(primitive, policy=replace(primitive.policy, retry_delay=timedelta(minutes=1)))
+    entry = DurableWorkRegistration(name="primitive_delayed", capability=delayed, cadence_seconds=60, queue="celery")
+
+    def record_retry(self: PrimitiveEffect, work: PrimitiveWork, error: Exception) -> None:
+        PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="retrying")
+
+    with (
+        durable_work_installed(entry),
+        production_classifies_as(RETRYABLE),
+        patch.object(PrimitiveEffect, "finalize_retry", record_retry) if visible else nullcontext(),
+        nullcontext() if visible else pytest.raises(AssertionError, match="invisible to the product"),
+        classified_failure_bindings(
+            DurableWorkBindings(delayed, record), rejected(RETRYABLE, expected="retrying"), outcome="throttled"
+        ) as failure,
+    ):
+        assert failure.waits
+        assert_classified_failure_contract(failure)
 
 
 @pytest.mark.django_db(transaction=True)
