@@ -178,3 +178,24 @@ else:
         assert child["parent_pid"] == parent["pid"]
         assert sum(f["calls"] for f in child["functions"] if f["name"] == "child_only") == 1
         assert not any(f["name"] == "work" for f in child["functions"])
+
+
+def test_profiler_injection_does_not_shadow_application_dependencies(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    from scripts.widget_profile import profiler_libraries
+
+    libraries = profiler_libraries(tmp_path / "profiler")
+    application = tmp_path / "application"
+    application.mkdir()
+    (application / "psycopg.py").write_text("APPLICATION_MARKER = 'original app driver'\n")
+    result = subprocess.run(
+        [sys.executable, "-S", "-c", "import yappi, psycopg; print(psycopg.APPLICATION_MARKER)"],
+        env={**os.environ, "PYTHONPATH": os.pathsep.join((str(libraries), str(application)))},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "original app driver"

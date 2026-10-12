@@ -133,7 +133,8 @@ with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
 warm order processing from crash/startup work. Two separate CPU captures and one wall-clock capture use
 pinned Yappi 1.7.6 in both applications. The opt-in bootstrap covers all threads,
 fresh prefork counters and crash restarts; it changes no upstream source or
-application configuration. CPU captures use five paid orders; wall captures use
+application configuration. Only the profiler module and its extension are injected;
+each app keeps its own dependency environment. CPU captures use five paid orders; wall captures use
 two. Both include failed payment, a crash and SQL-session loss.
 
 Each capture must finish both applications' correctness journeys and contain
@@ -155,8 +156,8 @@ Profiled runs are labelled and excluded from timing claims. Raw per-process
 functions, self/inclusive summaries, source provenance and validation results
 remain CI artifacts. A failed capture fails the job. There is no silent retry or
 collector fallback. Blocking py-spy was rejected after it stalled DBOS in CI;
-nonblocking py-spy produced too many inconsistent reads. See the profiling
-findings below for the retained evidence and limitations.
+nonblocking py-spy produced too many inconsistent reads. See the [profiling report in PR #43](https://github.com/gigaverse-app/due/pull/43)
+for the retained evidence and limitations.
 
 To reproduce a CPU capture against the pinned upstream checkout (after the
 database setup above), use a fresh output directory:

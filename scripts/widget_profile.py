@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
@@ -102,6 +103,18 @@ def validate_capture(directory: Path, mode: str) -> dict:
     }
 
 
+def profiler_libraries(directory: Path) -> Path:
+    """Inject only Yappi, never another app's whole site-packages directory."""
+    assert importlib.metadata.version("yappi") == "1.7.6", "use the pinned Yappi version"
+    directory.mkdir()
+    for name in ("yappi", "_yappi"):
+        spec = importlib.util.find_spec(name)
+        assert spec and spec.origin, "install locked development dependencies with uv sync --locked"
+        source = Path(spec.origin)
+        shutil.copy2(source, directory / source.name)
+    return directory
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("cpu", "wall"), default="cpu")
@@ -112,9 +125,7 @@ def main() -> None:
     directory = args.output.resolve()
     assert not directory.exists(), "use a fresh profile output directory"
     directory.mkdir(parents=True)
-    spec = importlib.util.find_spec("yappi")
-    assert spec and spec.origin, "install locked development dependencies with uv sync --locked"
-    assert importlib.metadata.version("yappi") == "1.7.6", "use the pinned Yappi version"
+    libraries = profiler_libraries(directory / "profiler")
     command = [sys.executable, "-m", "scripts.widget_benchmark", *forwarded, "--profiled", "--output", str(directory)]
     env = {
         **os.environ,
@@ -123,7 +134,7 @@ def main() -> None:
         "PYTHONPATH": os.pathsep.join(
             [
                 str(ROOT / "scripts/widget_profile_bootstrap"),
-                str(Path(spec.origin).parent),
+                str(libraries),
                 os.environ.get("PYTHONPATH", ""),
             ]
         ),
