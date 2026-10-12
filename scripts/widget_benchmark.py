@@ -116,6 +116,9 @@ def sample(
     checkout_ms = (time.perf_counter() - start) * 1000
     assert post(client, arm, f"/checkout/{key}") == receipt, "duplicate submission changed receipt"
     payment_key = json.loads(receipt)["payment_id"] if arm.name == "due" else receipt
+    clock_row = connection.execute("SELECT clock_timestamp()").fetchone()
+    assert clock_row is not None
+    payment_db_start = clock_row[0]
     start = time.perf_counter()
     decision = "failed" if scenario == "failed" else "paid"
     response = post(client, arm, f"/payment_webhook/{payment_key}/{decision}")
@@ -151,6 +154,11 @@ def sample(
         connection, identity, (cancelled,) if decision == "failed" else (dispatched,), max_progress=crash_progress
     )
     total_ms = (time.perf_counter() - start) * 1000
+    clock_row = connection.execute("SELECT clock_timestamp()").fetchone()
+    assert clock_row is not None
+    database_elapsed = (clock_row[0] - payment_db_start).total_seconds()
+    if decision == "paid":
+        assert database_elapsed >= 10, "paid order bypassed the required business waits"
     after_row = connection.execute(count_query).fetchone()
     assert after_row is not None
     assert after_row[0] == before_count + 1, "duplicate checkout created extra orders"
@@ -165,6 +173,7 @@ def sample(
         "callback_receipt_ms": callback_ms,
         "payment_to_decision_ms": decision_ms,
         "payment_to_terminal_ms": total_ms,
+        "payment_to_terminal_database_ms": database_elapsed * 1000,
         "crash_to_terminal_ms": (time.perf_counter() - recovery_start) * 1000 if recovery_start is not None else 0,
     }
 
@@ -181,9 +190,10 @@ def benchmark(arm: Arm, samples: int, pid: int) -> dict:
         postgres_version = connection.info.server_version
         window_start = time.perf_counter()
         with Resources(connection, pid) as resources:
-            records = [
-                sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]
-            ]
+            records = []
+            for index, scenario in enumerate(["paid"] * samples + ["failed", "crash"]):
+                records.append(sample(arm, client, connection, scenario))
+                resources.mark(f"{index + 1}: {scenario}")
             time.sleep(2)
             after = stats(connection)
         window_seconds = time.perf_counter() - window_start
@@ -191,6 +201,10 @@ def benchmark(arm: Arm, samples: int, pid: int) -> dict:
             table: {kind: count - before.get(table, {}).get(kind, 0) for kind, count in values.items()}
             for table, values in after.items()
         }
+    if arm.name == "due":
+        # One product order and one obligation per accepted submission; timers
+        # and connection cleanup must not introduce a durable per-stage ledger.
+        assert sum(row["inserted"] for row in writes.values()) == 2 * len(records), "Due added unexpected SQL rows"
     metrics = {}
     for field in ("checkout_receipt_ms", "callback_receipt_ms", "payment_to_decision_ms", "payment_to_terminal_ms"):
         values = [float(record[field]) for record in records if record["scenario"] == "paid"]
@@ -209,6 +223,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True, help="pinned dbos-demo-apps checkout")
     parser.add_argument("--serve-dbos", action="store_true")
+    parser.add_argument("--due-source", type=Path, default=ROOT, help="clean, installed Due checkout to measure")
+    parser.add_argument("--profiled", action="store_true", help="label instrumentation runs; not timing evidence")
     parser.add_argument("--browser", action="store_true", help="run real browser crash journeys after timing")
     parser.add_argument("--due-db", default=os.environ.get("DUE_DATABASE_URL"))
     parser.add_argument("--dbos-db", default=os.environ.get("DBOS_DATABASE_URL"))
@@ -229,6 +245,10 @@ def main() -> None:
     assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT), (
         "Commit tracked changes before recording benchmark evidence"
     )
+    args.output = args.output.resolve()
+    due_source = args.due_source.resolve()
+    due_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=due_source, text=True).strip()
+    assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=due_source)
     args.output.mkdir(parents=True, exist_ok=True)
     arms = [
         Arm(
@@ -252,7 +272,9 @@ def main() -> None:
     ]
     results = {
         "started_utc": datetime.now(UTC).isoformat(),
-        "due_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "due_sha": due_sha,
+        "runner_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "profiled": args.profiled,
         "upstream_sha": UPSTREAM_SHA,
         "python": sys.version,
         "platform": platform.platform(),
@@ -276,11 +298,13 @@ def main() -> None:
             "DUE_QUEUE": "widget-benchmark",
         }
         command = (
-            [sys.executable, "-m", "examples.widget_store.supervisor", "--port", "8001"]
+            [str(due_source / ".venv/bin/python"), "-m", "examples.widget_store.supervisor", "--port", "8001"]
             if arm.name == "due"
             else [sys.executable, "-m", "scripts.widget_benchmark", "--upstream", str(upstream), "--serve-dbos"]
         )
-        with running_process(args.output, arm.name, command, env) as process:
+        with running_process(
+            args.output, arm.name, command, env, cwd=due_source if arm.name == "due" else ROOT
+        ) as process:
 
             def ready(arm: Arm = arm) -> bool:
                 try:
@@ -320,12 +344,14 @@ def main() -> None:
                     "browser crash button did not restart application"
                 )
         save_results()
-    assert results["due_sha"] == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), (
-        "Source commit changed during benchmark"
-    )
-    assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT), (
+    assert (
+        results["due_sha"] == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=due_source, text=True).strip()
+    ), "Source commit changed during benchmark"
+    assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=due_source), (
         "Source changed during benchmark"
     )
+    results["complete"] = True
+    save_results()
 
 
 if __name__ == "__main__":

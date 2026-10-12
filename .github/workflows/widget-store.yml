@@ -16,6 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         reverse: [false, true]
+        revision: [baseline, candidate]
     services:
       postgres:
         image: postgres:17
@@ -35,6 +36,7 @@ jobs:
       DBOS_DATABASE_URL: postgresql+psycopg://due:due@localhost:5432/widget_dbos
       DJANGO_SETTINGS_MODULE: examples.widget_store.settings
       PGPASSWORD: due
+      DUE_COMPARE_SOURCE: ${{ matrix.revision == 'baseline' && '.widget-baseline' || '.' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -42,10 +44,18 @@ jobs:
           repository: dbos-inc/dbos-demo-apps
           ref: ddaf50e71fa8e19364d9c70b5d87a9c8203af152
           path: .widget-upstream
+      - uses: actions/checkout@v7
+        if: matrix.revision == 'baseline'
+        with:
+          repository: gigaverse-app/due
+          ref: a3024ebafbbf816c9d2a0b9fbe1a1bf92a2d0028
+          path: .widget-baseline
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync --all-packages --locked
+      - run: uv sync --directory .widget-baseline --all-packages --locked
+        if: matrix.revision == 'baseline'
       - run: uv run playwright install --with-deps chromium
       - run: uv sync --directory .widget-upstream/python/widget-store --locked --python 3.14
       - name: Enable measured PostgreSQL execution and WAL statistics
@@ -69,10 +79,15 @@ jobs:
         env:
           WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           WIDGET_REDIS_CONTAINER: ${{ job.services.redis.id }}
-        run: uv run python -m scripts.widget_benchmark --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
+        run: uv run python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
+      - name: Profile both applications separately from the timing run
+        if: matrix.reverse == false
+        run: |
+          mkdir -p test-results/widgets/profile
+          uvx --from py-spy==0.4.2 py-spy record --subprocesses --nonblocking --gil --rate 25 --format speedscope --output test-results/widgets/profile/cpu.json -- .venv/bin/python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2 --profiled --output test-results/widgets/profile
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: widget-store-comparison-reverse-${{ matrix.reverse }}
+          name: widget-store-${{ matrix.revision }}-reverse-${{ matrix.reverse }}
           path: test-results/widgets/
           if-no-files-found: error

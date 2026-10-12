@@ -93,7 +93,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
-| Replay-safe effect | `replay` | An actual second external execution leaves the same observable result |
+| Replay-safe effect | `replay`; `delivery.effect_calls` | An actual second external execution leaves the same observable result; a lost acknowledgement replays through recovery to one settled outcome |
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
 | Projection or scheduled action | `snapshot` | Supersession; late projection repair or cancellation after external entry |
@@ -119,6 +119,32 @@ keep their external resources alive for the whole generated case.
 and scoped examples have one entry contract. Cleanup still receives the original
 exception, but cannot suppress a failed proof. Application environments use that
 same guard, including the standalone work-table proofs.
+
+### Lost acknowledgements
+
+Replay-safe work (not an evidence-required operation, not an independent
+compensation, and with a nonzero retry budget) also receives
+`test_lost_acknowledgement_replay_converges`. The worker dies inside settlement
+after the real effect returned, so success never commits. Registered recovery
+must enter the effect exactly once more. Each execution may make multiple
+provider calls; `delivery.effect_calls` must increase on both the interrupted
+execution and its replay. For a completing effect the `delivery` observation
+must equal `expected` (one logical effect), the same revision must settle, and
+a further recovery tick must not call the provider again.
+
+A continuing external execution (`ContinueAfter` or `ReopenAfter`) is compared
+with a fresh `delivery` given two uninterrupted executions: the same outcome
+and provider-entry count. A `DatabaseEffect` instead rolls the first product
+transition back with its acknowledgement. The proof requires that rollback,
+then compares its replay with **one** uninterrupted committed transition.
+The existing catalog exercises two provider calls and reopening repair after
+an older write loses its response; widget checkout exercises transactional
+continuations.
+
+A provider that refuses the second create and is classified permanent, an
+effect that adds a record per call, and a local "already sent" guard that skips
+the provider each fail this case; see the
+[self-test](../tests/conformance/test_lost_acknowledgement_replay.py).
 
 ## Handoffs: require the right result, not just the same result
 
