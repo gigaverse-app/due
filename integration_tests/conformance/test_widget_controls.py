@@ -42,17 +42,38 @@ def test_process_contract_rejects_disabled_recovery(monkeypatch):
         assert_process_deaths_converge(EXAMPLES.process_handoffs[0])
 
 
-def test_process_contract_rejects_missing_stock_compensation(monkeypatch):
+@pytest.mark.parametrize("inventory", [99, 101], ids=["missing refund", "double refund"])
+def test_process_contract_rejects_wrong_stock_compensation(monkeypatch: pytest.MonkeyPatch, inventory: int) -> None:
     original = services.advance
 
     def corrupt(key, stage):
         before = Order.objects.get(submission_key=key)
         result = original(key, stage)
         if before.reserved and Order.objects.get(pk=before.pk).status == Order.Status.CANCELLED:
-            # Fault injection: undo the real refund, leaving a lost widget.
-            Product.objects.filter(pk=before.product_id).update(inventory=99)
+            # Fault injection: corrupt the actual refund, losing or duplicating stock.
+            Product.objects.filter(pk=before.product_id).update(inventory=inventory)
         return result
 
     monkeypatch.setattr(services, "advance", corrupt)
     with pytest.raises(HistoriesDiverged, match="after reservation"):
         assert_process_deaths_converge(EXAMPLES.process_handoffs[1])
+
+
+def test_generated_gate_rejects_selection_before_payment(monkeypatch: pytest.MonkeyPatch) -> None:
+    from examples.widget_store.models import CheckoutWork
+
+    monkeypatch.setattr(type(checkout_order), "due_work", lambda self: CheckoutWork.objects.all())
+    contract = effect_contract(checkout_order, examples=EXAMPLES)
+    case = next(
+        row.values[0]
+        for row in contract_cases(contract)
+        if row.id == "eligibility-payment received-assert_blocked_gate_preserves_intent"
+    )
+    with pytest.raises(AssertionError, match="blocked intent was selected"):
+        case.run()
+
+
+def test_process_contract_rejects_dropped_continuation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(type(checkout_order), "perform_effect", lambda self, work: None)
+    with pytest.raises(HistoriesDiverged, match="after payment receipt"):
+        assert_process_deaths_converge(EXAMPLES.process_handoffs[0])

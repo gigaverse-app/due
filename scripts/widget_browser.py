@@ -1,6 +1,7 @@
 """Real browser acceptance for both storefronts; uses running benchmark servers."""
 
 import argparse
+import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -35,9 +36,15 @@ def main() -> None:
             page.get_by_role("button", name="Confirm Payment").click()
             current = page.locator('[x-data="retrieveOrder(orderId)"]')
             expect(current.locator('[x-text="order.status"]')).to_have_text("PAID", timeout=15000)
+            identity = current.locator('[x-text="order.id"]').inner_text()
+            recent = page.locator(".bg-gray-50.border").filter(
+                has=page.locator('[x-text="order.order_id"]').filter(has_text=re.compile(f"^{identity}$"))
+            )
+            expect(recent.locator('[x-text="order.order_status"]')).to_have_text("PAID")
             page.screenshot(path=str(args.output / "dbos-progress.png"), full_page=True)
             page.get_by_role("button", name="Crash the Application", exact=True).click()
-            expect(current.locator('[x-text="order.status"]')).to_have_text("DISPATCHED", timeout=65000)
+            # Upstream's detail card is a one-time fetch; its Recent Orders card polls.
+            expect(recent.locator('[x-text="order.order_status"]')).to_have_text("DISPATCHED", timeout=65000)
             page.screenshot(path=str(args.output / "dbos-recovered.png"), full_page=True)
             page.get_by_role("button", name="Continue Shopping").click()
             page.get_by_role("button", name="Buy Now").click()

@@ -211,6 +211,9 @@ def main() -> None:
         supervise([[str(app / ".venv/bin/python"), "-m", "widget_store.main"]], app)
         return
     assert args.samples > 0 and args.due_db and args.dbos_db and args.due_db != args.dbos_db
+    assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT), (
+        "Commit tracked changes before recording benchmark evidence"
+    )
     args.output.mkdir(parents=True, exist_ok=True)
     arms = [
         Arm(
@@ -291,6 +294,12 @@ def main() -> None:
                     "browser crash button did not restart application"
                 )
         (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+    assert results["due_sha"] == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), (
+        "Source commit changed during benchmark"
+    )
+    assert not subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT), (
+        "Source changed during benchmark"
+    )
 
 
 if __name__ == "__main__":
