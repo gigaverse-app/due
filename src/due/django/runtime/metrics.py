@@ -3,15 +3,17 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
-from collections.abc import Callable
-from enum import StrEnum
+from collections.abc import Callable, Mapping
+from enum import Enum, StrEnum
 from functools import wraps
+from types import MappingProxyType
 from typing import TypedDict
 
 from celery.exceptions import SoftTimeLimitExceeded
 from prometheus_client import Counter, Gauge
 
 from due.django.models import DurableWorkState, EffectAttemptOutcome
+from due.django.runtime.names import METRIC_NAMESPACE
 from due.observability import capture_exception_safely
 
 
@@ -85,60 +87,77 @@ class DurableWorkStateLabels(TypedDict):
     state: DurableWorkState
 
 
+type MetricLabels = Mapping[str, type[str] | type[Enum]]
+_METRIC_SCHEMAS: dict[str, MetricLabels] = {}
+
+
+def metric_schemas() -> Mapping[str, MetricLabels]:
+    """Read-only names, labels and enum vocabularies actually declared by Due.
+
+    Applications can validate dashboards and alerts without re-declaring the
+    metrics or inspecting prometheus_client's private collector attributes.
+    Names reflect ``DUE_METRIC_NAMESPACE`` configured before Django starts.
+    """
+    return MappingProxyType(_METRIC_SCHEMAS)
+
+
+def _counter(name: str, description: str, *, labels: MetricLabels) -> Counter:
+    _METRIC_SCHEMAS[name] = MappingProxyType(dict(labels))
+    return Counter(name, description, labelnames=tuple(labels))
+
+
+def _gauge(name: str, description: str, *, labels: MetricLabels) -> Gauge:
+    _METRIC_SCHEMAS[name] = MappingProxyType(dict(labels))
+    return Gauge(name, description, labelnames=tuple(labels), multiprocess_mode="livemostrecent")
+
+
 # `effect` comes only from registered Django model labels. It is finite code
 # configuration, never work/provider/user data, so the series set stays bounded
 # by the number of adopters.
-_due_operations_total = Counter(
-    "due_operations_total",
+_due_operations_total = _counter(
+    f"{METRIC_NAMESPACE}_operations_total",
     "Durable-effect coordination operations by registered work type and outcome.",
-    labelnames=("effect", "operation"),
+    labels={"effect": str, "operation": DurableWorkOperation},
 )
-_due_backlog = Gauge(
-    "due_backlog",
+_due_backlog = _gauge(
+    f"{METRIC_NAMESPACE}_backlog",
     "Active and failed durable effects by work type and state; retained successes are excluded.",
-    labelnames=("effect", "state"),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str, "state": DurableWorkState},
 )
-_due_oldest_age_seconds = Gauge(
-    "due_oldest_age_seconds",
+_due_oldest_age_seconds = _gauge(
+    f"{METRIC_NAMESPACE}_oldest_age_seconds",
     "Age of the oldest active or failed durable effect by work type and state; successes are excluded.",
-    labelnames=("effect", "state"),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str, "state": DurableWorkState},
 )
 
-_due_outstanding = Gauge(
-    "due_outstanding",
+_due_outstanding = _gauge(
+    f"{METRIC_NAMESPACE}_outstanding",
     "All active durable obligations, including queued and delayed retries.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
 
-_due_last_recovery = Gauge(
-    "due_last_recovery_timestamp_seconds",
+_due_last_recovery = _gauge(
+    f"{METRIC_NAMESPACE}_last_recovery_timestamp_seconds",
     "Last completed recovery tick; distinguishes an idle effect from a stalled scheduler.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
 
-_due_last_unclean_recovery = Gauge(
-    "due_last_unclean_recovery_timestamp_seconds",
+_due_last_unclean_recovery = _gauge(
+    f"{METRIC_NAMESPACE}_last_unclean_recovery_timestamp_seconds",
     "Last failed or aborted recovery tick; newer than the clean heartbeat means recovery is still unclean.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
 
-_due_recovery_stale_after = Gauge(
-    "due_recovery_stale_after_seconds",
+_due_recovery_stale_after = _gauge(
+    f"{METRIC_NAMESPACE}_recovery_stale_after_seconds",
     "How long an effect may go without a clean recovery tick before it is stale: twice its slowest cadence.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
 
-_due_pending_attempts = Gauge(
-    "due_pending_provider_attempts",
+_due_pending_attempts = _gauge(
+    f"{METRIC_NAMESPACE}_pending_provider_attempts",
     "Provider attempts whose possible or known writes still require reconciliation.",
-    labelnames=("effect", "outcome"),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str, "outcome": EffectAttemptOutcome},
 )
 
 
@@ -157,29 +176,27 @@ def record_recovery_stale_after(effect: str, seconds: float) -> None:
     _due_recovery_stale_after.labels(effect=effect).set(seconds)
 
 
-_due_recovery_failures_total = Counter(
-    "due_recovery_failures_total",
+_due_recovery_failures_total = _counter(
+    f"{METRIC_NAMESPACE}_recovery_failures_total",
     "Identities (or whole phases) a recovery tick isolated after their step raised; each also fails the tick.",
-    labelnames=("effect", "phase"),
+    labels={"effect": str, "phase": RecoveryPhase},
 )
-_due_recovery_passes_total = Counter(
-    "due_recovery_passes_total",
+_due_recovery_passes_total = _counter(
+    f"{METRIC_NAMESPACE}_recovery_passes_total",
     "Recovery ticks by outcome; a failed tick still ran every phase, an aborted one stopped early.",
-    labelnames=("effect", "outcome"),
+    labels={"effect": str, "outcome": RecoveryOutcome},
 )
 
 
-_due_recovery_deferred = Gauge(
-    "due_recovery_deferred",
+_due_recovery_deferred = _gauge(
+    f"{METRIC_NAMESPACE}_recovery_deferred",
     "Identities a recovery phase isolated and is holding out with backoff; each is still owed.",
-    labelnames=("effect", "phase"),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str, "phase": RecoveryPhase},
 )
-_due_recovery_deferred_oldest_age_seconds = Gauge(
-    "due_recovery_deferred_oldest_age_seconds",
+_due_recovery_deferred_oldest_age_seconds = _gauge(
+    f"{METRIC_NAMESPACE}_recovery_deferred_oldest_age_seconds",
     "Age of the oldest first failure among an effect's deferred identities, per phase.",
-    labelnames=("effect", "phase"),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str, "phase": RecoveryPhase},
 )
 
 
@@ -243,10 +260,10 @@ def record_work_census(
     _due_oldest_age_seconds.labels(**labels).set(oldest_age_seconds)
 
 
-_due_repair_expired_total = Counter(
-    "due_repair_expired_total",
+_due_repair_expired_total = _counter(
+    f"{METRIC_NAMESPACE}_repair_expired_total",
     "Unknown attempts whose repair window expired by product policy, without a provider receipt.",
-    labelnames=("effect",),
+    labels={"effect": str},
 )
 
 
@@ -255,17 +272,15 @@ def record_repair_expired(effect: str) -> None:
     _due_repair_expired_total.labels(effect=effect).inc()
 
 
-_due_eligible = Gauge(
-    "due_eligible",
+_due_eligible = _gauge(
+    f"{METRIC_NAMESPACE}_eligible",
     "Time-due work eligible for execution, for capabilities with an eligibility gate.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
-_due_waiting_eligibility = Gauge(
-    "due_waiting_eligibility",
+_due_waiting_eligibility = _gauge(
+    f"{METRIC_NAMESPACE}_waiting_eligibility",
     "Time-due obligations retained while their execution prerequisite is false.",
-    labelnames=("effect",),
-    multiprocess_mode="livemostrecent",
+    labels={"effect": str},
 )
 
 

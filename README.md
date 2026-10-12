@@ -251,3 +251,7 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 Conformance declarations include [checked immutable inputs](docs/conformance.md#prove-an-immutable-input-declaration), with real admission and recovery controls.
 
 The [conformance API](docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam) includes provider-seam factories and unbounded-discovery completeness; [operations](docs/operations.md#failed-infrequent-recovery) describes failed-tick evidence.
+
+
+For an existing application, see [migration settings and stable wire names](docs/integration.md#migrating-an-existing-application).
+For an existing lifecycle row, see [native recovery and completion](docs/native-lifecycles.md).

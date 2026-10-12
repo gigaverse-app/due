@@ -60,7 +60,6 @@ from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance._internal.immutable_inputs import (
-    AdmissionPath,
     admission_paths,
     assert_immutable_inputs_hold,
     checks_immutable_inputs,
@@ -114,6 +113,7 @@ from due.django.conformance.recovery_isolation import (
 from due.django.conformance.registrations import durable_work_installed, registered_capability
 from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
+    RECEIPT_RECOVERY_HISTORIES,
     SYNCHRONOUS_CALLER_HISTORIES,
     admission_atomicity,
     assert_producer_transaction,
@@ -145,7 +145,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import claim_work, outstanding_work
+from due.django.runtime.coordination import outstanding_work
 from due.django.runtime.registry import DurableWorkRegistration
 from due.django.runtime.tasks import (
     recover_durable_work_task,
@@ -302,8 +302,7 @@ def projection_retention[W: UniverseDurableWork, ResultT](bindings: DurableWorkB
 
     def attempt(resolved=False):
         work = bindings.make()
-        claim = claim_work(type(work), work.pk, lease_duration=capability.policy.lease_duration)
-        assert claim is not None
+        claim = bindings.claim(work)
         value = record_effect_attempt(claim)
         if resolved:
             observe_effect_outcome(value, EffectAttemptOutcome.NOT_APPLIED)
@@ -336,8 +335,7 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
 
     def claim():
         work = bindings.make()
-        claimed = claim_work(model, work.pk, lease_duration=capability.policy.lease_duration)
-        assert claimed is not None
+        claimed = bindings.claim(work)
         claims[claimed.token] = claimed
         return work.pk, claimed.token
 
@@ -359,7 +357,7 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
         return state(pk)
 
     def expire(pk) -> None:
-        model.objects.filter(pk=pk).update(lease_expires_at=database_now() - timedelta(seconds=1))
+        expire_lease(model.objects.get(pk=pk))
 
     with patch("due.django.runtime.tasks.run_durable_work_task.apply_async"):
         yield AmbiguityAware(
@@ -854,7 +852,7 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
         assert work.state == DurableWorkState.QUEUED, "positive control: the reservation must be recorded"
         lost = [args for args, _ in sent if args[1] == work.pk]
         assert len(lost) == 1
-        capability.model.objects.filter(pk=work.pk).update(lease_expires_at=database_now() - timedelta(seconds=1))
+        expire_lease(work)
         recover_durable_work_task(entry.name)
         work.refresh_from_db()
         assert work.rearm_count == 0, f"{entry.name}: an undelivered reservation spent the retry budget"
@@ -1087,47 +1085,40 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
 
         cls.wired_durable_work = wired_durable_work
 
-        @pytest.mark.django_db(transaction=True)
+        def proof[**P](test: Callable[P, None], *, name: str | None = None) -> Callable[P, None]:
+            """Install each database proof with the same transactional and adopter fixtures."""
+            test = pytest.mark.django_db(transaction=True)(test)
+            if examples.fixtures:
+                test = pytest.mark.usefixtures(*examples.fixtures)(test)
+            setattr(cls, name if name is not None else test.__name__, test)
+            return test
+
+        @proof
         def test_registered_producer_lost_notification(self):
             assert_lost_notification_reaches_domain_outcome(capability, examples)
-
-        if examples.fixtures:
-            test_registered_producer_lost_notification = pytest.mark.usefixtures(*examples.fixtures)(
-                test_registered_producer_lost_notification
-            )
 
         def test_registered_effect_enrollment(self):
             assert registered_capability(entry.name) is capability
             assert_registered_schedule(entry)
 
-        cls.test_registered_producer_lost_notification = test_registered_producer_lost_notification
         cls.test_registered_effect_enrollment = test_registered_effect_enrollment
 
-        def with_fixtures(test):
-            return pytest.mark.usefixtures(*examples.fixtures)(test) if examples.fixtures else test
-
-        @pytest.mark.django_db(transaction=True)
+        @proof
         def test_migrated_work_indexes(self):
             assert_work_indexes(capability.model)
 
-        cls.test_migrated_work_indexes = with_fixtures(test_migrated_work_indexes)
-
         if isinstance(capability, DurableExternalOperation):
 
-            @pytest.mark.django_db(transaction=True)
-            @pytest.mark.parametrize("interruption", (*EVIDENCE_RECOVERY_HISTORIES, "settlement_error"))
+            @proof
+            @pytest.mark.parametrize("interruption", RECEIPT_RECOVERY_HISTORIES)
             def test_receipt_repairs_product_without_repeating_effect(self, interruption):
                 assert examples.receipt_repair is not None
                 with examples.environment(), _binding(examples.receipt_repair) as scenario:
                     assert_receipt_repairs_product(capability, scenario, interruption=interruption)
 
-            cls.test_receipt_repairs_product_without_repeating_effect = with_fixtures(
-                test_receipt_repairs_product_without_repeating_effect
-            )
-
         if isinstance(capability, ObservedExternalOperation):
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("history", OBSERVATION_HISTORIES)
             def test_observation_recovers_without_resend(self, history):
                 assert examples.observation is not None
@@ -1144,11 +1135,9 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 ):
                     assert_observation_recovers_without_resend(capability, scenario, driver, history=history)
 
-            cls.test_observation_recovers_without_resend = with_fixtures(test_observation_recovers_without_resend)
-
         if examples.producers:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("producer", examples.producers)
             @pytest.mark.parametrize("rollback", [False, True], ids=["commit-lost-notification", "rollback"])
             def test_application_producer_transaction(self, producer: str, rollback: bool):
@@ -1157,11 +1146,9 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 with _binding(examples.producers[producer]) as scenario:
                     assert_producer_transaction(capability, scenario, rollback=rollback)
 
-            cls.test_application_producer_transaction = with_fixtures(test_application_producer_transaction)
-
         if examples.synchronous_callers:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("caller", examples.synchronous_callers)
             @pytest.mark.parametrize("history", SYNCHRONOUS_CALLER_HISTORIES)
             def test_synchronous_caller(self, caller: str, history: str):
@@ -1170,23 +1157,20 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 with _binding(examples.synchronous_callers[caller]) as scenario:
                     assert_synchronous_caller(capability, scenario, history=history)
 
-            cls.test_synchronous_caller = with_fixtures(test_synchronous_caller)
-
         if examples.perturb_inputs is not None:
             assert isinstance(capability, OwnedDurableWorkCapability)
             owned = capability
             paths = admission_paths(examples)
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("path", paths, ids=[path.id for path in paths])
-            def test_immutable_inputs_hold(self, path: AdmissionPath):
+            def test_immutable_inputs_hold(self, path):
+                # Each admission binding owns its boundary fakes, as in the producer proofs.
                 assert_immutable_inputs_hold(owned, examples, path, name=entry.name)
-
-            cls.test_immutable_inputs_hold = with_fixtures(test_immutable_inputs_hold)
 
         if examples.admissions:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("producer", examples.admissions)
             @pytest.mark.parametrize("rollback", [False, True], ids=["commit", "rollback"])
             def test_application_admission_transaction(self, producer: str, rollback: bool):
@@ -1194,25 +1178,19 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 with _binding(examples.admissions[producer]) as scenario:
                     assert_producer_transaction(capability, scenario, rollback=rollback, recover=False)
 
-            cls.test_application_admission_transaction = with_fixtures(test_application_admission_transaction)
-
-        @pytest.mark.django_db(transaction=True)
+        @proof
         def test_lock_order_is_consistent(self):
             assert_lock_order_is_consistent(capability, examples)
 
-        cls.test_lock_order_is_consistent = with_fixtures(test_lock_order_is_consistent)
-
-        @pytest.mark.django_db(transaction=True)
+        @proof
         def test_two_workers_one_settlement(self):
             assert_two_workers_one_settlement(capability, examples)
 
-        cls.test_two_workers_one_settlement = with_fixtures(test_two_workers_one_settlement)
         if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
             owned = capability
             edges = candidate_edges(owned)
 
-            def candidate_edge_test(invariant: Callable[..., None]) -> Callable[..., None]:
-                @pytest.mark.django_db(transaction=True)
+            def candidate_edge_test(name: str, invariant: Callable[..., None]) -> None:
                 @pytest.mark.parametrize("edge", edges, ids=[edge.id for edge in edges])
                 def test_candidate_edge(self, edge: CandidateEdge):
                     # Legacy rows reach discovery through the same query as valid ones;
@@ -1221,87 +1199,79 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     with examples.environment(), _binding(examples.derivation) as facts:
                         invariant(owned, facts.make_implied, edge)
 
-                return with_fixtures(test_candidate_edge)
+                proof(test_candidate_edge, name=name)
 
             if edges:
-                cls.test_database_legal_candidate_is_admissible = candidate_edge_test(
-                    assert_database_legal_candidate_is_admissible
+                candidate_edge_test(
+                    "test_database_legal_candidate_is_admissible", assert_database_legal_candidate_is_admissible
                 )
-                cls.test_inadmissible_candidate_does_not_block_the_next = candidate_edge_test(
-                    assert_inadmissible_candidate_does_not_block_the_next
+                candidate_edge_test(
+                    "test_inadmissible_candidate_does_not_block_the_next",
+                    assert_inadmissible_candidate_does_not_block_the_next,
                 )
 
             if owned.discovery is not None and owned.discovery.horizon is None:
+                # Declared unbounded: the candidate query claims to be every owner still owed.
 
                 @contextmanager
                 def discovered() -> Iterator[CompletenessBinding]:
+                    # Entered once per generated owner, so no fake or row outlives its example.
                     assert examples.derivation is not None
                     with examples.environment(), _binding(examples.derivation) as facts:
                         yield discovery_completeness(owned, facts.make_implied)
 
-                @pytest.mark.django_db(transaction=True)
+                @proof
                 def test_discovery_selection_is_complete(self, due_work_selection_budget: int):
+                    # An owner the candidate query skips must owe no work to the derivation step.
                     assert_selection_is_complete(discovered)
 
-                cls.test_discovery_selection_is_complete = with_fixtures(test_discovery_selection_is_complete)
-
-        @pytest.mark.django_db(transaction=True)
+        @proof
         @pytest.mark.parametrize("poison", [True, False], ids=["poisoned", "control"])
         @pytest.mark.parametrize("history", recovery_isolation_histories(capability))
         def test_one_poisoned_identity_does_not_stall_recovery(self, history: str, poison: bool):
             assert_one_poisoned_identity_does_not_stall_recovery(capability, examples, history=history, poison=poison)
 
-        cls.test_one_poisoned_identity_does_not_stall_recovery = with_fixtures(
-            test_one_poisoned_identity_does_not_stall_recovery
-        )
         if capability.wakes:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             def test_settlement_wakes_declared_dependents(self):
                 assert_settlement_wakes_declared_dependents(capability, examples.delivery, examples.environment)
 
-            cls.test_settlement_wakes_declared_dependents = with_fixtures(test_settlement_wakes_declared_dependents)
         if capability.policy.max_rearms is not None:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             def test_terminal_failure_is_visible_and_rearmable(self):
                 assert_terminal_failure_is_visible_and_rearmable(capability, examples)
 
-            cls.test_terminal_failure_is_visible_and_rearmable = with_fixtures(
-                test_terminal_failure_is_visible_and_rearmable
-            )
         if not isinstance(capability, IndependentCompensation):
             # Compensation rows are born CLAIMED by their producer; losing that
             # worker is an execution loss, which legitimately spends a rearm.
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             def test_lost_delivery_spends_no_retry_budget(self):
                 assert_lost_delivery_spends_no_retry_budget(capability, examples)
 
-            cls.test_lost_delivery_spends_no_retry_budget = with_fixtures(test_lost_delivery_spends_no_retry_budget)
         if isinstance(capability, DurableExternalOperation):
             assert examples.uncertainties is not None
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("factory", examples.uncertainties.values(), ids=examples.uncertainties.keys())
             def test_uncertainty_blocks_resend(self, factory):
                 with examples.environment(), _binding(factory) as scenario:
                     assert_uncertainty_blocks_resend(capability, scenario)
 
-            cls.test_uncertainty_blocks_resend = with_fixtures(test_uncertainty_blocks_resend)
             assert examples.rejections is not None
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("interruption", EVIDENCE_RECOVERY_HISTORIES)
             @pytest.mark.parametrize("factory", examples.rejections.values(), ids=examples.rejections.keys())
             def test_rejection_decision_survives_recovery(self, factory, interruption):
                 with examples.environment():
                     assert_rejection_survives_recovery(capability, factory, interruption=interruption)
 
-            cls.test_rejection_decision_survives_recovery = with_fixtures(test_rejection_decision_survives_recovery)
         if isinstance(capability, DurableScheduledAction):
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("worker_dies", [False, True], ids=["completed", "worker-death"])
             def test_cancellation_after_provider_entry(self, worker_dies):
                 assert examples.snapshot is not None
@@ -1315,14 +1285,9 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     )
                     assert_cancellation_after_entry_is_honest(capability, scenario, worker_dies=worker_dies)
 
-            if examples.fixtures:
-                test_cancellation_after_provider_entry = pytest.mark.usefixtures(*examples.fixtures)(
-                    test_cancellation_after_provider_entry
-                )
-            cls.test_cancellation_after_provider_entry = test_cancellation_after_provider_entry
         if isinstance(capability, DurableProjection):
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize(
                 ("worker_dies", "break_repair"),
                 [(False, False), (True, False), (False, True)],
@@ -1362,14 +1327,9 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     with mutation, expected:
                         assert_late_projection_write_is_repaired(capability, scenario, worker_dies=worker_dies)
 
-            if examples.fixtures:
-                test_late_projection_write_is_repaired = pytest.mark.usefixtures(*examples.fixtures)(
-                    test_late_projection_write_is_repaired
-                )
-            cls.test_late_projection_write_is_repaired = test_late_projection_write_is_repaired
         if compensations:
 
-            @pytest.mark.django_db(transaction=True)
+            @proof
             @pytest.mark.parametrize("break_cleanup", [False, True], ids=["compensated", "rejects-missing-cleanup"])
             def test_independent_compensation_after_primary_exhaustion(self, break_cleanup):
                 assert examples.compensation is not None
@@ -1391,13 +1351,6 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     with mutation, expected:
                         assert_exhausted_producer_still_compensates(capability, compensations[0], scenario)
 
-            if examples.fixtures:
-                test_independent_compensation_after_primary_exhaustion = pytest.mark.usefixtures(*examples.fixtures)(
-                    test_independent_compensation_after_primary_exhaustion
-                )
-            cls.test_independent_compensation_after_primary_exhaustion = (
-                test_independent_compensation_after_primary_exhaustion
-            )
         return cls
 
     return decorate

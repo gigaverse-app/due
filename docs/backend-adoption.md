@@ -10,7 +10,7 @@ inline-caller histories, receipt and observer histories, compensation and revisi
 scenarios, discovery admissibility, concurrency, lock order, migrated-index
 checks, collection/enrollment guards, reporting and the background-work driver.
 Shared semantic assertions remain in pytest-obligation. Due supplies adapters to
-its actual runtime and policy. Native-table composition is not public.
+its actual runtime and policy. Native-table composition is also available through `due.django.native`.
 
 ## Audit follow-through: package gaps versus application migration
 
@@ -34,7 +34,7 @@ use work tables; BE has no direct production adopter of `RecoveryLease`,
 `CompletionLease` or `RecoveryRoute`. The two production imports from
 `native.counters` use arithmetic only. Work-table observation's internal recovery
 helper is already ported privately. Preserve those arithmetic imports and unrelated
-application workflows without introducing a public native API.
+application workflows while the public native helpers preserve the complete reusable surface.
 
 Read the [integration guide](integration.md), [proof authoring guide](conformance.md)
 and [executable recovery walkthrough](recovery-walkthrough.md) for the supported

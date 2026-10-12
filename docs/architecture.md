@@ -62,8 +62,8 @@ settlement semantics. It is not currently implemented or promised.
 Ordinary authoring imports live in `due.django.public`; specialized capabilities
 live in `due.django.capabilities`. `due.errors`, `due.observations`, and
 `due.retry_delays` do not load Django's model registry. Importing `due` alone has
-no Django setup requirement. No native-table composition APIs ship in this release.
-The private delivery helper exists only to support work-table observation workers.
+no Django setup requirement. Native-row recovery and completion share the same delivery owner used by work-table
+observations; see [native composition](native-lifecycles.md).
 
 ## Ownership and external uncertainty
 

@@ -7,7 +7,7 @@ See the guide's verification module map for related production-bound suites.
 
 import pytest
 
-from due.django.runtime._delivery import dispatch_recovery_page
+from due.django.native.recovery import dispatch_recovery_page
 from due.django.runtime.recovery_pass import RecoveryIncomplete, RecoveryPass
 from tests.harness.primitive import PrimitiveOwner
 from tests.harness.primitive import (

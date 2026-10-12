@@ -30,10 +30,11 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 ## Changes and proofs
 
-Keep the public API focused on work tables. The delivery lease in
-`runtime/_delivery.py` is private machinery for observation workers; it is not a
-public native-table composition API. Use [the capability guide](docs/capabilities.md)
-to find the existing owner of behavior before adding another abstraction.
+Use [the capability guide](docs/capabilities.md) for work tables and
+[native lifecycle helpers](docs/native-lifecycles.md) when an existing row owns
+the obligation. Observation workers reuse the public `RecoveryLease`; do not
+introduce a second delivery-lease implementation. Preserve both composition
+styles and their standalone controls when changing shared coordination.
 
 For behavioral fixes, first write a failing history at the boundary that broke:
 commit, publication, provider call, evidence, or local settlement. Prefer real

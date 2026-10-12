@@ -50,7 +50,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import claim_work, outstanding_work
+from due.django.runtime.coordination import outstanding_work
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.tasks import recover_durable_work_task
 from due.django.testing import hold_nudges
@@ -187,7 +187,7 @@ def _claimed_and_expired[W: UniverseDurableWork](
 ) -> W:
     work = bindings.make()
     if work.state != DurableWorkState.CLAIMED:
-        assert claim_work(capability.model, work.pk, lease_duration=capability.policy.lease_duration) is not None
+        bindings.claim(work)
     # ARRANGE: a dead worker. Ordering by expiry puts the poisoned row first.
     capability.model.objects.filter(pk=work.pk).update(lease_expires_at=database_now() - expired_for)
     work.refresh_from_db()

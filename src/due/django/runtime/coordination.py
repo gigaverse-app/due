@@ -25,7 +25,7 @@ from due.django.models import (
     DurableWork,
     DurableWorkState,
 )
-from due.django.runtime._delivery import dispatch_recovery_page as _dispatch_recovery_page
+from due.django.native.recovery import dispatch_recovery_page as _dispatch_recovery_page
 from due.django.runtime.counters import saturating_increment
 from due.django.runtime.metrics import (
     DurableWorkOperation,
@@ -109,6 +109,15 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
     @property
     def model(self) -> type[ClaimedWorkT]:
         return type(self.work)
+
+    def owned_work(self) -> QuerySet[ClaimedWorkT]:
+        """Select this captured claim's authority; callers own locking and lease checks."""
+        return self.model.objects.filter(
+            pk=self.work_id,
+            state=DurableWorkState.CLAIMED,
+            fencing_token=self.token,
+            desired_revision=self.desired_revision,
+        )
 
 
 class WorkOwnershipLost(RuntimeError):
@@ -264,12 +273,7 @@ def renew_work[WorkT: DurableWork](
     now: NowFn = database_now,
 ) -> bool:
     renewed_at = now()
-    updated = claim.model.objects.filter(
-        id=claim.work_id,
-        state=DurableWorkState.CLAIMED,
-        fencing_token=claim.token,
-        desired_revision=claim.desired_revision,
-    ).update(
+    updated = claim.owned_work().update(
         lease_expires_at=renewed_at + lease_duration,
         updated_at=renewed_at,
     )
@@ -354,16 +358,7 @@ def complete_work[WorkT: DurableWork](
     """
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = (
-            claim.model.objects.select_for_update()
-            .filter(
-                id=claim.work_id,
-                state=DurableWorkState.CLAIMED,
-                fencing_token=claim.token,
-                desired_revision=claim.desired_revision,
-            )
-            .first()
-        )
+        current = claim.owned_work().select_for_update().first()
         if current is not None:
             settle_locked_work(current, revision=claim.desired_revision, finalize=finalize, now=now)
     if current is None:
@@ -421,16 +416,7 @@ def retry_work[WorkT: DurableWork](
         if finalize is not None:
             lock_work_owner(claim.work)
         retry_at = now()
-        current = (
-            claim.model.objects.select_for_update()
-            .filter(
-                id=claim.work_id,
-                state=DurableWorkState.CLAIMED,
-                fencing_token=claim.token,
-                desired_revision=claim.desired_revision,
-            )
-            .first()
-        )
+        current = claim.owned_work().select_for_update().first()
         if current is None:
             record_work_operation(
                 claim.model._meta.label_lower,
@@ -487,16 +473,7 @@ def terminal_work[WorkT: DurableWork](
     failed_at = now()
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = (
-            claim.model.objects.select_for_update()
-            .filter(
-                id=claim.work_id,
-                state=DurableWorkState.CLAIMED,
-                fencing_token=claim.token,
-                desired_revision=claim.desired_revision,
-            )
-            .first()
-        )
+        current = claim.owned_work().select_for_update().first()
         if current is not None:
             terminal_locked_work(current, failed_at=failed_at, error_code=error_code, finalize=finalize)
             beneficiary_user_id = current.work_beneficiary_user_id()
@@ -519,12 +496,7 @@ def unknown_work[WorkT: DurableWork](
     """Release local ownership while retaining unresolved, non-dispatchable debt."""
     with transaction.atomic():
         lock_work_owner(claim.work)
-        updated = claim.model.objects.filter(
-            pk=claim.work_id,
-            state=DurableWorkState.CLAIMED,
-            fencing_token=claim.token,
-            desired_revision=claim.desired_revision,
-        ).update(
+        updated = claim.owned_work().update(
             state=DurableWorkState.UNKNOWN,
             lease_expires_at=None,
             completed_at=None,
@@ -1152,12 +1124,7 @@ def continue_work[WorkT: DurableWork](
     with transaction.atomic():
         if expired:
             lock_work_owner(claim.work)
-        updated = claim.model.objects.filter(
-            pk=claim.work_id,
-            state=DurableWorkState.CLAIMED,
-            fencing_token=claim.token,
-            desired_revision=claim.desired_revision,
-        ).update(
+        updated = claim.owned_work().update(
             state=DurableWorkState.EXHAUSTED if expired else DurableWorkState.READY,
             lease_expires_at=None,
             available_at=available_at,

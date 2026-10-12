@@ -15,6 +15,7 @@ from due.django.conformance.collected_effects import (
     record_collected,
     source_location,
 )
+from due.django.runtime.names import RECOVERY_TASK
 from due.pytest_plugin import requires_complete_suite
 
 if TYPE_CHECKING:
@@ -38,8 +39,14 @@ from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance._internal.immutable_inputs import admission_paths
 from due.django.conformance.composition import compensations_for
 from due.django.conformance.discovery_admissibility import candidate_edges
+from due.django.conformance.observations import OBSERVATION_HISTORIES
 from due.django.conformance.recovery_isolation import recovery_isolation_histories
 from due.django.conformance.registrations import registered_capability, registration_of
+from due.django.conformance.scenarios import (
+    EVIDENCE_RECOVERY_HISTORIES,
+    RECEIPT_RECOVERY_HISTORIES,
+    SYNCHRONOUS_CALLER_HISTORIES,
+)
 from due.django.public import OwnedDurableWorkCapability
 
 
@@ -129,16 +136,19 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         f"{cls.__name__}: eligibility variants differ from declared product scenarios"
     )
     if isinstance(capability, DurableExternalOperation):
-        for history in ("live", "death", "late", "settlement_rollback", "settlement_error"):
+        for history in RECEIPT_RECOVERY_HISTORIES:
             expected.add(f"test_receipt_repairs_product_without_repeating_effect[{history}]")
         for uncertainty in examples.uncertainties:
             expected.add(f"test_uncertainty_blocks_resend[{uncertainty}]")
         for rejection in examples.rejections:
-            for history in ("live", "death", "late", "settlement_rollback"):
+            for history in EVIDENCE_RECOVERY_HISTORIES:
                 expected.add(f"test_rejection_decision_survives_recovery[{rejection}-{history}]")
     if isinstance(capability, ObservedExternalOperation):
-        for history in ("inconclusive", "lost_delivery", "competing_receipt"):
+        for history in OBSERVATION_HISTORIES:
             expected.add(f"test_observation_recovers_without_resend[{history}]")
+    for caller in examples.synchronous_callers:
+        for history in SYNCHRONOUS_CALLER_HISTORIES:
+            expected.add(f"test_synchronous_caller[{history}-{caller}]")
     for producer in examples.producers:
         for outcome in ("commit-lost-notification", "rollback"):
             expected.add(f"test_application_producer_transaction[{outcome}-{producer}]")
@@ -155,6 +165,8 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         for edge in candidate_edges(capability):
             expected.add(f"test_database_legal_candidate_is_admissible[{edge.id}]")
             expected.add(f"test_inadmissible_candidate_does_not_block_the_next[{edge.id}]")
+        if capability.discovery.horizon is None:
+            expected.add("test_discovery_selection_is_complete")
     if capability.policy.max_rearms is not None:
         expected.add("test_terminal_failure_is_visible_and_rearmable")
     if capability.wakes:
@@ -186,7 +198,7 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         contract=contract_report(contract),
         production_policy={
             "execution_mode": type(capability).__qualname__,
-            "recovery_task": "due.django.runtime.tasks.recover_durable_work_task",
+            "recovery_task": RECOVERY_TASK,
             "recovery_args": repr((entry.name,)),
             "queue": entry.queue,
             "cadence_seconds": str(entry.cadence_seconds),

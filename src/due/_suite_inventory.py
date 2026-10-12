@@ -1,6 +1,7 @@
 """Independent static suite inventory; never imports domain test modules."""
 
 import ast
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,7 +83,26 @@ def enrolled_effects(path: Path) -> list[EffectEnrollment]:
 
 
 def discover_enrollment(root: Path) -> list[EffectEnrollment]:
-    return [entry for path in root.rglob("test_*.py") for entry in enrolled_effects(path)]
+    """Inventory this project, without absorbing separately configured nested projects.
+
+    Vendored libraries and example applications run their own conformance suites.
+    Explicitly selecting one of their directories still inventories that project.
+    Pytest ignore lists deliberately do not suppress this inventory: hiding a
+    suite inside the selected project must remain a collection error.
+    """
+    found: list[EffectEnrollment] = []
+    for directory, subdirectories, files in os.walk(root):
+        base = Path(directory)
+        subdirectories[:] = sorted(
+            name
+            for name in subdirectories
+            if name not in {".git", ".venv", "__pycache__"}
+            and not any((base / name / config).is_file() for config in ("pyproject.toml", "pytest.ini", "tox.ini"))
+        )
+        for name in sorted(files):
+            if name.startswith("test_") and name.endswith(".py"):
+                found.extend(enrolled_effects(base / name))
+    return found
 
 
 def selected_enrollment(root: Path, arguments: list[str]) -> list[EffectEnrollment]:
