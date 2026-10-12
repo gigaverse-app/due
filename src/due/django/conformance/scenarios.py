@@ -398,6 +398,7 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
 
 # pytest-global: Both evidence kinds run the same fault histories; this tuple creates no fixtures.
 EVIDENCE_RECOVERY_HISTORIES = ("live", "death", "late", "settlement_rollback")
+RECEIPT_RECOVERY_HISTORIES = (*EVIDENCE_RECOVERY_HISTORIES, "settlement_error")
 
 
 def assert_due_on_database_clock(work: UniverseDurableWork) -> None:

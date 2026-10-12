@@ -12,6 +12,7 @@ from tests.harness.collection_sessions import (
     OBSERVER_SUITE,
     ChildRun,
     ChildSession,
+    add_discovery_and_inline_caller,
     add_room_eligibility,
     add_room_handoff,
     lost_proofs,
@@ -19,6 +20,37 @@ from tests.harness.collection_sessions import (
 from tests.harness.collection_sessions import (
     child_fixture as child_fixture,
 )
+
+CALLER_DISCOVERY_PROOFS = {
+    "test_discovery_selection_is_complete",
+    *(
+        f"test_synchronous_caller[{history}-cleanup]"
+        for history in ("inline", "enclosing-commit", "enclosing-rollback", "effect-failure")
+    ),
+}
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize("remove_cases", [False, True], ids=["reported", "missing"])
+def test_caller_histories_and_discovery_proofs_are_required_and_reported(
+    child: ChildSession, remove_cases: bool
+) -> None:
+    add_discovery_and_inline_caller(child)
+    if remove_cases:
+        child.append(
+            "test_effects.py",
+            "del TestRoom.test_synchronous_caller\ndel TestRoom.test_discovery_selection_is_complete\n",
+        )
+    result = child.run("--collect-only", "-q", "test_effects.py::TestRoom", "--durable-work-report=effect-report.json")
+    if remove_cases:
+        assert result.result.ret != pytest.ExitCode.OK
+        assert set(lost_proofs(result.result, "TestRoom")) == CALLER_DISCOVERY_PROOFS
+    else:
+        assert result.result.ret == pytest.ExitCode.OK, result.result.stdout.str()
+        entry = result.report("effect-report.json")["primitive_self_test"]
+        assert CALLER_DISCOVERY_PROOFS <= set(entry["expected"])
+        assert CALLER_DISCOVERY_PROOFS <= set(entry["collected"])
+        assert entry["outcomes"] == {}, "collection must not claim executed proofs"
 
 
 # One successful collection of TestRoom with eligibility scenarios and of an

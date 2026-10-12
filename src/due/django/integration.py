@@ -40,7 +40,7 @@ class ApplicationHooks:
     See docs/integration.md for tenant restoration and the failure boundary.
     """
 
-    tenant_scope: Callable[[str], AbstractContextManager[None]] = _tenant_scope
+    tenant_scope: Callable[[str], AbstractContextManager[object]] = _tenant_scope
     pin_after_write: Callable[[int], None] = _no_pin
     # These application failures invalidate every identity in a recovery pass.
     # Their class identity belongs to the application, not to Due's private slots.

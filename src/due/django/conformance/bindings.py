@@ -30,6 +30,7 @@ from due.django.models import DurableWorkState
 from due.django.public import (
     DurableWorkCapability,
     UniverseDurableWork,
+    WorkClaim,
     claim_work,
     complete_work,
     database_now,
@@ -40,8 +41,9 @@ from due.django.public import (
     terminal_work,
 )
 from due.django.runtime import coordination
+from due.django.runtime.names import METRIC_NAMESPACE
 from due.django.runtime.registry import DurableWorkRegistration
-from due.django.testing import hold_nudges, make_due
+from due.django.testing import expire_lease, hold_nudges, make_due
 
 
 def assert_registered_worker_options(entry: DurableWorkRegistration, options: Mapping[str, object]) -> None:
@@ -105,16 +107,25 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         work.refresh_from_db()
         return work.state, work.fencing_token, work.desired_revision, work.lease_expires_at, work.rearm_count
 
-    def retryable(self, *, age: timedelta) -> W:
-        work = self.make(age=age)
+    def claim(self, work: W) -> WorkClaim[W]:
+        """Arrange an admitted production claim; a refused fixture claim is a broken precondition."""
         claim = claim_work(self.capability.model, work.pk, lease_duration=self.capability.policy.lease_duration)
-        assert claim is not None
+        assert claim is not None, f"{self.capability.work_name}: arranged work {work.pk} was not claimable"
+        return claim
+
+    def retry(self, work: W) -> None:
+        """Arrange one real failure using this capability's admission and retry policy."""
+        claim = self.claim(work)
         retry_work(
             claim,
             error_code="injected",
             max_rearms=self.capability.policy.max_rearms,
             retry_delay=self.capability.retry_delay_for(claim.work),
         )
+
+    def retryable(self, *, age: timedelta) -> W:
+        work = self.make(age=age)
+        self.retry(work)
         self.age(work)
         return work
 
@@ -122,32 +133,19 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         result = []
         for exhaust in (False, True) if self.capability.policy.max_rearms is not None else (False,):
             work = self.make(age=age)
-            claim = claim_work(self.capability.model, work.pk, lease_duration=self.capability.policy.lease_duration)
-            assert claim is not None
             if exhaust:
                 assert self.capability.policy.max_rearms is not None
                 for attempt in range(self.capability.policy.max_rearms + 1):
                     if attempt:
                         self.age(work)
-                        claim = claim_work(
-                            self.capability.model, work.pk, lease_duration=self.capability.policy.lease_duration
-                        )
-                        assert claim is not None
-                    retry_work(
-                        claim,
-                        error_code="injected",
-                        max_rearms=self.capability.policy.max_rearms,
-                        retry_delay=self.capability.retry_delay_for(claim.work),
-                    )
+                    self.retry(work)
             else:
-                complete_work(claim)
+                complete_work(self.claim(work))
             self.capability.model.objects.filter(pk=work.pk).update(completed_at=database_now() - age)
             result.append(work)
         # A definite permanent failure, through the same fenced transition the executor uses.
         work = self.make(age=age)
-        claim = claim_work(self.capability.model, work.pk, lease_duration=self.capability.policy.lease_duration)
-        assert claim is not None
-        terminal_work(claim, error_code="injected")
+        terminal_work(self.claim(work), error_code="injected")
         result.append(work)
         return result
 
@@ -258,7 +256,7 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
                 ),
                 # OBSERVE: production metric and actual published identities.
                 observe_outstanding=lambda: REGISTRY.get_sample_value(
-                    "due_outstanding",
+                    f"{METRIC_NAMESPACE}_outstanding",
                     {"effect": self.capability.model._meta.label_lower},
                 ),
                 dispatched_ids=lambda: dispatched,
@@ -292,7 +290,7 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
             return value.work_id, value.token
 
         def expire(pk) -> None:
-            model.objects.filter(pk=pk).update(lease_expires_at=database_now() - timedelta(seconds=1))
+            expire_lease(model.objects.get(pk=pk))
 
         def reclaim(pk):
             result = reap_expired_work(

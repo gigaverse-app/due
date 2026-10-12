@@ -17,6 +17,7 @@ from due.django.runtime.limits import (
     EXECUTION_SOFT_TIME_LIMIT_SECONDS,
     EXECUTION_TIME_LIMIT_SECONDS,
 )
+from due.django.runtime.names import RECOVERY_TASK
 from due.django.runtime.recovery_pass import DEFAULT_STALE_AFTER
 
 
@@ -53,9 +54,6 @@ class RecoverySchedule(TypedDict):
     options: RecoveryTaskOptions
 
 
-RECOVERY_TASK = "due.django.runtime.tasks.recover_durable_work_task"
-
-
 def recovery_schedules(registrations: Iterable[DurableWorkRegistration]) -> dict[str, RecoverySchedule]:
     return {
         f"recover_{entry.name}": {
@@ -70,15 +68,23 @@ def recovery_schedules(registrations: Iterable[DurableWorkRegistration]) -> dict
     }
 
 
-def remove_stale_recovery_schedules(registrations: Iterable[DurableWorkRegistration]) -> list[str]:
+def remove_stale_recovery_schedules(
+    registrations: Iterable[DurableWorkRegistration],
+    *,
+    retired_task_names: Iterable[str] = (),
+) -> list[str]:
     """Remove only Due's unowned Beat entries; other applications' tasks are untouched.
 
     Requires the optional django-celery-beat integration. Call intentionally
     during application startup when using its database-backed scheduler.
+    ``retired_task_names`` explicitly identifies older names owned by the same
+    application. Owned schedule names remain for DatabaseScheduler to update.
     """
     from django_celery_beat.models import PeriodicTask
 
-    stale = PeriodicTask.objects.filter(task=RECOVERY_TASK).exclude(name__in=recovery_schedules(registrations))
+    stale = PeriodicTask.objects.filter(task__in=(RECOVERY_TASK, *retired_task_names)).exclude(
+        name__in=recovery_schedules(registrations)
+    )
     names = sorted(stale.values_list("name", flat=True))
     if names:
         stale.delete()

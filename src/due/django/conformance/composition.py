@@ -26,7 +26,7 @@ from due.django.runtime.tasks import (
     recover_durable_work_task,
     run_durable_work_task,
 )
-from due.django.testing import WorkerDied, hold_nudges
+from due.django.testing import WorkerDied, expire_lease, hold_nudges
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -233,7 +233,7 @@ def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT]
         with patch(example.provider_path, output_then_die), pytest.raises(WorkerDied):
             primary.attempt_execution(work.pk)
         assert example.observe() != example.clean, "positive control: output escaped after retirement"
-        primary.model.objects.filter(pk=work.pk).update(lease_expires_at=database_now() - timedelta(seconds=1))
+        expire_lease(work)
         primary.recover()
         work.refresh_from_db()
         assert work.state == DurableWorkState.EXHAUSTED

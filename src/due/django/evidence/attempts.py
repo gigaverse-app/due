@@ -125,17 +125,7 @@ def record_effect_attempt[WorkT: DurableWork](
     with transaction.atomic():
         if before_commit is not None:
             lock_work_owner(claim.work)
-        current = (
-            claim.model.objects.select_for_update()
-            .filter(
-                pk=claim.work_id,
-                state=DurableWorkState.CLAIMED,
-                fencing_token=claim.token,
-                desired_revision=claim.desired_revision,
-                lease_expires_at__gt=database_now(),
-            )
-            .first()
-        )
+        current = claim.owned_work().select_for_update().filter(lease_expires_at__gt=database_now()).first()
         if current is None:
             raise WorkOwnershipLost("provider attempt requires the captured current claim")
         if current.requires_effect_evidence and current.has_possible_effect():
