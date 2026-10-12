@@ -23,6 +23,23 @@ The robust resource finding is **zero content-write syscalls on equal replay**. 
 
 Atomic staging costs extra on first publication: approximately 116 µs at the small payload and 78 µs at the large payload in this sample. The local replay timings improve, but batch medians vary (shown as marks), so their ratios are not portable speedup guarantees. The provider still reads the whole existing payload and allocates a byte representation for comparison. A killed staging writer can leave a hidden directory; there is no power-loss/fsync guarantee or automatic orphan retention policy.
 
+## Direct before/after crash check
+
+The same `Path.open` write fault truncates the write to three characters, flushes
+and calls `os._exit(73)` in a real child. Both arms use the actual provider source,
+with the fault only at the filesystem boundary. The replay case first publishes
+`Complete edition` under the same key.
+
+| Case | Baseline externally named file after child | Candidate externally named file after child |
+| --- | --- | --- |
+| First publication, killed during write | `Com` (partial), exit 73 | Absent, exit 73; partial bytes remain hidden in staging |
+| Replay of an already published revision | `Com` (existing content damaged), exit 73 | `Complete edition`, exit 0; no write reaches the armed fault |
+
+[Executable diagnostic](crash_provider.py) and [results](crash-results.json) retain
+this concrete failure and correction. This checks process-death visibility, not
+power loss. Set the candidate path in the script to a checkout of the named
+implementation commit before reproducing it.
+
 ## Correctness and comparison
 
 - The same shared outcome oracle now rejects a wrong constant, wrong callback or incorrectly expected `None`. Explicit `None` is also tested as a correct requirement.
