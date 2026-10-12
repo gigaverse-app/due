@@ -96,6 +96,9 @@ PHASE_PROOFS: dict[RecoveryPhase, Generated | ProvenOnce | NoApplicationCode] = 
         "tests/capabilities/test_observation_recovery.py"
         "::test_one_refused_observation_publication_does_not_hold_back_the_next"
     ),
+    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
+        "tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
+    ),
     RecoveryPhase.CENSUS: NoApplicationCode(
         "counts recorded work; the application's undiscovered count runs isolated as a discovery failure"
     ),
@@ -153,7 +156,7 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
         recover_durable_work_task(entry.name)
 
     name = f"{entry.name}/{history}"
-    with examples.environment(), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
+    with _binding(examples.environment), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
         arranged = arrange(capability, examples, bindings, stack, refusals, published)
         owed = bindings.make(age=timedelta(minutes=10))  # Owed only to dispatch: proof the later phases ran.
         if poison:

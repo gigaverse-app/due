@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.db import models
 
+from due.django.capabilities._attempt_recovery import attempt_recovery_steps
 from due.django.capabilities.authoring import (
     OwnedDurableWorkCapability,
     _validate_simple_callbacks,
@@ -18,9 +19,6 @@ from due.django.capabilities.authoring import (
 from due.django.evidence.attempts import (
     applied_effect_call,
     attempts_for,
-    expire_repair_window,
-    prune_resolved_attempts,
-    resolve_confirmed_attempts,
 )
 from due.django.models import (
     ACTIVE_WORK_STATES,
@@ -158,25 +156,11 @@ class DurableScheduledAction[OwnerT: models.Model, WorkT: ScheduledWork](
         return sent
 
     def derivation_steps(self) -> tuple[RecoveryStep, ...]:
-        """Discover owed work and compact receipts without forgetting admission."""
-        return (
-            RecoveryStep(RecoveryPhase.REPAIR_WINDOW, self._expire_repair_window),
-            *super().derivation_steps(),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RESOLUTION, self._resolve_confirmed_attempts),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RETENTION, self._prune_resolved_attempts),
-        )
-
-    def _expire_repair_window(self, recovery: RecoveryPass) -> int:
-        return expire_repair_window(self.model, window=self.policy.max_repair_window, batch_size=self.policy.batch_size)
-
-    def _resolve_confirmed_attempts(self, recovery: RecoveryPass) -> int:
-        return resolve_confirmed_attempts(self.model, batch_size=self.policy.batch_size)
-
-    def _prune_resolved_attempts(self, recovery: RecoveryPass) -> int:
-        return prune_resolved_attempts(
+        return attempt_recovery_steps(
             self.model,
-            before=database_now() - self.attempt_retention,
-            batch_size=self.policy.batch_size,
+            self.policy,
+            retention=self.attempt_retention,
+            derivation=super().derivation_steps(),
             keep_started_evidence=True,
         )
 

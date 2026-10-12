@@ -1,7 +1,7 @@
 """Bindings derived from a provider seam prove what hand-written bindings prove, and fail the same ways."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from dataclasses import dataclass, field, replace
 from itertools import count
 from typing import Any
@@ -102,9 +102,30 @@ def test_derived_bindings_prove_delivery_retry_and_replay() -> None:
         assert_bounded_retry_contract(retry)
 
 
-def test_an_observation_that_ignores_the_outcome_fails_delivery() -> None:
-    examples = seam_examples(primitive, seam(observe=lambda provider, work: "constant", delivered=lambda p, w: "x"))
-    with pytest.raises(AssertionError):
+@contextmanager
+def _swallowing_scope[T](factory: Callable[[], AbstractContextManager[T]]) -> Iterator[T]:
+    with suppress(AssertionError), factory() as value:
+        yield value
+
+
+@pytest.mark.parametrize("scope", ["none", "provider", "application", "delivery"])
+@pytest.mark.parametrize("broken", [False, True])
+def test_delivery_verdict_survives_adopter_cleanup(scope: str, broken: bool) -> None:
+    environment = (lambda: _swallowing_scope(provider_environment)) if scope == "provider" else provider_environment
+    provider_seam = seam(
+        environment=environment,
+        **({"observe": lambda provider, work: "constant"} if broken else {}),
+    )
+    examples = seam_examples(primitive, provider_seam, immutable_inputs="An immutable test occurrence.")
+    if scope == "application":
+        examples = replace(examples, environment=lambda: _swallowing_scope(nullcontext))
+    elif scope == "delivery":
+        delivery = provider_seam.delivery
+        examples = replace(examples, delivery=lambda: _swallowing_scope(delivery))
+    verdict = (
+        pytest.raises(AssertionError, match="worker reaches the required domain outcome") if broken else nullcontext()
+    )
+    with verdict:
         assert_lost_notification_reaches_domain_outcome(primitive, examples)
 
 
