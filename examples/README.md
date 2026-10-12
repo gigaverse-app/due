@@ -80,3 +80,5 @@ Print orders intentionally do not derive harmless replay: a second physical
 submission is a different effect. Catalog convergence tests a captured settled
 revision; it does not claim that arbitrary provider writes commute. Application
 CI checks complete generated proof inventories as well as the resulting outcomes.
+
+The [Widget Store](widget_store/README.md) ports the DBOS checkout scenario: stock contention, payment gating, compensation, checkpointed dispatch, and a real crash/restart UI.

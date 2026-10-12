@@ -39,3 +39,11 @@ def scheduled_files() -> Iterator[None]:
 
     with scheduled_environment():
         yield
+
+
+@pytest.fixture
+def widget_database() -> Iterator[None]:
+    from integration_tests.conformance.widget_examples import environment as widget_environment
+
+    with widget_environment():
+        yield
