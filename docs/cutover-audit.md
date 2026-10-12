@@ -121,6 +121,14 @@ expire uncertainty -> derive owed work -> resolve attempts -> prune receipts
 Projection still publishes its census after the sequence. Scheduled actions
 still preserve the started-attempt witness that prevents duplicate admission.
 Retention computes its cutoff when the phase runs, not when the steps are built.
-The complete standalone suite passes: 1,357 tests and four existing expected
-failures. The generic case/binding consolidation and SQL-normalization fix are
+The integrated standalone suite, including the latest scheduled-publication
+merge, passes: 1,461 tests and four existing expected failures. The generic case/binding consolidation and SQL-normalization fix are
 accounted for in pytest-obligation's second-pass audit.
+
+
+The merge with scheduled publication exercised the recovered phase-exhaustiveness
+control: its new deadline-wakeup phase lacked a proof registry entry. It now
+names the existing real broker-failure test, which proves due work and other
+hints still progress. Proof factories also share obligation's guarded scope:
+adopter cleanup cannot swallow a failed delivery verdict. See the
+[proof resource test plan](work-in-progress/tickets/proof-resource-ownership-test-plan.md).

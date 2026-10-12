@@ -46,4 +46,11 @@ preserving its existing import API.
 - [x] Exercise binding authorship/delegation controls, including cycles and trusted harness boundaries.
 - [x] Preserve selected-row and handoff verdicts while passing canonical row/edge bindings.
 - [x] Exercise projection and scheduled receipt retention, stale repair, reaper isolation and settlement callbacks.
-- [ ] Run standalone suites and the paired BE adopter/policy checks; retain every existing debt entry.
+- [x] Run standalone suites and the paired BE adopter/policy checks; retain every existing debt entry.
+
+Final standalone run after merging scheduled publication and pinning the paired
+obligation source: **1,461 passed, four existing expected failures** on real
+PostgreSQL and Redis. The recovered phase-exhaustiveness control caught a missing
+deadline-wakeup proof entry; it now names the existing broker-failure history.
+The current public revision's checks are on [Due #22](https://github.com/gigaverse-app/due/pull/22/checks).
+
