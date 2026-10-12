@@ -32,7 +32,7 @@ well as that tree so an export cannot silently omit an earlier improvement.
 - Public locked/minimum-version CI is required on the final revision. These
   local results do not claim production activation or repair existing debt.
 
-See the [source/control audit](../../cutover-audit.md) for ownership and deliberate
+See the [source/control audit](../../../package/docs/cutover-audit.md) for ownership and deliberate
 exclusions.
 
 After restoring race deadline and stalled-session controls in obligation, the
