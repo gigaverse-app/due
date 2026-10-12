@@ -167,9 +167,12 @@ def benchmark(arm: Arm, samples: int) -> dict:
         sample(arm, client, connection, "paid")  # same excluded warmup in both arms
         time.sleep(2)
         before = stats(connection)
+        postgres_version = connection.info.server_version
+        window_start = time.perf_counter()
         records = [sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]]
         time.sleep(2)
         after = stats(connection)
+        window_seconds = time.perf_counter() - window_start
         writes = {
             table: {kind: count - before.get(table, {}).get(kind, 0) for kind, count in values.items()}
             for table, values in after.items()
@@ -178,7 +181,13 @@ def benchmark(arm: Arm, samples: int) -> dict:
     for field in ("checkout_receipt_ms", "callback_receipt_ms", "payment_to_decision_ms", "payment_to_terminal_ms"):
         values = [float(record[field]) for record in records if record["scenario"] == "paid"]
         metrics[field] = {"median": statistics.median(values), "min": min(values), "max": max(values), "n": len(values)}
-    return {"samples": records, "paid_summary": metrics, "table_writes": writes}
+    return {
+        "samples": records,
+        "paid_summary": metrics,
+        "table_writes": writes,
+        "write_window_seconds": window_seconds,
+        "postgres_version": postgres_version,
+    }
 
 
 def main() -> None:

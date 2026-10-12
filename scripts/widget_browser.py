@@ -33,11 +33,16 @@ def main() -> None:
         else:
             page.get_by_role("button", name="Buy Now").click()
             page.get_by_role("button", name="Confirm Payment").click()
-            expect(page.get_by_text("Order Status", exact=True)).to_be_visible(timeout=15000)
+            current = page.locator('[x-data="retrieveOrder(orderId)"]')
+            expect(current.locator('[x-text="order.status"]')).to_have_text("PAID", timeout=15000)
             page.screenshot(path=str(args.output / "dbos-progress.png"), full_page=True)
             page.get_by_role("button", name="Crash the Application", exact=True).click()
-            expect(page.get_by_text("Dispatched", exact=False).first).to_be_visible(timeout=65000)
+            expect(current.locator('[x-text="order.status"]')).to_have_text("DISPATCHED", timeout=65000)
             page.screenshot(path=str(args.output / "dbos-recovered.png"), full_page=True)
+            page.get_by_role("button", name="Continue Shopping").click()
+            page.get_by_role("button", name="Buy Now").click()
+            page.get_by_role("button", name="Cancel Payment").click()
+            expect(current.locator('[x-text="order.status"]')).to_have_text("CANCELLED", timeout=15000)
         browser.close()
     print(f"{args.arm}: browser checkout, payment, crash and recovery passed")
 
