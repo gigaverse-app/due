@@ -84,6 +84,9 @@ PHASE_PROOFS: dict[RecoveryPhase, Generated | ProvenOnce | NoApplicationCode] = 
     RecoveryPhase.DISCOVERY: Generated("test_one_poisoned_identity_does_not_stall_recovery[discovery-*]"),
     RecoveryPhase.REAP: Generated("test_one_poisoned_identity_does_not_stall_recovery[reap-*]"),
     RecoveryPhase.DISPATCH: Generated("test_one_poisoned_identity_does_not_stall_recovery[dispatch-*]"),
+    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
+        "tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
+    ),
     RecoveryPhase.EVIDENCE_SETTLEMENT: ProvenOnce(
         "tests/capabilities/test_operation_recovery_isolation.py"
         "::test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures"
