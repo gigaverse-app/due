@@ -300,6 +300,7 @@ def main() -> None:
                 results["arms"][arm.name]["connection_loss_journey"] = sample(
                     arm, arm.client(), connection, "connection loss"
                 )
+            save_results()
             if args.browser:
                 subprocess.run(
                     [

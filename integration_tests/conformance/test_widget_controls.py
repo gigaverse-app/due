@@ -16,24 +16,36 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 @pytest.mark.parametrize("mutation", ["wrong dispatch", "double dispatch"])
 def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
-    original = services.advance
+    if mutation == "double dispatch":
+        original_apply = type(checkout_order).apply
 
-    def corrupt(work):
-        result = original(work)
-        order = Order.objects.get(pk=work.owner_id)
-        if order.status == Order.Status.DISPATCHED:
-            order.progress_remaining = 1 if mutation == "wrong dispatch" else 2
-            order.save(update_fields=["progress_remaining"])
-        return result
+        def duplicate(self, work, context):
+            final = Order.objects.get(pk=work.owner_id).progress_remaining == 1
+            result = original_apply(self, work, context)
+            if final:
+                original_apply(self, work, context)
+            return result
 
-    monkeypatch.setattr(services, "advance", corrupt)
+        monkeypatch.setattr(type(checkout_order), "apply", duplicate)
+    else:
+        original = services.advance
+
+        def corrupt(work):
+            result = original(work)
+            order = Order.objects.get(pk=work.owner_id)
+            if order.status == Order.Status.DISPATCHED:
+                order.progress_remaining = 1
+                order.save(update_fields=["progress_remaining"])
+            return result
+
+        monkeypatch.setattr(services, "advance", corrupt)
     contract = effect_contract(checkout_order, examples=EXAMPLES)
     case = next(
         row.values[0]
         for row in contract_cases(contract)
         if row.id == "delivery-replay-final dispatch-assert_delivery_replay"
     )
-    with pytest.raises(AssertionError, match="declared product outcome"):
+    with pytest.raises(AssertionError, match="declared product outcome|repeated or skipped its callback"):
         case.run()
 
 

@@ -12,6 +12,8 @@ from examples.settings import DATABASES as BASE_DATABASES  # noqa: E402
 DATABASES = {
     "default": {
         **BASE_DATABASES["default"],
+        # Validate pooled sockets after database restarts/connection termination.
+        "CONN_HEALTH_CHECKS": True,
         "OPTIONS": {"pool": {"min_size": 1, "max_size": 4, "timeout": 5}},
     }
 }
