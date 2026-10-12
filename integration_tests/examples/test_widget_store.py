@@ -107,3 +107,38 @@ def test_http_ui_and_validation(client):
     assert response.json()["payment_id"] == str(key)
     assert client.post(f"/widgets/payment_webhook/{key}/invalid").status_code == 400
     assert client.post("/widgets/crash_application").status_code == 409
+
+
+@pytest.mark.parametrize("stage", range(11, 0, -1))
+def test_repeating_any_exact_stage_preserves_committed_progress(stage: int) -> None:
+    from examples.widget_store.services import advance
+
+    order = checkout(uuid4())
+    payment(order.submission_key, "paid")
+    for prior in range(11, stage, -1):
+        advance(order.submission_key, prior)
+    advance(order.submission_key, stage)
+    order.refresh_from_db()
+    expected = (order.status, order.progress_remaining, order.next_stage_at)
+    advance(order.submission_key, stage)
+    order.refresh_from_db()
+    assert (order.status, order.progress_remaining, order.next_stage_at) == expected
+
+
+def test_concurrent_duplicate_submission_reserves_only_once() -> None:
+    restock()
+    key = uuid4()
+
+    def buy(_: int) -> int:
+        close_old_connections()
+        try:
+            with hold_nudges():
+                return checkout(key).pk
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        identities = list(pool.map(buy, range(2)))
+    assert identities[0] == identities[1]
+    assert Product.objects.get().inventory == 99
+    assert CheckoutWork.objects.count() == Order.objects.count() == 1

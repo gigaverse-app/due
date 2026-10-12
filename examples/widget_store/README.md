@@ -37,3 +37,26 @@ uv run pytest integration_tests/examples/test_widget_store.py integration_tests/
 ```
 
 The normal suite uses zero-duration stages for deterministic functional checks; real browser and comparison runs keep all ten one-second stages. CI explicitly requires the generated checkout contract and both process histories so deleting enrollment cannot produce a green empty report.
+
+## Reproduce the comparison
+
+Use two disposable databases on the same PostgreSQL server. Install both lockfiles under the same Python version, migrate each, then run the shared controller:
+
+```sh
+git clone https://github.com/dbos-inc/dbos-demo-apps /tmp/widget-upstream
+git -C /tmp/widget-upstream checkout ddaf50e71fa8e19364d9c70b5d87a9c8203af152
+uv sync --directory /tmp/widget-upstream/python/widget-store --locked --python 3.14
+export DUE_DATABASE_URL=postgresql://due:due@127.0.0.1:55439/widget_due
+export DBOS_DATABASE_URL=postgresql+psycopg://due:due@127.0.0.1:55439/widget_dbos
+export DUE_BROKER_URL=redis://127.0.0.1:56389/0
+# Create widget_due and widget_dbos first, with the due role.
+uv run python -m django migrate --noinput
+uv run --directory /tmp/widget-upstream/python/widget-store alembic upgrade head
+uv run --directory /tmp/widget-upstream/python/widget-store python -m migrations.reset_database
+uv run playwright install chromium
+uv run python -m scripts.widget_benchmark --upstream /tmp/widget-upstream --samples 5 --browser
+```
+
+The runner binds ports 8000 and 8001, owns and cleans up both supervisors, excludes one equivalent warmup per arm, retries each submission once, and verifies terminal status, progress and inventory. It separately measures checkout acknowledgement, payment acknowledgement, payment-to-decision and payment-to-terminal. A crash happens after three committed stages. PostgreSQL table counters report inserts/updates/deletes across the measured window, including recovery metadata and a two-second statistics tail; these are physical table-write observations, not SQL query counts. A `--reverse` run reverses arm order to check ordering effects. Do not run other clients against these databases during measurement.
+
+Timing is descriptive (small sample, runner-dependent), with no flaky faster-than threshold. Correctness failures fail CI. Chromium screenshots and raw JSON/logs are uploaded by the **Widget Store comparison** workflow; run-specific evidence stays in artifacts, not the package. The browser journeys run after timing and therefore do not inflate the measured write counts. Default settings use only the widget recovery registration; unrelated example recovery sweeps are excluded from the comparison.

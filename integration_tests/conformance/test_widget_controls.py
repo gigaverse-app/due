@@ -19,8 +19,9 @@ def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
     original = services.advance
 
     def corrupt(key, stage):
+        already_done = Order.objects.get(submission_key=key).status == Order.Status.DISPATCHED
         result = original(key, stage)
-        if stage == 1:
+        if stage == 1 and (mutation == "wrong dispatch" or already_done):
             order = Order.objects.get(submission_key=key)
             order.progress_remaining = 1 if mutation == "wrong dispatch" else order.progress_remaining + 1
             order.save(update_fields=["progress_remaining"])

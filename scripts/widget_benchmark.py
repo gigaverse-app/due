@@ -67,10 +67,15 @@ class Arm:
         return row[0]
 
     def wait(
-        self, connection: psycopg.Connection, identity: int, statuses: tuple[str | int, ...], timeout: float = 65
+        self,
+        connection: psycopg.Connection,
+        identity: int,
+        statuses: tuple[str | int, ...],
+        timeout: float = 65,
+        max_progress: int = 10,
     ) -> tuple[str | int, int]:
         deadline = time.monotonic() + timeout
-        previous = 10
+        previous = max_progress
         while time.monotonic() < deadline:
             status, progress = self.row(connection, identity)
             assert 0 <= progress <= previous, f"{self.name}: progress reset or duplicated"
@@ -101,6 +106,10 @@ def sample(
 ) -> dict[str, float | str | int]:
     key = str(uuid4())
     inventory = arm.inventory(connection)
+    count_query = sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(arm.orders))
+    before_row = connection.execute(count_query).fetchone()
+    assert before_row is not None
+    before_count = before_row[0]
     start = time.perf_counter()
     receipt = post(client, arm, f"/checkout/{key}")
     checkout_ms = (time.perf_counter() - start) * 1000
@@ -117,22 +126,30 @@ def sample(
     arm.wait(connection, identity, (cancelled,) if decision == "failed" else (paid, dispatched))
     decision_ms = (time.perf_counter() - start) * 1000
     recovery_start = None
+    crash_progress = 10
     if scenario == "crash":
         deadline = time.monotonic() + 20
         while arm.row(connection, identity)[1] > 7:
             assert time.monotonic() < deadline, "dispatch never reached crash point"
             time.sleep(0.02)
+        crash_progress = arm.row(connection, identity)[1]
         recovery_start = time.perf_counter()
         try:
             post(client, arm, "/crash_application")
         except OSError, urllib.error.URLError:
             pass  # DBOS deliberately closes its HTTP connection with os._exit.
-    terminal, remaining = arm.wait(connection, identity, (cancelled,) if decision == "failed" else (dispatched,))
+    terminal, remaining = arm.wait(
+        connection, identity, (cancelled,) if decision == "failed" else (dispatched,), max_progress=crash_progress
+    )
     total_ms = (time.perf_counter() - start) * 1000
+    after_row = connection.execute(count_query).fetchone()
+    assert after_row is not None
+    assert after_row[0] == before_count + 1, "duplicate checkout created extra orders"
     assert remaining == (10 if decision == "failed" else 0)
     assert arm.inventory(connection) == inventory - (decision == "paid")
     return {
         "scenario": scenario,
+        "progress_at_crash": crash_progress if scenario == "crash" else -1,
         "order_id": identity,
         "terminal": terminal,
         "checkout_receipt_ms": checkout_ms,
@@ -171,6 +188,7 @@ def main() -> None:
     parser.add_argument("--browser", action="store_true", help="run real browser crash journeys after timing")
     parser.add_argument("--due-db", default=os.environ.get("DUE_DATABASE_URL"))
     parser.add_argument("--dbos-db", default=os.environ.get("DBOS_DATABASE_URL"))
+    parser.add_argument("--reverse", action="store_true", help="run DBOS first to expose order effects")
     parser.add_argument("--samples", type=int, default=5)
     parser.add_argument("--output", type=Path, default=Path("test-results/widgets"))
     args = parser.parse_args()
@@ -215,6 +233,9 @@ def main() -> None:
         "method": "sequential HTTP; one excluded paid warmup; 10 x 1s stages; 20ms SQL observation; separate databases; full application restart, DB/broker preserved; counts include recovery and 2s observation tail; no capacity claim",
         "arms": {},
     }
+    if args.reverse:
+        arms.reverse()
+    results["arm_order"] = ",".join(arm.name for arm in arms)
     for arm in arms:
         env = {
             **os.environ,
@@ -239,6 +260,8 @@ def main() -> None:
 
             process.wait_until(ready, timeout=60)
             results["arms"][arm.name] = benchmark(arm, args.samples)
+            assert process.log.read_text().count("WIDGET_CRASH") >= 1, "crash endpoint did not restart application"
+            assert process.log.read_text().count("WIDGET_STARTED") >= 2, "application did not restart"
             print(f"{arm.name}: {results['arms'][arm.name]['paid_summary']}", flush=True)
             if args.browser:
                 subprocess.run(
@@ -254,6 +277,9 @@ def main() -> None:
                     ],
                     check=True,
                     timeout=150,
+                )
+                assert process.log.read_text().count("WIDGET_CRASH") >= 2, (
+                    "browser crash button did not restart application"
                 )
         (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
 
