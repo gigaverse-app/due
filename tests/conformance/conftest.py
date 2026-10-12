@@ -31,3 +31,11 @@ def printer() -> Iterator[None]:
 
     with printer_environment():
         yield
+
+
+@pytest.fixture
+def scheduled_files() -> Iterator[None]:
+    from tests.conformance.scheduled_examples import environment as scheduled_environment
+
+    with scheduled_environment():
+        yield

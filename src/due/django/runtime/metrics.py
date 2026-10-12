@@ -63,6 +63,7 @@ class RecoveryPhase(StrEnum):
     ATTEMPT_CENSUS = "attempt_census"
     REAP = "reap"
     DISPATCH = "dispatch"
+    DEADLINE_WAKEUP = "deadline_wakeup"
     CENSUS = "census"
     RETENTION = "retention"
 

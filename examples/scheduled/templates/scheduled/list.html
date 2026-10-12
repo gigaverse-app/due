@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scheduled publication · Due</title></head>
+<body><main>
+<h1>Scheduled publication</h1>
+<p>Schedule a text publication, move its deadline, or cancel it before execution starts.</p>
+<p><a href="https://github.com/temporalio/samples-python/tree/ff0f1343822e532a5c377f02003002d2dcac4f79/updatable_timer">Inspired by Temporal’s updatable timer sample</a> · <a href="/">Books demo</a></p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button type="submit">Schedule publication</button></form>
+<h2>Publications</h2>
+<ul>{% for publication in publications %}<li><a href="{% url 'publication' publication.pk %}">Publication {{ publication.pk }}</a> — {{ publication.status }} — {{ publication.publish_at|date:"c" }}</li>{% empty %}<li>No publications yet.</li>{% endfor %}</ul>
+</main></body></html>

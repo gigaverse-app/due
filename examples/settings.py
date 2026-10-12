@@ -11,6 +11,7 @@ INSTALLED_APPS = [
     "examples.books",
     "examples.catalog",
     "examples.orders",
+    "examples.scheduled",
 ]
 ROOT_URLCONF = "examples.urls"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
