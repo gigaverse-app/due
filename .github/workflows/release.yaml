@@ -158,7 +158,7 @@ jobs:
         # installable by ordinary PyPI consumers, without uv.sources or Git.
         run: |
           wheel=(dist/*.whl)
-          uv pip install --python /tmp/wheel "${wheel[0]}[testing]"
+          uv pip install --no-sources --default-index https://pypi.org/simple --python /tmp/wheel "${wheel[0]}[testing]"
           uv pip check --python /tmp/wheel
       - uses: actions/upload-artifact@v7
         with:
