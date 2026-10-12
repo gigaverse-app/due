@@ -521,13 +521,14 @@ def _owner_relation(model: type[DurableWork]) -> models.OneToOneField[Any, Any] 
     return field
 
 
-def lock_work_owner(work: DurableWork) -> None:
+def lock_work_owner(work: DurableWork) -> models.Model | None:
     """Use the same owner-before-work order as requirement creation."""
     field = _owner_relation(type(work))
     if field is not None:
         # Immutable work outlives owner deletion (SET_NULL). The original
         # snapshot may still carry the deleted id; absence needs no owner lock.
-        field.remote_field.model.objects.select_for_update().filter(pk=getattr(work, field.attname)).first()
+        return field.remote_field.model.objects.select_for_update().filter(pk=getattr(work, field.attname)).first()
+    return None
 
 
 def lock_owner_of_work(model: type[DurableWork], work_id: int) -> None:
@@ -1032,10 +1033,13 @@ def _execute_claim[WorkT: DurableWork, ResultT](
         with transaction.atomic() if database_only else nullcontext():
             current = claim.work
             if database_only:
-                lock_work_owner(current)
+                owner = lock_work_owner(current)
                 current = claim.owned_work().select_for_update().first()
                 if current is None:
                     return False
+                field = _owner_relation(type(current))
+                if field is not None:
+                    setattr(current, field.name, owner)
             with current_universe_scope(current.work_universe()):
                 result = (
                     finalize_under_fence(current, lambda work: handler(work, context))
@@ -1043,12 +1047,15 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     else handler(current, context)
                 )
             if isinstance(result, ContinueAfter):
-                return continue_work(
+                completed = continue_work(
                     claim,
                     result,
                     finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
                 )
-            completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
+            else:
+                completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
+            if database_only and not completed:
+                raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
         disposition = WorkFailureDisposition.UNKNOWN if possible_attempt else classify_error(error)

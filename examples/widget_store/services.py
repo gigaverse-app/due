@@ -73,7 +73,8 @@ def advance(work: CheckoutWork) -> None:
     from due.django.public import require_fenced_settlement
 
     require_fenced_settlement(work)
-    order = Order.objects.get(pk=work.owner_id)
+    order = work.owner
+    assert order is not None
     if order.status == Order.Status.PENDING:
         if order.payment_status == "paid":
             order.status = Order.Status.PAID
@@ -88,8 +89,6 @@ def advance(work: CheckoutWork) -> None:
         if order.progress_remaining == 0:
             order.status = Order.Status.DISPATCHED
     order.save(update_fields=["status", "reserved", "progress_remaining"])
-    # Cache the canonical row for the capability's decision, without another read.
-    work.owner = order
 
 
 def retry_order(identity: int) -> bool:

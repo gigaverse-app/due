@@ -24,13 +24,13 @@ The scenario is [DBOS's Python Widget Store](https://github.com/dbos-inc/dbos-de
 
 Both apps provide inventory, checkout, simulated payment success/failure, order progress, restocking and an actual crash button. Both perform ten one-second dispatch steps. This is scenario parity, not wire-API compatibility: Due returns JSON admission receipts, DBOS waits for workflow events. The benchmark therefore reports HTTP receipt time separately from observable business completion. Due additionally rejects contradictory/late payment decisions explicitly.
 
-Due stores one obligation per accepted order, reusing the order's progress fields rather than inserting a row for each stage. Reservation and obligation admission commit together. Each PostgreSQL transition identifies its exact stage and locks its order; the guard and progress update share a transaction. Stock restoration and cancellation share a transaction too. No external charge or shipment occurs: PostgreSQL transaction atomicity does **not** establish exactly-once effects at a real payment provider.
+Due stores one obligation per accepted order, reusing the order's progress fields rather than inserting a row for each stage. Reservation and obligation admission commit together. `DatabaseEffect.transition` commits each product transition and its next deadline together under the work fence. The engine owns locking, rollback and duplicate-delivery protection; the app owns inventory, payment and dispatch decisions. Stock restoration and cancellation share that transaction too. No external charge or shipment occurs: PostgreSQL transaction atomicity does **not** establish exactly-once effects at a real payment provider.
 
 Due uses `ContinueAfter` to release its claim and worker slot between dispatch stages. A persisted deadline and the registered recovery sweep resume the same obligation; no asyncio event loop or per-stage obligation row is introduced. A bounded transient Celery ETA hint wakes each committed stage without waiting for Beat. Hints share the scheduled-publication library mechanism and add no SQL rows or receipts. Losing every hint falls back to the same sweep; early, duplicate or obsolete hints cannot bypass the database deadline, eligibility or claim. Each stage still pays the ordinary claim/continuation update cycle, and fallback after hint loss can wait for a recovery tick. The pinned DBOS example uses synchronous `DBOS.sleep`, which records sleep deadlines. These costs are measured, not hidden by reducing the one-second business waits. Benchmark results are bounded workflow latency and database-write observations, not capacity claims.
 
 ## Proofs
 
-`integration_tests/conformance/widget_examples.py` binds the real commands to `effect_contract_suite` and pytest-obligation. It requires declared product outcomes, payment gating, admission rollback, bounded retries and visible operator recovery. The ordinary delivery binding proves the first payment-decision stage; the replay binding repeats the actual final-stage database operation. Complete-workflow process histories cover committed payment, mid-dispatch and compensation boundaries. Negative controls corrupt dispatch, disable recovery and suppress compensation, and must be rejected by those same proofs.
+`integration_tests/conformance/widget_examples.py` binds the real commands to `effect_contract_suite` and pytest-obligation. It requires declared product outcomes, payment gating, admission rollback, bounded retries and visible operator recovery. The ordinary delivery binding proves the first payment-decision stage; the distinct delivery-replay binding repeats the same final-stage message and requires one actual database callback. This does not claim that a raw intermediate callback is independently idempotent. Complete-workflow process histories cover committed payment, writes before decision/dispatch commit, committed continuations and compensation boundaries. Named completion contracts require the final product outcome in 10–12 simulated seconds with hints and with every hint lost, keeping the actual one-second business waits. Negative controls corrupt dispatch, disable recovery, suppress compensation, shorten waits and reverse progress, and must be rejected by those same proofs.
 
 ```sh
 uv run pytest integration_tests/examples/test_widget_store.py integration_tests/conformance/test_widget_contract.py integration_tests/conformance/test_widget_controls.py
@@ -60,3 +60,42 @@ uv run python -m scripts.widget_benchmark --upstream /tmp/widget-upstream --samp
 The runner binds ports 8000 and 8001, owns and cleans up both supervisors, excludes one equivalent warmup per arm, retries each submission once, and verifies terminal status, progress and inventory. It separately measures checkout acknowledgement, payment acknowledgement, payment-to-decision and payment-to-terminal. A crash happens after three committed stages. PostgreSQL table counters report inserts/updates/deletes across the measured window, including recovery metadata and a two-second statistics tail; these are physical table-write observations, not SQL query counts. A `--reverse` run reverses arm order to check ordering effects. Do not run other clients against these databases during measurement.
 
 Timing is descriptive (small sample, runner-dependent), with no flaky faster-than threshold. Correctness failures fail CI. Chromium screenshots and raw JSON/logs are uploaded by the **Widget Store comparison** workflow; run-specific evidence stays in artifacts, not the package. The browser journeys run after timing and therefore do not inflate the measured write counts. Default settings use only the widget recovery registration; unrelated example recovery sweeps are excluded from the comparison.
+
+## Database cost and authoring
+
+The original transient-hint comparison recorded **14 inserts for Due versus 339
+for DBOS across seven orders: 24.2× fewer inserts (95.9% fewer)**. That is an
+advantage in retained history volume, not proof of lower total cost: that run also
+recorded 357 Due updates versus 110 DBOS updates. See [PR 34's benchmark discussion](https://github.com/gigaverse-app/due/pull/34).
+
+The current runner also records application SQL calls/execution time, buffer
+activity, statement WAL, sampled application CPU, PostgreSQL/Redis container CPU,
+and broker commands/bytes. It excludes its SQL observer session from statement
+statistics. Container CPU still includes observation and housekeeping; the 10ms
+process sampler can miss CPU at process exit. Keep these dimensions separate:
+less WAL does not imply less CPU or a lower cloud bill. Both arms keep their
+original frameworks and full crash/restart costs; DBOS's extra history is useful
+checkpoint/debugging data which Due does not recreate.
+
+Enable `pg_stat_statements` in PostgreSQL's `shared_preload_libraries`, restart
+that dedicated test server, and enable `track_io_timing`. Set
+`WIDGET_POSTGRES_CONTAINER` and `WIDGET_REDIS_CONTAINER` to dedicated container
+names for CPU attribution. The CI workflow does this automatically. Results,
+statement breakdowns and screenshots stay in CI artifacts and the PR discussion.
+
+The database callback is deliberately small:
+
+```python
+class CheckoutOrder(DatabaseEffect[Order, CheckoutWork]):
+    def transition(self, work):
+        services.advance(work)  # business writes; owner already locked
+        if work.owner.status in {Order.Status.CANCELLED, Order.Status.DISPATCHED}:
+            return None
+        return ContinueAfter(timedelta(seconds=1), until=None)
+```
+
+Payment eligibility, atomic admission and exhaustion mirrors remain ordinary Due
+bindings. A backend can use the same mode for short database-only transitions;
+its provider calls continue to require replay-safe or evidence-aware effects.
+There is no new per-stage table, separate application deadline or step-identity
+protocol to maintain.

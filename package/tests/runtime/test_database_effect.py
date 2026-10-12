@@ -124,4 +124,15 @@ def test_rollback_after_continuation_write_discards_both_rows(monkeypatch):
     assert value(work) == "before"
     work.refresh_from_db()
     assert work.state == DurableWorkState.RETRYABLE
-    assert work.applied_revision == 0
+    assert work.applied_revision is None
+
+
+def test_database_callback_cannot_replace_runtime_guard():
+    class Unguarded(Advance):
+        def apply(self, work, context):  # pyrefly: ignore [bad-override] - intentional invalid authoring control
+            return self.transition(work)
+
+    with pytest.raises(TypeError, match="runtime-owned"):
+        Unguarded.for_owner(
+            owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
+        )

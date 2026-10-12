@@ -125,7 +125,7 @@ def test_ended_or_stale_continuation_cannot_send_a_hint(
 
     from django.utils import timezone
 
-    from due.django.public import ContinueAfter, supersede_work
+    from due.django.public import ContinueAfter, WorkOwnershipLost, supersede_work
     from examples.widget_store.effects import checkout_order
 
     def end(self, work):
@@ -137,8 +137,10 @@ def test_ended_or_stale_continuation_cannot_send_a_hint(
     order = services.checkout(uuid4())
     services.payment(order.submission_key, "paid")
     work = CheckoutWork.objects.get(owner=order)
-    assert work.state == ("exhausted" if ending == "expired" else "ready")
-    assert work.desired_revision == (1 if ending == "expired" else 2)
+    if ending == "superseded":
+        background_work.expect_failures(WorkOwnershipLost)
+    assert work.state == ("exhausted" if ending == "expired" else "retryable")
+    assert work.desired_revision == 1  # illegal self-supersession rolls back with the callback
     assert not [d for d in background_work.dispatches if d.name == HINT]
 
 

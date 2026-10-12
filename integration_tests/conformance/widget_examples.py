@@ -2,10 +2,11 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import partial
 from uuid import uuid4
 
 from django.test import override_settings
-from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect
+from pytest_obligation.completion import BoundedCompletion, DeliveryReplay
 
 from due.django.conformance.database_replay import database_replay
 from due.django.conformance.provider import ProviderProbe
@@ -111,7 +112,7 @@ def perturb(work: CheckoutWork) -> None:
 
 
 @contextmanager
-def replay() -> Iterator[ReplaySafeEffect]:
+def replay() -> Iterator[DeliveryReplay]:
     # ARRANGE: execute prior transitions, leaving final dispatch owed.
     # REAL PRODUCTION: replay the same claimed delivery through DatabaseEffect.
     # EXTERNAL SEAM: count the real database callback; substitute no outcome.
@@ -131,11 +132,50 @@ def replay() -> Iterator[ReplaySafeEffect]:
             yield bound
 
 
+@contextmanager
+def terminal_completion(decision: str, *, lose_hints: bool) -> Iterator[BoundedCompletion]:
+    from due.django.conformance.completion import completion
+
+    # ARRANGE: real one-second stages, same settings as the interactive demo.
+    # REAL PRODUCTION: payment command, registered recovery and actual worker tasks.
+    # EXTERNAL SEAM: optionally discard every timer hint; retain ordinary delivery.
+    # OBSERVE: complete product outcome, inventory and monotonic dispatch progress.
+    with override_settings(WIDGET_STAGE_SECONDS=1):
+
+        def example() -> DeliveryExample:
+            work = make_pending()
+            with hold_nudges():
+                services.payment(work.submission_key, decision)
+            expected = (Order.Status.DISPATCHED, 0, 99) if decision == "paid" else (Order.Status.CANCELLED, 10, 100)
+
+            def outcome():
+                order = Order.objects.get(pk=work.owner_id)
+                return order.status, order.progress_remaining, Product.objects.get(pk=order.product_id).inventory
+
+            return DeliveryExample(work, outcome, expected)
+
+        with completion(
+            checkout_order,
+            example,
+            within_seconds=12,
+            not_before_seconds=10 if decision == "paid" else 0,
+            lose_hints=lose_hints,
+            remaining=lambda work: Order.objects.get(pk=work.owner_id).progress_remaining,
+        ) as bound:
+            # Independent product progress, not a work-table completion flag.
+            yield bound
+
+
 EXAMPLES = seam_examples(
     checkout_order,
     SEAM,
     environment=environment,
-    replay=replay,
+    delivery_replays={"final dispatch": replay},
+    completions={
+        f"{decision} {transport}": partial(terminal_completion, decision, lose_hints=lost)
+        for decision in ("paid", "failed")
+        for transport, lost in (("hints", False), ("sweep", True))
+    },
     fixtures=("widget_database",),
     terminal=lambda: TerminalExample(
         observe=lambda work: Order.objects.get(pk=work.owner_id).needs_attention, rearm=rearm

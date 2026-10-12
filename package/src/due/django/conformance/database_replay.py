@@ -1,12 +1,15 @@
-"""Replay a database delivery, including its production transaction and fence."""
+"""Bind duplicate database deliveries without claiming raw-effect idempotency."""
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import partial
 
-from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect
+from pytest_obligation.completion import DeliveryReplay
 
+from due.django.capabilities import authoring
 from due.django.conformance.binding import Binding, entered_binding
 from due.django.conformance.examples import DeliveryExample
+from due.django.conformance.provider import ProviderProbe
 from due.django.public import DatabaseEffect, UniverseDurableWork
 from due.django.testing import hold_nudges
 
@@ -15,35 +18,19 @@ from due.django.testing import hold_nudges
 def database_replay[W: UniverseDurableWork, O](
     capability: DatabaseEffect,
     example: Binding[DeliveryExample[W, O]],
-) -> Iterator[ReplaySafeEffect]:
-    """Assert repeated delivery preserves a declared product outcome.
-
-    The callback itself is deliberately not replay-safe: its transaction is.
-    Count delivery attempts at this boundary; separately require exactly one
-    callback entry when the example supplies an effect counter.
-    """
+) -> Iterator[DeliveryReplay[O]]:
+    """Replay one token; count real kernel entries and application calls separately."""
     with entered_binding(example) as delivery, hold_nudges():
         capability.enqueue_execution(delivery.work.pk)
         delivery.work.refresh_from_db()
         token = delivery.work.fencing_token
-        attempts = 0
-        before = delivery.effect_calls() if delivery.effect_calls is not None else 0
-
-        def execute(work: W) -> None:
-            nonlocal attempts
-            attempts += 1
-            capability.attempt_execution(work.pk, token)
-
-        def observe(work: W) -> O:
-            if attempts and delivery.effect_calls is not None:
-                assert delivery.effect_calls() - before == 1, "database delivery repeated or skipped its callback"
-            return delivery.observe()
-
-        yield ReplaySafeEffect(
-            name=f"{capability.work_name} database delivery",
-            prepare=lambda: delivery.work,
-            execute=execute,
-            expected=lambda work: delivery.expected,
-            observe=observe,
-            execution_count_for=lambda work: attempts,
-        )
+        assert delivery.effect_calls is not None, "database replay needs actual callback entry counts"
+        entries = ProviderProbe(authoring.run_work, key=lambda *args, **kwargs: args[1])
+        with entries.patch(authoring, "run_work"):
+            yield DeliveryReplay(
+                deliver=partial(capability.attempt_execution, delivery.work.pk, token),
+                entries=lambda: entries.count(delivery.work.pk),
+                observe=delivery.observe,
+                expected=delivery.expected,
+                callback_entries=delivery.effect_calls,
+            )

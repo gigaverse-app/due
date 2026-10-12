@@ -29,7 +29,9 @@ def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
     monkeypatch.setattr(services, "advance", corrupt)
     contract = effect_contract(checkout_order, examples=EXAMPLES)
     case = next(
-        row.values[0] for row in contract_cases(contract) if row.id == "REPLAY_SAFE_EXECUTION-assert_replay_converges"
+        row.values[0]
+        for row in contract_cases(contract)
+        if row.id == "delivery-replay-final dispatch-assert_delivery_replay"
     )
     with pytest.raises(AssertionError, match="declared product outcome"):
         case.run()
@@ -77,3 +79,37 @@ def test_process_contract_rejects_dropped_continuation(monkeypatch: pytest.Monke
     monkeypatch.setattr(type(checkout_order), "transition", lambda self, work: None)
     with pytest.raises(HistoriesDiverged, match="after payment receipt"):
         assert_process_deaths_converge(EXAMPLES.process_handoffs[0])
+
+
+@pytest.mark.parametrize("fault", ["early", "stalled", "reversed"])
+def test_generated_completion_rejects_broken_progress(monkeypatch, fault):
+    from django.test import override_settings
+
+    original = services.advance
+
+    def corrupt(work):
+        original(work)
+        assert work.owner is not None
+        if work.owner.progress_remaining == 5:
+            work.owner.progress_remaining = 9
+            work.owner.save(update_fields=["progress_remaining"])
+
+    if fault == "stalled":
+        monkeypatch.setattr(type(checkout_order), "recover", lambda self: 0)
+    elif fault == "reversed":
+        monkeypatch.setattr(services, "advance", corrupt)
+    else:
+        transition = type(checkout_order).transition
+
+        def early(self, work):
+            with override_settings(WIDGET_STAGE_SECONDS=0.001):
+                return transition(self, work)
+
+        monkeypatch.setattr(type(checkout_order), "transition", early)
+    case = next(
+        row.values[0]
+        for row in contract_cases(effect_contract(checkout_order, examples=EXAMPLES))
+        if row.id == "completion-paid hints-assert_completes_within"
+    )
+    with pytest.raises(AssertionError, match="time bound|minimum wait|reversed"):
+        case.run()

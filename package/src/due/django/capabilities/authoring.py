@@ -1171,6 +1171,10 @@ class DatabaseEffect[OwnerT: models.Model, WorkT: UniverseDurableWork, ResultT =
 
     _database_only: ClassVar[bool] = True
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _validate_simple_callbacks(self, DatabaseEffect)
+
     @abstractmethod
     def transition(self, work: WorkT) -> ResultT | ContinueAfter:
         """Change product rows inside this work's fenced transaction."""
