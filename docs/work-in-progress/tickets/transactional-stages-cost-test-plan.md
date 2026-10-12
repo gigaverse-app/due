@@ -11,4 +11,4 @@ in one fenced transaction without an application replay ledger.
 - [x] Strengthen generated continuation bindings with explicit terminal outcomes, timed progress and fault controls; require report entries in CI.
 - [x] Exercise payment/expiry and repeated-failure boundaries through production paths.
 - [x] Assess other demos and the backend's existing binding for reuse; preserve external-effect boundaries rather than treating provider calls as database transactions.
-- [ ] Run full locked/minimum CI and paired original DBOS/Due benchmarks with unchanged business waits; keep evidence in artifacts and PR discussion.
+- [x] Run full locked/minimum CI and paired original DBOS/Due benchmarks with unchanged business waits; keep evidence in artifacts and PR discussion.

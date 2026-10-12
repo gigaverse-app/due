@@ -252,3 +252,7 @@ Both families are included in the collected expected-case set and effect report.
 CI can require their full `test_due_work_contract[...]` IDs with
 `check_adoption_report.py --required-effect-case`, so removing enrollment cannot
 silently turn terminal correctness into a first-stage-only proof.
+
+These new families require pytest-obligation 0.12 or later. During review, the
+workspace pins the companion implementation; release that version before
+publishing a Due distribution that includes these testing APIs.

@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 # Dependencies for the reusable tests shipped alongside the source.
 selftest = ["django-due[testing,redis,beat]", "pytest>=8.4", "pytest-mock>=3.16", "pytest-xdist>=3.8", "pytest-asyncio>=1.2"]
-testing = ["pytest-obligation[django,celery,exploration,debt]>=0.11.0,<1"]
+testing = ["pytest-obligation[django,celery,exploration,debt]>=0.12.0,<1"]
 redis = ["celery[redis]>=5.6,<6"]
 beat = ["django-celery-beat>=2.8"]
 
@@ -66,7 +66,7 @@ fallback_version = "0.1.0.dev0"
 [tool.uv.sources]
 # Normal CI keeps main's reviewed replay-outcome implementation until its next
 # manual PyPI release. This development source is not emitted into wheel metadata.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "7ad083b158788a433bfd7139385283c73a34d395", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "2b5a1c56ef4f3442640c62b0375a2705a54294ff", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]

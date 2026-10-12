@@ -260,6 +260,10 @@ def main() -> None:
         "method": "sequential HTTP; one excluded paid warmup; 10 x 1s stages; 20ms SQL observation; separate databases; full application restart, DB/broker preserved; counts include recovery and 2s observation tail; no capacity claim",
         "arms": {},
     }
+
+    def save_results() -> None:
+        (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+
     if args.reverse:
         arms.reverse()
     results["arm_order"] = ",".join(arm.name for arm in arms)
@@ -287,6 +291,7 @@ def main() -> None:
 
             process.wait_until(ready, timeout=60)
             results["arms"][arm.name] = benchmark(arm, args.samples, process.handle.pid)
+            save_results()
             assert process.log.read_text().count("WIDGET_CRASH") >= 1, "crash endpoint did not restart application"
             assert process.log.read_text().count("WIDGET_STARTED") >= 2, "application did not restart"
             print(f"{arm.name}: {results['arms'][arm.name]['paid_summary']}", flush=True)
@@ -313,7 +318,7 @@ def main() -> None:
                 assert process.log.read_text().count("WIDGET_CRASH") >= 2, (
                     "browser crash button did not restart application"
                 )
-        (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+        save_results()
     assert results["due_sha"] == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), (
         "Source commit changed during benchmark"
     )
