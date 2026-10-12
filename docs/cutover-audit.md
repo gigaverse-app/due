@@ -100,3 +100,27 @@ matrix, then exercise both candidates together in the consumer.
 The [test plan](work-in-progress/tickets/upstream-cutover-test-plan.md) records
 results. Expected failures remain visible; this port does not repair the
 consumer's declared domain defects or deploy its cutover.
+
+## Second pass: changes concurrent with cutover
+
+The first audit's merged source predated backend #5361 (`31c25aa13`). That
+consolidation is now carried into the public owners too. Due shares captured
+outcome/error finalizers and beneficiary affinity across settlement paths; the
+expired-claim reaper uses `RecoveryPass.run_page` with its original clock,
+selection, transactions, deferrals and accounting.
+
+Projection and scheduled recovery now share the private
+`capabilities._attempt_recovery` sequence:
+
+```text
+expire uncertainty -> derive owed work -> resolve attempts -> prune receipts
+                          |
+                 projection late-write repair
+```
+
+Projection still publishes its census after the sequence. Scheduled actions
+still preserve the started-attempt witness that prevents duplicate admission.
+Retention computes its cutoff when the phase runs, not when the steps are built.
+The complete standalone suite passes: 1,357 tests and four existing expected
+failures. The generic case/binding consolidation and SQL-normalization fix are
+accounted for in pytest-obligation's second-pass audit.

@@ -10,6 +10,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from functools import partial
 from typing import Any, TypeVar
 from uuid import UUID, uuid4
 
@@ -335,9 +336,7 @@ def settle_locked_work[WorkT: DurableWork](
         update_fields=["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
     )
     followup = finalize_under_fence(current, finalize) if finalize is not None else None
-    beneficiary_user_id = current.work_beneficiary_user_id()
-    if beneficiary_user_id is not None:
-        pin_after_write(beneficiary_user_id)
+    pin_work_beneficiary(current)
     if followup is not None:
         reopen_locked_work(current, available_at=completed_at + followup.delay, reason=followup.reason)
     else:
@@ -476,9 +475,7 @@ def terminal_work[WorkT: DurableWork](
         current = claim.owned_work().select_for_update().first()
         if current is not None:
             terminal_locked_work(current, failed_at=failed_at, error_code=error_code, finalize=finalize)
-            beneficiary_user_id = current.work_beneficiary_user_id()
-            if beneficiary_user_id is not None:
-                pin_after_write(beneficiary_user_id)
+            pin_work_beneficiary(current)
     terminal = current is not None
     record_work_operation(
         claim.model._meta.label_lower,
@@ -507,9 +504,7 @@ def unknown_work[WorkT: DurableWork](
             current = claim.model.objects.get(pk=claim.work_id)
             if finalize is not None:
                 finalize_under_fence(current, finalize)
-            beneficiary_user_id = current.work_beneficiary_user_id()
-            if beneficiary_user_id is not None:
-                pin_after_write(beneficiary_user_id)
+            pin_work_beneficiary(current)
     record_work_operation(
         claim.model._meta.label_lower,
         DurableWorkOperation.UNKNOWN if updated else DurableWorkOperation.OWNERSHIP_LOST,
@@ -662,11 +657,10 @@ def reap_expired_work[WorkT: DurableWork](
     """
 
     reaped_at = now()
-    reaped = 0
     with recovery_pass_for(model._meta.label_lower, recovery) as tick:
         # A claim whose reap raised is held out with backoff: it stays expired
         # and owed, and no longer leads every batch ahead of healthy claims.
-        candidate_ids = tick.page(
+        reaped = tick.run_page(
             RecoveryPhase.REAP,
             model.objects.filter(
                 state__in=[DurableWorkState.QUEUED, DurableWorkState.CLAIMED],
@@ -675,20 +669,18 @@ def reap_expired_work[WorkT: DurableWork](
             .order_by("lease_expires_at", "id")
             .values_list("id", flat=True),
             batch_size,
+            partial(
+                _reap_one,
+                model,
+                reaped_at=reaped_at,
+                max_rearms=max_rearms,
+                retry_delay=retry_delay,
+                finalize_unknown=finalize_unknown,
+                finalize_retry=finalize_retry,
+                retry_delay_for=retry_delay_for,
+                settle_expired_claim=settle_expired_claim,
+            ),
         )
-        for work_id in candidate_ids:
-            with tick.isolate(RecoveryPhase.REAP, work_id):
-                reaped += _reap_one(
-                    model,
-                    work_id,
-                    reaped_at=reaped_at,
-                    max_rearms=max_rearms,
-                    retry_delay=retry_delay,
-                    finalize_unknown=finalize_unknown,
-                    finalize_retry=finalize_retry,
-                    retry_delay_for=retry_delay_for,
-                    settle_expired_claim=settle_expired_claim,
-                )
         # Counted before the tick raises what it isolated.
         if reaped:
             record_work_operation(
@@ -766,9 +758,7 @@ def _reap_one[WorkT: DurableWork](
                 else None,
             )
         if finalize_unknown is not None or finalize_retry is not None:
-            beneficiary_user_id = work.work_beneficiary_user_id()
-            if beneficiary_user_id is not None:
-                pin_after_write(beneficiary_user_id)
+            pin_work_beneficiary(work)
         return 1
 
 
@@ -1036,55 +1026,32 @@ def _execute_claim[WorkT: DurableWork, ResultT](
         with current_universe_scope(claim.work.work_universe()):
             result = handler(claim.work, context)
         if isinstance(result, ContinueAfter):
-
-            def finalize_expired(current: WorkT) -> None:
-                if finalize_retry is not None:
-                    finalize_retry(current, TimeoutError("continuation deadline reached"))
-
-            return continue_work(claim, result, finalize_expired=finalize_expired)
-
-        def finalize(current: WorkT) -> ReopenAfter | None:
-            if finalize_success is not None:
-                return finalize_success(current, result)
-            return None
-
+            return continue_work(
+                claim,
+                result,
+                finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
+            )
         # A failed domain settlement rolls back success before retry classification.
         # No handler I/O runs under the owner/work transaction.
-        completed = complete_work(claim, finalize=finalize)
+        completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
     except Exception as error:
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
         disposition = WorkFailureDisposition.UNKNOWN if possible_attempt else classify_error(error)
         if disposition is WorkFailureDisposition.UNKNOWN:
             transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=finalize_unknown)
         elif disposition is WorkFailureDisposition.RETRYABLE:
-            retry_finalizer: Callable[[WorkT], None] | None = None
-            if finalize_retry is not None:
-                retry_error = error
-
-                def finalize_retry_failure(current: WorkT) -> None:
-                    finalize_retry(current, retry_error)
-
-                retry_finalizer = finalize_retry_failure
             transitioned = retry_work(
                 claim,
                 error_code=type(error).__name__,
                 max_rearms=max_rearms,
                 retry_delay=retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay,
-                finalize=retry_finalizer,
+                finalize=_bind_finalizer(finalize_retry, error),
             )
         else:
-            terminal_finalizer: Callable[[WorkT], None] | None = None
-            if finalize_terminal is not None:
-                terminal_error = error
-
-                def finalize_failure(current: WorkT) -> None:
-                    finalize_terminal(current, terminal_error)
-
-                terminal_finalizer = finalize_failure
             transitioned = terminal_work(
                 claim,
                 error_code=type(error).__name__,
-                finalize=terminal_finalizer,
+                finalize=_bind_finalizer(finalize_terminal, error),
             )
         if not transitioned:
             logger.warning(
@@ -1136,9 +1103,7 @@ def continue_work[WorkT: DurableWork](
             current = claim.model.objects.get(pk=claim.work_id)
             if finalize_expired is not None:
                 finalize_under_fence(current, finalize_expired)
-            beneficiary_user_id = current.work_beneficiary_user_id()
-            if beneficiary_user_id is not None:
-                pin_after_write(beneficiary_user_id)
+            pin_work_beneficiary(current)
     record_work_operation(
         claim.model._meta.label_lower,
         (
@@ -1150,3 +1115,19 @@ def continue_work[WorkT: DurableWork](
         ),
     )
     return bool(updated)
+
+
+def pin_work_beneficiary(work: DurableWork) -> None:
+    """Publish read-after-write affinity for the work's declared product beneficiary."""
+    beneficiary = work.work_beneficiary_user_id()
+    if beneficiary is not None:
+        pin_after_write(beneficiary)
+
+
+def _bind_finalizer[WorkT: DurableWork, ValueT, FinalizedT](
+    callback: Callable[[WorkT, ValueT], FinalizedT] | None, value: ValueT
+) -> Callable[[WorkT], FinalizedT] | None:
+    """Capture this execution's outcome for the later, fenced work-row callback."""
+    if callback is None:
+        return None
+    return lambda current: callback(current, value)

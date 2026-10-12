@@ -18,7 +18,7 @@ from due.django.evidence.attempts import (
     record_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
-from due.django.integration import current_universe_scope, pin_after_write
+from due.django.integration import current_universe_scope
 from due.django.models import (
     DurableWorkState,
     EffectAttempt,
@@ -31,6 +31,7 @@ from due.django.runtime.coordination import (
     database_now,
     finalize_under_fence,
     lock_owner_of_work,
+    pin_work_beneficiary,
     require_autocommit,
     retry_locked_work,
     settle_locked_work,
@@ -326,9 +327,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 )
             else:
                 raise ValueError("a definite rejection must select retry or terminal settlement")
-            beneficiary = work.work_beneficiary_user_id()
-            if beneficiary is not None:
-                pin_after_write(beneficiary)
+            pin_work_beneficiary(work)
         record_work_operation(self.model._meta.label_lower, operation)
         return True
 
