@@ -142,14 +142,17 @@ Work-table adopters declare `EffectExamples` through `effect_contract_suite`.
 application migration. Shared fault oracles belong to pytest-obligation; Due owns
 the binding to its registered capability, PostgreSQL state and Celery workers.
 
-### Scheduled deadline hints
+### Transient deadline hints
 
-`DurableScheduledAction` and `ScheduledAction` can opt into registered Celery ETA
-hints with `deadline_wakeup_horizon: ClassVar[timedelta | None]` (default `None`,
+Registered `DurableWorkCapability` subclasses, including `ReplaySafeEffect` and
+`ScheduledAction`, can opt into transient Celery ETA hints with `deadline_wakeup_horizon: ClassVar[timedelta | None]` (default `None`,
 maximum five minutes). Recovery reads one bounded page of future `available_at`
 values in that horizon, after ordinary due dispatch. Admission also publishes a
-hint when within the horizon. Neither path creates SQL hint rows or claims future
-work. The window bounds timer distance, not total broker memory under arbitrary
+hint when within the horizon. After a successful attempt commits, the same
+read-only path publishes the next future deadline from the existing row, including
+a `ContinueAfter` continuation. Publication failure cannot undo settlement or
+consume retry budget. None of these paths creates SQL hint rows or claims future
+work; hints add reads and broker messages, not a persisted timer ledger. The window bounds timer distance, not total broker memory under arbitrary
 submission/reschedule volume; duplicate hints can occur on successive sweeps.
 
 A hint carries the work ID, revision and eligibility timestamp. Its task checks
@@ -163,3 +166,9 @@ The [scheduled publication example](https://github.com/gigaverse-app/due/blob/ma
 also demonstrates caller submission identity on its existing product row. That
 application-level unique key protects initial admission, independently of Due's
 work revision and provider idempotency identity.
+
+The [Widget Store example](https://github.com/gigaverse-app/due/tree/main/examples/widget_store)
+uses this option for ten timed dispatch stages on one obligation row. Its generated
+process-death histories also use `WorkTableDelivery(..., lost_tasks=(wake_scheduled_work_task,))`
+to discard every optional timer while keeping ordinary recovery delivery live.
+The task retains its original scheduled-work name for queued-message compatibility.

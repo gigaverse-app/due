@@ -174,3 +174,25 @@ def test_sweep_history_shares_binding_and_restores_nested_failure(tasks: tuple[C
     with driver.session():
         assert opened == 3 and closed == 2
     assert closed == 3
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("lose", [False, True])
+def test_work_table_history_selectively_loses_optional_tasks(tasks: tuple[Celery, list[str]], lose: bool) -> None:
+    from due.django.conformance.delivery import WorkTableDelivery
+    from tests.harness.primitive import PrimitiveOwner, primitive, record
+
+    app, seen = tasks
+    child = app.tasks["scheduler.child"]
+    route = WorkTableDelivery(primitive, lost_tasks=(child,) if lose else ())
+    with route.session() as delivery:
+        work = record()
+        child.apply_async(args=("before recovery",), countdown=1)
+        if lose:
+            delivery.recover_with((lambda: child.apply_async(args=("during recovery",), countdown=1),))
+        else:
+            delivery.recover()
+        assert PrimitiveOwner.objects.get(pk=work.owner_id).value == "after"
+        assert seen == ([] if lose else ["before recovery"])
+        assert not delivery.driver.held

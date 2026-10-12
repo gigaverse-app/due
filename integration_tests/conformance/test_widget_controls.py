@@ -36,10 +36,11 @@ def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
         case.run()
 
 
-def test_process_contract_rejects_disabled_recovery(monkeypatch):
+@pytest.mark.parametrize("history", [0, 2], ids=["with hints", "without hints"])
+def test_process_contract_rejects_disabled_recovery(monkeypatch, history):
     monkeypatch.setattr(type(checkout_order), "recover", lambda self: 0)
     with pytest.raises(HistoriesDiverged, match="after payment receipt"):
-        assert_process_deaths_converge(EXAMPLES.process_handoffs[0])
+        assert_process_deaths_converge(EXAMPLES.process_handoffs[history])
 
 
 @pytest.mark.parametrize("inventory", [99, 101], ids=["missing refund", "double refund"])
