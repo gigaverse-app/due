@@ -101,7 +101,8 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Execution gate | `eligibility` (one or named variants) | Blocked intent, bounded inspection and periodic recovery |
 | Independent compensation | `compensation` | Cleanup survives producer exhaustion and late completion |
 | Product command | `producers`, `admissions`, `admission_failures` | Commit/rollback, lost wakeup, standalone partial-admission rollback |
-| Inline caller | `synchronous_callers` | Recovery after request-path interruptions |
+| Inline caller | `synchronous_callers` | Recovery after request-path interruptions; a held claim is not bypassed; a repeated value admits nothing; a lost response is not blindly resent |
+| Wake command | `wake_commands` | Woken READY, claimed or settled work re-reads the new facts once, and recovery covers a lost wake notification |
 | Concurrent application changes | `in_flight`, `evidence_confluence`, `convergence` | pytest-obligation's shared interleaving and result-application proofs |
 | Committed handoff | `handoffs` | Shared commit, callback, broker and external-call interruption histories |
 | Actual process death | `process_handoffs` | Shared process-death oracle, with application-owned child entry points |

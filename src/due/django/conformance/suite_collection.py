@@ -46,6 +46,7 @@ from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
     RECEIPT_RECOVERY_HISTORIES,
     SYNCHRONOUS_CALLER_HISTORIES,
+    WAKE_HISTORIES,
     acknowledgement_replays,
 )
 from due.django.public import OwnedDurableWorkCapability
@@ -152,6 +153,9 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
     for caller in examples.synchronous_callers:
         for history in SYNCHRONOUS_CALLER_HISTORIES:
             expected.add(f"test_synchronous_caller[{history}-{caller}]")
+    for command in examples.wake_commands:
+        for history in WAKE_HISTORIES:
+            expected.add(f"test_wake_command_rereads_facts[{history}-{command}]")
     for producer in examples.producers:
         for outcome in ("commit-lost-notification", "rollback"):
             expected.add(f"test_application_producer_transaction[{outcome}-{producer}]")
