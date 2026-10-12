@@ -2,12 +2,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
 
+import pytest
 from pytest_obligation.contract import NotApplicable
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 
 from due.django.conformance.composition import ProjectionExample
 from due.django.conformance.seams import ProviderSeam
-from due.django.conformance.suite import AdmissionFailureExample, ProducerExample, TerminalExample
+from due.django.conformance.suite import AdmissionFailureExample, DeliveryExample, ProducerExample, TerminalExample
 from due.django.testing import hold_nudges
 from examples.books import search
 from examples.catalog.effects import project_catalog
@@ -61,6 +62,25 @@ def admission_failure() -> Iterator[AdmissionFailureExample[CatalogWork, bool]]:
         yield AdmissionFailureExample.after_save(scenario, CatalogWork)
 
 
+@contextmanager
+def reopening_delivery() -> Iterator[DeliveryExample[CatalogWork, tuple[str, BookContent | None]]]:
+    """A real old write lost its response, so the newer projection must keep repairing."""
+    with index_environment() as provider, hold_nudges():
+        old = save_entry("Old edition", AUTHOR)
+        with (
+            provider.writes.lose_response(lambda: TimeoutError("old write response lost")),
+            pytest.raises(TimeoutError),
+        ):
+            project_catalog.attempt_execution(old.pk)
+        work = save_entry(TITLE, AUTHOR, entry_id=old.owner_id)
+        yield DeliveryExample(
+            work=work,
+            observe=lambda: (CatalogEntry.objects.get(pk=work.owner_id).published_title, content(work)),
+            expected=(TITLE, (TITLE, AUTHOR)),
+            effect_calls=lambda: provider.writes.total + provider.publications.total,
+        )
+
+
 # ARRANGE: admit editable metadata through save_entry.
 # REAL PRODUCTION: the catalog projection writes and repairs the same provider key.
 # EXTERNAL SEAM: record/refuse actual SQLite search writes.
@@ -76,12 +96,23 @@ SEAM = ProviderSeam(
     calls_for=lambda provider, work: provider.writes.count(work.index_key),
     refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),
 )
+
+
+@contextmanager
+def delivery() -> Iterator[DeliveryExample[CatalogWork, BookContent | None]]:
+    with SEAM.delivery() as scenario:
+        provider = calls.get()
+        # Delivery counts provider entries; profile I separately counts one write_projection invocation.
+        yield replace(scenario, effect_calls=lambda: provider.writes.total + provider.publications.total)
+
+
 EXAMPLES = replace(
     examples_for(
         project_catalog,
         SEAM,
         TerminalExample(observe=lambda work: CatalogEntry.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm),
     ),
+    delivery=delivery,
     immutable_inputs=None,
     convergence_not_assessed=None,
     snapshot=snapshot,

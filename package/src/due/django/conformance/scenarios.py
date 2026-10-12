@@ -41,9 +41,12 @@ from due.django.models import EffectAttempt, EffectAttemptOutcome
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter,
 # and every adopter's evidence history checks due-ness on the database clock its claim reads.
 from due.django.public import (
+    ContinueAfter,
     DurableWorkCapability,
     DurableWorkState,
+    ReopenAfter,
     UniverseDurableWork,
+    WorkExecutionContext,
     database_now,
 )
 
@@ -453,13 +456,24 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     revision = work.desired_revision
     calls = effect_calls()
     settle = type(capability)._finalize_success
+    apply = type(capability).apply
+    executions = 0
     continued: list[bool] = []
     sent: list[_SentTask] = []
 
     def lose_acknowledgement(self: DurableWorkCapability[W, ResultT], current: W, result: ResultT) -> object:
         # The product write runs inside the settlement transaction that the death rolls back.
-        settle(self, current, result)
+        if isinstance(settle(self, current, result), ReopenAfter):
+            continued.append(True)
         raise WorkerDied("effect applied; its acknowledgement was lost before settlement committed")
+
+    def counted_apply(
+        self: DurableWorkCapability[W, ResultT], current: W, context: WorkExecutionContext[W]
+    ) -> ResultT | ContinueAfter:
+        nonlocal executions
+        if current.pk == work.pk:
+            executions += 1
+        return apply(self, current, context)
 
     def lose_continuation(*args: object, **kwargs: object) -> bool:
         continued.append(True)
@@ -468,7 +482,10 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     def capture(*, args: tuple[str, int, str], **options: object) -> None:
         sent.append((args, options))
 
-    with patch.object(run_durable_work_task, "apply_async", capture):
+    with (
+        patch.object(run_durable_work_task, "apply_async", capture),
+        patch.object(type(capability), "apply", counted_apply),
+    ):
         with (
             patch.object(type(capability), "_finalize_success", lose_acknowledgement),
             patch.object(coordination, "continue_work", lose_continuation),
@@ -502,11 +519,17 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
             "it stranded the applied work, or its redelivery selected nothing to do"
         )
         assert work.desired_revision == revision, f"{entry.name}: a lost acknowledgement must not start a new revision"
+        # Count executions at the kernel boundary, separately from the provider entries each makes.
+        assert executions == 2, (
+            f"{entry.name}: recovery entered the effect {executions - 1} times after the lost "
+            "acknowledgement, against exactly 1: it did not settle on the first replay"
+        )
         if continued:
             assert work.state in (DurableWorkState.READY, DurableWorkState.SUCCEEDED), (
                 f"{entry.name}: the replayed step never committed; recovery left it {work.state}"
             )
             assert reference is not None, f"{entry.name}: a continuing execution needs a reference delivery"
+            actual = example.observe()
             with reference() as fresh:
                 assert fresh.effect_calls is not None
                 make_due(fresh.work)
@@ -515,7 +538,7 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
                     capability.attempt_execution(fresh.work.pk)
                     make_due(fresh.work)
                 assert_observation(
-                    example.observe(),
+                    actual,
                     fresh.observe(),
                     because="a step replayed after a lost continuation matches two uninterrupted executions",
                 )
@@ -524,10 +547,6 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
                     f"two uninterrupted executions reach it {fresh.effect_calls() - before} time(s)"
                 )
             return
-        assert replayed == calls + 2, (
-            f"{entry.name}: recovery reached the effect boundary {replayed - calls - 1} times after the lost "
-            "acknowledgement, against exactly 1: it did not settle on the first replay"
-        )
         assert work.state == DurableWorkState.SUCCEEDED, (
             f"{entry.name}: the replayed effect never settled; recovery left it {work.state}"
         )

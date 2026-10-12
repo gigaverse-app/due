@@ -21,7 +21,7 @@ from due.django.conformance.scenarios import (
     acknowledgement_replays,
     assert_lost_acknowledgement_replay_converges,
 )
-from due.django.public import ContinueAfter, DurableWorkPolicy, WorkClaim, WorkFailureDisposition
+from due.django.public import ContinueAfter, DurableWorkPolicy, ReopenAfter, WorkClaim, WorkFailureDisposition
 from due.django.testing import hold_nudges
 from tests.harness import primitive as example
 from tests.harness.operation import Publication, PublicationWork
@@ -59,9 +59,16 @@ def upserting_call(work: PrimitiveWork) -> str:
     return work.payload
 
 
-def test_replay_safe_effect_converges_and_settles() -> None:
+@pytest.mark.parametrize("provider_calls", [1, 2, 3])
+def test_replay_safe_effect_converges_and_settles(provider_calls: int) -> None:
     assert acknowledgement_replays(primitive)
-    with patch.object(example, "call", upserting_call):
+
+    def repeated_upsert(work: PrimitiveWork) -> str:
+        for _ in range(provider_calls - 1):
+            upserting_call(work)
+        return upserting_call(work)
+
+    with patch.object(example, "call", repeated_upsert):
         assert_lost_acknowledgement_replay_converges(primitive, delivery())
 
 
@@ -171,3 +178,21 @@ def test_a_lost_continuation_replays_like_two_uninterrupted_steps(effect) -> Non
         assert_lost_acknowledgement_replay_converges(primitive, scenario, reference=fresh)
     # Positive control: a continuing execution is judged against the uninterrupted reference.
     assert compared == ([True] if effect is stepping_effect else [])
+
+
+def test_reopened_settlement_replays_like_uninterrupted_polling() -> None:
+    settle = PrimitiveEffect.finalize_success
+
+    def settle_and_reopen(self: PrimitiveEffect, work: PrimitiveWork, result: str) -> ReopenAfter:
+        settle(self, work, result)
+        return ReopenAfter(timedelta(seconds=1), "poll")
+
+    @contextmanager
+    def fresh() -> Iterator[DeliveryExample[PrimitiveWork, tuple[str, tuple[str, ...]]]]:
+        yield delivery(clear=False)
+
+    with (
+        patch.object(example, "call", upserting_call),
+        patch.object(PrimitiveEffect, "finalize_success", settle_and_reopen),
+    ):
+        assert_lost_acknowledgement_replay_converges(primitive, delivery(), reference=fresh)
