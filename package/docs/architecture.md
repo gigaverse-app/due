@@ -86,6 +86,10 @@ Projection and scheduled-action repair are explicit application policies. A boun
 repair window is not proof that an earlier request completed. Keep provider
 idempotency keys stable across retries and distinct across requested revisions.
 Due's key includes the immutable admission identity as well as the revision.
+An application whose provider target is permanently gone (a deleted channel, a
+purged bucket) can settle an attempt's repair as `RepairSettledBy.TARGET_RETIRED`:
+no receipt can arrive, the outcome stays UNKNOWN evidence, and the repair window
+leaves it alone.
 
 ### An unknown outcome needs evidence
 

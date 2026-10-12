@@ -33,6 +33,7 @@ class EffectAttemptOutcome(models.TextChoices):
 class RepairSettledBy(models.TextChoices):
     RECEIPT = "receipt", "definite receipt"
     POLICY_WINDOW = "policy_window", "repair window expired"
+    TARGET_RETIRED = "target_retired", "provider target permanently gone"
 
 
 class EffectAttempt(models.Model):
