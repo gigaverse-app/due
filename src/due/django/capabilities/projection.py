@@ -11,6 +11,7 @@ from uuid import UUID
 from django.db import connection, models, transaction
 from django.db.models import Exists, OuterRef, Q
 
+from due.django.capabilities._attempt_recovery import attempt_recovery_steps
 from due.django.capabilities.authoring import (
     OwnedDurableWorkCapability,
     _validate_simple_callbacks,
@@ -18,11 +19,8 @@ from due.django.capabilities.authoring import (
 from due.django.evidence.attempts import (
     applied_effect_call,
     attempts_for,
-    expire_repair_window,
     import_unknown_effect_attempt,
-    prune_resolved_attempts,
     publish_pending_attempt_census,
-    resolve_confirmed_attempts,
 )
 from due.django.models import (
     TERMINAL_WORK_STATES,
@@ -140,16 +138,17 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
 
     def derivation_steps(self) -> tuple[RecoveryStep, ...]:
         return (
-            RecoveryStep(RecoveryPhase.REPAIR_WINDOW, self._expire_repair_window),
-            *super().derivation_steps(),
-            RecoveryStep(RecoveryPhase.STALE_WRITE_REOPEN, self._reopen_stale_writes),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RESOLUTION, self._resolve_confirmed_attempts),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RETENTION, self._prune_resolved_attempts),
+            *attempt_recovery_steps(
+                self.model,
+                self.policy,
+                retention=self.attempt_retention,
+                derivation=(
+                    *super().derivation_steps(),
+                    RecoveryStep(RecoveryPhase.STALE_WRITE_REOPEN, self._reopen_stale_writes),
+                ),
+            ),
             RecoveryStep(RecoveryPhase.ATTEMPT_CENSUS, self._attempt_census),
         )
-
-    def _expire_repair_window(self, recovery: RecoveryPass) -> int:
-        return expire_repair_window(self.model, window=self.policy.max_repair_window, batch_size=self.policy.batch_size)
 
     def _reopen_stale_writes(self, recovery: RecoveryPass) -> int:
         # A late receipt can arrive after the newer revision was acknowledged.
@@ -168,14 +167,6 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
             for work in page:
                 reopen_locked_work(work, available_at=available_at, reason="stale_write_repair")
         return len(page)
-
-    def _resolve_confirmed_attempts(self, recovery: RecoveryPass) -> int:
-        return resolve_confirmed_attempts(self.model, batch_size=self.policy.batch_size)
-
-    def _prune_resolved_attempts(self, recovery: RecoveryPass) -> int:
-        return prune_resolved_attempts(
-            self.model, before=database_now() - self.attempt_retention, batch_size=self.policy.batch_size
-        )
 
     def _attempt_census(self, recovery: RecoveryPass) -> int:
         publish_pending_attempt_census(self.model)

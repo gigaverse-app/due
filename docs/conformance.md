@@ -113,6 +113,11 @@ producer/admission/inline examples own their scopes so they cannot accidentally
 hide an early notification. Process histories own their child setup; fixtures
 keep their external resources alive for the whole generated case.
 
+`Binding` and `entered_binding` reuse `pytest_obligation.helpers`: plain values
+and scoped examples have one entry contract. Cleanup still receives the original
+exception, but cannot suppress a failed proof. Application environments use that
+same guard, including the standalone work-table proofs.
+
 ## Handoffs: require the right result, not just the same result
 
 `observation_handoff` reuses an `ObservationExample` for shared handoff histories.
