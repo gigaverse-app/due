@@ -264,7 +264,6 @@ wheels = [
 
 [[package]]
 name = "due"
-version = "0.1.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
@@ -318,10 +317,10 @@ requires-dist = [
     { name = "prometheus-client", specifier = ">=0.22" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "pytest-obligation", extras = ["django", "celery", "exploration", "debt"], marker = "extra == 'testing'", git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=3d742d0d8538d47a92a620e3df59b640ffa2cc9b" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", specifier = ">=0.10.0,<1" },
     { name = "sentry-sdk", specifier = ">=2,<3" },
 ]
-provides-extras = ["testing", "redis", "beat"]
+provides-extras = ["beat", "redis", "testing"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -334,7 +333,7 @@ dev = [
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-asyncio", specifier = ">=1.2" },
     { name = "pytest-mock", specifier = ">=3.16.0" },
-    { name = "pytest-obligation", extras = ["celery", "django", "exploration", "debt"], git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=3d742d0d8538d47a92a620e3df59b640ffa2cc9b" },
+    { name = "pytest-obligation", extras = ["celery", "django", "exploration", "debt"], specifier = ">=0.10.0,<1" },
     { name = "pytest-xdist", specifier = ">=3.8" },
     { name = "redis", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.14" },
@@ -783,11 +782,15 @@ wheels = [
 
 [[package]]
 name = "pytest-obligation"
-version = "0.9.1.dev12"
-source = { git = "https://github.com/gigaverse-app/pytest-obligation.git?rev=3d742d0d8538d47a92a620e3df59b640ffa2cc9b#3d742d0d8538d47a92a620e3df59b640ffa2cc9b" }
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ed/cc/a53582d800b0d0f8ea7edd5d7b004e9f00c84c95fb3a1a1b4df064276e63/pytest_obligation-0.10.0.tar.gz", hash = "sha256:fc61b3e970c53bdade21810088b2139b8bd3ba3c1c641a7f2d8244a31c8d0042", size = 938924, upload-time = "2026-10-12T12:23:09.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0f/1d/a0e0a58e76f6a8340a5926b45a83c37c41910d2eefa8b937c6e106408322/pytest_obligation-0.10.0-py3-none-any.whl", hash = "sha256:2824350d1133e39b7e1087fb3ec4118c9a7bf9b078d747b6b784af46c624ed84", size = 414118, upload-time = "2026-10-12T12:23:07.694Z" },
 ]
 
 [package.optional-dependencies]
