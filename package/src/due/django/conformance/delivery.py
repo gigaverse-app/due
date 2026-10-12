@@ -9,7 +9,7 @@ from functools import partial
 from typing import Any
 
 import time_machine
-from celery import Celery
+from celery import Celery, Task
 from django.utils import timezone
 from pytest_obligation.crash_histories import HandoffHistory
 from pytest_obligation.profiles.automatic_recovery import DueWorkSweep, declared_recovery_delay
@@ -29,6 +29,7 @@ class _RecoverySession:
     rounds: int
     primary_tick: Callable[[], object]
     can_lose: bool = True
+    lost_tasks: tuple[Task, ...] = ()
 
     def deliver(self) -> None:
         self.driver.release()
@@ -41,6 +42,8 @@ class _RecoverySession:
 
     def recover_with(self, ticks: tuple[Callable[[], object], ...]) -> None:
         self.driver.holding = False
+        for task in self.lost_tasks:
+            self.driver.drop_held(task)
         for _ in range(self.rounds):
             etas = [delivery.eta for delivery in self.driver.held if delivery.eta is not None]
             self.clock.shift(max([self.delay, *(eta - timezone.now() for eta in etas)]))
@@ -48,6 +51,8 @@ class _RecoverySession:
             self.primary_tick()
             for tick in ticks:
                 tick()
+            for task in self.lost_tasks:
+                self.driver.drop_held(task)
             self.driver.drain()
         assert not self.driver.held, (
             f"{self.name}: work is still scheduled after {self.rounds} recovery rounds "
@@ -69,6 +74,8 @@ class WorkTableDelivery[W: UniverseDurableWork, ResultT]:
     rounds: int = 3
     round_delay: timedelta = timedelta(hours=1)
     app: Celery | None = None
+    #: Permanently lose these optional transports while ordinary delivery still runs.
+    lost_tasks: tuple[Task, ...] = ()
 
     def __post_init__(self) -> None:
         if self.rounds < 1 or self.round_delay <= timedelta():
@@ -83,6 +90,7 @@ class WorkTableDelivery[W: UniverseDurableWork, ResultT]:
         entry = registration_for(self.capability.model)
         with frozen_scheduler_clock() as clock, harness_owned_background_work(clock, app=self.app) as driver:
             driver.hold()
+            driver.pause(*self.lost_tasks)
             yield _RecoverySession(
                 name=entry.name,
                 driver=driver,
@@ -92,6 +100,7 @@ class WorkTableDelivery[W: UniverseDurableWork, ResultT]:
                 + self.round_delay,
                 rounds=self.rounds,
                 primary_tick=partial(driver.run_recovery, entry.name),
+                lost_tasks=self.lost_tasks,
             )
 
 

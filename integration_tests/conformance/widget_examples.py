@@ -150,13 +150,14 @@ EXAMPLES = seam_examples(
 )
 
 
-def process_history(decision: str):
+def process_history(decision: str, *, lose_hints: bool = False):
     from pathlib import Path
     from tempfile import TemporaryDirectory
 
     from pytest_obligation.process_histories import ProcessHistory
 
     from due.django.conformance.delivery import WorkTableDelivery
+    from due.django.runtime.tasks import wake_scheduled_work_task
     from integration_tests.harness.processes import run_child
 
     def run(point: str | None) -> tuple[str, int]:
@@ -178,17 +179,27 @@ def process_history(decision: str):
 
     def recover(key: str) -> None:
         # REAL PRODUCTION: the registered recovery owner, never direct settlement.
-        with environment(), WorkTableDelivery(checkout_order, rounds=12).session() as delivery:
+        route = WorkTableDelivery(
+            checkout_order, rounds=12, lost_tasks=(wake_scheduled_work_task,) if lose_hints else ()
+        )
+        with environment(), route.session() as delivery:
             delivery.recover()
 
     return ProcessHistory(
-        name=f"widget {decision} process death",
+        name=f"widget {decision} process death" + (" without hints" if lose_hints else ""),
         initial=("pending", 10, 100, 0),
         expected=("dispatched", 0, 99, 1) if decision == "paid" else ("cancelled", 10, 100, 1),
         run=run,
         observe=outcome,
         recover=recover,
-        death_points=("after payment receipt", "before transition", "after decision", "mid dispatch", "after dispatch")
+        death_points=(
+            "after payment receipt",
+            "before transition",
+            "after decision",
+            "after continuation commit",
+            "mid dispatch",
+            "after dispatch",
+        )
         if decision == "paid"
         else ("after reservation", "after payment receipt", "before transition", "after decision"),
     )
@@ -196,4 +207,11 @@ def process_history(decision: str):
 
 from dataclasses import replace  # noqa: E402
 
-EXAMPLES = replace(EXAMPLES, process_handoffs=(process_history("paid"), process_history("failed")))
+EXAMPLES = replace(
+    EXAMPLES,
+    process_handoffs=tuple(
+        process_history(decision, lose_hints=lose_hints)
+        for lose_hints in (False, True)
+        for decision in ("paid", "failed")
+    ),
+)

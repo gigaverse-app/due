@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import ClassVar
 
 from django.db.models import Q
 from django.utils import timezone
@@ -9,6 +10,8 @@ from examples.widget_store.models import CheckoutWork, Order
 
 
 class CheckoutOrder(ReplaySafeEffect[Order, CheckoutWork]):
+    deadline_wakeup_horizon: ClassVar[timedelta] = timedelta(seconds=10)
+
     def perform_effect(self, work: CheckoutWork) -> ContinueAfter | None:
         # Each delivery advances one exact DB stage and releases its worker slot.
         # The same obligation remains owed; losing a timer/broker message cannot

@@ -26,7 +26,7 @@ Both apps provide inventory, checkout, simulated payment success/failure, order 
 
 Due stores one obligation per accepted order, reusing the order's progress fields rather than inserting a row for each stage. Reservation and obligation admission commit together. Each PostgreSQL transition identifies its exact stage and locks its order; the guard and progress update share a transaction. Stock restoration and cancellation share a transaction too. No external charge or shipment occurs: PostgreSQL transaction atomicity does **not** establish exactly-once effects at a real payment provider.
 
-Due uses `ContinueAfter` to release its claim and worker slot between dispatch stages. A persisted deadline and the registered recovery sweep resume the same obligation; no asyncio event loop or per-stage obligation row is introduced. The tradeoff is another claim/continuation update cycle per stage and up to a recovery-tick delay per wakeup. The pinned DBOS example uses synchronous `DBOS.sleep`, which records sleep deadlines. These costs are measured, not hidden by reducing the one-second business waits. Benchmark results are bounded workflow latency and database-write observations, not capacity claims.
+Due uses `ContinueAfter` to release its claim and worker slot between dispatch stages. A persisted deadline and the registered recovery sweep resume the same obligation; no asyncio event loop or per-stage obligation row is introduced. A bounded transient Celery ETA hint wakes each committed stage without waiting for Beat. Hints share the scheduled-publication library mechanism and add no SQL rows or receipts. Losing every hint falls back to the same sweep; early, duplicate or obsolete hints cannot bypass the database deadline, eligibility or claim. Each stage still pays the ordinary claim/continuation update cycle, and fallback after hint loss can wait for a recovery tick. The pinned DBOS example uses synchronous `DBOS.sleep`, which records sleep deadlines. These costs are measured, not hidden by reducing the one-second business waits. Benchmark results are bounded workflow latency and database-write observations, not capacity claims.
 
 ## Proofs
 
@@ -36,7 +36,7 @@ Due uses `ContinueAfter` to release its claim and worker slot between dispatch s
 uv run pytest integration_tests/examples/test_widget_store.py integration_tests/conformance/test_widget_contract.py integration_tests/conformance/test_widget_controls.py
 ```
 
-The normal suite uses zero-duration stages for deterministic functional checks; real browser and comparison runs keep all ten one-second stages. CI explicitly requires the generated checkout contract and both process histories so deleting enrollment cannot produce a green empty report.
+The normal suite uses zero-duration stages for deterministic functional checks; real browser and comparison runs keep all ten one-second stages. CI explicitly requires the generated checkout contract and all four process histories (paid/failed, with/without timer hints) so deleting enrollment cannot produce a green empty report.
 
 ## Reproduce the comparison
 
