@@ -209,3 +209,7 @@ class EffectExamples[W: UniverseDurableWork]:
     # the real workers even when the transition hands off to another capability.
     handoffs: tuple[HandoffHistory[Any, Any], ...] = ()
     process_handoffs: tuple[ProcessHistory[Any, Any], ...] = ()
+
+    def __post_init__(self) -> None:
+        for history in self.process_handoffs:
+            history.require_expected_outcome()
