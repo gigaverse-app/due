@@ -11,17 +11,27 @@ from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
 
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.conformance.examples import DeliveryExample
+from due.django.conformance.registrations import durable_work_installed
 from due.django.conformance.scenarios import (
     acknowledgement_replays,
     assert_lost_acknowledgement_replay_converges,
 )
-from due.django.public import ContinueAfter, DurableWorkPolicy, ReopenAfter, WorkClaim, WorkFailureDisposition
+from due.django.public import (
+    ContinueAfter,
+    DatabaseEffect,
+    DurableWorkPolicy,
+    ReopenAfter,
+    WorkClaim,
+    WorkFailureDisposition,
+)
+from due.django.runtime.registry import DurableWorkRegistration
 from due.django.testing import hold_nudges
 from tests.harness import primitive as example
 from tests.harness.operation import Publication, PublicationWork
@@ -196,3 +206,43 @@ def test_reopened_settlement_replays_like_uninterrupted_polling() -> None:
         patch.object(PrimitiveEffect, "finalize_success", settle_and_reopen),
     ):
         assert_lost_acknowledgement_replay_converges(primitive, delivery(), reference=fresh)
+
+
+class DatabaseAdvance(DatabaseEffect[PrimitiveOwner, PrimitiveWork]):
+    calls: ClassVar[list[int]] = []
+    continuing: ClassVar[bool] = True
+
+    def transition(self, work: PrimitiveWork) -> ContinueAfter | None:
+        self.calls.append(work.pk)
+        owner = PrimitiveOwner.objects.get(pk=work.owner_id)
+        owner.value += "+"
+        owner.save(update_fields=["value"])
+        return ContinueAfter(timedelta(seconds=1), until=None) if self.continuing else None
+
+
+@pytest.mark.parametrize("continuing", [False, True])
+def test_database_acknowledgement_loss_commits_the_product_change_once(continuing: bool) -> None:
+    capability = DatabaseAdvance.for_owner(
+        owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
+    )
+    registration = DurableWorkRegistration(name="database_advance", capability=capability, cadence_seconds=60)
+    DatabaseAdvance.calls.clear()
+
+    @contextmanager
+    def fresh() -> Iterator[DeliveryExample[PrimitiveWork, str]]:
+        work = record()
+        yield DeliveryExample(
+            work=work,
+            observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            expected="before+",
+            effect_calls=lambda: DatabaseAdvance.calls.count(work.pk),
+        )
+
+    with (
+        patch.object(DatabaseAdvance, "continuing", continuing),
+        durable_work_installed(registration),
+        hold_nudges(),
+        fresh() as example,
+    ):
+        assert_lost_acknowledgement_replay_converges(capability, example, reference=fresh)
+        assert example.observe() == example.expected

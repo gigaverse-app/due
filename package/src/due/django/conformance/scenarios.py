@@ -42,6 +42,7 @@ from due.django.models import EffectAttempt, EffectAttemptOutcome
 # and every adopter's evidence history checks due-ness on the database clock its claim reads.
 from due.django.public import (
     ContinueAfter,
+    DatabaseEffect,
     DurableWorkCapability,
     DurableWorkState,
     ReopenAfter,
@@ -442,7 +443,9 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     settle, and stay settled without a third call. A continuing execution has
     only advanced one step, so its replay is compared with ``reference``: a
     fresh example given the same two executions without the fault must reach
-    the same outcome with the same number of provider entries.
+    the same outcome with the same number of provider entries. A DatabaseEffect
+    rolls the interrupted transition back with settlement, so it must leave the
+    initial product unchanged and its replay matches one committed execution.
     """
     assert not capability.model.requires_effect_evidence, "evidence-required work proves receipt repair instead"
     assert type(example.work) is capability.model, "delivery example must use the capability model"
@@ -450,7 +453,8 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     assert effect_calls is not None, "a lost-acknowledgement replay requires an independent provider-call observation"
     entry = DurableWorkBindings(capability, lambda: pytest.fail("the delivery example admits the work")).registration
     work = example.work
-    assert example.observe() != example.expected, "positive control: the example must initially owe a visible effect"
+    initial = example.observe()
+    assert initial != example.expected, "positive control: the example must initially owe a visible effect"
     make_due(work)
     work.refresh_from_db()
     revision = work.desired_revision
@@ -498,6 +502,10 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
         assert work.state == DurableWorkState.CLAIMED and work.desired_revision == revision, (
             f"{entry.name}: positive control: a lost acknowledgement leaves its claim unsettled, got {work.state}"
         )
+        if isinstance(capability, DatabaseEffect):
+            assert_observation(
+                example.observe(), initial, because="database changes and their lost acknowledgement roll back together"
+            )
         for _ in range(rounds):
             work.refresh_from_db()
             if effect_calls() > dead_calls and work.state not in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
@@ -534,17 +542,21 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
                 assert fresh.effect_calls is not None
                 make_due(fresh.work)
                 before = fresh.effect_calls()
-                for _ in range(2):
+                # DatabaseEffect rolls its first callback back with the acknowledgement;
+                # an external effect already committed outside that transaction.
+                committed = 1 if isinstance(capability, DatabaseEffect) else 2
+                for _ in range(committed):
                     capability.attempt_execution(fresh.work.pk)
                     make_due(fresh.work)
                 assert_observation(
                     actual,
                     fresh.observe(),
-                    because="a step replayed after a lost continuation matches two uninterrupted executions",
+                    because=f"a step replayed after a lost continuation matches {committed} committed execution(s)",
                 )
-                assert replayed - calls == fresh.effect_calls() - before, (
-                    f"{entry.name}: the replayed step reached the provider {replayed - calls} time(s); "
-                    f"two uninterrupted executions reach it {fresh.effect_calls() - before} time(s)"
+                compared_calls = replayed - (dead_calls if isinstance(capability, DatabaseEffect) else calls)
+                assert compared_calls == fresh.effect_calls() - before, (
+                    f"{entry.name}: committed work reached the effect boundary {compared_calls} time(s); "
+                    f"{committed} uninterrupted execution(s) reach it {fresh.effect_calls() - before} time(s)"
                 )
             return
         assert work.state == DurableWorkState.SUCCEEDED, (
