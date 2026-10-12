@@ -11,7 +11,7 @@ concurrency:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -80,11 +80,15 @@ jobs:
           WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           WIDGET_REDIS_CONTAINER: ${{ job.services.redis.id }}
         run: uv run python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
-      - name: Profile both applications separately from the timing run
+      - name: Repeat quality-gated CPU profiles separately from timing
         if: matrix.reverse == false
         run: |
-          mkdir -p test-results/widgets/profile
-          uvx --from py-spy==0.4.2 py-spy record --subprocesses --nonblocking --gil --rate 25 --format speedscope --output test-results/widgets/profile/cpu.json -- .venv/bin/python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2 --profiled --output test-results/widgets/profile
+          for repeat in 1 2; do
+            uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/cpu-$repeat" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5
+          done
+      - name: Profile wait paths including connection-loss recovery
+        if: matrix.reverse == false
+        run: uv run python -m scripts.widget_profile --mode wall --output test-results/widgets/profile/wall -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2
       - uses: actions/upload-artifact@v7
         if: always()
         with:

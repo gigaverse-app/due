@@ -130,11 +130,29 @@ existing obligation/fence/recovery protocol still owns that decision.
 The comparison workflow measures the pinned pre-change Due checkout and the
 candidate through the same controller, each against the unmodified DBOS app,
 with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
-warm order processing from crash/startup work. Separate py-spy profiles include
-both applications and their descendants, sampled without pausing them at 25 Hz.
-GIL-held samples identify Python call paths, not native CPU time; nonblocking
-sampling can omit inconsistent stacks. Profiled runs are labelled and excluded from timing
-claims. Raw profiles and benchmark results remain CI artifacts.
+warm order processing from crash/startup work. Two separate CPU captures use
+blocking py-spy at 50 Hz; another capture includes idle threads at 25 Hz to locate
+wait paths. Each capture must finish both applications' correctness journeys,
+report zero stack-read errors and no sampling lag, and contain at least 100
+samples per application plus separate web/worker coverage. Negative controls
+reject incomplete journeys, missing roles, sparse samples and corrupted counts.
+
+The profiling child asks py-spy to stop after application cleanup while the
+traced root is still alive. This avoids the collector's child-exit/reaping race;
+a successful profiler exit alone cannot pass the evidence gate. CPU captures
+contain active GIL-held Python stacks, not all native CPU. Wall captures include
+idle waits across threads and must not be summed into elapsed or CPU time.
+Profiled runs are labelled and excluded from timing claims. Raw captures,
+per-function self/inclusive sample summaries and quality checks remain CI
+artifacts. A failed capture fails the job; the runner never silently retries or
+falls back to nonblocking sampling.
+
+To reproduce a CPU capture against the pinned upstream checkout (after the
+database setup above), use a fresh output directory:
+
+```bash
+uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 5
+```
 
 The generated `delivery-replay-reconnected dispatch` contract terminates the real
 PostgreSQL session before each of two deliveries through Celery's production
