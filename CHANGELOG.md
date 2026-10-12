@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gigaverse-app/due/compare/v0.3.0...v0.3.1) (2026-10-12)
+
+
+### Bug fixes
+
+* checkpointed replays and translated held-claim reports pass their histories ([#44](https://github.com/gigaverse-app/due/issues/44)) ([3876be2](https://github.com/gigaverse-app/due/commit/3876be2e6f7c76f672bec72b0f243850adf4b53b))
+
 ## [0.3.0](https://github.com/gigaverse-app/due/compare/v0.2.0...v0.3.0) (2026-10-12)
 
 
