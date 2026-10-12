@@ -57,5 +57,6 @@
         }
       ]
     }
-  }
+  },
+  "pull-request-header": "This is the manual release decision. Leave this PR open to accumulate alpha changes without publishing.\n\n**CI approval only runs tests; it does not publish. Merging this PR authorizes publication:** after normal CI passes on the merged commit, the Release workflow tags, builds and publishes that exact version to PyPI.\n\nIf GitHub asks to approve workflows on each update, the release bot is using GITHUB_TOKEN. A scoped RELEASE_PLEASE_TOKEN removes that prompt; see RELEASING.md."
 }
