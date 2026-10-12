@@ -255,6 +255,8 @@ test; the generic plugin cannot infer an application's manifest.
 The repository's CI additionally requires all expected application histories to
 be collected, selected and passed exactly once. Filtering to one easy test or
 retaining only a passing profile report cannot certify the application suite.
+For each effect claiming verified H, the gate independently requires all canonical
+replay proof names; deleting a replay binding cannot shrink the required evidence.
 
 ## Prove the proof, and use exploration where it applies
 
