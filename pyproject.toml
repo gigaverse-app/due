@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-testing = ["pytest-obligation[django,celery,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@0906f2f996c2fef51da1b175cbb2a6d47f6c8b2b"]
+testing = ["pytest-obligation[django,celery,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@60ba188aaf08bba4b096e201ea5835e2c36cbac3"]
 redis = ["celery[redis]>=5.6,<6"]
 beat = ["django-celery-beat>=2.8"]
 
@@ -43,7 +43,7 @@ lint = ["ruff>=0.14", "pre-commit>=4.3"]
 dev = [
     { include-group = "lint" },
     "pytest>=8.4",
-    "pytest-obligation[celery,django,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@0906f2f996c2fef51da1b175cbb2a6d47f6c8b2b",
+    "pytest-obligation[celery,django,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@60ba188aaf08bba4b096e201ea5835e2c36cbac3",
     "pyrefly>=1,<2",
     "celery-types>=0.26",
     "django-stubs>=5.2",

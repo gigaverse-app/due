@@ -34,3 +34,8 @@ well as that tree so an export cannot silently omit an earlier improvement.
 
 See the [source/control audit](../../cutover-audit.md) for ownership and deliberate
 exclusions.
+
+After restoring race deadline and stalled-session controls in obligation, the
+full paired Due suite passes again: **1,357 passed, four expected failures**.
+Due's worker-connection module now forwards to that shared implementation,
+preserving its existing import API.

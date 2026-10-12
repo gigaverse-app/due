@@ -39,7 +39,7 @@ work-table-specific proofs   generic proofs + integrations + scanners
 | Metric names, label names and allowed values are inspectable without mutating the schema | `runtime.metrics.metric_schemas`; deployment and metric tests |
 | Beat cleanup removes only owned or explicitly declared historical task names | `runtime.registry.remove_stale_recovery_schedules`; registry controls |
 | Collection does not enroll embedded libraries' own test projects | `due._suite_inventory`; enrollment and collection controls |
-| Lazy application hosts, reviewed suite aliases, configured task names, shared row delivery and archive builds | [pytest-obligation's cutover audit](https://github.com/gigaverse-app/pytest-obligation/blob/0906f2f/docs/backend-harness-port.md#cutover-follow-through-october-2026) |
+| Lazy application hosts, reviewed suite aliases, configured task names, shared row delivery and archive builds | [pytest-obligation's cutover audit](https://github.com/gigaverse-app/pytest-obligation/blob/60ba188/docs/backend-harness-port.md#cutover-follow-through-october-2026) |
 
 The public module boundary stays unchanged: `due.django.public` is the capability
 entry point, `runtime` owns operational integration, and `conformance` owns the
@@ -67,6 +67,13 @@ ownership, eligibility, edge cases, terminal states, source scanners and debt
 collection already have public owners. See the linked obligation audit for their
 control locations. The newer public tests use framework-neutral reference hosts
 and real Django integration tests in place of backend-specific fixtures.
+
+The final behavioral comparison also recovered race timeout validation and
+stalled-transaction cleanup. PostgreSQL lock timeouts must not round to zero;
+a racer still holding a transaction when the proof fails must release its locks.
+These controls now live in pytest-obligation's core and Django race tests. Its
+`integrations.django.worker_connections` is the shared connection owner; Due's
+existing `conformance.worker_connection` imports remain compatibility exports.
 
 ## Deliberate exclusions
 
