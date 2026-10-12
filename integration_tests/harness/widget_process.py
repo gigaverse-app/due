@@ -10,6 +10,7 @@ from pytest_obligation.process_histories import die_here
 
 django.setup()
 
+from due.django.runtime import coordination  # noqa: E402
 from due.django.testing import hold_nudges, make_due  # noqa: E402
 from examples.widget_store import services  # noqa: E402
 from examples.widget_store.effects import checkout_order  # noqa: E402
@@ -19,6 +20,13 @@ from examples.widget_store.models import CheckoutWork  # noqa: E402
 def main() -> None:
     decision, identity = sys.argv[1].split(":")
     advance = services.advance
+    continue_work = coordination.continue_work
+
+    def continued(*args, **kwargs):
+        result = continue_work(*args, **kwargs)
+        if result:
+            die_here("after continuation commit")
+        return result
 
     def transition(key: UUID, stage: int) -> float | None:
         die_here("before transition")
@@ -31,7 +39,12 @@ def main() -> None:
             die_here("after dispatch")
         return result
 
-    with hold_nudges(), override_settings(WIDGET_STAGE_SECONDS=0), patch.object(services, "advance", transition):
+    with (
+        hold_nudges(),
+        override_settings(WIDGET_STAGE_SECONDS=0),
+        patch.object(services, "advance", transition),
+        patch.object(coordination, "continue_work", continued),
+    ):
         services.restock()
         order = services.checkout(UUID(identity))
         if decision == "failed":

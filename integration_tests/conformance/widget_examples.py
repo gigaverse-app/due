@@ -192,7 +192,14 @@ def process_history(decision: str, *, lose_hints: bool = False):
         run=run,
         observe=outcome,
         recover=recover,
-        death_points=("after payment receipt", "before transition", "after decision", "mid dispatch", "after dispatch")
+        death_points=(
+            "after payment receipt",
+            "before transition",
+            "after decision",
+            "after continuation commit",
+            "mid dispatch",
+            "after dispatch",
+        )
         if decision == "paid"
         else ("after reservation", "after payment receipt", "before transition", "after decision"),
     )
