@@ -1,0 +1,26 @@
+[
+  {
+    "arm": "baseline",
+    "phase": "first",
+    "exit_code": 73,
+    "published_path_content": null
+  },
+  {
+    "arm": "baseline",
+    "phase": "replay",
+    "exit_code": 0,
+    "published_path_content": "Complete edition"
+  },
+  {
+    "arm": "candidate",
+    "phase": "first",
+    "exit_code": 73,
+    "published_path_content": null
+  },
+  {
+    "arm": "candidate",
+    "phase": "replay",
+    "exit_code": 0,
+    "published_path_content": "Complete edition"
+  }
+]

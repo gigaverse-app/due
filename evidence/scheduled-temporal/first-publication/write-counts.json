@@ -1,0 +1,98 @@
+[
+  {
+    "arm": "baseline",
+    "size": 8192,
+    "phase": "fresh",
+    "operations": 30,
+    "syscall_counts": {
+      "mkdir": 60,
+      "write": 30,
+      "linkat": 30,
+      "getdents64": 60,
+      "unlinkat": 30,
+      "rmdir": 30
+    },
+    "write_syscalls": 30,
+    "bytes_written": 245760
+  },
+  {
+    "arm": "candidate",
+    "size": 8192,
+    "phase": "fresh",
+    "operations": 30,
+    "syscall_counts": {
+      "mkdir": 30,
+      "write": 30,
+      "linkat": 30,
+      "unlink": 30
+    },
+    "write_syscalls": 30,
+    "bytes_written": 245760
+  },
+  {
+    "arm": "baseline",
+    "size": 8192,
+    "phase": "replay",
+    "operations": 30,
+    "syscall_counts": {},
+    "write_syscalls": 0,
+    "bytes_written": 0
+  },
+  {
+    "arm": "candidate",
+    "size": 8192,
+    "phase": "replay",
+    "operations": 30,
+    "syscall_counts": {},
+    "write_syscalls": 0,
+    "bytes_written": 0
+  },
+  {
+    "arm": "baseline",
+    "size": 1048576,
+    "phase": "fresh",
+    "operations": 30,
+    "syscall_counts": {
+      "mkdir": 60,
+      "write": 30,
+      "linkat": 30,
+      "getdents64": 60,
+      "unlinkat": 30,
+      "rmdir": 30
+    },
+    "write_syscalls": 30,
+    "bytes_written": 31457280
+  },
+  {
+    "arm": "candidate",
+    "size": 1048576,
+    "phase": "fresh",
+    "operations": 30,
+    "syscall_counts": {
+      "mkdir": 30,
+      "write": 30,
+      "linkat": 30,
+      "unlink": 30
+    },
+    "write_syscalls": 30,
+    "bytes_written": 31457280
+  },
+  {
+    "arm": "baseline",
+    "size": 1048576,
+    "phase": "replay",
+    "operations": 30,
+    "syscall_counts": {},
+    "write_syscalls": 0,
+    "bytes_written": 0
+  },
+  {
+    "arm": "candidate",
+    "size": 1048576,
+    "phase": "replay",
+    "operations": 30,
+    "syscall_counts": {},
+    "write_syscalls": 0,
+    "bytes_written": 0
+  }
+]
