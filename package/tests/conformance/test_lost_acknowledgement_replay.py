@@ -15,9 +15,11 @@ from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
+from pytest_obligation.contract import ObligationContractDesignError
 
 from due.django.capabilities.compensation import IndependentCompensation
-from due.django.conformance.examples import DeliveryExample
+from due.django.conformance import scenarios
+from due.django.conformance.examples import CheckpointedReplay, DeliveryExample
 from due.django.conformance.registrations import durable_work_installed
 from due.django.conformance.scenarios import (
     acknowledgement_replays,
@@ -246,3 +248,83 @@ def test_database_acknowledgement_loss_commits_the_product_change_once(continuin
     ):
         assert_lost_acknowledgement_replay_converges(capability, example, reference=fresh)
         assert example.observe() == example.expected
+
+
+#: The application's own committed progress, written outside the settlement a worker death rolls back.
+CHECKPOINTS: set[int | None] = set()
+
+
+def checkpointed_call(work: PrimitiveWork) -> str:
+    # A step that records the accepted provider call in its own progress row and skips it once recorded.
+    if work.owner_id not in CHECKPOINTS:
+        upserting_call(work)
+        CHECKPOINTS.add(work.owner_id)
+    return work.payload
+
+
+def checkpointed(applied=lambda work: work.owner_id in CHECKPOINTS) -> CheckpointedReplay[PrimitiveWork]:
+    return CheckpointedReplay(
+        because="each accepted provider call is recorded in the effect's own progress row before settlement",
+        applied=applied,
+    )
+
+
+def test_a_declared_checkpoint_accepts_a_replay_that_skips_the_recorded_call() -> None:
+    CHECKPOINTS.clear()
+    scenario = replace(delivery(), checkpoint=checkpointed())
+    with patch.object(example, "call", checkpointed_call):
+        assert_lost_acknowledgement_replay_converges(primitive, scenario)
+    # Positive control: the provider was entered once, by the attempt whose acknowledgement was lost.
+    assert len(PrimitiveEffect.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("call", "applied", "patched", "defect"),
+    [
+        (checkpointed_call, None, None, "never reached the effect boundary again.*DeliveryExample.checkpoint"),
+        (checkpointed_call, lambda work: False, None, "checkpoint does not hold"),
+        (upserting_call, lambda work: True, None, "reached the provider 1 more time"),
+        (checkpointed_call, lambda work: True, "recover_durable_work_task", "never re-entered the effect"),
+    ],
+    ids=["undeclared-skip", "checkpoint-not-recorded", "replay-ignores-checkpoint", "redelivery-never-runs"],
+)
+def test_a_checkpoint_declaration_is_checked_not_trusted(call, applied, patched: str | None, defect: str) -> None:
+    CHECKPOINTS.clear()
+    scenario = delivery()
+    if applied is not None:
+        scenario = replace(scenario, checkpoint=checkpointed(applied))
+    with (
+        patch.object(example, "call", call),
+        # A recovery that publishes nothing: the declared skip must still be a real re-entry.
+        patch.object(scenarios, patched, lambda name: 0) if patched else nullcontext(),
+        pytest.raises(AssertionError, match=defect),
+    ):
+        assert_lost_acknowledgement_replay_converges(primitive, scenario)
+
+
+def test_a_checkpoint_declaration_needs_a_reason() -> None:
+    with pytest.raises(ObligationContractDesignError, match="must name the checkpoint"):
+        CheckpointedReplay(because=" ", applied=lambda work: True)
+
+
+def test_a_database_effect_cannot_declare_a_checkpoint() -> None:
+    capability = DatabaseAdvance.for_owner(
+        owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
+    )
+    registration = DurableWorkRegistration(name="database_advance", capability=capability, cadence_seconds=60)
+    DatabaseAdvance.calls.clear()
+    with (
+        patch.object(DatabaseAdvance, "continuing", False),
+        durable_work_installed(registration),
+        hold_nudges(),
+    ):
+        work = record()
+        scenario = DeliveryExample(
+            work=work,
+            observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            expected="before+",
+            effect_calls=lambda: DatabaseAdvance.calls.count(work.pk),
+            checkpoint=checkpointed(lambda work: True),
+        )
+        with pytest.raises(AssertionError, match="no checkpoint that survives"):
+            assert_lost_acknowledgement_replay_converges(capability, scenario)
