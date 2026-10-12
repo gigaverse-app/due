@@ -423,6 +423,25 @@ def _work_rows(model: type[UniverseDurableWork]) -> dict[int, tuple[object, ...]
     }
 
 
+def reports_incomplete(error: BaseException) -> bool:
+    """
+    Whether ``error`` is WorkIncomplete, or was raised while handling or from one.
+
+    An entry point often translates the library's report into its own error
+    (``raise ServiceBusy(...) from incomplete``). Follow ``__cause__``, and
+    ``__context__`` unless the raise suppressed it (``from None``), so the
+    translation is accepted and an unrelated failure is not.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        if isinstance(current, WorkIncomplete):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return False
+
+
 def _assert_caller_waits_for_the_held_claim[W: UniverseDurableWork, ResultT, ObservationT](
     capability: DurableWorkCapability[W, ResultT],
     example: SynchronousCallerExample[ObservationT],
@@ -448,8 +467,11 @@ def _assert_caller_waits_for_the_held_claim[W: UniverseDurableWork, ResultT, Obs
     try:
         # Revisit the accepted owner; call() may create a different owner.
         (example.repeat or example.call)()
-    except WorkIncomplete:
+    except Exception as error:
         # complete() reports the held claim; complete_or_defer() returns it as a status instead.
+        # An entry point may translate the report into its own error, raised from it.
+        if not reports_incomplete(error):
+            raise
         assert example.requires_inline, "a deferring caller must report the held claim as a status, not raise"
     if example.effect_calls() > calls:
         held = [claim.work_id for claim in claims if claim.owned_work().exists()]
@@ -750,6 +772,12 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     the same outcome with the same number of provider entries. A DatabaseEffect
     rolls the interrupted transition back with settlement, so it must leave the
     initial product unchanged and its replay matches one committed execution.
+
+    An application that commits its own progress after the provider accepts
+    (``example.checkpoint``) replays by re-entering the effect and skipping the
+    recorded call. Only that declaration accepts a replay with no further
+    provider entry, and then it requires one: the checkpoint must hold after the
+    lost acknowledgement, and the replay must not reach the provider again.
     """
     assert not capability.model.requires_effect_evidence, "evidence-required work proves receipt repair instead"
     assert type(example.work) is capability.model, "delivery example must use the capability model"
@@ -810,6 +838,16 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
             assert_observation(
                 example.observe(), initial, because="database changes and their lost acknowledgement roll back together"
             )
+        checkpoint = example.checkpoint
+        if checkpoint is not None:
+            assert not isinstance(capability, DatabaseEffect), (
+                f"{entry.name}: a DatabaseEffect's writes roll back with its settlement, so it has no checkpoint "
+                "that survives a lost acknowledgement; remove the declaration"
+            )
+            assert checkpoint.applied(work), (
+                f"{entry.name}: the declared checkpoint does not hold after the lost acknowledgement, so the "
+                f"replay cannot skip the provider call it records ({checkpoint.because})"
+            )
         for _ in range(rounds):
             work.refresh_from_db()
             if effect_calls() > dead_calls and work.state not in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
@@ -826,10 +864,21 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
                     run_durable_work_task(*args)
         work.refresh_from_db()
         replayed = effect_calls()
-        assert replayed > dead_calls, (
-            f"{entry.name}: recovery never reached the effect boundary again after the lost acknowledgement: "
-            "it stranded the applied work, or its redelivery selected nothing to do"
-        )
+        if checkpoint is None:
+            assert replayed > dead_calls, (
+                f"{entry.name}: recovery never reached the effect boundary again after the lost acknowledgement: "
+                "it stranded the applied work, or its redelivery selected nothing to do. An application that "
+                "commits its own progress after the provider accepts declares it with DeliveryExample.checkpoint"
+            )
+        else:
+            assert executions > 1, (
+                f"{entry.name}: recovery never re-entered the effect after the lost acknowledgement: "
+                "it stranded the applied work, or its redelivery selected nothing to do"
+            )
+            assert replayed == dead_calls, (
+                f"{entry.name}: the replay reached the provider {replayed - dead_calls} more time(s), although "
+                f"the declared checkpoint records the accepted call ({checkpoint.because})"
+            )
         assert work.desired_revision == revision, f"{entry.name}: a lost acknowledgement must not start a new revision"
         # Count executions at the kernel boundary, separately from the provider entries each makes.
         assert executions == 2, (

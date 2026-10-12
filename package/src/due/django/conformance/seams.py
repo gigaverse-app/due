@@ -41,6 +41,7 @@ from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance.binding import entered_binding
 from due.django.conformance.examples import (
+    CheckpointedReplay,
     DeliveryExample,
     EffectExamples,
     FailureExample,
@@ -110,6 +111,8 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     """Independent replay outcome; required with provider_state, otherwise delivered is reused."""
     arrange: Callable[[P, W], object] = field(default=lambda provider, work: None)
     """ARRANGE: provider-side state one delivery needs, such as a scripted receipt or stored source."""
+    checkpoint: CheckpointedReplay[W] | None = None
+    """The effect records each accepted provider call and skips it on replay (see CheckpointedReplay)."""
 
     def __post_init__(self) -> None:
         # The caller of the generated __init__ is the declaration under review.
@@ -204,6 +207,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     observe=lambda: read(provider, work),
                     expected=expected(provider, work),
                     effect_calls=lambda: self.calls(provider),
+                    checkpoint=self.checkpoint,
                 )
 
         return binding
