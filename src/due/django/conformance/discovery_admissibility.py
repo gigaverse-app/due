@@ -46,21 +46,33 @@ cannot see which owner fields feed the work, so it perturbs each one and lets
 the production query and ``derive()`` decide. An edge value the database itself
 rejects (a CHECK constraint) cannot exist in a row, and its case passes.
 
+**Related rows.** A discovery often reads a row the owner points at: the
+candidate query joins a parent's scope, or ``desired_for`` copies a parent's
+tenant into the work. Those rows hold legacy values too, and perturbing the
+owner never reaches them. ``EffectExamples.discovery_edges`` names each such row
+as an ``EdgeFamily`` (the declaration a native sweep's ``owed_edges`` uses):
+``edge_row`` maps the owner to the related row, and every database-legal edge of
+that row's model gets both cases above, written into the related row instead of
+the owner. The two implied owners of the liveness case must read different
+related rows, or poisoning one would poison both.
+
 **What this cannot see.** Edge values beyond the catalog in ``edge_values.py``,
-combinations of fields, nullable fields set to ``None``, edge values in related
-rows the query joins or ``desired_for`` reads (a community's universe, a post's
-platform account), and owner rows a real legacy writer left in states the
-adapter's ``make_implied`` never reaches. A green case is evidence for that
+combinations of fields, nullable fields set to ``None``, related rows no
+``discovery_edges`` family names, and owner rows a real legacy writer left in
+states the adapter's ``make_implied`` never reaches. A green case is evidence for that
 field and that value, not for every row in a production table. Native recovery
 sweeps get the same catalog through
 ``profiles/automatic_recovery/owed_row_admissibility.py``.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
+from django.db.models import Model
 from pytest_obligation.integrations.django.edge_values import CandidateEdge, model_edges, write_unvalidated
+from pytest_obligation.integrations.django.owed_rows import EdgeFamily
 from pytest_obligation.integrations.django.selection_completeness import CompletenessBinding
 
 from due.django.public import Discovery, OwnedDurableWorkCapability, database_now
@@ -68,8 +80,44 @@ from due.django.runtime.coordination import outstanding_work
 
 
 def candidate_edges(capability: OwnedDurableWorkCapability[Any, Any, Any]) -> tuple[CandidateEdge, ...]:
-    """Every generated case for one capability; suite and collection checks share this list."""
+    """Every generated owner-field case for one capability; suite and collection checks share this list."""
     return model_edges(capability.owner_model)
+
+
+@dataclass(frozen=True)
+class RelatedEdge:
+    """One database-legal edge value for a field of a related row the discovery reads."""
+
+    family_name: str
+    family: EdgeFamily
+    edge: CandidateEdge
+
+    @property
+    def id(self) -> str:
+        return f"{self.family_name}-{self.edge.id}"
+
+
+def related_candidate_edges(families: Mapping[str, EdgeFamily]) -> tuple[RelatedEdge, ...]:
+    """Every generated related-row case, in declaration then field order; suite and collection checks share it."""
+    return tuple(
+        RelatedEdge(family_name=name, family=family, edge=edge)
+        for name, family in families.items()
+        for edge in model_edges(family.model)
+    )
+
+
+def _edge_target(
+    capability: OwnedDurableWorkCapability[Any, Any, Any], owner_id: Any, family: EdgeFamily | None
+) -> Model:
+    """The row the edge value goes into: the owner itself, or the related row its family names."""
+    owner = capability.owner_model._base_manager.get(pk=owner_id)
+    return owner if family is None else family.target(owner)
+
+
+def _describe(target: Model, family: EdgeFamily | None, edge: CandidateEdge) -> str:
+    if family is None:
+        return f"owner with {edge.id} ({edge.value!r})"
+    return f"owner whose related {type(target).__name__} has {edge.id} ({edge.value!r})"
 
 
 def _discovery_of(capability: OwnedDurableWorkCapability[Any, Any, Any]) -> Discovery[Any, Any]:
@@ -90,9 +138,16 @@ def _enrolled(capability: OwnedDurableWorkCapability[Any, Any, Any], owner_id: A
 
 
 def assert_database_legal_candidate_is_admissible(
-    capability: OwnedDurableWorkCapability[Any, Any, Any], make_implied: Callable[[], Any], edge: CandidateEdge
+    capability: OwnedDurableWorkCapability[Any, Any, Any],
+    make_implied: Callable[[], Any],
+    edge: CandidateEdge,
+    family: EdgeFamily | None = None,
 ) -> None:
-    """INVARIANT: the candidate query selects only rows production derive() can admit."""
+    """
+    INVARIANT: the candidate query selects only rows production derive() can admit.
+
+    ``family`` writes the edge into the related row it names instead of the owner.
+    """
     name = capability.model._meta.label_lower
     owner_id = make_implied()
     # POSITIVE CONTROL: the unmodified fixture is a candidate, so an absent edge
@@ -102,32 +157,41 @@ def assert_database_legal_candidate_is_admissible(
     )
     # An excluded row, or a value the database rejects, still runs the same tick:
     # every case then requires a clean derive(), so no path passes without one.
-    selected = write_unvalidated(capability.owner_model, owner_id, edge) and bool(_candidates(capability, (owner_id,)))
+    target = _edge_target(capability, owner_id, family)
+    described = _describe(target, family, edge)
+    selected = write_unvalidated(type(target), target.pk, edge) and bool(_candidates(capability, (owner_id,)))
     try:
         capability.derive()
     except Exception as error:
         if not selected:
             raise AssertionError(
-                f"{name}: derive() raised {error!r} in a tick where the owner with {edge.id} is not a candidate. "
+                f"{name}: derive() raised {error!r} in a tick where the {described} is not a candidate. "
                 f"The derivation example or its environment is broken, not the edge row"
             ) from error
         raise AssertionError(
-            f"{name}: discovery selects a database-legal owner with {edge.id} ({edge.value!r}) that production "
+            f"{name}: discovery selects a database-legal {described} that production "
             f"cannot admit, and derive() raised {error!r}. Every recovery tick of this kind now fails on that "
             f"row. Exclude the row in the candidate query, or make desired_for produce valid work for it"
         ) from error
     if _candidates(capability, (owner_id,)) and not _enrolled(capability, owner_id):
         raise AssertionError(
-            f"{name}: discovery selects a database-legal owner with {edge.id} ({edge.value!r}) and desired_for "
+            f"{name}: discovery selects a database-legal {described} and desired_for "
             f"declines it. The candidate query says work is owed and desired_for says none is, so the row is "
             f"re-read every tick and holds a page slot a valid owner needs. Exclude it in the candidate query"
         )
 
 
 def assert_inadmissible_candidate_does_not_block_the_next(
-    capability: OwnedDurableWorkCapability[Any, Any, Any], make_implied: Callable[[], Any], edge: CandidateEdge
+    capability: OwnedDurableWorkCapability[Any, Any, Any],
+    make_implied: Callable[[], Any],
+    edge: CandidateEdge,
+    family: EdgeFamily | None = None,
 ) -> None:
-    """INVARIANT: an edge row first in candidate order does not stop the valid owner behind it."""
+    """
+    INVARIANT: an edge row first in candidate order does not stop the valid owner behind it.
+
+    ``family`` writes the edge into the related row it names instead of the owner.
+    """
     name = capability.model._meta.label_lower
     page_size = _discovery_of(capability).page_size
     assert page_size >= 2, f"{name}: one tick cannot reach a second candidate with page_size={page_size}"
@@ -135,7 +199,16 @@ def assert_inadmissible_candidate_does_not_block_the_next(
     order = _candidates(capability, pair)
     assert sorted(order) == sorted(pair), f"{name}: both implied owners must be discovery candidates"
     head, behind = order
-    write_unvalidated(capability.owner_model, head, edge)
+    target = _edge_target(capability, head, family)
+    if family is not None:
+        shared = _edge_target(capability, behind, family)
+        assert shared.pk != target.pk, (
+            f"{name}: both implied owners read the same related {type(target).__name__} row, so an edge value "
+            f"written into it would poison the owner behind as well, and the case could not tell a blocking loop "
+            f"from two bad rows. Make the derivation example's make_implied create a distinct related row per owner"
+        )
+    described = _describe(target, family, edge)
+    write_unvalidated(type(target), target.pk, edge)
     # Excluded, rejected by the database, or sorted after the valid owner, the
     # edge row cannot precede it; the tick still runs and must still enroll it.
     ahead = _candidates(capability, pair) == [head, behind]
@@ -145,7 +218,7 @@ def assert_inadmissible_candidate_does_not_block_the_next(
     except Exception as raised:
         error = raised
     assert _enrolled(capability, behind), (
-        f"{name}: a database-legal owner with {edge.id} ({edge.value!r}) "
+        f"{name}: a database-legal {described} "
         f"{'first in candidate order' if ahead else 'in the same tick'} stopped discovery of the valid owner "
         f"behind it (derive() raised {error!r}). One such row then blocks every later owner of its kind on "
         f"every tick"
