@@ -24,10 +24,12 @@ class Process:
 
 
 @contextmanager
-def running_process(directory: Path, name: str, command: list[str], env: dict[str, str]) -> Iterator[Process]:
+def running_process(
+    directory: Path, name: str, command: list[str], env: dict[str, str], *, cwd: Path | None = None
+) -> Iterator[Process]:
     log_path = directory / f"{name}.log"
     with log_path.open("w+") as log:
-        process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT, text=True)
+        process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT, text=True, cwd=cwd)
         try:
             yield Process(process, log_path)
         finally:

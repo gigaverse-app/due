@@ -112,7 +112,7 @@ def perturb(work: CheckoutWork) -> None:
 
 
 @contextmanager
-def replay() -> Iterator[DeliveryReplay]:
+def replay(*, connection_loss: bool = False) -> Iterator[DeliveryReplay]:
     # ARRANGE: execute prior transitions, leaving final dispatch owed.
     # REAL PRODUCTION: replay the same claimed delivery through DatabaseEffect.
     # EXTERNAL SEAM: count the real database callback; substitute no outcome.
@@ -128,6 +128,7 @@ def replay() -> Iterator[DeliveryReplay]:
             lambda: DeliveryExample(
                 work, lambda: observe(work), (Order.Status.DISPATCHED, 0, True), lambda: calls.count(work.pk)
             ),
+            connection_loss=connection_loss,
         ) as bound:
             yield bound
 
@@ -170,7 +171,10 @@ EXAMPLES = seam_examples(
     checkout_order,
     SEAM,
     environment=environment,
-    delivery_replays={"final dispatch": replay},
+    delivery_replays={
+        "final dispatch": replay,
+        "reconnected dispatch": partial(replay, connection_loss=True),
+    },
     completions={
         f"{decision} {transport}": partial(terminal_completion, decision, lose_hints=lost)
         for decision in ("paid", "failed")

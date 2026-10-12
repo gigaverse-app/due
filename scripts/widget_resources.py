@@ -65,6 +65,8 @@ class Resources:
         self.connection = connection
         self.root = psutil.Process(pid)
         self.samples: dict[tuple[int, float], float] = {}
+        self.commands: dict[tuple[int, float], str] = {}
+        self.phases: list[dict] = []
         self.stop = Event()
         self.thread = Thread(target=self.sample, daemon=True)
         self.containers = {
@@ -78,9 +80,24 @@ class Resources:
         for process in (self.root, *self.root.children(recursive=True)):
             try:
                 cpu = process.cpu_times()
-                self.samples[(process.pid, process.create_time())] = cpu.user + cpu.system
+                key = (process.pid, process.create_time())
+                if key not in self.commands:
+                    self.commands[key] = " ".join(process.cmdline())
+                self.samples[key] = cpu.user + cpu.system
             except psutil.NoSuchProcess:
                 pass
+
+    def process_cost(self) -> dict[str, float]:
+        commands: dict[str, float] = {}
+        for key, value in self.samples.copy().items():
+            command = self.commands[key]
+            commands[command] = commands.get(command, 0) + value - self.process_before.get(key, 0)
+        return commands
+
+    def mark(self, label: str) -> None:
+        """Cumulative sampled process CPU; differences separate warm work from restart."""
+        self.read_processes()
+        self.phases.append({"after": label, "process_cpu_seconds": self.process_cost()})
 
     def sample(self) -> None:
         while not self.stop.wait(0.01):
@@ -121,6 +138,8 @@ class Resources:
             "sql": {field: sum(row[field] for row in statements) for field in SQL_FIELDS},
             "statements": sorted(statements, key=lambda row: row["total_exec_time"], reverse=True),
             "container_cpu_seconds": self.cpu,
+            "process_cpu_seconds": self.process_cost(),
+            "cumulative_phase_cpu": self.phases,
             "sampled_application_cpu_seconds": sum(
                 value - self.process_before.get(key, 0) for key, value in self.samples.items()
             ),

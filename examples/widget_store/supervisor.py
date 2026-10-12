@@ -78,15 +78,9 @@ def main() -> None:
                 "--loglevel=INFO",
                 "--without-gossip",
                 "--without-mingle",
-            ],
-            [
-                python,
-                "-m",
-                "celery",
-                "-A",
-                "examples.celery_app",
-                "beat",
-                "--loglevel=INFO",
+                # One demo worker owns one ordinary Beat child, sharing imports
+                # through prefork. Multi-worker deployments run Beat separately.
+                "--beat",
                 "--schedule",
                 f"/tmp/due-widget-beat-{os.getpid()}",
             ],
