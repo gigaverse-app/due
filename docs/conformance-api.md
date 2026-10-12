@@ -149,7 +149,7 @@ convergence bindings. It never replaces the coordinator with test code.
 | `environment`, `make_work`, `arrange` | Enter the provider fake, admit through production, optionally script the provider after admission |
 | `observe`, `delivered` | Independent observed and reviewed expected outcomes |
 | `calls`, `calls_for`, `provider_state` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement |
-| `refuse` | Make subsequent calls fail with an error production treats as retryable; required to derive bounded retry |
+| `refuse` | Configure rejection in place or return a context manager kept active through every retry; required for bounded retry |
 | `outcome`, `rejection` | Scoped outcome/rejection factories with optional admission and observation overrides |
 | `producer`, `caller`, `interrupted` | Bind real admission, inline attempts and interruption after a persisted work row |
 | `replay`, `convergence` | Reuse the capability's effect method and result application |
@@ -159,6 +159,20 @@ histories explicit. Overrides replace defaults. The declaration requires the sam
 ARRANGE / REAL PRODUCTION / EXTERNAL SEAM / OBSERVE annotations as handwritten
 bindings. Root controls reject constant observations, dead call counters and
 refusals that never fail: [executable examples](../tests/conformance/test_provider_seam.py).
+
+The shipped applications now use these derived bindings: [books](../tests/conformance/book_examples.py),
+[catalog](../tests/conformance/catalog_examples.py), [documents](../tests/conformance/document_examples.py),
+[scheduled publication](../tests/conformance/scheduled_examples.py), and
+[print orders](../tests/conformance/order_examples.py). They retain their explicit
+producer, terminal, admission-interruption and process-death histories.
+
+`outcome` and `rejection` keep a context manager returned by their script active
+through execution and observation. This is how the order application composes
+`ProviderProbe.reject()` and reply loss after a real printer submission. Provider
+and fault cleanup cannot swallow a proof's assertion. The real book application
+has a [positive/mutation control](../tests/conformance/test_application_binding_scopes.py)
+that wraps its SQLite provider in such defective cleanup: the working indexer
+passes, while a worker that settles a fabricated index key still fails.
 
 `ProviderProbe` and `ProviderSeam` have different jobs: the probe observes and
 faults a synchronous provider callable; the seam describes an adopter and derives

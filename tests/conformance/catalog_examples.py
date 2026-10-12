@@ -6,13 +6,14 @@ from pytest_obligation.contract import NotApplicable
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 
 from due.django.conformance.composition import ProjectionExample
+from due.django.conformance.seams import ProviderSeam
 from due.django.conformance.suite import AdmissionFailureExample, ProducerExample, TerminalExample
 from due.django.testing import hold_nudges
 from examples.books import search
 from examples.catalog.effects import project_catalog
 from examples.catalog.models import CatalogEntry, CatalogWork
 from examples.catalog.services import retry_entry, save_entry
-from tests.conformance.index_examples import BookContent, Stage, examples_for
+from tests.conformance.index_examples import BookContent, examples_for
 from tests.examples.books_support import calls, index_environment
 
 TITLE, AUTHOR = "First edition", "Catalog Author"
@@ -60,21 +61,25 @@ def admission_failure() -> Iterator[AdmissionFailureExample[CatalogWork, bool]]:
         yield AdmissionFailureExample.after_save(scenario, CatalogWork)
 
 
+# ARRANGE: admit editable metadata through save_entry.
+# REAL PRODUCTION: the catalog projection writes and repairs the same provider key.
+# EXTERNAL SEAM: record/refuse actual SQLite search writes.
+# OBSERVE: read independently committed title/author and publication status.
+SEAM = ProviderSeam(
+    environment=index_environment,
+    make_work=make_work,
+    observe=lambda provider, work: content(work),
+    provider_state=lambda provider, work: content(work),
+    delivered=lambda provider, work: (TITLE, AUTHOR),
+    calls=lambda provider: provider.writes.total,
+    calls_for=lambda provider, work: provider.writes.count(work.index_key),
+    refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),
+)
 EXAMPLES = replace(
     examples_for(
-        Stage(
-            capability=project_catalog,
-            make_work=make_work,
-            observe=content,
-            external_observe=content,
-            effect_calls=lambda work: calls.get().writes.count(work.index_key),
-            unavailable=lambda: calls.get().writes.reject(lambda: OSError("search unavailable")),
-            execute=project_catalog.write_projection,
-            terminal=TerminalExample(
-                observe=lambda work: CatalogEntry.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm
-            ),
-            expected=(TITLE, AUTHOR),
-        )
+        project_catalog,
+        SEAM,
+        TerminalExample(observe=lambda work: CatalogEntry.objects.get(pk=work.owner_id).indexing_failed, rearm=rearm),
     ),
     immutable_inputs=None,
     convergence_not_assessed=None,
@@ -86,6 +91,6 @@ EXAMPLES = replace(
             "This catalog overwrites one provider key; late-write repair and captured revisions own convergence, not a monotonic merge or dependency gate."
         )
         for family in ConvergenceFamily
-        if family.name != "STALE_SNAPSHOTS"
+        if family.name not in {"STALE_SNAPSHOTS", "MONOTONIC_RESULTS"}
     },
 )

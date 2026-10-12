@@ -52,3 +52,31 @@ Keep application code here and import that same code from tests. Use Due's publi
 API and enroll capabilities in its conformance suite. Each application README
 must explain its business outcome, setup, failure controls and observable result.
 Keep UI/provider dependencies out of Due's runtime dependencies.
+
+## Executable provider bindings
+
+The six capability declarations in these five applications use the public
+[`ProviderSeam` API](../docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam).
+The same provider handles supply independently read outcomes, per-work call
+counts and scoped refusal/reply-loss faults. Generated proofs run real admission,
+workers, settlement and recovery.
+
+```text
+application command -> persisted work -> real worker -> file / SQLite / printer
+                            ^                |                    |
+                            |                v                    v
+                         recovery       settlement       independent observation
+```
+
+| Application | Derived proofs and explicit histories |
+| --- | --- |
+| Books, both stages | Delivery, bounded retry and replay; actual process death around indexing, handoff and publication |
+| Mutable catalog | Delivery, retry, replay and captured-revision convergence; overlapping writes retain their separate histories |
+| Documents | Delivery, retry, replay and file observations; immutable-input and producer rollback histories |
+| Scheduled publication | Delivery, retry and replay; deadline movement, cancellation and immutable file observations |
+| Print orders | Delivery and bounded retry; scoped refusal, accepted-but-lost response, receipt observation and process death |
+
+Print orders intentionally do not derive harmless replay: a second physical
+submission is a different effect. Catalog convergence tests a captured settled
+revision; it does not claim that arbitrary provider writes commute. Application
+CI checks complete generated proof inventories as well as the resulting outcomes.
