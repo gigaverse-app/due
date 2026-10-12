@@ -1,15 +1,11 @@
 """Adopter examples: real file publication, product commands and external faults."""
 
-import os
-import subprocess
-import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from django.db import connection
 from pytest_obligation.contract import NotApplicable
-from pytest_obligation.process_histories import ProcessHistory, fault_environment, fault_happened
+from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 
 from due.django.conformance.delivery import WorkTableDelivery
@@ -26,6 +22,7 @@ from examples.documents.effects import publish_document, request_publication, re
 from examples.documents.models import Document, PublicationWork
 from tests.examples.file_support import file_environment as environment
 from tests.examples.file_support import files as _files
+from tests.harness.processes import run_child as run_demo_child
 
 
 def destination(work: PublicationWork) -> Path:
@@ -92,27 +89,8 @@ def admission_failure() -> Iterator[AdmissionFailureExample[PublicationWork, str
 
 def run_child(point: str | None) -> tuple[int, int]:
     document = Document.objects.create()
-    base = os.environ.get("DUE_DATABASE_URL", "postgresql://due:due@127.0.0.1:55439/due")
-    database_url = base.rsplit("/", 1)[0] + "/" + str(connection.settings_dict["NAME"])
     marker = _files.get().root / f"fault-{document.pk}"
-    result = subprocess.run(
-        [sys.executable, "-m", "tests.harness.document_process", str(document.pk)],
-        env={
-            **os.environ,
-            "DJANGO_SETTINGS_MODULE": "examples.settings",
-            "DUE_DATABASE_URL": database_url,
-            **fault_environment(point, marker),
-        },
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    if point is not None:
-        assert fault_happened(marker), result.stderr
-    else:
-        assert result.returncode == 0, result.stderr
-    return document.pk, result.returncode
+    return document.pk, run_demo_child("tests.harness.document_process", str(document.pk), point, marker)
 
 
 def process_observation(document_id: int) -> tuple[str | None, bool, str | None]:
@@ -148,6 +126,7 @@ EXAMPLES = seam_examples(
         ProcessHistory(
             name="document process death",
             initial=(None, False, None),
+            expected=("process content", True, "succeeded"),
             run=run_child,
             observe=process_observation,
             recover=recover_process,

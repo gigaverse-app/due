@@ -198,3 +198,27 @@ that derivation would enroll cannot silently disappear from recovery. Discovery
 with an explicit horizon does not claim to cover every possible owner and does
 not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/docs/selection-completeness.md)
 apply; the generated case participates in normal collection and outcome guards.
+
+`process_handoffs` requires an independent `ProcessHistory.expected` value or input-derived callback for every entry. Omitted expectations raise at binding construction; plain pytest-obligation convergence-only histories remain available outside this application binding.
+
+
+## Existing lifecycle delivery
+
+`due.django.conformance.delivery.SweepDelivery(binding, scope=..., app=...)`
+accepts a context-managed `DueWorkSweep` and an optional application registration
+scope. Its `scoped(history)` reuses the arranged sweep rather than creating a
+second provider environment. Nested histories and failures restore the prior
+binding. `rounds` and `round_delay` bound recovery; `recover_with(ticks)` also
+executes explicitly declared downstream sweeps. Work-table and existing-lifecycle
+delivery share one broker-accounted recovery loop, including delayed deliveries
+and refusal to certify a history while scheduled work remains.
+
+`effective_registrations(iterable)` in `conformance.registrations` shares the
+ordered test-overlay rule: later names or models replace earlier registrations.
+Application adapters that preserve a live manifest's identity can use this
+selection before the runtime's normal registration validation. Most standalone
+tests should use `durable_work_installed()` directly.
+
+Derived `ProviderSeam` replay proofs check `delivered` as their expected outcome.
+If provider observation has a different shape, declare `replay_expected` from
+the admitted input, or pass an explicit replay binding with independent `expected`. Equal but wrong provider results must fail.

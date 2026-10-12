@@ -43,7 +43,13 @@ def check(
                 ), f"{name}/{identity}: proof did not finish successfully or as its declared failure"
 
 
-def check_effects(path: Path, names: list[str], *, unassessed: tuple[str, ...] | list[str] = ()) -> None:
+def check_effects(
+    path: Path,
+    names: list[str],
+    *,
+    unassessed: tuple[str, ...] | list[str] = (),
+    required: tuple[str, ...] | list[str] = (),
+) -> None:
     """Require the whole generated adopter suite, including Due-specific histories."""
     reports = json.loads(path.read_text())
     for name in names:
@@ -51,6 +57,7 @@ def check_effects(path: Path, names: list[str], *, unassessed: tuple[str, ...] |
         suite = reports[name]
         expected = set(suite["expected"])
         assert expected, f"{name}: no expected proofs"
+        assert set(required) <= expected, f"{name}: missing required proof: {set(required) - expected}"
         assert set(suite["unassessed"]) == set(unassessed), f"{name}: unassessed obligations differ from declared debt"
         assert expected == set(suite["collected"]) == set(suite["selected"]), f"{name}: incomplete suite selection"
         assert set(suite["outcomes"]) == expected, f"{name}: missing executed proofs"
@@ -73,6 +80,7 @@ def main() -> None:
         default=[],
         help="Exact expected binding-debt case; also enforce the pytest debt baseline",
     )
+    parser.add_argument("--required-effect-case", action="append", default=[])
     arguments = parser.parse_args()
     check(
         read_report(arguments.report),
@@ -82,7 +90,12 @@ def main() -> None:
     )
     if arguments.effect:
         assert arguments.effect_report is not None, "--effect requires --effect-report"
-        check_effects(arguments.effect_report, arguments.effect, unassessed=arguments.unassessed)
+        check_effects(
+            arguments.effect_report,
+            arguments.effect,
+            unassessed=arguments.unassessed,
+            required=arguments.required_effect_case,
+        )
     print(f"Validated executed adoption for {len(arguments.contract)} contract(s)")
 
 

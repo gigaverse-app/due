@@ -245,3 +245,6 @@ key intentionally creates a new publication. Keys are global to this demo;
 a multi-tenant adopter should scope its unique constraint and lookup to its
 canonical tenant identity. Keep the row for as long as the retry promise lasts;
 deleting it also deletes that promise. The demo already retains scheduled rows.
+
+See [migration findings and proof boundaries](../../docs/demo-comparisons.md) for
+the cross-demo comparison and independently declared process outcomes.

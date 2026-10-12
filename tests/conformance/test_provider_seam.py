@@ -193,3 +193,18 @@ def test_seam_examples_compile_through_the_public_contract_api() -> None:
     )
     contract = effect_contract(primitive, examples=examples)
     assert contract.replay is not None
+
+
+@pytest.mark.parametrize("expected", [True, False])
+def test_replay_can_declare_a_provider_outcome_different_from_delivery(expected: bool) -> None:
+    examples = seam_examples(
+        primitive,
+        seam(
+            provider_state=lambda provider, work: work.pk in provider.stored,
+            replay_expected=lambda provider, work: expected,
+        ),
+    )
+    assert examples.replay is not None
+    with entered_binding(examples.replay) as replay:
+        with nullcontext() if expected else pytest.raises(AssertionError, match="declared product outcome"):
+            assert_replay_behaviour(replay)
