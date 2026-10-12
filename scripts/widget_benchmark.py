@@ -25,6 +25,7 @@ from psycopg import sql
 
 from examples.widget_store.supervisor import supervise
 from integration_tests.integration.processes import running_process
+from scripts.widget_resources import Resources
 
 UPSTREAM_SHA = "ddaf50e71fa8e19364d9c70b5d87a9c8203af152"
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,18 +161,23 @@ def sample(
     }
 
 
-def benchmark(arm: Arm, samples: int) -> dict:
+def benchmark(arm: Arm, samples: int, pid: int) -> dict:
     client = arm.client()
     post(client, arm, "/restock")
     with psycopg.connect(arm.database, autocommit=True) as connection:
+        connection.execute("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+        connection.execute("SET pg_stat_statements.track = 'none'")
         sample(arm, client, connection, "paid")  # same excluded warmup in both arms
         time.sleep(2)
         before = stats(connection)
         postgres_version = connection.info.server_version
         window_start = time.perf_counter()
-        records = [sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]]
-        time.sleep(2)
-        after = stats(connection)
+        with Resources(connection, pid) as resources:
+            records = [
+                sample(arm, client, connection, scenario) for scenario in ["paid"] * samples + ["failed", "crash"]
+            ]
+            time.sleep(2)
+            after = stats(connection)
         window_seconds = time.perf_counter() - window_start
         writes = {
             table: {kind: count - before.get(table, {}).get(kind, 0) for kind, count in values.items()}
@@ -182,6 +188,7 @@ def benchmark(arm: Arm, samples: int) -> dict:
         values = [float(record[field]) for record in records if record["scenario"] == "paid"]
         metrics[field] = {"median": statistics.median(values), "min": min(values), "max": max(values), "n": len(values)}
     return {
+        "resources": resources.result(),
         "samples": records,
         "paid_summary": metrics,
         "table_writes": writes,
@@ -271,7 +278,7 @@ def main() -> None:
                     return False
 
             process.wait_until(ready, timeout=60)
-            results["arms"][arm.name] = benchmark(arm, args.samples)
+            results["arms"][arm.name] = benchmark(arm, args.samples, process.handle.pid)
             assert process.log.read_text().count("WIDGET_CRASH") >= 1, "crash endpoint did not restart application"
             assert process.log.read_text().count("WIDGET_STARTED") >= 2, "application did not restart"
             print(f"{arm.name}: {results['arms'][arm.name]['paid_summary']}", flush=True)

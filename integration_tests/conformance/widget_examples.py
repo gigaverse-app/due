@@ -2,26 +2,27 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from django.test import override_settings
 from pytest_obligation.profiles.harmless_replay import ReplaySafeEffect
 
+from due.django.conformance.database_replay import database_replay
 from due.django.conformance.provider import ProviderProbe
 from due.django.conformance.seams import ProviderSeam, seam_examples
 from due.django.conformance.suite import DeliveryExample, EligibilityExample, ProducerExample, TerminalExample
-from due.django.testing import hold_nudges
+from due.django.testing import hold_nudges, make_due
 from examples.widget_store import services
 from examples.widget_store.effects import checkout_order
 from examples.widget_store.models import CheckoutWork, Order, Product
 
 type Outcome = tuple[str, int, bool]
-type Calls = ProviderProbe[[UUID, int], float | None, tuple[UUID, int]]
+type Calls = ProviderProbe[[CheckoutWork], None, int]
 
 
 @contextmanager
 def environment() -> Iterator[Calls]:
-    probe: Calls = ProviderProbe(services.advance, key=lambda key, stage: (key, stage))
+    probe: Calls = ProviderProbe(services.advance, key=lambda work: work.pk)
     with override_settings(WIDGET_STAGE_SECONDS=0), probe.patch(services, "advance"):
         yield probe
 
@@ -59,7 +60,7 @@ SEAM = ProviderSeam(
     observe=lambda calls, work: observe(work),
     delivered=lambda calls, work: (Order.Status.PAID, 10, True),
     calls=lambda calls: calls.total,
-    calls_for=lambda calls, work: sum(calls.count((work.submission_key, stage)) for stage in range(11, 0, -1)),
+    calls_for=lambda calls, work: calls.count(work.pk),
     refuse=lambda calls: calls.reject(lambda: OSError("database command unavailable")),
 )
 
@@ -111,26 +112,23 @@ def perturb(work: CheckoutWork) -> None:
 
 @contextmanager
 def replay() -> Iterator[ReplaySafeEffect]:
-    with environment() as calls:
-
-        def prepare() -> CheckoutWork:
-            # ARRANGE: run the real prior steps, leaving the final stage owed.
-            work = make_work()
-            for stage in range(11, 1, -1):
-                services.advance(work.submission_key, stage)
-            return work
-
-        # EXTERNAL SEAM: the counted real PostgreSQL stage command.
-        # REAL PRODUCTION: repeat the identical final dispatch stage.
-        # OBSERVE: independently read the whole order outcome, not a work flag.
-        yield ReplaySafeEffect(
-            name="widget final dispatch stage",
-            prepare=prepare,
-            execute=lambda work: services.advance(work.submission_key, 1),
-            expected=lambda work: (Order.Status.DISPATCHED, 0, True),
-            observe=observe,
-            execution_count_for=lambda work: calls.count((work.submission_key, 1)),
-        )
+    # ARRANGE: execute prior transitions, leaving final dispatch owed.
+    # REAL PRODUCTION: replay the same claimed delivery through DatabaseEffect.
+    # EXTERNAL SEAM: count the real database callback; substitute no outcome.
+    # OBSERVE: require dispatched status, zero remaining, and one callback entry.
+    with environment() as calls, hold_nudges():
+        work = make_work()
+        for _ in range(10):
+            make_due(work)
+            checkout_order.attempt_execution(work.pk)
+        make_due(work)
+        with database_replay(
+            checkout_order,
+            lambda: DeliveryExample(
+                work, lambda: observe(work), (Order.Status.DISPATCHED, 0, True), lambda: calls.count(work.pk)
+            ),
+        ) as bound:
+            yield bound
 
 
 EXAMPLES = seam_examples(
@@ -195,13 +193,13 @@ def process_history(decision: str, *, lose_hints: bool = False):
         death_points=(
             "after payment receipt",
             "before transition",
-            "after decision",
+            "before decision commit",
             "after continuation commit",
-            "mid dispatch",
-            "after dispatch",
+            "before mid-dispatch commit",
+            "before dispatch commit",
         )
         if decision == "paid"
-        else ("after reservation", "after payment receipt", "before transition", "after decision"),
+        else ("after reservation", "after payment receipt", "before transition", "before decision commit"),
     )
 
 

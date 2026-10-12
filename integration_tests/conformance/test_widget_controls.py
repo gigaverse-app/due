@@ -18,12 +18,11 @@ pytestmark = pytest.mark.django_db(transaction=True)
 def test_generated_replay_rejects_corrupt_progress(monkeypatch, mutation):
     original = services.advance
 
-    def corrupt(key, stage):
-        already_done = Order.objects.get(submission_key=key).status == Order.Status.DISPATCHED
-        result = original(key, stage)
-        if stage == 1 and (mutation == "wrong dispatch" or already_done):
-            order = Order.objects.get(submission_key=key)
-            order.progress_remaining = 1 if mutation == "wrong dispatch" else order.progress_remaining + 1
+    def corrupt(work):
+        result = original(work)
+        order = Order.objects.get(pk=work.owner_id)
+        if order.status == Order.Status.DISPATCHED:
+            order.progress_remaining = 1 if mutation == "wrong dispatch" else 2
             order.save(update_fields=["progress_remaining"])
         return result
 
@@ -47,9 +46,9 @@ def test_process_contract_rejects_disabled_recovery(monkeypatch, history):
 def test_process_contract_rejects_wrong_stock_compensation(monkeypatch: pytest.MonkeyPatch, inventory: int) -> None:
     original = services.advance
 
-    def corrupt(key, stage):
-        before = Order.objects.get(submission_key=key)
-        result = original(key, stage)
+    def corrupt(work):
+        before = Order.objects.get(pk=work.owner_id)
+        result = original(work)
         if before.reserved and Order.objects.get(pk=before.pk).status == Order.Status.CANCELLED:
             # Fault injection: corrupt the actual refund, losing or duplicating stock.
             Product.objects.filter(pk=before.product_id).update(inventory=inventory)
@@ -75,6 +74,6 @@ def test_generated_gate_rejects_selection_before_payment(monkeypatch: pytest.Mon
 
 
 def test_process_contract_rejects_dropped_continuation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(type(checkout_order), "perform_effect", lambda self, work: None)
+    monkeypatch.setattr(type(checkout_order), "transition", lambda self, work: None)
     with pytest.raises(HistoriesDiverged, match="after payment receipt"):
         assert_process_deaths_converge(EXAMPLES.process_handoffs[0])

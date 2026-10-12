@@ -64,49 +64,32 @@ def payment(key: UUID, decision: str) -> Order:
         return order
 
 
-@transaction.atomic
-def advance(key: UUID, stage: int) -> float | None:
-    """One real DB transition; replay reads committed progress before changing it.
+def advance(work: CheckoutWork) -> None:
+    """One database transition; Due commits it with the next deadline.
 
-    Return a wait in seconds or None when complete. A deadline, not a message,
-    controls each step. No transaction or row lock is held while sleeping.
+    The engine already holds this order's lock and this work's current fence.
+    Provider I/O does not belong in this callback.
     """
-    order = Order.objects.select_for_update().get(submission_key=key)
-    now = timezone.now()
-    if order.status in {Order.Status.CANCELLED, Order.Status.DISPATCHED}:
-        return None
-    if stage == 11:
-        if order.status != Order.Status.PENDING:
-            return None
+    from due.django.public import require_fenced_settlement
+
+    require_fenced_settlement(work)
+    order = Order.objects.get(pk=work.owner_id)
+    if order.status == Order.Status.PENDING:
         if order.payment_status == "paid":
             order.status = Order.Status.PAID
-            order.next_stage_at = now + timedelta(seconds=settings.WIDGET_STAGE_SECONDS)
-        elif order.payment_status == "failed" or now >= order.expires_at:
-            if order.reserved:
-                Product.objects.filter(pk=order.product_id).update(inventory=F("inventory") + 1)
-                order.reserved = False
+        elif order.payment_status == "failed" or timezone.now() >= order.expires_at:
+            Product.objects.filter(pk=order.product_id).update(inventory=F("inventory") + 1)
+            order.reserved = False
             order.status = Order.Status.CANCELLED
         else:
-            # Defence in depth: a direct invocation cannot bypass the payment gate.
             raise ValueError("Payment is still pending")
-        order.save(update_fields=["status", "reserved", "next_stage_at"])
-        return None
-    if order.progress_remaining < stage:
-        return None
-    if order.status != Order.Status.PAID or order.progress_remaining != stage:
-        raise ValueError("Dispatch stage is not ready")
-    assert order.next_stage_at is not None
-    delay = (order.next_stage_at - now).total_seconds()
-    if delay > 0:
-        return delay
-    order.progress_remaining -= 1
-    if order.progress_remaining == 0:
-        order.status = Order.Status.DISPATCHED
-        order.next_stage_at = None
-    else:
-        order.next_stage_at = now + timedelta(seconds=settings.WIDGET_STAGE_SECONDS)
-    order.save(update_fields=["progress_remaining", "status", "next_stage_at"])
-    return None
+    elif order.status == Order.Status.PAID:
+        order.progress_remaining -= 1
+        if order.progress_remaining == 0:
+            order.status = Order.Status.DISPATCHED
+    order.save(update_fields=["status", "reserved", "progress_remaining"])
+    # Cache the canonical row for the capability's decision, without another read.
+    work.owner = order
 
 
 def retry_order(identity: int) -> bool:

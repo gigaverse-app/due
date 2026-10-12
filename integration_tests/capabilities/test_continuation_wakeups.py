@@ -133,10 +133,27 @@ def test_ended_or_stale_continuation_cannot_send_a_hint(
             supersede_work(CheckoutWork, work.pk)
         return ContinueAfter(timedelta(seconds=1), until=timezone.now() if ending == "expired" else None)
 
-    monkeypatch.setattr(type(checkout_order), "perform_effect", end)
+    monkeypatch.setattr(type(checkout_order), "transition", end)
     order = services.checkout(uuid4())
     services.payment(order.submission_key, "paid")
     work = CheckoutWork.objects.get(owner=order)
     assert work.state == ("exhausted" if ending == "expired" else "ready")
     assert work.desired_revision == (1 if ending == "expired" else 2)
     assert not [d for d in background_work.dispatches if d.name == HINT]
+
+
+def test_timer_worker_advances_directly_with_registered_limits(background_work: BackgroundWork, settings) -> None:
+    from due.django.runtime.names import RUN_TASK
+    from examples.widget_store.registration import REGISTRATION
+
+    settings.WIDGET_STAGE_SECONDS = 1
+    order = services.checkout(uuid4())
+    services.payment(order.submission_key, "paid")
+    before = len([d for d in background_work.dispatches if d.name == RUN_TASK])
+    hint = next(d for d in background_work.dispatches if d.name == HINT)
+    background_work.advance(1)
+    order.refresh_from_db()
+    assert order.progress_remaining == 9
+    assert len([d for d in background_work.dispatches if d.name == RUN_TASK]) == before
+    assert hint.options["time_limit"] == REGISTRATION.execution_time_limit
+    assert hint.options["soft_time_limit"] == REGISTRATION.execution_soft_time_limit

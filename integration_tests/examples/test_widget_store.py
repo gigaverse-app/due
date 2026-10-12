@@ -58,8 +58,8 @@ def test_compensation_happens_once_even_after_replay(decision):
     else:
         payment(order.submission_key, decision)
     work = CheckoutWork.objects.get(owner=order)
-    checkout_order.perform_effect(work)
-    checkout_order.perform_effect(work)
+    checkout_order.attempt_execution(work.pk)
+    checkout_order.attempt_execution(work.pk)
     order.refresh_from_db()
     assert (order.status, order.progress_remaining) == (Order.Status.CANCELLED, 10)
     assert Product.objects.get().inventory == 100
@@ -112,18 +112,22 @@ def test_http_ui_and_validation(client):
 
 @pytest.mark.parametrize("stage", range(11, 0, -1))
 def test_repeating_any_exact_stage_preserves_committed_progress(stage: int) -> None:
-    from examples.widget_store.services import advance
-
     order = checkout(uuid4())
     payment(order.submission_key, "paid")
-    for prior in range(11, stage, -1):
-        advance(order.submission_key, prior)
-    advance(order.submission_key, stage)
+    work = CheckoutWork.objects.get(owner=order)
+    for _ in range(11, stage, -1):
+        make_due(work)
+        checkout_order.attempt_execution(work.pk)
+    make_due(work)
+    checkout_order.enqueue_execution(work.pk)
+    work.refresh_from_db()
+    token = work.fencing_token
+    checkout_order.attempt_execution(work.pk, token)
     order.refresh_from_db()
-    expected = (order.status, order.progress_remaining, order.next_stage_at)
-    advance(order.submission_key, stage)
+    expected = (order.status, order.progress_remaining)
+    checkout_order.attempt_execution(work.pk, token)
     order.refresh_from_db()
-    assert (order.status, order.progress_remaining, order.next_stage_at) == expected
+    assert (order.status, order.progress_remaining) == expected
 
 
 def test_concurrent_duplicate_submission_reserves_only_once() -> None:
