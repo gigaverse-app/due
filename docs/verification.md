@@ -18,7 +18,7 @@ The standalone suite combines extracted work-table regressions, generated
   real operation. They do not fabricate successful settlement.
 
 `due.django.conformance.DurableWorkBindings` is an optional testing adapter,
-installed with `due[testing]`. It delegates to the same coordinator as the worker.
+installed with `django-due[testing]`. It delegates to the same coordinator as the worker.
 Applications still need their own callback and provider-contract tests; the library
 cannot infer remote idempotency or prove a provider's promise.
 

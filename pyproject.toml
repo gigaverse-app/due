@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [project]
-name = "due"
+name = "django-due"
 # Release tags own the version; subtrees use the explicit development fallback.
 dynamic = ["version"]
 description = "Durable obligations for Django and PostgreSQL"

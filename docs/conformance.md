@@ -1,6 +1,6 @@
 # Prove your application's work tables
 
-Install `due[testing]`. Enroll each production capability once with
+Install `django-due[testing]`. Enroll each production capability once with
 `effect_contract_suite(capability, examples=EffectExamples(...))`. The capability's
 actual mode, discovery, gate, retry and retention policies determine the required
 proofs. Examples supply real commands, provider seams and independent product

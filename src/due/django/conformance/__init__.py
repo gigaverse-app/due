@@ -1,4 +1,4 @@
-"""Optional work-table conformance integration; install due[testing].
+"""Optional work-table conformance integration; install django-due[testing].
 
 Enroll through due.django.conformance.suite; author declarations in
 due.django.conformance.examples and scopes in due.django.conformance.binding. Importing the optional

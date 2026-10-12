@@ -39,9 +39,20 @@ the workflow warns and retains the working `GITHUB_TOKEN` fallback, including
 GitHub's approval prompt. Never use `pull_request_target` to execute PR code merely
 to bypass approval.
 
+## Distribution name
+
+The PyPI distribution is `django-due`; the GitHub repository, Python package
+(`import due`) and Django app label (`due`) retain their names. The name `due`
+is already registered by another PyPI owner. Wheels use the normalized filename
+prefix `django_due`.
+
+When importing this packaging change into an embedded subtree consumer, update
+its dependency and `tool.uv.sources` key from `due` to `django-due` together with
+the refreshed lock. Source directories and Python imports do not change.
+
 ## One-time publisher setup
 
-Configure the PyPI Trusted Publisher for project `due`:
+Configure the PyPI Trusted Publisher for project `django-due`:
 
 - Owner: `gigaverse-app`
 - Repository: `due`

@@ -136,18 +136,18 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           ls dist
-          test -f "dist/due-${VERSION}-py3-none-any.whl"
-          test -f "dist/due-${VERSION}.tar.gz"
+          test -f "dist/django_due-${VERSION}-py3-none-any.whl"
+          test -f "dist/django_due-${VERSION}.tar.gz"
       - name: An untagged build is a dev release
         if: steps.tag.outputs.tag == ''
         run: |
           ls dist
           wheel=$(basename dist/*.whl)
-          [[ "$wheel" =~ ^due-[0-9]+\.[0-9]+(\.[0-9]+)?\.dev[0-9]+-py3-none-any\.whl$ ]]
+          [[ "$wheel" =~ ^django_due-[0-9]+\.[0-9]+(\.[0-9]+)?\.dev[0-9]+-py3-none-any\.whl$ ]]
       - id: built
         run: |
           wheel=$(basename dist/*.whl)
-          version=${wheel#due-}
+          version=${wheel#django_due-}
           echo "version=${version%-py3-none-any.whl}" >> "$GITHUB_OUTPUT"
       - name: Install the wheel without development dependencies
         run: |
@@ -167,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/due/${{ needs.build.outputs.version }}/
+      url: https://pypi.org/project/django-due/${{ needs.build.outputs.version }}/
     permissions:
       id-token: write
     steps:
@@ -185,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/due/${{ needs.build.outputs.version }}/
+      url: https://test.pypi.org/project/django-due/${{ needs.build.outputs.version }}/
     permissions:
       id-token: write
     steps:
