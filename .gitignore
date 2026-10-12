@@ -13,3 +13,5 @@ celerybeat-schedule*
 effects.json
 observations.json
 test-results/
+
+.widget-upstream/

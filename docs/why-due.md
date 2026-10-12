@@ -116,7 +116,7 @@ receipt without letting an obsolete execution publish current product state.
 Use these mechanisms when the provider and product lifecycle actually require
 them. Due does not require every application to speculate about replacement
 operations or build a general resource reconciler. See the
-[capability guide](capabilities.md) for the smallest suitable interface.
+[capability guide](../package/docs/capabilities.md) for the smallest suitable interface.
 
 ## What another tool may do better
 
@@ -159,7 +159,7 @@ different parts of the same application, provided each obligation has one owner.
 - **A specific runtime.** The current alpha requires Python 3.14+, Django
   >=6.0.8,<7, PostgreSQL, Celery, a broker, workers, and periodic recovery.
   Only work-table composition is public. A PostgreSQL-only queue can have fewer
-  moving parts. See [integration](integration.md) and [extraction scope](extraction.md).
+  moving parts. See [integration](../package/docs/integration.md) and [extraction scope](extraction.md).
 - **Database and recovery work.** Claims, transactions, evidence, retained rows,
   and provider observations have costs. Recovery cadence trades promptness
   against load; workers and recovery must be monitored. There is no comparative
@@ -171,8 +171,8 @@ different parts of the same application, provided each obligation has one owner.
   empty inventory proves absence, or make a provider operation repeatable.
   An UNKNOWN outcome or visibly stopped obligation may require investigation.
 
-The [operations guide](operations.md) explains how to observe the runtime. The
-[architecture reference](architecture.md) defines the guarantees and boundaries.
+The [operations guide](../package/docs/operations.md) explains how to observe the runtime. The
+[architecture reference](../package/docs/architecture.md) defines the guarantees and boundaries.
 
 ## Check the failure model before paying for it
 
@@ -197,7 +197,7 @@ For a proposed recovery mechanism, establish:
 This repository's printer and catalog are local simulations with real independent
 storage operations. Their tests demonstrate Due's behavior against those declared
 contracts, not a failure rate or consistency contract for an external vendor.
-The [conformance suite](conformance.md) helps test application bindings; it cannot
+The [conformance suite](../package/docs/conformance.md) helps test application bindings; it cannot
 certify assumptions about a provider it does not execute.
 
 Adopt the smallest capability that addresses a supported requirement. If an
@@ -207,4 +207,4 @@ completion, retained evidence, and recoverable follow-ups, Due gives those
 mechanisms a shared home.
 
 For a concrete code migration and the semantics to preserve, continue with
-[your library's guide](migrations.md).
+[your library's guide](../package/docs/migrations.md).

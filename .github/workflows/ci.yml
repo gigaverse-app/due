@@ -17,7 +17,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv sync --locked --only-group lint
+      - run: uv sync --all-packages --locked --only-group lint
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync pre-commit validate-config
@@ -31,7 +31,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv sync --locked
+      - run: uv sync --all-packages --locked
       - run: uv run --no-sync pyrefly check
 
   tests:
@@ -70,12 +70,21 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv sync --locked
+      - run: uv sync --all-packages --locked
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
+      - name: Prove the package export has no dependency on this repository
+        if: matrix.django == 'locked'
+        run: |
+          package_dir=$(mktemp -d)
+          git archive HEAD:package | tar -x -C "$package_dir"
+          uv run --directory "$package_dir" --extra selftest python -m pytest --due-work-check-fixtures
+      - name: Run library controls without demo applications
+        working-directory: package
+        run: ../.venv/bin/python -m pytest --due-work-check-fixtures
       - name: Run full suite including live web, worker and Beat recovery
-        run: uv run --no-sync pytest --due-work-check-fixtures --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
+        run: uv run --no-sync pytest --due-work-check-fixtures --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=integration_tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
       - name: Require executed obligation guarantees
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
       - name: Require complete application conformance
@@ -91,6 +100,8 @@ jobs:
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C I J --effect-report effects.json --effect print_order
       - name: Require scheduled publication conformance
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_at_deadline --verified A B E H I J --effect-report effects.json --effect publish_at_deadline --required-effect-case "test_due_work_contract[process-scheduled publication process death-assert_process_deaths_converge]"
+      - name: Require widget checkout guarantees and crash histories
+        run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract checkout_order --verified A B G H I J --effect-report effects.json --effect checkout_order --required-effect-case "test_due_work_contract[process-widget paid process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget paid process death without hints-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death without hints-assert_process_deaths_converge]"
       - name: Validate application setup
         run: uv run --no-sync python -m django due_check
         env:
@@ -113,10 +124,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv build
+      - run: uv build --project package --out-dir dist
+      - run: uvx --from twine twine check --strict dist/*
       - name: Install the wheel without development dependencies
         run: |
           uv venv /tmp/due-wheel
