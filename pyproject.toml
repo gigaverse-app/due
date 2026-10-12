@@ -10,13 +10,8 @@ dev = [
 ]
 
 [tool.ruff]
+extend = "package/pyproject.toml"
 src = ["package/src", "package/shims", "package", "."]
-line-length = 120
-target-version = "py314"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["E501", "B027"]
 
 [tool.pyrefly]
 project-includes = ["package/src", "package/tests", "integration_tests", "examples", "scripts"]
