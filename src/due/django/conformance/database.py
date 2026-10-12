@@ -3,8 +3,9 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from django.db import connection
 from django.test.utils import isolate_apps
+from pytest_obligation.integrations.django.tables import model_tables
+from pytest_obligation.integrations.django.transactions import transaction_in_progress as transaction_in_progress
 
 from due.django.models import UniverseDurableWork, durable_work_schema
 
@@ -18,10 +19,5 @@ with isolate_apps("due.django"):
 
 @contextmanager
 def database_work_table() -> Iterator[None]:
-    with connection.schema_editor() as editor:
-        editor.create_model(DatabaseWork)
-    try:
+    with model_tables(DatabaseWork):
         yield
-    finally:
-        with connection.schema_editor() as editor:
-            editor.delete_model(DatabaseWork)

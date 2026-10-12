@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.db import models
 
+from due.django.capabilities._attempt_recovery import attempt_recovery_steps
 from due.django.capabilities.authoring import (
     OwnedDurableWorkCapability,
     _validate_simple_callbacks,
@@ -18,9 +19,6 @@ from due.django.capabilities.authoring import (
 from due.django.evidence.attempts import (
     applied_effect_call,
     attempts_for,
-    expire_repair_window,
-    prune_resolved_attempts,
-    resolve_confirmed_attempts,
 )
 from due.django.models import (
     ACTIVE_WORK_STATES,
@@ -30,9 +28,11 @@ from due.django.models import (
     UniverseDurableWork,
 )
 from due.django.runtime.coordination import (
+    CLAIMABLE_STATES,
     ContinueAfter,
     WorkExecutionContext,
     database_now,
+    require_autocommit,
     require_fenced_settlement,
     settle_locked_work,
 )
@@ -76,32 +76,100 @@ class DurableScheduledAction[OwnerT: models.Model, WorkT: ScheduledWork](
 
     supports_repair_window: ClassVar[bool] = True
     attempt_retention: ClassVar[timedelta] = timedelta(days=7)
+    # Opt in for registered Celery transport. Bound broker/worker timer storage;
+    # PostgreSQL owns long deadlines, and recovery needs no hint receipts.
+    deadline_wakeup_horizon: ClassVar[timedelta | None] = None
 
-    def derivation_steps(self) -> tuple[RecoveryStep, ...]:
-        """Discover owed work and compact receipts without forgetting admission."""
-        return (
-            RecoveryStep(RecoveryPhase.REPAIR_WINDOW, self._expire_repair_window),
-            *super().derivation_steps(),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RESOLUTION, self._resolve_confirmed_attempts),
-            RecoveryStep(RecoveryPhase.ATTEMPT_RETENTION, self._prune_resolved_attempts),
+    def enqueue_execution(self, work_id: int) -> None:
+        require_autocommit()
+        if self.deadline_wakeup_horizon is not None:
+            now = database_now()
+            work = (
+                self.model.objects.filter(
+                    pk=work_id,
+                    state__in=CLAIMABLE_STATES,
+                    cancelled=False,
+                    available_at__gt=now,
+                    available_at__lte=now + self.deadline_wakeup_horizon,
+                )
+                .only("pk", "desired_revision", "available_at")
+                .first()
+            )
+            if work is not None:
+                self._publish_deadline_hint(work)
+                return
+        super().enqueue_execution(work_id)
+
+    def _publish_deadline_hint(self, work: WorkT) -> None:
+        from due.django.runtime.registry import registration_for
+        from due.django.runtime.tasks import wake_scheduled_work_task
+
+        registration = registration_for(self.model)
+        wake_scheduled_work_task.apply_async(
+            args=(registration.name, work.pk, work.desired_revision, work.available_at.isoformat()),
+            eta=work.available_at,
+            # Celery supports this Kombu publish option; celery-types omits it.
+            delivery_mode=1,  # pyrefly: ignore [unexpected-keyword]
+            queue=registration.queue,
         )
 
-    def _expire_repair_window(self, recovery: RecoveryPass) -> int:
-        return expire_repair_window(self.model, window=self.policy.max_repair_window, batch_size=self.policy.batch_size)
+    def deliver_deadline_hint(self, work_id: int, revision: int, available_at: datetime) -> None:
+        require_autocommit()
+        # A hint grants no authority. Even a matching hint must pass the ordinary
+        # atomic due-time/eligibility claim and fenced delivery protocol below.
+        if self.model.objects.filter(
+            pk=work_id,
+            desired_revision=revision,
+            available_at=available_at,
+            available_at__lte=database_now(),
+            state__in=CLAIMABLE_STATES,
+            cancelled=False,
+        ).exists():
+            super().enqueue_execution(work_id)
 
-    def _resolve_confirmed_attempts(self, recovery: RecoveryPass) -> int:
-        return resolve_confirmed_attempts(self.model, batch_size=self.policy.batch_size)
+    def recorded_work_steps(self) -> tuple[RecoveryStep, ...]:
+        steps = super().recorded_work_steps()
+        if self.deadline_wakeup_horizon is None:
+            return steps
+        return (*steps, RecoveryStep(RecoveryPhase.DEADLINE_WAKEUP, self._wake_near_deadlines))
 
-    def _prune_resolved_attempts(self, recovery: RecoveryPass) -> int:
-        return prune_resolved_attempts(
+    def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
+        assert self.deadline_wakeup_horizon is not None
+        now = database_now()
+        upcoming = (
+            self.model.objects.filter(
+                state__in=CLAIMABLE_STATES,
+                cancelled=False,
+                available_at__gt=now,
+                available_at__lte=now + self.deadline_wakeup_horizon,
+            )
+            .only("pk", "desired_revision", "available_at")
+            .order_by("available_at", "pk")[: self.policy.batch_size]
+        )
+        sent = 0
+        for work in upcoming:
+            # Optional hints deliberately have no persisted RecoveryDeferral:
+            # ordinary due dispatch ran first and remains the liveness owner.
+            with recovery.isolate(RecoveryPhase.DEADLINE_WAKEUP, work.pk):
+                self._publish_deadline_hint(work)
+                sent += 1
+        return sent
+
+    def derivation_steps(self) -> tuple[RecoveryStep, ...]:
+        return attempt_recovery_steps(
             self.model,
-            before=database_now() - self.attempt_retention,
-            batch_size=self.policy.batch_size,
+            self.policy,
+            retention=self.attempt_retention,
+            derivation=super().derivation_steps(),
             keep_started_evidence=True,
         )
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.deadline_wakeup_horizon is not None and not (
+            timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
+        ):
+            raise ValueError("deadline_wakeup_horizon must be positive and at most five minutes")
         if self.input_fields is not None and not {"run_at", "cancelled"}.issubset(self.input_fields):
             raise ValueError("scheduled input_fields must include run_at and cancelled")
         if self.policy.retention is not None:

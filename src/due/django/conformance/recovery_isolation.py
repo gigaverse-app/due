@@ -40,7 +40,7 @@ from unittest.mock import patch
 from pytest_obligation.poison import PoisonSwitch, assert_poison_is_isolated
 
 from due.django.capabilities.authoring import _DurableWorkTransaction
-from due.django.conformance._binding import entered_binding as _binding
+from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import DurableWorkBindings
 from due.django.models import RecoveryDeferral
 from due.django.public import (
@@ -50,7 +50,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import claim_work, outstanding_work
+from due.django.runtime.coordination import outstanding_work
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.tasks import recover_durable_work_task
 from due.django.testing import hold_nudges
@@ -84,6 +84,9 @@ PHASE_PROOFS: dict[RecoveryPhase, Generated | ProvenOnce | NoApplicationCode] = 
     RecoveryPhase.DISCOVERY: Generated("test_one_poisoned_identity_does_not_stall_recovery[discovery-*]"),
     RecoveryPhase.REAP: Generated("test_one_poisoned_identity_does_not_stall_recovery[reap-*]"),
     RecoveryPhase.DISPATCH: Generated("test_one_poisoned_identity_does_not_stall_recovery[dispatch-*]"),
+    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
+        "tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
+    ),
     RecoveryPhase.EVIDENCE_SETTLEMENT: ProvenOnce(
         "tests/capabilities/test_operation_recovery_isolation.py"
         "::test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures"
@@ -95,6 +98,9 @@ PHASE_PROOFS: dict[RecoveryPhase, Generated | ProvenOnce | NoApplicationCode] = 
     RecoveryPhase.OBSERVATION: ProvenOnce(
         "tests/capabilities/test_observation_recovery.py"
         "::test_one_refused_observation_publication_does_not_hold_back_the_next"
+    ),
+    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
+        "tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
     ),
     RecoveryPhase.CENSUS: NoApplicationCode(
         "counts recorded work; the application's undiscovered count runs isolated as a discovery failure"
@@ -153,7 +159,7 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
         recover_durable_work_task(entry.name)
 
     name = f"{entry.name}/{history}"
-    with examples.environment(), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
+    with _binding(examples.environment), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
         arranged = arrange(capability, examples, bindings, stack, refusals, published)
         owed = bindings.make(age=timedelta(minutes=10))  # Owed only to dispatch: proof the later phases ran.
         if poison:
@@ -187,7 +193,7 @@ def _claimed_and_expired[W: UniverseDurableWork](
 ) -> W:
     work = bindings.make()
     if work.state != DurableWorkState.CLAIMED:
-        assert claim_work(capability.model, work.pk, lease_duration=capability.policy.lease_duration) is not None
+        bindings.claim(work)
     # ARRANGE: a dead worker. Ordering by expiry puts the poisoned row first.
     capability.model.objects.filter(pk=work.pk).update(lease_expires_at=database_now() - expired_for)
     work.refresh_from_db()

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Due book catalog</title></head>
+<body>
+  <h1>Book catalog</h1>
+  <p>Create a book, then refresh to see indexing finish. Search uses the external index.</p>
+  <p><a href="{% url 'create_book' %}">Add a book</a></p>
+  <form method="get"><label>Title or author <input name="q" value="{{ view.request.GET.q }}"></label><button>Search</button></form>
+  <p><a href="{% url 'books' %}">Show all books</a></p>
+  <ul>
+    {% for book in object_list %}
+      <li>{{ book.title }} — {{ book.author }}:
+        {% if book.indexing_failed %}Indexing stopped — operator retry needed{% elif book.index_key %}Indexed{% else %}Indexing pending{% endif %}
+      </li>
+    {% empty %}<li>No books found.</li>{% endfor %}
+  </ul>
+  {% if is_paginated %}
+    <nav>
+      {% if page_obj.has_previous %}<a href="?q={{ view.request.GET.q|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+      Page {{ page_obj.number }} of {{ paginator.num_pages }}
+      {% if page_obj.has_next %}<a href="?q={{ view.request.GET.q|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+    </nav>
+  {% endif %}
+</body>
+</html>

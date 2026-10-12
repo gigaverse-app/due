@@ -141,7 +141,8 @@ def test_execution_mode_cannot_silently_replay_evidence_required_work(monkeypatc
 
 
 @pytest.mark.django_db
-def test_stale_recovery_schedules_are_removed_and_nothing_else_is():
+@pytest.mark.parametrize("task_name", [RECOVERY_TASK, "legacy.tasks.recover_durable_work_task", "older.tasks.recover"])
+def test_stale_recovery_schedules_are_removed_and_nothing_else_is(task_name: str) -> None:
     from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
     from due.django.runtime.registry import DurableWorkRegistration
@@ -154,14 +155,20 @@ def test_stale_recovery_schedules_are_removed_and_nothing_else_is():
 
     # What DatabaseScheduler left behind: an entry for a registration a branch deploy
     # had, the current registration's entry, and an unrelated task in another namespace.
-    persisted("recover_recording_watch", RECOVERY_TASK, '["recording_watch"]')
-    persisted("recover_primitive_self_test", RECOVERY_TASK, '["primitive_self_test"]')
+    persisted("recover_recording_watch", task_name, '["recording_watch"]')
+    persisted("recover_primitive_self_test", task_name, '["primitive_self_test"]')
     persisted("reconcile_event_cancellations", "other_app.tasks.reconcile_event_cancellations", "[]")
 
+    persisted("foreign_recovery", "other_app.tasks.recover_durable_work_task", "[]")
     registrations = [DurableWorkRegistration(name="primitive_self_test", capability=primitive)]
-    assert remove_stale_recovery_schedules(registrations) == ["recover_recording_watch"]
+    if task_name != RECOVERY_TASK:
+        # Historical names are owned only after explicit application declaration.
+        assert remove_stale_recovery_schedules(registrations) == []
+    retired = () if task_name == RECOVERY_TASK else (task_name,)
+    assert remove_stale_recovery_schedules(registrations, retired_task_names=retired) == ["recover_recording_watch"]
     assert set(PeriodicTask.objects.values_list("name", flat=True)) == {
         "recover_primitive_self_test",
         "reconcile_event_cancellations",
+        "foreign_recovery",
     }
-    assert remove_stale_recovery_schedules(registrations) == []  # Idempotent.
+    assert remove_stale_recovery_schedules(registrations, retired_task_names=retired) == []  # Idempotent.

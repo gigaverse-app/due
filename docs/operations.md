@@ -6,6 +6,24 @@ required for correctness after a lost wakeup. Keep provider timeouts below the
 worker soft limit, the soft limit below the hard limit, and the hard limit below
 the lease. [Registration and startup](integration.md).
 
+## Check configuration and recovery freshness
+
+```bash
+uv run python -m django due_check
+uv run python -m django due_check --metrics-file /tmp/recovery-workers.prom
+```
+
+`due_check` checks registration coverage, actual Celery imports and both the
+Django and Celery views of each recovery schedule, including cadence, queue and
+expiry. It exits nonzero on drift. It never repairs configuration silently.
+
+Without `--metrics-file`, it explicitly reports recovery freshness as NOT CHECKED.
+Supply a fresh Prometheus text scrape from the recovery workers to check every
+registered effect's last clean tick against its runtime-declared stale threshold.
+Missing, stale or future-dated evidence fails. A management process's own metrics
+cannot establish another worker's health. This remains a point-in-time check;
+keep the continuous alerts described below and monitor exporter availability.
+
 ## Inspect stopped or uncertain work
 
 ```bash
@@ -65,6 +83,18 @@ out by backoff. Alert on the **age of deferred identities**, not only recent
 failure counters. Backoff eventually spaces failures an hour apart, while the
 obligation remains owed. [Regression evidence](../tests/capabilities/test_recovery_deferral.py).
 
+## When recovery aborts instead of isolating a row
+
+`due_recovery_passes_total{effect,outcome="aborted"}` means the tick stopped early.
+A soft worker limit, unusable transaction, missing Due wiring or an application's
+configured fatal error can cause this. Check process configuration before treating
+it as another poisoned identity. Failed and aborted ticks do not advance the clean
+heartbeat; neither outcome authorizes replay of UNKNOWN work.
+
+[Configure fatal application errors](integration.md#a-bad-row-is-different-from-a-broken-process)
+once in each process. For a genuinely bad identity, ordinary isolation still
+allows other rows to progress and exposes the deferred identity for diagnosis.
+
 ## Database-backed Beat
 
 The optional `due[beat]` extra supports `django-celery-beat`.
@@ -73,3 +103,28 @@ whose task is Due's exact recovery task. Call it intentionally during scheduler
 startup; it never sweeps unrelated tasks or old backend namespaces. Applications
 migrating from the original primitive must explicitly retire their legacy task
 routes after the data and worker cutover.
+
+## Failed infrequent recovery
+
+`due_last_unclean_recovery_timestamp_seconds{effect=...}` records the end of a
+failed or aborted heartbeat tick, using the worker's wall clock even when the
+database connection failed. Clean ticks advance
+`due_last_recovery_timestamp_seconds`; they leave the failure stamp unchanged.
+A fast-path loop with `heartbeat=False` changes neither timestamp.
+
+For infrequent sweeps, compare the latest unclean timestamp with the latest clean
+heartbeat instead of relying only on a short-window counter increase. Handle an
+absent clean series too, since the first ever run may fail. For example:
+
+```promql
+(due_last_unclean_recovery_timestamp_seconds
+ > on(effect) due_last_recovery_timestamp_seconds)
+or
+(due_last_unclean_recovery_timestamp_seconds
+ unless on(effect) due_last_recovery_timestamp_seconds)
+```
+
+Use matching service/environment labels when combining multiple applications.
+Keep worker and database clocks synchronized: close clean/unclean outcomes can
+otherwise appear reordered. Choose alert routing and cadence policy in the application. This package exports
+the observation; installing it does not migrate a backend's dashboards or alerts.

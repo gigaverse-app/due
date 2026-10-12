@@ -1,16 +1,4 @@
-"""Adopter factories can return a value or own a context-managed fixture scope."""
+"""Compatibility imports; new adopters use :mod:`due.django.conformance.binding`."""
 
-from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, contextmanager
-
-type Binding[T] = Callable[[], T | AbstractContextManager[T]]
-
-
-@contextmanager
-def entered_binding[T](factory: Binding[T]) -> Iterator[T]:
-    built = factory()
-    if isinstance(built, AbstractContextManager):
-        with built as value:
-            yield value
-    else:
-        yield built
+from due.django.conformance.binding import Binding as Binding
+from due.django.conformance.binding import entered_binding as entered_binding

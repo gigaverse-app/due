@@ -15,27 +15,16 @@ the policy it dispatches to is selected only with the suites that use it.
 """
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import cast
 
 import pytest
+from pytest_obligation.collection import requires_complete_suite as requires_complete_suite
 
 # pytest-global: Detect selected suites omitted by collection rules even when their module never imports; suite-local checks cannot see an omitted module. The scanner imports no application code.
 from due._suite_inventory import selected_enrollment
 
 type CollectSuite = Callable[[pytest.Config, list[pytest.Function]], str]
 type EnforceOutcome = Callable[[pytest.Item, pytest.TestReport], None]
-
-
-def requires_complete_suite(arguments: list[str], module: Path, class_name: str) -> bool:
-    """A broad selector still requires the whole suite beside any narrow selectors."""
-    for argument in arguments:
-        path, *nodes = argument.split("::")
-        selected_path = Path(path).resolve()
-        if selected_path == module or selected_path in module.parents:
-            if not nodes or nodes == [class_name]:
-                return True
-    return False
 
 
 def _enrolled(item: pytest.Item) -> type | None:

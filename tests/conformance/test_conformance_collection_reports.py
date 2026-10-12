@@ -63,8 +63,8 @@ def selected_run(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPa
     child = ChildSession(tmp_path_factory.mktemp(f"selected-{request.param}"))
     child.edit(
         "test_effects.py",
-        "examples = EffectExamples(",
-        "from functools import partial\nexamples = EffectExamples(producers={'registration': partial(unused)},",
+        "producers={'declared': unused}",
+        "producers={'registration': __import__('functools').partial(unused)}",
     )
     child.write("gigaverse/test_unselected.py", "effect_contract_suite !!! invalid syntax\n")
     child.write("test_observed.py", OBSERVED)
@@ -123,7 +123,7 @@ def test_report_locates_bindings_and_proofs_without_executing_examples(selected_
     assert proof["path"].endswith("/pytest_obligation/profiles/harmless_replay.py")
     assert proof["callable"].endswith(".assert_replay_converges")
     migrated_indexes = evidence["proof_sources"]["test_migrated_work_indexes"]
-    assert migrated_indexes["path"].endswith("/due/django/conformance/suite.py")
+    assert migrated_indexes["path"].endswith("/due/django/conformance/_internal/suite.py")
     assert migrated_indexes["callable"].endswith(".test_migrated_work_indexes")
     assert "test_migrated_work_indexes" in evidence["expected"]
     assert "test_migrated_work_indexes" in evidence["collected"]

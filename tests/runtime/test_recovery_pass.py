@@ -4,6 +4,7 @@ RecoveryPass decides which failures cost one identity and which end the tick.
 Design: docs/architecture.md.
 """
 
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -13,6 +14,8 @@ from prometheus_client import REGISTRY
 from sentry_sdk.types import Event
 
 from due._installed import NotInstalledError
+from due.django import integration
+from due.django.integration import ApplicationHooks
 from due.django.runtime import metrics, recovery_pass
 from due.django.runtime.metrics import RecoveryOutcome, RecoveryPhase
 from due.django.runtime.recovery_pass import (
@@ -125,13 +128,14 @@ def test_a_soft_limit_while_counting_an_isolated_failure_ends_the_tick(monkeypat
 
 @pytest.fixture(name="reported")
 def reported_fixture(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[object]]:
-    reported: dict[str, list[object]] = {"outcomes": [], "heartbeats": []}
+    reported: dict[str, list[object]] = {"outcomes": [], "heartbeats": [], "unclean": []}
     monkeypatch.setattr(
         recovery_pass, "record_recovery_pass", lambda effect, outcome: reported["outcomes"].append(outcome)
     )
     monkeypatch.setattr(
         recovery_pass, "record_recovery_completed", lambda effect, at: reported["heartbeats"].append(at)
     )
+    monkeypatch.setattr(recovery_pass, "record_recovery_unclean", lambda effect, at: reported["unclean"].append(effect))
     monkeypatch.setattr(recovery_pass, "_coordination_now", lambda: datetime(2026, 10, 10, tzinfo=UTC))
     return reported
 
@@ -142,6 +146,7 @@ def test_a_clean_tick_counts_clean_and_advances_the_heartbeat(reported: dict[str
     assert reported == {
         "outcomes": [RecoveryOutcome.CLEAN],
         "heartbeats": [datetime(2026, 10, 10, tzinfo=UTC).timestamp()],
+        "unclean": [],
     }
 
 
@@ -151,19 +156,19 @@ def test_a_tick_that_isolated_a_failure_counts_failed_and_leaves_the_heartbeat(
     with pytest.raises(RecoveryIncomplete) as raised, recovery_tick("tests.effect") as tick, tick.isolate(PHASE, 1):
         raise OSError("broker refused this publication")
     assert raised.value.effect == "tests.effect"
-    assert reported == {"outcomes": [RecoveryOutcome.FAILED], "heartbeats": []}
+    assert reported == {"outcomes": [RecoveryOutcome.FAILED], "heartbeats": [], "unclean": ["tests.effect"]}
 
 
 def test_a_tick_ended_early_counts_aborted(reported: dict[str, list[object]]) -> None:
     with pytest.raises(SoftTimeLimitExceeded), recovery_tick("tests.effect") as tick, tick.isolate(PHASE, 1):
         raise SoftTimeLimitExceeded()
-    assert reported == {"outcomes": [RecoveryOutcome.ABORTED], "heartbeats": []}
+    assert reported == {"outcomes": [RecoveryOutcome.ABORTED], "heartbeats": [], "unclean": ["tests.effect"]}
 
 
 def test_a_standalone_loop_reports_its_outcome_without_claiming_a_tick(reported: dict[str, list[object]]) -> None:
     with recovery_pass_for("tests.effect", None) as tick, tick.isolate(PHASE, 1):
         pass
-    assert reported == {"outcomes": [RecoveryOutcome.CLEAN], "heartbeats": []}
+    assert reported == {"outcomes": [RecoveryOutcome.CLEAN], "heartbeats": [], "unclean": []}
 
 
 def test_sentry_groups_incomplete_ticks_by_effect_not_by_leaf_exception() -> None:
@@ -218,3 +223,70 @@ def test_a_standalone_loop_publishes_no_stale_threshold() -> None:
     with recovery_tick("tests.hinted_effect", heartbeat=False, stale_after=timedelta(seconds=5)):
         pass
     assert REGISTRY.get_sample_value("due_recovery_stale_after_seconds", {"effect": "tests.hinted_effect"}) is None
+
+
+@pytest.mark.parametrize("wrapped", [False, True], ids=["direct", "wrapped"])
+def test_application_fatal_error_aborts_without_a_row_deferral_or_clean_heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+    reported: dict[str, list[object]],
+    wrapped: bool,
+) -> None:
+    # An application exception is configured by type; names and Due's slot class are irrelevant.
+    monkeypatch.setattr(integration, "_hooks", ApplicationHooks())
+    integration.configure(ApplicationHooks(abort_recovery_on=(SessionLost,)))
+    failure = _wrapped(SessionLost("application service unavailable")) if wrapped else SessionLost("unavailable")
+    reached: list[int] = []
+    with pytest.raises(type(failure)), recovery_tick("tests.application_wiring") as tick:
+        for identity in (1, 2):
+            with tick.isolate(PHASE, identity):
+                reached.append(identity)
+                raise failure
+    assert reached == [1]
+    assert not tick.errors
+    assert reported == {
+        "outcomes": [RecoveryOutcome.ABORTED],
+        "heartbeats": [],
+        "unclean": ["tests.application_wiring"],
+    }
+
+
+def test_a_failing_standalone_loop_stamps_no_unclean_tick(reported: dict[str, list[object]]) -> None:
+    # Only a heartbeat tick is the effect's latest tick; a fast-path hint failing must not page a slow sweep.
+    with pytest.raises(RecoveryIncomplete), recovery_pass_for("tests.effect", None) as tick, tick.isolate(PHASE, 1):
+        raise OSError("lost acknowledgement")
+    assert reported == {"outcomes": [RecoveryOutcome.FAILED], "heartbeats": [], "unclean": []}
+
+
+def test_an_unclean_heartbeat_tick_stamps_the_time_the_slow_sweep_rule_compares_with_the_heartbeat() -> None:
+    """
+    INVARIANT: a failed or aborted heartbeat tick records when it ended; a clean one does not touch it.
+
+    The slow-sweep alert pages while this stamp is newer than the last clean
+    tick (docs/technical-design/durable-work-library.md#recovery-alerts). It is
+    the worker's wall clock, so an aborted tick never reads a database that may
+    be what aborted it.
+    """
+
+    def stamp(effect: str) -> float | None:
+        return REGISTRY.get_sample_value("due_last_unclean_recovery_timestamp_seconds", {"effect": effect})
+
+    before = time.time()
+    with pytest.raises(RecoveryIncomplete), recovery_tick("tests.daily_failed", stale_after=timedelta(days=2)) as tick:
+        with tick.isolate(PHASE, 1):
+            raise ValueError("one bad row")
+    failed_at = stamp("tests.daily_failed")
+    assert failed_at is not None and before <= failed_at <= time.time()
+
+    # A separate effect, so the aborted tick's own stamp is what is read.
+    with pytest.raises(SoftTimeLimitExceeded), recovery_tick("tests.daily_aborted", stale_after=timedelta(days=2)):
+        raise SoftTimeLimitExceeded()
+    aborted_at = stamp("tests.daily_aborted")
+    assert aborted_at is not None and failed_at <= aborted_at <= time.time()
+
+    with patch.object(recovery_pass, "_coordination_now", lambda: datetime.now(UTC)):
+        with recovery_tick("tests.daily_aborted", stale_after=timedelta(days=2)):
+            pass
+        with recovery_tick("tests.daily_clean", stale_after=timedelta(days=2)):
+            pass
+    assert stamp("tests.daily_aborted") == aborted_at, "a clean tick moved the unclean stamp"
+    assert stamp("tests.daily_clean") is None, "a clean tick stamped an unclean one"

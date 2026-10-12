@@ -136,3 +136,37 @@ def test_ignored_enrolled_module_fails_without_importing_it(tmp_path: Path) -> N
     assert result.ret != pytest.ExitCode.OK
     result.stdout.fnmatch_lines(["*selected enrolled suite never collected*"])
     assert "ModuleNotFoundError" not in result.stdout.str()
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize("remove_proof", [False, True], ids=["complete", "missing"])
+def test_unbounded_discovery_cannot_lose_its_selection_proof(child: ChildSession, remove_proof: bool) -> None:
+    child.edit(
+        "effects.py",
+        "room_storage_cleanup = primitive",
+        """from due.django.public import Discovery, AppliedEvidenceContract
+from tests.harness.primitive import PrimitiveOwner
+room_storage_cleanup = replace(primitive, discovery=Discovery(
+    candidates=lambda: PrimitiveOwner.objects.filter(value='valid'),
+    desired_for=lambda owner, existing: None,
+    page_size=10,
+    applied_evidence=AppliedEvidenceContract.CANONICAL_OWNER_STATE,
+    unbounded_because='All pending owners are discoverable without a time horizon.',
+))""",
+    )
+    child.edit(
+        "test_effects.py",
+        "immutable_inputs='An immutable captured cleanup identity.',",
+        "snapshot=unused, derivation=unused,",
+    )
+    child.edit("effects.py", "replace(primitive, model=OtherWork)", "replace(room_storage_cleanup, model=OtherWork)")
+    child.edit("test_effects.py", "perturb_inputs=unused,", "")
+    if remove_proof:
+        child.append("test_effects.py", "\ndel TestRoom.test_discovery_selection_is_complete\n")
+    result = child.run("--collect-only", "-q", "test_effects.py::TestRoom").result
+    if remove_proof:
+        assert result.ret != pytest.ExitCode.OK
+        assert "test_discovery_selection_is_complete" in lost_proofs(result, "TestRoom")
+    else:
+        assert result.ret == pytest.ExitCode.OK, result.stdout.str()
+        assert "test_discovery_selection_is_complete" in result.stdout.str()

@@ -18,7 +18,7 @@ from due.django.evidence.attempts import (
     record_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
-from due.django.integration import current_universe_scope, pin_after_write
+from due.django.integration import current_universe_scope
 from due.django.models import (
     DurableWorkState,
     EffectAttempt,
@@ -31,6 +31,7 @@ from due.django.runtime.coordination import (
     database_now,
     finalize_under_fence,
     lock_owner_of_work,
+    pin_work_beneficiary,
     require_autocommit,
     retry_locked_work,
     settle_locked_work,
@@ -262,23 +263,17 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             outcome=EffectAttemptOutcome.APPLIED,
             repair_pending=True,
         ).values("work_id")
-        page = recovery.page(
+        return recovery.run_page(
             RecoveryPhase.EVIDENCE_SETTLEMENT,
             self.model.objects.filter(pk__in=applied_work).order_by("pk").values_list("pk", flat=True),
             self.policy.batch_size,
+            self.settle_from_applied_effect_evidence,
         )
-        settled = 0
-        for work_id in page:
-            # _finalize_applied is application code: one raising settlement
-            # must not hold back the receipts behind it.
-            with recovery.isolate(RecoveryPhase.EVIDENCE_SETTLEMENT, work_id):
-                settled += self.settle_from_applied_effect_evidence(work_id)
-        return settled
 
     def _reconcile_nonapplication_page(self, recovery: RecoveryPass) -> int:
         """Retry UNKNOWN work whose every attempt is proven NOT_APPLIED, one work id at a time."""
         evidence = EffectAttempt.objects.filter(work_model=self.model._meta.label_lower, work_id=OuterRef("pk"))
-        page = recovery.page(
+        return recovery.run_page(
             RecoveryPhase.NONAPPLICATION,
             self.model.objects.filter(state=DurableWorkState.UNKNOWN)
             .filter(Exists(evidence.filter(outcome=EffectAttemptOutcome.NOT_APPLIED)))
@@ -286,12 +281,8 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             .order_by("pk")
             .values_list("pk", flat=True),
             self.policy.batch_size,
+            self.reconcile_nonapplication,
         )
-        reconciled = 0
-        for work_id in page:
-            with recovery.isolate(RecoveryPhase.NONAPPLICATION, work_id):
-                reconciled += self.reconcile_nonapplication(work_id)
-        return reconciled
 
     def settle_expired_claim(self, work: WorkT) -> bool:
         return self._settle_rejection_locked(work)
@@ -336,9 +327,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 )
             else:
                 raise ValueError("a definite rejection must select retry or terminal settlement")
-            beneficiary = work.work_beneficiary_user_id()
-            if beneficiary is not None:
-                pin_after_write(beneficiary)
+            pin_work_beneficiary(work)
         record_work_operation(self.model._meta.label_lower, operation)
         return True
 

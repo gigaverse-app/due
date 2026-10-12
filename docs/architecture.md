@@ -1,9 +1,34 @@
 # Architecture and guarantees
 
+For the application-level decision, start with [When Due is the right tool](why-due.md).
+This reference describes the mechanisms and their exact boundaries.
+
 PostgreSQL records an obligation, not just a request to enqueue a task. An
 obligation can survive many execution attempts. Completion means both the
 external result and the required local settlement have been handled according
 to the application's declared policy.
+
+## The path from acceptance to completion
+
+```text
+ REQUEST                     POSTGRESQL                          WORKER
+    |                            |                                 |
+    |-- atomic product + work -->|                                 |
+    |<-------- COMMIT -----------|                                 |
+    |                            |                                 |
+    +-- post-commit nudge --------+---- Celery message ------------->|
+                 may be lost     |                                 |
+                                 |<-- recurring recovery selects --|
+                                 |--- reserve delivery / claim --->|
+                                 |                                 |-- external I/O
+                                 |<--- fenced local settlement ----|
+                                 |     product + work + handoffs    |
+```
+
+The bottom path must work when the nudge never arrives. A queue message points
+to an obligation; PostgreSQL remains the authority for whether work is owed.
+The worker's external call runs outside the transaction, so database locks do
+not provide ordering at the provider.
 
 ## The work-table boundary
 
@@ -62,6 +87,30 @@ repair window is not proof that an earlier request completed. Keep provider
 idempotency keys stable across retries and distinct across requested revisions.
 Due's key includes the immutable admission identity as well as the revision.
 
+### An unknown outcome needs evidence
+
+```mermaid
+sequenceDiagram
+    participant W as Worker
+    participant DB as PostgreSQL
+    participant P as Provider
+    participant R as Recovery / observer
+    W->>DB: Persist UNKNOWN attempt with occurrence identity
+    W->>P: Execute non-repeatable operation
+    P--xW: Reply lost after acceptance
+    Note over DB,P: The provider may still finish, lease expiry proves no outcome
+    R->>P: Read correlated evidence
+    P-->>R: Definite receipt
+    R->>DB: Store receipt and APPLIED evidence atomically
+    R->>DB: Fenced product settlement from stored evidence
+    Note over R,DB: Local settlement can retry without resending the operation
+```
+
+An inconclusive observation leaves the obligation unresolved. A definite
+NOT_APPLIED result can authorize the capability's retry policy; a timeout alone
+cannot. This distinction is what the evidence-required mode adds beyond safely
+replaying an idempotent file write.
+
 ## Recovery and retries
 
 READY and RETRYABLE rows become eligible by time and any declared execution gate.
@@ -74,7 +123,8 @@ An explicit authorized rearm is different from an identical producer request.
 Each recovery phase isolates per-identity failures and continues other work, then
 raises a grouped failure. Poisoned identities receive bounded backoff so they
 cannot monopolize the first page. Soft worker limits and unusable database
-transactions end the tick. Telemetry failure cannot roll back product truth.
+transactions end the tick. Applications can also declare fatal recovery error
+types through [startup hooks](integration.md#a-bad-row-is-different-from-a-broken-process). Telemetry failure cannot roll back product truth.
 Prometheus metrics use the `due_` prefix, including backlog, recovery outcomes,
 deferred identities and recovery heartbeat/staleness. Applications own alert
 thresholds and exporting the registry; Sentry reporting is inert unless configured.
@@ -91,3 +141,25 @@ Work-table adopters declare `EffectExamples` through `effect_contract_suite`.
 [the replacement audit](backend-adoption.md) separates standalone parity from
 application migration. Shared fault oracles belong to pytest-obligation; Due owns
 the binding to its registered capability, PostgreSQL state and Celery workers.
+
+### Scheduled deadline hints
+
+`DurableScheduledAction` and `ScheduledAction` can opt into registered Celery ETA
+hints with `deadline_wakeup_horizon: ClassVar[timedelta | None]` (default `None`,
+maximum five minutes). Recovery reads one bounded page of future `available_at`
+values in that horizon, after ordinary due dispatch. Admission also publishes a
+hint when within the horizon. Neither path creates SQL hint rows or claims future
+work. The window bounds timer distance, not total broker memory under arbitrary
+submission/reschedule volume; duplicate hints can occur on successive sweeps.
+
+A hint carries the work ID, revision and eligibility timestamp. Its task checks
+current DB eligibility and then enters the normal atomic claim and fenced worker
+path; it cannot shorten retry backoff or authorize an old revision. Timer loss,
+queue delay, stale hints and lookahead overflow leave ordinary periodic recovery
+as the liveness owner. Hint failures are isolated and reported, but never create
+persisted recovery deferrals. Optional timer transport is not durable truth.
+
+The [scheduled publication example](../examples/scheduled/README.md#deadline-hints-and-retry-safe-submission)
+also demonstrates caller submission identity on its existing product row. That
+application-level unique key protects initial admission, independently of Due's
+work revision and provider idempotency identity.

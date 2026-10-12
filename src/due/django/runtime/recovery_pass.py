@@ -4,6 +4,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from sentry_sdk.scope import add_global_event_processor
 from sentry_sdk.types import Event
 
 from due._installed import NotInstalledError
+from due.django.integration import aborts_recovery
 from due.django.models import RecoveryDeferral
 from due.django.runtime.metrics import (
     RecoveryOutcome,
@@ -29,6 +31,7 @@ from due.django.runtime.metrics import (
     record_recovery_failure,
     record_recovery_pass,
     record_recovery_stale_after,
+    record_recovery_unclean,
 )
 from due.retry_delays import ExponentialDelay
 
@@ -105,7 +108,9 @@ def ends_the_tick(error: BaseException, propagate: tuple[type[BaseException], ..
     seen: set[int] = set()
     current: BaseException | None = error
     while current is not None and id(current) not in seen:
-        if isinstance(current, stop_on):
+        # Application slots have their own exception identity. Configured fatal
+        # errors must never become row deferrals or allow later phases to run.
+        if isinstance(current, stop_on) or aborts_recovery(current):
             return True
         seen.add(id(current))
         current = current.__cause__ or current.__context__
@@ -213,6 +218,20 @@ class RecoveryPass:
         retried = ended[: max(1, size // RETRY_SHARE)]
         chosen = {*retried, *[*fresh, *ended[len(retried) :]][: size - len(retried)]}
         return [identity for identity in unique if identity in chosen]
+
+    def run_page[IdentityT](
+        self,
+        phase: RecoveryPhase,
+        ordered_ids: QuerySet[Any, IdentityT],
+        size: int,
+        step: Callable[[IdentityT], int],
+    ) -> int:
+        """Count successful transitions in one page, isolating and deferring each failed identity."""
+        changed = 0
+        for identity in self.page(phase, ordered_ids, size):
+            with self.isolate(phase, identity):
+                changed += step(identity)
+        return changed
 
     def held(self, phase: RecoveryPhase, selection: QuerySet[Any, Any]) -> frozenset[str]:
         """
@@ -377,7 +396,10 @@ def recovery_tick(
                 publish_recovery_deferrals(effect, observed_at=tick.clock())
     except BaseException:
         record_recovery_pass(effect, RecoveryOutcome.ABORTED)
+        _stamp_unclean(effect, heartbeat)
         raise
+    if tick.errors:
+        _stamp_unclean(effect, heartbeat)
     tick.raise_if_failed()
     if heartbeat:
         record_recovery_completed(effect, _coordination_now().timestamp())
@@ -510,3 +532,15 @@ class RecoveryStep:
 
     phase: RecoveryPhase
     run: Callable[[RecoveryPass], int]
+
+
+def _stamp_unclean(effect: str, heartbeat: bool) -> None:
+    """
+    Record when a heartbeat tick ended without a clean outcome.
+
+    The worker's wall clock, not the database's: an aborted tick may have lost
+    its connection. Operators compare this with the clean heartbeat; clocks
+    must be synchronized because close outcomes can otherwise appear reordered.
+    """
+    if heartbeat:
+        record_recovery_unclean(effect, time.time())

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Publication {{ publication.pk }} · Due</title></head>
+<body><main>
+<p><a href="{% url 'publications' %}">All publications</a></p>
+<h1>Publication {{ publication.pk }}</h1>
+<p>Status: <strong>{{ publication.status }}</strong>. Deadline: {{ publication.publish_at|date:"c" }}.</p>
+{% if result %}<p role="status">{{ result }}</p>{% endif %}
+<p>Refresh to see worker progress. “already_started” means the provider operation has begun; cancellation cannot promise to undo it.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button name="action" value="reschedule">Reschedule</button></form>
+<form method="post">{% csrf_token %}<button name="action" value="cancel">Cancel pending publication</button><button name="action" value="retry">Retry failed publication</button></form>
+<h2>Draft</h2><pre>{{ publication.text }}</pre>
+{% if publication.published_key %}<h2>Published content</h2><pre>{{ content }}</pre>{% endif %}
+</main></body></html>

@@ -58,7 +58,7 @@ from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError
 
 if TYPE_CHECKING:
     # pytest-global: Reuse the enrollment example type across all generated receipt scenarios.
-    from due.django.conformance.suite import DeliveryExample
+    from due.django.conformance.examples import DeliveryExample
     from due.django.runtime.registry import DurableWorkRegistration
 
 
@@ -71,6 +71,9 @@ class ProducerExample[W: UniverseDurableWork, ObservationT]:
     observe: Callable[[], ObservationT]
     expected: ObservationT
     effect_calls: Callable[[], int]
+    # Create-only admission cannot target an existing aggregate. Bind its real
+    # same-owner command for the immutable-input revisit; the oracle verifies entry.
+    revisit: Callable[[tuple[W, ...]], object] | None = None
 
 
 # pytest-global: Shared fault contract composes the existing producer example; no application setup on import.
@@ -146,6 +149,7 @@ def admission_atomicity(capability, failure):
 
 
 def assert_admission_failure(capability, failure, *, interrupt: bool) -> None:
+    """Interrupt partial command admission and check that its own transaction rolls back."""
     from pytest_obligation.profiles.indivisible_admission import (
         assert_interrupted_admission_rolls_back,
         assert_successful_admission_commits,
@@ -397,6 +401,7 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
 
 # pytest-global: Both evidence kinds run the same fault histories; this tuple creates no fixtures.
 EVIDENCE_RECOVERY_HISTORIES = ("live", "death", "late", "settlement_rollback")
+RECEIPT_RECOVERY_HISTORIES = (*EVIDENCE_RECOVERY_HISTORIES, "settlement_error")
 
 
 def assert_due_on_database_clock(work: UniverseDurableWork) -> None:

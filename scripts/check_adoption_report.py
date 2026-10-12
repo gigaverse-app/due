@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 from pytest_obligation.profiles.coverage import SuiteCoverage
+from pytest_obligation.profiles.harmless_replay import REPLAY_SAFETY_PROOFS
 
 
 def read_report(path: Path) -> dict[str, SuiteCoverage]:
@@ -43,19 +44,33 @@ def check(
                 ), f"{name}/{identity}: proof did not finish successfully or as its declared failure"
 
 
-def check_effects(path: Path, names: list[str]) -> None:
+def check_effects(
+    path: Path,
+    names: list[str],
+    *,
+    unassessed: tuple[str, ...] | list[str] = (),
+    required: tuple[str, ...] | list[str] = (),
+    replay: bool = False,
+) -> None:
     """Require the whole generated adopter suite, including Due-specific histories."""
     reports = json.loads(path.read_text())
+    required_cases = set(required)
+    if replay:
+        required_cases.update(
+            f"test_due_work_contract[REPLAY_SAFE_EXECUTION-{proof.__name__}]" for proof in REPLAY_SAFETY_PROOFS
+        )
     for name in names:
         assert name in reports, f"missing work-table suite {name!r}"
         suite = reports[name]
         expected = set(suite["expected"])
         assert expected, f"{name}: no expected proofs"
-        assert not suite["unassessed"], f"{name}: unassessed obligations remain"
+        assert required_cases <= expected, f"{name}: missing required proof: {required_cases - expected}"
+        assert set(suite["unassessed"]) == set(unassessed), f"{name}: unassessed obligations differ from declared debt"
         assert expected == set(suite["collected"]) == set(suite["selected"]), f"{name}: incomplete suite selection"
         assert set(suite["outcomes"]) == expected, f"{name}: missing executed proofs"
         for proof, outcomes in suite["outcomes"].items():
-            assert outcomes == ["passed"], f"{name}/{proof}: expected one passing execution, got {outcomes}"
+            required = ["xfail"] if proof in unassessed else ["passed"]
+            assert outcomes == required, f"{name}/{proof}: expected {required}, got {outcomes}"
 
 
 def main() -> None:
@@ -66,6 +81,13 @@ def main() -> None:
     parser.add_argument("--exercised", nargs="+", default=[])
     parser.add_argument("--effect-report", type=Path)
     parser.add_argument("--effect", action="append", default=[])
+    parser.add_argument(
+        "--unassessed",
+        action="append",
+        default=[],
+        help="Exact expected binding-debt case; also enforce the pytest debt baseline",
+    )
+    parser.add_argument("--required-effect-case", action="append", default=[])
     arguments = parser.parse_args()
     check(
         read_report(arguments.report),
@@ -75,7 +97,13 @@ def main() -> None:
     )
     if arguments.effect:
         assert arguments.effect_report is not None, "--effect requires --effect-report"
-        check_effects(arguments.effect_report, arguments.effect)
+        check_effects(
+            arguments.effect_report,
+            arguments.effect,
+            unassessed=arguments.unassessed,
+            required=arguments.required_effect_case,
+            replay="H" in arguments.verified,
+        )
     print(f"Validated executed adoption for {len(arguments.contract)} contract(s)")
 
 

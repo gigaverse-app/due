@@ -1,0 +1,14 @@
+# Durable-work expected failures: one entry per strict xfail a generated suite carries.
+#
+# binding-debt: a NotAssessed profile or E family. Resolve it by binding the production seam,
+#   or by declaring NotApplicable with a reason production confirms.
+# known-defect: a KnownGap, a declared gap, or an interleaving KnownFailure. Every entry
+#   names the ticket that fixes the defect.
+#
+# Collection fails when a suite's xfails differ from its entries, so this file changes in the
+# same PR as the declaration, and only shrinks. Regenerate the entries of the suites you
+# collect with `DUE_WORK_DEBT_BASELINE=update pytest --collect-only -p no:xdist <contract files>`.
+#
+# Canonical doc: docs/debt-baseline.md
+
+suites: []

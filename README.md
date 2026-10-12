@@ -32,6 +32,8 @@ flowchart LR
 
 The message gets work started sooner. The database remembers what remains owed.
 
+[When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
+
 ## What happens when things go wrong?
 
 | Failure | Due's response |
@@ -48,6 +50,14 @@ A local lease cannot cancel an external request. **Due does not promise
 exactly-once external execution.** Your application defines replay safety,
 provider idempotency, evidence, and success. [Guarantees and limits →](docs/architecture.md)
 
+```text
+commit product + obligation --> notify worker --> execute --> fenced settlement
+             |                       X lost
+             +------ recurring recovery --------> execute --> fenced settlement
+```
+
+[Follow a real obligation through message loss and process death →](docs/recovery-walkthrough.md)
+
 ## More than a task queue
 
 Use Due when a business obligation must survive the attempt that tried to
@@ -62,6 +72,7 @@ models, transactions and product logic.
 | A non-repeatable operation, such as a provider request with an uncertain outcome | `DurableExternalOperation` |
 | Periodic observation of an uncertain operation | `ObservedExternalOperation` |
 | Cleanup owed even if the original worker dies | `IndependentCompensation` |
+| Fenced completion on a row with an existing lifecycle | [Completion leases](docs/completion-leases.md) |
 
 The same work-table runtime also supports dependent wakes, discovery from
 persisted facts, execution gates, continuations, status mirrors and captured
@@ -69,7 +80,15 @@ inputs. [Capability guide and executable examples →](docs/capabilities.md)
 
 **Alpha, Django-backed.** Extracted from Gigaverse's work-table primitive; the API
 may change before 1.0. Only work-table composition is public. Native-table
-composition is excluded. [Extraction scope →](docs/extraction.md)
+composition is excluded. [Extraction scope →](docs/extraction.md) · [Cutover audit and regression controls →](docs/cutover-audit.md)
+
+## Coming from another library?
+
+Start with [your library's migration guide](docs/migrations.md). Each guide
+covers the benefits of adopting Due, a concrete migration, behavior to preserve,
+cutover and rollback, and whether a compatibility layer would help. Guides cover
+Procrastinate, DBOS, RQ, Django Tasks, Celery and the other Python libraries in
+[the background-work ecosystem overview](docs/alternatives.md).
 
 ## Install
 
@@ -126,6 +145,10 @@ schedule and route both execution and recovery. See [integration](docs/integrati
 
 ## Run the example
 
+This quickstart runs the minimal [document-publication application](examples/documents/README.md).
+The separate [Books application](examples/books/README.md) adapts Procrastinate’s
+Django books demo into a Due workflow and documents its upstream provenance.
+
 ```bash
 git clone https://github.com/gigaverse-app/due.git
 cd due
@@ -152,6 +175,10 @@ are for local development only; both service ports bind to localhost.
 
 ## See recovery survive a lost message
 
+For a browser application with two independently recoverable stages, run the
+[books indexing demo](examples/books/README.md). See the
+[example catalog](examples/README.md) for setup and contribution conventions.
+
 With the local services running:
 
 ```bash
@@ -176,6 +203,7 @@ requires executed passing evidence for the claimed profiles; an empty or filtere
 report fails. These proofs cover the bound example, not arbitrary application
 callbacks. Enroll your own capability with `effect_contract_suite` and
 `EffectExamples`: [authoring guide](docs/conformance.md),
+[API and module map](docs/conformance-api.md),
 [executable example](tests/conformance/document_examples.py),
 [verification scope](docs/verification.md).
 
@@ -189,6 +217,18 @@ uv run python -m django due_status publish_document --limit 10
 The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](docs/operations.md)
+
+## Documentation
+
+| You want to… | Read |
+| --- | --- |
+| Decide whether Due fits your application | [Strengths and tradeoffs](docs/why-due.md), [alternatives](docs/alternatives.md) |
+| Integrate the runtime | [Django and Celery wiring](docs/integration.md), [capabilities](docs/capabilities.md) |
+| Prove your application's obligations | [Conformance walkthrough](docs/conformance.md), [executable document adopter](tests/conformance/document_examples.py) |
+| Find an interface or understand scope | [Conformance API, field reference and module boundaries](docs/conformance-api.md) |
+| Understand a passing result | [Verification scope](docs/verification.md), [architecture and limits](docs/architecture.md) |
+| Operate and recover work | [Operations](docs/operations.md) |
+| Migrate the backend harness | [Backend adoption and ownership](docs/backend-adoption.md) |
 
 ## Contribute
 
@@ -206,4 +246,12 @@ minimum Django version, checks migrations, and installs the wheel without test
 dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 
 [Integration](docs/integration.md) · [Architecture](docs/architecture.md) ·
+[Conformance](docs/conformance.md) · [Recovery walkthrough](docs/recovery-walkthrough.md) ·
 [Verification](docs/verification.md) · [Apache-2.0](LICENSE)
+
+Conformance declarations include [checked immutable inputs](docs/conformance.md#prove-an-immutable-input-declaration), with real admission and recovery controls.
+
+The [conformance API](docs/conformance-api.md#derive-routine-bindings-from-one-provider-seam) includes provider-seam factories and unbounded-discovery completeness; [operations](docs/operations.md#failed-infrequent-recovery) describes failed-tick evidence.
+
+
+For an existing application, see [migration settings and stable wire names](docs/integration.md#migrating-an-existing-application).

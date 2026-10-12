@@ -63,6 +63,8 @@ from celery.result import EagerResult
 from celery.utils import time as celery_time
 from django.utils import timezone
 
+from due.django.runtime.names import OBSERVE_TASK, RUN_TASK
+
 
 # pytest-global: Reached only through contract proofs imported by the collection plugin; never registered as a plugin, so no fixture or setup becomes global.
 @dataclass(eq=False)
@@ -200,7 +202,7 @@ class BackgroundWork:
     # Recording
 
     def _dispatch(self, task: Task, args, kwargs, task_id, options: dict[str, Any]) -> Delivery:
-        if task.name == "due.django.runtime.tasks.run_durable_work_task":
+        if task.name == RUN_TASK:
             # pytest-global: Runs only when a test dispatches durable work through this broker; a function-local import adds no collection-time setup.
             # pytest-global: Runs only when a test dispatches durable work through this broker; a function-local import adds no collection-time setup.
             from due.django.conformance.bindings import (
@@ -210,7 +212,7 @@ class BackgroundWork:
 
             name = args[0] if args else kwargs["name"]
             assert_registered_worker_options(installed.get()[name], options)
-        if task.name == "due.django.runtime.tasks.observe_durable_work_task":
+        if task.name == OBSERVE_TASK:
             # pytest-global: Validate the actual observation transport only when dispatched.
             # pytest-global: Observation has its own fixed bounds, independent of mutation budgets.
             from due.django.runtime.limits import (
@@ -284,11 +286,7 @@ class BackgroundWork:
         return [
             delivery
             for delivery in self.dispatches
-            if (
-                delivery.name == "due.django.runtime.tasks.run_durable_work_task"
-                or include_observations
-                and delivery.name == "due.django.runtime.tasks.observe_durable_work_task"
-            )
+            if (delivery.name == RUN_TASK or include_observations and delivery.name == OBSERVE_TASK)
             and (delivery.args[0] if delivery.args else delivery.kwargs["name"]) == name
         ]
 
@@ -533,3 +531,20 @@ def background_work(
     """The driver, over the scheduler clock; unaccounted worker failures fail the test."""
     with accounted_background_work(monkeypatch, scheduler_clock) as driver:
         yield driver
+
+
+@contextmanager
+def harness_owned_background_work(
+    clock: time_machine.Traveller, *, app: Celery | None = None
+) -> Iterator[BackgroundWork]:
+    """Own delivery during a proof, temporarily lifting application task recorders."""
+    from celery import current_app
+
+    selected = app if app is not None else current_app
+    with pytest.MonkeyPatch.context() as patcher:
+        for task in selected.tasks.values():
+            for method in ("delay", "apply_async"):
+                if method in vars(task):
+                    patcher.delattr(task, method)
+        with accounted_background_work(patcher, clock) as driver:
+            yield driver
