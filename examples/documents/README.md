@@ -12,7 +12,7 @@ provenance distinct from this smaller publication example.
 Follow [Run the example](../../README.md#run-the-example) for setup.
 [models.py](models.py), [effects.py](effects.py) and the shared
 [registry](../registry.py) contain the runtime implementation.
-The [application contract](../../tests/conformance/test_document_contract.py)
+The [application contract](../../integration_tests/conformance/test_document_contract.py)
 executes its producer, file writes, recovery and product completion.
 
 The obligation is the document's current publication, not an append-only job

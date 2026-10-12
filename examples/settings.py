@@ -12,6 +12,7 @@ INSTALLED_APPS = [
     "examples.catalog",
     "examples.orders",
     "examples.scheduled",
+    "examples.widget_store",
 ]
 ROOT_URLCONF = "examples.urls"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
@@ -33,3 +34,6 @@ DATABASES = {
 }
 CELERY_TASK_DEFAULT_QUEUE = os.environ.get("DUE_QUEUE", "due")
 CELERY_BEAT_SCHEDULE = {}
+
+WIDGET_STAGE_SECONDS = 1.0
+WIDGET_PAYMENT_TIMEOUT_SECONDS = 60

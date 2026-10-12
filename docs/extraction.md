@@ -23,7 +23,7 @@ ported to isolated rows and standalone settings. The public `pytest-obligation`
 package supplies the neutral generated proofs; work-table bindings delegate to Due.
 
 Consumer adoption is a separate data/import/worker-route cutover; see
-[integration](integration.md). This release has no framework-neutral persistence
+[integration](../package/docs/integration.md). This release has no framework-neutral persistence
 adapter and does not publish or migrate any backend application data.
 
 ## Follow-up parity audit

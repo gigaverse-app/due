@@ -17,7 +17,7 @@ assert "site-packages" in root.parts, f"Smoke test imported the checkout instead
 assert (root / "py.typed").is_file()
 assert not (root / "django/native").exists()
 assert "pytest" not in sys.modules
-assert importlib.metadata.version("due")
+assert importlib.metadata.version("django-due")
 
 import django  # noqa: E402
 from django.conf import settings  # noqa: E402
@@ -32,7 +32,7 @@ assert not run_checks()
 loader = MigrationLoader(None)
 assert ("due", "0001_initial") in loader.disk_migrations
 assert get_commands()["due_status"] == "due.django"
-# The optional conformance adapter requires due[testing]; runtime imports must not.
+# The optional conformance adapter requires django-due[testing]; runtime imports must not.
 for source in root.rglob("*.py"):
     relative = source.relative_to(root)
     if "conformance" in relative.parts or relative.name == "pytest_plugin.py":

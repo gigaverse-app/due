@@ -28,31 +28,31 @@ the frontend contract and the execution backend can impose different obligations
 
 | Library | How it relates to Due | Start here |
 | --- | --- | --- |
-| Procrastinate | PostgreSQL task queue with transactional deferral and locks | [Coming from Procrastinate](migrations/procrastinate.md) |
-| Chancy | PostgreSQL queue, executors and plugin ecosystem | [Coming from Chancy](migrations/chancy.md) |
-| PgQueuer | PostgreSQL queue with async handlers and connection-bound enqueue | [Coming from PgQueuer](migrations/pgqueuer.md) |
-| Django Tasks / django-tasks | Standard task API and an integration opportunity | [Coming from Django Tasks](migrations/django-tasks.md) |
-| django-tasks-db | ORM execution backend for that API | [Coming from django-tasks-db](migrations/django-tasks-db.md) |
-| django-tasks-rq | RQ execution behind the standard task API | [Coming from django-tasks-rq](migrations/django-tasks-rq.md) |
-| RQ | Callable jobs and results backed by Redis | [Coming from RQ](migrations/rq.md) |
-| django-rq | Django settings, producers and administration for RQ | [Coming from django-rq](migrations/django-rq.md) |
-| Celery | Existing task API and Due's execution transport | [Coming from Celery](migrations/celery.md) |
-| Dramatiq | Actors, broker delivery and middleware | [Coming from Dramatiq](migrations/dramatiq.md) |
-| Huey | Task execution, results and scheduling | [Coming from Huey](migrations/huey.md) |
-| arq | Async Redis jobs and worker context | [Coming from arq](migrations/arq.md) |
-| Taskiq | Async task API with broker and result plugins | [Coming from Taskiq](migrations/taskiq.md) |
-| Django Q2 | Django queue, scheduler, workers and results | [Coming from Django Q2](migrations/django-q2.md) |
-| DBOS | Durable workflows, checkpoints and transaction integration | [Coming from DBOS](migrations/dbos.md) |
-| Temporal | Durable workflow platform with a Python SDK | [Coming from Temporal](migrations/temporal.md) |
-| PGMQ Python clients | Lower-level PostgreSQL messaging | [Coming from PGMQ](migrations/pgmq.md) |
+| Procrastinate | PostgreSQL task queue with transactional deferral and locks | [Coming from Procrastinate](../package/docs/migrations/procrastinate.md) |
+| Chancy | PostgreSQL queue, executors and plugin ecosystem | [Coming from Chancy](../package/docs/migrations/chancy.md) |
+| PgQueuer | PostgreSQL queue with async handlers and connection-bound enqueue | [Coming from PgQueuer](../package/docs/migrations/pgqueuer.md) |
+| Django Tasks / django-tasks | Standard task API and an integration opportunity | [Coming from Django Tasks](../package/docs/migrations/django-tasks.md) |
+| django-tasks-db | ORM execution backend for that API | [Coming from django-tasks-db](../package/docs/migrations/django-tasks-db.md) |
+| django-tasks-rq | RQ execution behind the standard task API | [Coming from django-tasks-rq](../package/docs/migrations/django-tasks-rq.md) |
+| RQ | Callable jobs and results backed by Redis | [Coming from RQ](../package/docs/migrations/rq.md) |
+| django-rq | Django settings, producers and administration for RQ | [Coming from django-rq](../package/docs/migrations/django-rq.md) |
+| Celery | Existing task API and Due's execution transport | [Coming from Celery](../package/docs/migrations/celery.md) |
+| Dramatiq | Actors, broker delivery and middleware | [Coming from Dramatiq](../package/docs/migrations/dramatiq.md) |
+| Huey | Task execution, results and scheduling | [Coming from Huey](../package/docs/migrations/huey.md) |
+| arq | Async Redis jobs and worker context | [Coming from arq](../package/docs/migrations/arq.md) |
+| Taskiq | Async task API with broker and result plugins | [Coming from Taskiq](../package/docs/migrations/taskiq.md) |
+| Django Q2 | Django queue, scheduler, workers and results | [Coming from Django Q2](../package/docs/migrations/django-q2.md) |
+| DBOS | Durable workflows, checkpoints and transaction integration | [Coming from DBOS](../package/docs/migrations/dbos.md) |
+| Temporal | Durable workflow platform with a Python SDK | [Coming from Temporal](../package/docs/migrations/temporal.md) |
+| PGMQ Python clients | Lower-level PostgreSQL messaging | [Coming from PGMQ](../package/docs/migrations/pgmq.md) |
 
 ## What Due can add
 
 Due persists work alongside a product update, separates external execution from
 fenced local settlement, and retains uncertain external attempts for evidence.
-Its [capabilities](capabilities.md) cover replay-safe effects, projections,
+Its [capabilities](../package/docs/capabilities.md) cover replay-safe effects, projections,
 movable deadlines, non-repeatable operations, observation and compensation.
-Applications can bind the [conformance suite](conformance.md) to their real
+Applications can bind the [conformance suite](../package/docs/conformance.md) to their real
 producer, provider and completion paths.
 
 | Failure or requirement | What can be a meaningful gain | What does not follow |
@@ -65,7 +65,7 @@ producer, provider and completion paths.
 | Task succeeds but follow-up is lost | Admit the next obligation in the settlement transaction | Due is not automatically a workflow graph or checkpointed Python interpreter |
 | Custom recovery code is hard to verify | Generated histories bind actual application seams | Library tests do not certify a provider or an unbound application |
 
-See [architecture](architecture.md) and [verification](verification.md) for the
+See [architecture](../package/docs/architecture.md) and [verification](../package/docs/verification.md) for the
 implemented boundaries and their existing evidence. This audit ran no comparative
 fault-injection or throughput experiment; it does not claim faster execution,
 lower cost, greater scale, or universally stronger durability.
@@ -75,7 +75,7 @@ lower cost, greater scale, or universally stronger durability.
 Begin with native adoption in existing Django/Celery applications: infrastructure
 already fits, and one recovered product failure can establish value. A constrained
 Django Tasks backend is the most natural standard-API experiment; its full proposed
-contract lives in the [Django Tasks guide](migrations/django-tasks.md#could-you-keep-the-standard-task-interface).
+contract lives in the [Django Tasks guide](../package/docs/migrations/django-tasks.md#could-you-keep-the-standard-task-interface).
 Other producer facades should follow demonstrated application demand.
 
 Familiar syntax, preserved semantics and unchanged operations are separate
