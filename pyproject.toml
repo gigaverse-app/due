@@ -10,6 +10,7 @@ dev = [
     "playwright>=1.58,<2",
     "psutil>=7,<8",
     "psycopg-pool>=3.2,<4",
+    "yappi==1.7.6",
 ]
 
 [tool.ruff]

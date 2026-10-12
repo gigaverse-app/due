@@ -1,14 +1,19 @@
 # Widget profiler quality
 
-The previous nonblocking captures lost stack reads and the blocking collector
-could race the traced child's exit. This follow-up changes instrumentation only.
+Instrumentation only. Blocking py-spy stalled DBOS even at 25 Hz; nonblocking
+sampling lost too many reads. Native perf retained CPU samples but CPython JIT
+metadata was incomplete for prefork children. Use pinned in-process Yappi for
+repeatable function attribution, keeping instrumented timings out of benchmarks.
 
 Validation:
-- Reproduce collector exit failures independently of the applications.
-- Require complete Due and DBOS journeys, zero sampling errors, no lag,
-  sample-count reconciliation and minimum application/web/worker coverage.
-- Negative controls must reject each incomplete or unusable capture.
-- Repeat CPU captures for pre-change Due and current Due against pinned DBOS.
-- Capture all-thread wait stacks separately to explain connection-loss recovery.
-- Publish raw artifacts, source/command/time provenance and interpretation;
-  keep every profiled duration outside performance claims.
+- Complete both applications' checkout, failed-payment, crash and SQL-loss journeys.
+- Require every supervised process and business-function coverage before and
+  after crash, including actual prefork delivery rather than just worker startup.
+- Reject snapshot errors, missing processes/generations, clock mismatches,
+  invalid counters and orphaned process ancestry.
+- Test real threads and forks: no main-thread double counting, inherited counters
+  or child overwrite of a parent's snapshot.
+- Repeat CPU profiles for baseline/current Due against pinned unmodified DBOS;
+  collect wall-clock profiles separately to locate reconnect waits.
+- Publish source/command/time provenance, raw CI artifacts and interpretation.
+  State missing final snapshot intervals and overlapping/incomplete wall totals.

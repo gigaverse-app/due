@@ -130,28 +130,39 @@ existing obligation/fence/recovery protocol still owns that decision.
 The comparison workflow measures the pinned pre-change Due checkout and the
 candidate through the same controller, each against the unmodified DBOS app,
 with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
-warm order processing from crash/startup work. Two separate CPU captures use
-blocking py-spy at 25 Hz over ten paid orders per capture; another capture includes idle threads at 25 Hz to locate
-wait paths. Each capture must finish both applications' correctness journeys,
-report zero stack-read errors and no sampling lag, and contain at least 100
-samples per application plus separate web/worker coverage. Negative controls
-reject incomplete journeys, missing roles, sparse samples and corrupted counts.
+warm order processing from crash/startup work. Two separate CPU captures and one wall-clock capture use
+pinned Yappi 1.7.6 in both applications. The opt-in bootstrap covers all threads,
+fresh prefork counters and crash restarts; it changes no upstream source or
+application configuration. CPU captures use five paid orders; wall captures use
+two. Both include failed payment, a crash and SQL-session loss.
 
-The profiling child asks py-spy to stop after application cleanup while the
-traced root is still alive. This avoids the collector's child-exit/reaping race;
-a successful profiler exit alone cannot pass the evidence gate. CPU captures
-contain active GIL-held Python stacks, not all native CPU. Wall captures include
-idle waits across threads and must not be summed into elapsed or CPU time.
-Profiled runs are labelled and excluded from timing claims. Raw captures,
-per-function self/inclusive sample summaries and quality checks remain CI
-artifacts. A failed capture fails the job; the runner never silently retries or
-falls back to nonblocking sampling.
+Each capture must finish both applications' correctness journeys and contain
+profiles for every supervised process before and after the crash. It must show
+actual checkout, advance and dispatch calls in each application's corresponding
+process generation. Negative controls reject incomplete journeys, missing
+processes or business calls, clock mismatches, snapshot errors and corrupt data.
+Real-process tests also check that the main thread is not counted twice and a
+fork cannot retain counters or overwrite its parent's file.
+
+Yappi's per-thread CPU clock profiles Python functions and builtins. Wall-clock
+profiles include waits and overlap across threads. The snapshot writer thread is
+excluded. Live snapshots are written every second so SIGKILL cannot discard the
+whole profile; the final interval can be missing, scheduling delays can extend
+it, and active calls may have incomplete inclusive totals. These profiles locate
+hot functions, not exact whole-journey call counts or production CPU percentages.
+
+Profiled runs are labelled and excluded from timing claims. Raw per-process
+functions, self/inclusive summaries, source provenance and validation results
+remain CI artifacts. A failed capture fails the job. There is no silent retry or
+collector fallback. Blocking py-spy was rejected after it stalled DBOS in CI;
+nonblocking py-spy produced too many inconsistent reads. See the profiling
+findings below for the retained evidence and limitations.
 
 To reproduce a CPU capture against the pinned upstream checkout (after the
 database setup above), use a fresh output directory:
 
 ```bash
-uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 10
+uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 5
 ```
 
 The generated `delivery-replay-reconnected dispatch` contract terminates the real
