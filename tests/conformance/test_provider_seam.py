@@ -147,11 +147,11 @@ def test_a_call_count_that_never_counts_fails_replay() -> None:
         assert_replay_behaviour(replay)
 
 
-def test_retry_is_derived_only_for_a_bounded_policy() -> None:
+def test_retry_is_derived_for_every_policy_and_needs_refuse() -> None:
     unbounded = replace(primitive, policy=DurableWorkPolicy(max_rearms=None))
-    assert seam_examples(unbounded, seam(refuse=None)).retry is None
+    assert seam_examples(unbounded, seam()).retry is not None
     with pytest.raises(ObligationContractDesignError, match="must declare refuse"):
-        seam_examples(primitive, seam(refuse=None))
+        seam_examples(unbounded, seam(refuse=None))
 
 
 def test_an_unannotated_seam_is_refused() -> None:

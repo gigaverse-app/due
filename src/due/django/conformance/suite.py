@@ -28,6 +28,7 @@ from due.django.conformance._internal.suite import (
     fact_bindings,
     failing_external_call,
     operation_ambiguity,
+    persistent_retry_bindings,
     projection_retention,
     required_examples_for,
     retry_bindings,
@@ -88,6 +89,7 @@ __all__ = [
     "operation_ambiguity",
     "projection_retention",
     "required_examples_for",
+    "persistent_retry_bindings",
     "retry_bindings",
     "snapshot_bindings",
 ]

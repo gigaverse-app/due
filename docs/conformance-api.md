@@ -141,7 +141,7 @@ Schema index proofs reuse pytest-obligation's PostgreSQL catalog records, includ
 
 `seams.ProviderSeam` names the provider environment, real admission, independent
 observed/expected outcomes and call counters. `seam_examples(capability, seam,
-**overrides)` derives delivery, bounded retry, supported replay and projection
+**overrides)` derives delivery, bounded or persistent retry, supported replay and projection
 convergence bindings. It never replaces the coordinator with test code.
 
 | Interface | Meaning |
@@ -149,7 +149,7 @@ convergence bindings. It never replaces the coordinator with test code.
 | `environment`, `make_work`, `arrange` | Enter the provider fake, admit through production, optionally script the provider after admission |
 | `observe`, `delivered` | Independent observed and reviewed expected outcomes |
 | `calls`, `calls_for`, `provider_state`, `provider_expected` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement; a distinct provider observation requires its independent expected outcome |
-| `refuse` | Configure rejection in place or return a context manager kept active through every retry; required for bounded retry |
+| `refuse` | Configure rejection in place or return a context manager kept active through every retry; required, since every policy derives `retry` from it |
 | `outcome`, `rejection` | Scoped outcome/rejection factories with optional admission and observation overrides |
 | `producer`, `caller`, `interrupted` | Bind real admission, inline attempts and interruption after a persisted work row |
 | `replay`, `convergence` | Reuse the capability's effect method and result application |
@@ -178,9 +178,15 @@ passes, while a worker that settles a fabricated index key still fails.
 faults a synchronous provider callable; the seam describes an adopter and derives
 its conformance bindings. A seam may use a probe as its provider handle.
 
-`EffectExamples.retry` is optional for unbounded policies, and forbidden there:
-its exhaustion proof cannot finish. Bounded policies require both retry and
-terminal bindings. This is a declaration error, not unassessed evidence.
+`EffectExamples.retry` is required for every policy, and the policy decides which
+half of profile J it drives. A bounded policy (`max_rearms`) binds it to
+`BoundedRetry` and also requires `terminal`: failing work must exhaust at exactly
+its budget and stay terminal. An unbounded policy (`max_rearms=None`) binds the
+same failure example to `PersistentRetry`: through six failing executions the work
+must reach the provider once each, never become terminal, stay out of due work
+until its retry delay elapses (a zero delay makes the next due pass the retry),
+and be due again afterwards. A missing retry binding is a declaration error, not
+unassessed evidence. [Runtime self-test](../tests/conformance/test_persistent_retry.py).
 
 `interleavings.WorkTableRecovery` runs registered recovery for a tuple of models
 and accounts only for worker errors explained by the bound `ProviderControl`.

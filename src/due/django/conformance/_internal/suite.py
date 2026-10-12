@@ -5,7 +5,6 @@ shared pytest-obligation runners and production behavior in Due's runtime;
 this module only binds them and adds work-table assertions and collection marks.
 """
 
-from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from datetime import timedelta
@@ -50,7 +49,7 @@ from pytest_obligation.profiles.gated_execution import (
     ExecutionGateBinding,
 )
 from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity
-from pytest_obligation.profiles.job_retry_limits import BoundedRetry
+from pytest_obligation.profiles.job_retry_limits import BoundedRetry, PersistentRetry
 
 from due.django.capabilities.authoring import FAILED_TERMINAL_STATES
 from due.django.capabilities.authoring import ReplaySafeEffect as ReplaySafeCapability
@@ -137,7 +136,7 @@ from due.django.evidence.attempts import (
     observe_effect_outcome,
     record_effect_attempt,
 )
-from due.django.models import EffectAttempt, EffectAttemptOutcome
+from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
     DurableWork,
     DurableWorkCapability,
@@ -216,19 +215,21 @@ def fact_bindings[OwnerT: models.Model, W: UniverseDurableWork, ResultT](
 
 @contextmanager
 def failing_external_call(path: str) -> Iterator[FailureExample]:
-    """Replace a one-work-argument provider seam with a counted OSError.
+    """Replace a provider seam with a counted OSError.
 
-    ``path`` is the patch target production calls. The context yields a retry
-    example whose counter observes actual provider entries and restores the seam
-    on exit. Use a custom Binding when the provider has a different signature."""
-    counts = Counter()
+    ``path`` is the patch target production calls, whatever its arguments (a
+    work row, a source key, a request). The context yields a retry example whose
+    counter observes every provider entry and restores the seam on exit. The
+    retry proofs drive one work at a time, so every entry belongs to it."""
+    calls = 0
 
-    def fail(work):
-        counts[work.pk] += 1
+    def fail(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
         raise OSError("injected provider outage")
 
     with patch(path, fail):
-        yield FailureExample(attempts=lambda work: counts[work.pk])
+        yield FailureExample(attempts=lambda work: calls)
 
 
 @contextmanager
@@ -262,6 +263,42 @@ def retry_bindings[W: UniverseDurableWork, ResultT](
             failure_attempt_count=failure.attempts,
             observe=bindings.observe,
             identity_of=lambda work: work.pk,
+        )
+
+
+@contextmanager
+def persistent_retry_bindings[W: UniverseDurableWork, ResultT](
+    bindings: DurableWorkBindings[W, ResultT], factory: Binding[FailureExample[W]]
+) -> Iterator[PersistentRetry]:
+    """Bind an unbounded production retry policy to the shared PersistentRetry proof.
+
+    The same failure example a bounded policy exhausts must, with no budget,
+    leave the work owed: never terminal, and due again once its delay elapses."""
+    capability = bindings.capability
+    assert capability.policy.max_rearms is None
+    with _binding(factory) as failure:
+
+        def make():
+            work = bindings.make()
+            failure.prepare(work)
+            return work
+
+        def execute(work):
+            with suppress(Exception):
+                capability.attempt_execution(work.pk)
+
+        yield PersistentRetry(
+            name=bindings.registration.name,
+            make_failing=make,
+            due_work=lambda: capability.due_work(),
+            run_once=execute,
+            advance_to_due=bindings.age,
+            is_terminal=lambda work: bindings.observe(work)[0] in TERMINAL_WORK_STATES,
+            failure_attempt_count=failure.attempts,
+            observe=bindings.observe,
+            identity_of=lambda work: work.pk,
+            # A zero retry delay makes the next due pass the retry; any positive one forbids a hot loop.
+            waits=capability.policy.delay_at(0) > timedelta(0),
         )
 
 
@@ -396,7 +433,7 @@ MODES = (
 
 def required_examples_for(mode: type[DurableWorkCapability[Any, Any]]) -> tuple[str, ...]:
     """Unconditional proof requirements of a mode; application features add obligations below."""
-    common = ("delivery",)
+    common = ("delivery", "retry")
     if issubclass(mode, DurableExternalOperation):
         required = (*common, "applied_receipt", "receipt_repair", "rejections", "uncertainties")
         return (*required, "observation") if issubclass(mode, ObservedExternalOperation) else required
@@ -478,17 +515,13 @@ def effect_contract[W: UniverseDurableWork, ResultT](
     pruning = capability.policy.retention is not None or isinstance(capability, DurableProjection)
     required = {
         **dict.fromkeys(required_examples_for(type(capability)), True),
-        "retry": capability.policy.max_rearms is not None,
+        # Only a bounded policy exhausts; the terminal example observes that exhaustion.
         "terminal": capability.policy.max_rearms is not None,
         "snapshot": moving,
         "derivation": discovery,
         "compensation": bool(compensations_for(capability)),
         "eligibility": capability.eligibility is not None,
     }
-    if capability.policy.max_rearms is None and examples.retry is not None:
-        raise ObligationContractDesignError(
-            f"{name}: retry examples prove exhaustion, which an unbounded policy (max_rearms=None) never reaches"
-        )
     missing = [field for field, needed in required.items() if needed and getattr(examples, field) is None]
     convergent = moving or bool(examples.in_flight or examples.evidence_confluence) or examples.convergence is not None
     missing.extend(_convergence_decline_defects(capability, examples, convergent=convergent, name=name))
@@ -557,13 +590,23 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             assert examples.derivation is not None
             return fact_bindings(capability, examples.derivation)
 
+    # One failure example drives either half of profile J: a bounded policy
+    # must exhaust at its budget, an unbounded one must keep the work owed.
     def retry():
-        assert examples.retry is not None, "validated: bounded policies declare retry"
+        assert examples.retry is not None, "validated: every policy declares retry"
         # ARRANGE: domain examples provide genuine work for retry executor.
         # REAL PRODUCTION: the retry executor binding calls this registered capability.
         # EXTERNAL SEAM: only the example's provider/fault seam is substituted.
         # OBSERVE: independent product observations and persisted work/evidence.
         return retry_bindings(bindings, examples.retry)
+
+    def persistent_retry():
+        assert examples.retry is not None, "validated: every policy declares retry"
+        # ARRANGE: domain examples provide genuine work for the unbounded retry executor.
+        # REAL PRODUCTION: the retry executor binding calls this registered capability.
+        # EXTERNAL SEAM: only the example's provider/fault seam is substituted.
+        # OBSERVE: provider attempts and persisted work state, which must stay owed.
+        return persistent_retry_bindings(bindings, examples.retry)
 
     snapshot = None
     if examples.snapshot is not None:
@@ -651,9 +694,8 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             )
             if operation
             else Claim(),
-            Profile.JOB_RETRY_LIMITS: Claim()
-            if capability.policy.max_rearms is not None
-            else Decline("The application retains this obligation until success; execution retries are unbounded."),
+            # Bounded: exhaustion at the budget. Unbounded: the obligation stays owed and paced.
+            Profile.JOB_RETRY_LIMITS: Claim(),
         },
         sweep=bound(bindings.sweep),
         ownership=bound(bindings.ownership),
@@ -675,6 +717,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         handoff_delivery=WorkTableDelivery(capability) if examples.handoffs else None,
         replay=bound(examples.replay),
         retry=bound(retry) if capability.policy.max_rearms is not None else None,
+        persistent_retry=bound(persistent_retry) if capability.policy.max_rearms is None else None,
     )
     return contract
 
