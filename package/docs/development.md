@@ -29,6 +29,10 @@ The database role must be able to create test databases. These controls use a sm
 
 Run these commands from the package directory so the package's pytest config and `tests` modules are selected, rather than the adopting application's modules. A package-only checkout resolves its self-test environment; full OSS CI uses the root lockfile. BE retains its own application lock and editable source declarations. Do not commit a second application lockfile here.
 
+## Formatting follows the package
+
+`pyproject.toml` in this directory owns the Ruff rules, line length and supported Python syntax. The full OSS workspace extends this configuration and adds only its own source paths and demo exclusions. An adopting repository's formatter discovers the same package configuration automatically, so editing the subtree cannot silently upgrade its syntax to the adopter's newer Python version. Run `ruff check .` and `ruff format --check .` here using the formatter installed by your development environment.
+
 ## Sync without a second source of truth
 
 The public publisher runs only after successful CI on the exact `main` revision, and uses an ordinary fast-forward push:

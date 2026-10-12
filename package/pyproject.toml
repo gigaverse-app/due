@@ -67,3 +67,12 @@ fallback_version = "0.1.0.dev0"
 # Normal CI keeps main's reviewed replay-outcome implementation until its next
 # manual PyPI release. This development source is not emitted into wheel metadata.
 pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" }
+
+[tool.ruff]
+src = ["src", "shims", "."]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B027"]
