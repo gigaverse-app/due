@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/gigaverse-app/due/compare/v0.1.0...v0.2.0) (2026-10-12)
+
+
+### Features
+
+* accelerate durable continuations with transient deadline wakeups ([#34](https://github.com/gigaverse-app/due/issues/34)) ([56a04fa](https://github.com/gigaverse-app/due/commit/56a04fa5c242e9c9822e50d6f91495d3932240f2))
+* demonstrate durable widget checkout with DBOS comparison ([#33](https://github.com/gigaverse-app/due/issues/33)) ([9e51063](https://github.com/gigaverse-app/due/commit/9e51063e762884f98d42514763e6b11f381f9791))
+
 ## 0.1.0 (2026-10-12)
 
 

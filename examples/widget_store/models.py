@@ -27,7 +27,6 @@ class Order(models.Model):
     reserved = models.BooleanField(default=False)
     progress_remaining = models.PositiveSmallIntegerField(default=10)
     expires_at = models.DateTimeField()
-    next_stage_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     needs_attention = models.BooleanField(default=False)
 

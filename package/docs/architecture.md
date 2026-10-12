@@ -172,3 +172,30 @@ uses this option for ten timed dispatch stages on one obligation row. Its genera
 process-death histories also use `WorkTableDelivery(..., lost_tasks=(wake_scheduled_work_task,))`
 to discard every optional timer while keeping ordinary recovery delivery live.
 The task retains its original scheduled-work name for queued-message compatibility.
+
+### PostgreSQL-only transitions
+
+`DatabaseEffect.transition(work)` runs under the current work fence, with the
+canonical owner locked before the work row. The callback and its continuation
+or final settlement commit together. A crash before commit rolls both back;
+a crash after commit leaves one persisted deadline for normal recovery. A
+redelivered token cannot repeat the committed callback. The callback's `work.owner`
+is the locked canonical owner, so an adopter need not query and lock it again.
+
+Return `ContinueAfter(delay, until=...)` for another short transition, or a result
+for completion. Compose using the existing admission, eligibility and dependent
+wake APIs. This adds no workflow interpreter, per-step journal or tables. Claim
+and settlement still write the existing obligation row; it is not zero-write
+execution.
+
+Use this mode only for short writes on Due's PostgreSQL connection. Do not call
+providers, sleep, mutate the work's fence, or write through another database
+connection inside it. The guarded external-call API refuses this transaction,
+but arbitrary socket calls cannot be intercepted. Provider-backed books,
+projections and scheduled publication retain their existing external-effect modes.
+
+Generated contracts for this mode require `delivery_replays`, separately labelled
+from profile H's raw external-effect replay. `EffectExamples.completions` binds
+explicit terminal outcomes with a simulated time bound. The shared oracles live
+in pytest-obligation; Due only supplies its real task bodies, clock and registered
+recovery cadence. Lost hints remain recoverable without a second protocol.
