@@ -132,3 +132,19 @@ names the existing real broker-failure test, which proves due work and other
 hints still progress. Proof factories also share obligation's guarded scope:
 adopter cleanup cannot swallow a failed delivery verdict. See the
 [proof resource test plan](work-in-progress/tickets/proof-resource-ownership-test-plan.md).
+
+## Third pass: exercise the public bindings in every application
+
+The five runnable applications now use `ProviderSeam` for all six capability
+bindings. Real provider refusals and reply loss exposed discarded context
+managers in the derived retry/outcome factories. Those scopes now remain active
+through the proof and preserve failures during cleanup. Explicit admissions,
+terminal behavior, cancellation and process-death histories remain alongside the
+derived proofs. See the [application evidence matrix](../examples/README.md#executable-provider-bindings).
+
+The repeated source audit covered the current pre-cutover runtime/harness and
+adjacent session tooling. No additional runtime behavior was missing; the
+fixture-resolution safeguard found outside the harness was ported to
+pytest-obligation, and this repository's CI enables it. The paired suite runs
+against that reviewed candidate. The [obligation audit](https://github.com/gigaverse-app/pytest-obligation/pull/58)
+records the remaining differences, scoped lifecycle findings and control owners.
