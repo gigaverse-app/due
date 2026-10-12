@@ -440,3 +440,36 @@ def test_policy_window_stops_old_revision_repairs_but_preserves_unknown_evidence
     escaped.refresh_from_db()
     assert escaped.repair_settled_by == RepairSettledBy.RECEIPT
     assert not unsettled_work(scoped, strict=True).exists()
+
+
+@pytest.mark.usefixtures("evidence_tables")
+def test_a_retired_provider_target_settles_repair_without_inventing_a_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    An application whose provider target is permanently gone (a deleted channel, a purged bucket) can never
+    receive the receipt an UNKNOWN attempt waits for. It settles the repair as TARGET_RETIRED: the attempt is no
+    longer repair debt, its outcome stays UNKNOWN evidence, and the repair window does not relabel it.
+    """
+    from due.django.evidence.attempts import expire_repair_window
+    from due.django.models import EffectAttempt, RepairSettledBy
+    from due.django.testing import use_database_clock
+
+    window = timedelta(hours=24)
+    capability = capability_for("projection")
+    capability = replace(capability, policy=replace(capability.policy, max_repair_window=window))
+    work = record(capability)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    escaped = attempts_for(work).get()
+    # Positive control: the escaped attempt is repair debt the window would settle.
+    assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.repair_pending is True
+
+    EffectAttempt.objects.filter(pk=escaped.pk).update(
+        repair_pending=False, repair_settled_by=RepairSettledBy.TARGET_RETIRED
+    )
+    with use_database_clock(lambda: escaped.started_at + window + timedelta(seconds=1)):
+        assert expire_repair_window(EvidenceWork, window=window, batch_size=100) == 0
+    escaped.refresh_from_db()
+    assert escaped.repair_settled_by == RepairSettledBy.TARGET_RETIRED
+    assert escaped.get_repair_settled_by_display() == "provider target permanently gone"
+    assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.observed_at is None
