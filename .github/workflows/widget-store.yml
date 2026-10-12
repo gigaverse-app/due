@@ -11,7 +11,7 @@ concurrency:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +84,7 @@ jobs:
         if: matrix.reverse == false
         run: |
           for repeat in 1 2; do
-            uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/cpu-$repeat" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5
+            uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/cpu-$repeat" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 10
           done
       - name: Profile wait paths including connection-loss recovery
         if: matrix.reverse == false

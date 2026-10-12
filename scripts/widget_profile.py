@@ -131,7 +131,7 @@ def main() -> None:
         "record",
         "--subprocesses",
         "--rate",
-        "50" if args.mode == "cpu" else "25",
+        "25",
         "--gil" if args.mode == "cpu" else "--idle",
         "--format",
         "speedscope",

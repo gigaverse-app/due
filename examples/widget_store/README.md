@@ -131,7 +131,7 @@ The comparison workflow measures the pinned pre-change Due checkout and the
 candidate through the same controller, each against the unmodified DBOS app,
 with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
 warm order processing from crash/startup work. Two separate CPU captures use
-blocking py-spy at 50 Hz; another capture includes idle threads at 25 Hz to locate
+blocking py-spy at 25 Hz over ten paid orders per capture; another capture includes idle threads at 25 Hz to locate
 wait paths. Each capture must finish both applications' correctness journeys,
 report zero stack-read errors and no sampling lag, and contain at least 100
 samples per application plus separate web/worker coverage. Negative controls
@@ -151,7 +151,7 @@ To reproduce a CPU capture against the pinned upstream checkout (after the
 database setup above), use a fresh output directory:
 
 ```bash
-uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 5
+uv run python -m scripts.widget_profile --mode cpu --output test-results/widgets/profile/manual -- --upstream /path/to/dbos-demo-apps --samples 10
 ```
 
 The generated `delivery-replay-reconnected dispatch` contract terminates the real
