@@ -46,6 +46,7 @@ from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
     RECEIPT_RECOVERY_HISTORIES,
     SYNCHRONOUS_CALLER_HISTORIES,
+    acknowledgement_replays,
 )
 from due.django.public import OwnedDurableWorkCapability
 
@@ -177,6 +178,8 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         expected.add("test_settlement_wakes_declared_dependents")
     if not isinstance(capability, IndependentCompensation):
         expected.add("test_lost_delivery_spends_no_retry_budget")
+    if acknowledgement_replays(capability):
+        expected.add("test_lost_acknowledgement_replay_converges")
     if compensations_for(capability):
         expected |= {
             "test_independent_compensation_after_primary_exhaustion[compensated]",
