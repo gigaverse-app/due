@@ -125,15 +125,24 @@ Replay-safe work (not an evidence-required operation, not an independent
 compensation, and with a nonzero retry budget) also receives
 `test_lost_acknowledgement_replay_converges`. The worker dies inside settlement
 after the real effect returned, so success never commits. Registered recovery
-must reach the effect boundary exactly once more (the `delivery.effect_calls`
-counter goes `+1`, then `+2`), the `delivery` observation must equal `expected`
-(one logical effect), the same revision must settle, and a further recovery tick
-must not call the provider again. When the execution continues
-(`ContinueAfter`) instead of completing, only one step has run, so the replayed
-step is compared with a fresh `delivery` given two uninterrupted executions: the
-same outcome and the same number of provider entries. A provider that refuses the second create and
-is classified permanent, an effect that adds a record per call, and a local
-"already sent" guard that skips the provider each fail this case; see the
+must enter the effect exactly once more. Each execution may make multiple
+provider calls; `delivery.effect_calls` must increase on both the interrupted
+execution and its replay. For a completing effect the `delivery` observation
+must equal `expected` (one logical effect), the same revision must settle, and
+a further recovery tick must not call the provider again.
+
+A continuing external execution (`ContinueAfter` or `ReopenAfter`) is compared
+with a fresh `delivery` given two uninterrupted executions: the same outcome
+and provider-entry count. A `DatabaseEffect` instead rolls the first product
+transition back with its acknowledgement. The proof requires that rollback,
+then compares its replay with **one** uninterrupted committed transition.
+The existing catalog exercises two provider calls and reopening repair after
+an older write loses its response; widget checkout exercises transactional
+continuations.
+
+A provider that refuses the second create and is classified permanent, an
+effect that adds a record per call, and a local "already sent" guard that skips
+the provider each fail this case; see the
 [self-test](../tests/conformance/test_lost_acknowledgement_replay.py).
 
 ## Handoffs: require the right result, not just the same result
