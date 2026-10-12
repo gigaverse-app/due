@@ -102,6 +102,8 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
     Declare it when ``observe`` reads product state the worker settles, since a replay
     repeats only the provider call and never settles the work.
     """
+    provider_expected: Callable[[P, W], Any] | None = None
+    """Independent replay outcome; required with provider_state, otherwise delivered is reused."""
     arrange: Callable[[P, W], object] = field(default=lambda provider, work: None)
     """ARRANGE: provider-side state one delivery needs, such as a scripted receipt or stored source."""
 
@@ -303,6 +305,10 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         return binding
 
     def replay(self, name: str, execute: Callable[[W], object]) -> Callable[[], AbstractContextManager[ReplayProof]]:
+        if self.provider_state is not None and self.provider_expected is None:
+            raise ObligationContractDesignError("provider_state needs an independent provider_expected replay outcome")
+        expected = self.provider_expected if self.provider_expected is not None else self.delivered
+
         @contextmanager
         def binding() -> Iterator[ReplayProof]:
             # EXTERNAL SEAM: the declared environment substitutes only the provider boundary.
@@ -314,6 +320,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     name=name,
                     prepare=lambda: self.prepare(provider),
                     execute=execute,
+                    expected=lambda work: expected(provider, work),
                     observe=lambda work: (self.provider_state or self.observe)(provider, work),
                     execution_count_for=lambda work: self.count_for(provider, work),
                 )

@@ -148,7 +148,7 @@ convergence bindings. It never replaces the coordinator with test code.
 | --- | --- |
 | `environment`, `make_work`, `arrange` | Enter the provider fake, admit through production, optionally script the provider after admission |
 | `observe`, `delivered` | Independent observed and reviewed expected outcomes |
-| `calls`, `calls_for`, `provider_state` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement |
+| `calls`, `calls_for`, `provider_state`, `provider_expected` | Count actual provider entries; optionally correlate by work identity and observe provider state independently of settlement; a distinct provider observation requires its independent expected outcome |
 | `refuse` | Make subsequent calls fail with an error production treats as retryable; required to derive bounded retry |
 | `outcome`, `rejection` | Scoped outcome/rejection factories with optional admission and observation overrides |
 | `producer`, `caller`, `interrupted` | Bind real admission, inline attempts and interruption after a persisted work row |
@@ -180,3 +180,16 @@ not receive this check. The [shared proof's scope and limits](https://github.com
 apply; the generated case participates in normal collection and outcome guards.
 
 `process_handoffs` requires an independent `ProcessHistory.expected` value or input-derived callback for every entry. Omitted expectations raise at binding construction; plain pytest-obligation convergence-only histories remain available outside this application binding.
+
+
+Generated replay contracts require `expected` before executing any proof. A
+`ProviderSeam` reuses `delivered` when replay observes the same result; with a
+separate `provider_state`, supply `provider_expected` explicitly. This prevents
+settled product state from standing in for an external replay result.
+
+For create-only commands, `ProducerExample.revisit(works)` binds a real command
+on the originally admitted owners for the immutable-input proof. It receives
+the originally returned work rows, must enter their capability transactions,
+and may not write the test's desired work state itself. See the
+[books binding](../tests/conformance/book_examples.py) and
+[mutation controls](../tests/conformance/test_books_contract_controls.py).

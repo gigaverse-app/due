@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 from pytest_obligation.profiles.coverage import SuiteCoverage
+from pytest_obligation.profiles.harmless_replay import REPLAY_SAFETY_PROOFS
 
 
 def read_report(path: Path) -> dict[str, SuiteCoverage]:
@@ -49,15 +50,21 @@ def check_effects(
     *,
     unassessed: tuple[str, ...] | list[str] = (),
     required: tuple[str, ...] | list[str] = (),
+    replay: bool = False,
 ) -> None:
     """Require the whole generated adopter suite, including Due-specific histories."""
     reports = json.loads(path.read_text())
+    required_cases = set(required)
+    if replay:
+        required_cases.update(
+            f"test_due_work_contract[REPLAY_SAFE_EXECUTION-{proof.__name__}]" for proof in REPLAY_SAFETY_PROOFS
+        )
     for name in names:
         assert name in reports, f"missing work-table suite {name!r}"
         suite = reports[name]
         expected = set(suite["expected"])
         assert expected, f"{name}: no expected proofs"
-        assert set(required) <= expected, f"{name}: missing required proof: {set(required) - expected}"
+        assert required_cases <= expected, f"{name}: missing required proof: {required_cases - expected}"
         assert set(suite["unassessed"]) == set(unassessed), f"{name}: unassessed obligations differ from declared debt"
         assert expected == set(suite["collected"]) == set(suite["selected"]), f"{name}: incomplete suite selection"
         assert set(suite["outcomes"]) == expected, f"{name}: missing executed proofs"
@@ -95,6 +102,7 @@ def main() -> None:
             arguments.effect,
             unassessed=arguments.unassessed,
             required=arguments.required_effect_case,
+            replay="H" in arguments.verified,
         )
     print(f"Validated executed adoption for {len(arguments.contract)} contract(s)")
 
