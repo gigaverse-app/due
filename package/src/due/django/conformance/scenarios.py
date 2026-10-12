@@ -436,7 +436,8 @@ def _assert_caller_waits_for_the_held_claim[W: UniverseDurableWork, ResultT, Obs
         assert claim is not None, "positive control: another worker must hold the owed work's claim"
         claims.append(claim)
     try:
-        example.call()
+        # Revisit the accepted owner; call() may create a different owner.
+        (example.repeat or example.call)()
     except WorkIncomplete:
         # complete() reports the held claim; complete_or_defer() returns it as a status instead.
         assert example.requires_inline, "a deferring caller must report the held claim as a status, not raise"

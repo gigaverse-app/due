@@ -6,13 +6,14 @@ from pytest_obligation.contract import NotApplicable
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 
 from due.django.conformance.composition import ProjectionExample
+from due.django.conformance.scenarios import SynchronousCallerExample
 from due.django.conformance.seams import ProviderSeam
 from due.django.conformance.suite import AdmissionFailureExample, ProducerExample, TerminalExample
 from due.django.testing import hold_nudges
 from examples.books import search
 from examples.catalog.effects import project_catalog
 from examples.catalog.models import CatalogEntry, CatalogWork
-from examples.catalog.services import retry_entry, save_entry
+from examples.catalog.services import retry_entry, save_and_project_entry, save_entry
 from integration_tests.conformance.index_examples import BookContent, examples_for
 from integration_tests.examples.books_support import calls, index_environment
 
@@ -61,6 +62,29 @@ def admission_failure() -> Iterator[AdmissionFailureExample[CatalogWork, bool]]:
         yield AdmissionFailureExample.after_save(scenario, CatalogWork)
 
 
+@contextmanager
+def synchronous_caller() -> Iterator[SynchronousCallerExample[BookContent | None]]:
+    with index_environment() as provider:
+
+        def admitted() -> CatalogWork:
+            return CatalogWork.objects.get(owner__title=TITLE)
+
+        def observe() -> BookContent | None:
+            work = CatalogWork.objects.filter(owner__title=TITLE).first()
+            return content(work) if work is not None else None
+
+        yield SynchronousCallerExample(
+            call=lambda: save_and_project_entry(TITLE, AUTHOR),
+            repeat=lambda: save_and_project_entry(TITLE, AUTHOR, entry_id=admitted().owner_id),
+            observe=observe,
+            expected=(TITLE, AUTHOR),
+            effect_calls=lambda: provider.writes.total,
+            fail_effect=lambda: provider.writes.reject(lambda: OSError("search unavailable")),
+            lose_response=lambda: provider.writes.lose_response(lambda: OSError("response lost")),
+            failure=OSError,
+        )
+
+
 # ARRANGE: admit editable metadata through save_entry.
 # REAL PRODUCTION: the catalog projection writes and repairs the same provider key.
 # EXTERNAL SEAM: record/refuse actual SQLite search writes.
@@ -85,6 +109,7 @@ EXAMPLES = replace(
     immutable_inputs=None,
     convergence_not_assessed=None,
     snapshot=snapshot,
+    synchronous_callers={"save and project entry": synchronous_caller},
     admissions={"save entry": producer},
     admission_failures={"save entry": admission_failure},
     convergence_families={

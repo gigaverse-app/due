@@ -206,7 +206,8 @@ def test_broken_callers_fail_the_new_histories(
         assert_synchronous_caller(primitive, scenario, history=history)
 
 
-def test_a_creating_caller_passes_with_its_same_owner_repeat() -> None:
+@pytest.mark.parametrize("history", ["repeat-same-value", "claim-held"])
+def test_a_creating_caller_passes_with_its_same_owner_repeat(history: str) -> None:
     owners: list[PrimitiveOwner] = []
 
     def creating(owner: PrimitiveOwner) -> object:
@@ -217,7 +218,7 @@ def test_a_creating_caller_passes_with_its_same_owner_repeat() -> None:
         caller_example(creating, repeat=lambda owner: deferring_caller(owners[-1])),
         observe=lambda: PrimitiveOwner.objects.get(pk=owners[-1].pk).value if owners else "before",
     )
-    assert_synchronous_caller(primitive, scenario, history="repeat-same-value")
+    assert_synchronous_caller(primitive, scenario, history=history)
 
 
 def test_response_lost_requires_its_binding() -> None:
