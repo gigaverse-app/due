@@ -102,7 +102,7 @@ protocol to maintain.
 
 The standalone settings enable Django's supported psycopg pool (one to four
 connections per process), pool checkout health checks, and Celery recycling its
-connections after five tasks; DBOS already pools through SQLAlchemy. Crash testing
+pools after 100 tasks; DBOS already pools through SQLAlchemy. Crash testing
 still kills every application process, including these pools. The comparison
 therefore includes reconnect/startup work after the crash, as well as steady
 operation. No durability setting or recovery cadence is relaxed.
@@ -110,3 +110,36 @@ operation. No durability setting or recovery cadence is relaxed.
 A separate, unmeasured correctness journey terminates both apps' live database
 sessions during dispatch. Each must reconnect and finish without resetting
 progress or changing inventory. This fault is excluded from the cost table.
+
+## CPU and reconnect profiling
+
+The single-worker supervisor embeds one normal Celery Beat child in the prefork
+worker. This shares startup imports; it does not change recovery cadence or
+disable sweeps. Deployments with multiple workers must run one separate Beat
+instance, rather than embedding a scheduler in every worker.
+
+Due's execution, recovery, timer and observation tasks now call Django's
+`close_old_connections()` at worker entry and return. With these demo settings,
+each task returns its socket to the pool, and checkout health checks discard
+terminated sessions before the next delivery. Celery can therefore reuse the
+pool longer without retaining a broken connection across tasks. Eager calls
+borrow their caller's connection and leave its transaction alone. These hooks
+neither retry a task body nor decide whether a lost commit succeeded; the
+existing obligation/fence/recovery protocol still owns that decision.
+
+The comparison workflow measures the pinned pre-change Due checkout and the
+candidate through the same controller, each against the unmodified DBOS app,
+with both arm orders. Per-process CPU and cumulative phase snapshots distinguish
+warm order processing from crash/startup work. Separate py-spy profiles include
+both applications and their descendants, sampled without pausing them at 25 Hz.
+GIL-held samples identify Python call paths, not native CPU time; nonblocking
+sampling can omit inconsistent stacks. Profiled runs are labelled and excluded from timing
+claims. Raw profiles and benchmark results remain CI artifacts.
+
+The generated `delivery-replay-reconnected dispatch` contract terminates the real
+PostgreSQL session before each of two deliveries through Celery's production
+tracer. It requires the independent dispatched product outcome and one business
+callback. Disabling the entry cleanup must fail that same case. The separate
+benchmark journey terminates every SQL session in the app's isolated database
+while its real prefork worker is dispatching, then checks completion, inventory,
+and a subsequent browser checkout.

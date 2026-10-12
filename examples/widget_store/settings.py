@@ -18,5 +18,6 @@ DATABASES = {
     }
 }
 # Celery prefork otherwise closes Django's entire pool before/after each task.
-# Recycle after five tasks; recovery/fencing and transaction boundaries are unchanged.
-CELERY_DB_REUSE_MAX = 5
+# Due task boundaries return sockets to the pool every delivery and reset health
+# checks. Recycle the pool after 100 tasks; do not retain broken sessions between tasks.
+CELERY_DB_REUSE_MAX = 100

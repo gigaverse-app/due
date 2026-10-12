@@ -125,3 +125,16 @@ def test_generated_completion_rejects_broken_progress(monkeypatch, fault):
     )
     with pytest.raises(AssertionError, match="time bound|minimum wait|reversed"):
         case.run()
+
+
+def test_generated_reconnected_delivery_rejects_missing_connection_boundary(monkeypatch):
+    from due.django.runtime.tasks import DatabaseTask
+
+    monkeypatch.setattr(DatabaseTask, "before_start", lambda *args, **kwargs: None)
+    case = next(
+        row.values[0]
+        for row in contract_cases(effect_contract(checkout_order, examples=EXAMPLES))
+        if row.id == "delivery-replay-reconnected dispatch-assert_delivery_replay"
+    )
+    with pytest.raises(AssertionError, match="worker delivery failed after connection loss"):
+        case.run()

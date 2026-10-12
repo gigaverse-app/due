@@ -175,7 +175,6 @@ and their tests do not need to adopt a native API to survive the work-table port
 Use the [backend audit](backend-adoption.md) for application migration gates and
 the [conformance guide](conformance.md) to bind the existing domain suites.
 
-
 ## Migrating an existing application
 
 Configure these settings before Django imports Due:
@@ -238,3 +237,17 @@ The standalone storefront uses Django's supported psycopg connection pool
 HTTP request. This is deployment configuration, not an engine requirement. Pools
 are per process and have bounded size; callers still need a connection budget for
 their worker count. See [Django's connection-pool documentation](https://docs.djangoproject.com/en/6.0/ref/databases/#connection-pool).
+
+### Worker connection lifetime
+
+Due's Celery tasks use Django's public connection cleanup at entry and return.
+The default zero connection age returns pooled sockets on each delivery, while
+pool checkout health checks can replace sessions lost during idle time. Configure
+`CONN_HEALTH_CHECKS=True` for pooled/persistent connections. Eager execution
+preserves its caller's transaction. No task body is automatically retried by this
+cleanup: unresolved work and uncertain effects retain their existing recovery
+and evidence rules.
+
+The standalone Widget Store demonstrates bounded pool reuse with these task
+boundaries. Embedded Beat is a single-worker demo configuration; production
+fleets should retain one dedicated scheduler.
