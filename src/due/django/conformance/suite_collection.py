@@ -38,7 +38,7 @@ from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
 from due.django.conformance._internal.immutable_inputs import admission_paths
 from due.django.conformance.composition import compensations_for
-from due.django.conformance.discovery_admissibility import candidate_edges
+from due.django.conformance.discovery_admissibility import candidate_edges, related_candidate_edges
 from due.django.conformance.observations import OBSERVATION_HISTORIES
 from due.django.conformance.recovery_isolation import recovery_isolation_histories
 from due.django.conformance.registrations import registered_capability, registration_of
@@ -164,9 +164,11 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         # Unbounded discovery claims every eligible owner, so its generated completeness proof cannot disappear.
         if capability.discovery.horizon is None:
             expected.add("test_discovery_selection_is_complete")
-        for edge in candidate_edges(capability):
-            expected.add(f"test_database_legal_candidate_is_admissible[{edge.id}]")
-            expected.add(f"test_inadmissible_candidate_does_not_block_the_next[{edge.id}]")
+        edge_ids = [edge.id for edge in candidate_edges(capability)]
+        edge_ids += [related.id for related in related_candidate_edges(examples.discovery_edges)]
+        for edge_id in edge_ids:
+            expected.add(f"test_database_legal_candidate_is_admissible[{edge_id}]")
+            expected.add(f"test_inadmissible_candidate_does_not_block_the_next[{edge_id}]")
         if capability.discovery.horizon is None:
             expected.add("test_discovery_selection_is_complete")
     if capability.policy.max_rearms is not None:

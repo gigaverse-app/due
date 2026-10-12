@@ -30,6 +30,7 @@ from pytest_obligation.contract import (
 from pytest_obligation.evidence.observation import assert_observation
 from pytest_obligation.integrations.django.edge_values import CandidateEdge
 from pytest_obligation.integrations.django.lock_order import recording_against_the_ledger
+from pytest_obligation.integrations.django.owed_rows import EdgeFamily
 from pytest_obligation.integrations.django.selection_completeness import (
     CompletenessBinding,
     assert_selection_is_complete,
@@ -92,6 +93,7 @@ from due.django.conformance.discovery_admissibility import (
     assert_inadmissible_candidate_does_not_block_the_next,
     candidate_edges,
     discovery_completeness,
+    related_candidate_edges,
 )
 from due.django.conformance.examples import (
     DeliveryExample,
@@ -1339,16 +1341,20 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
 
         if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
             owned = capability
-            edges = candidate_edges(owned)
+            # Owner fields keep their bare ids; a declared related row's edges carry its family name.
+            edges = [pytest.param(edge, None, id=edge.id) for edge in candidate_edges(owned)] + [
+                pytest.param(related.edge, related.family, id=related.id)
+                for related in related_candidate_edges(examples.discovery_edges)
+            ]
 
             def candidate_edge_test(name: str, invariant: Callable[..., None]) -> None:
-                @pytest.mark.parametrize("edge", edges, ids=[edge.id for edge in edges])
-                def test_candidate_edge(self, edge: CandidateEdge):
+                @pytest.mark.parametrize(("edge", "family"), edges)
+                def test_candidate_edge(self, edge: CandidateEdge, family: EdgeFamily | None):
                     # Legacy rows reach discovery through the same query as valid ones;
                     # the derivation example supplies the valid owner each edge perturbs.
                     assert examples.derivation is not None
                     with _binding(examples.environment), _binding(examples.derivation) as facts:
-                        invariant(owned, facts.make_implied, edge)
+                        invariant(owned, facts.make_implied, edge, family)
 
                 proof(test_candidate_edge, name=name)
 
