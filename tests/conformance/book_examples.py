@@ -2,16 +2,13 @@
 
 import hashlib
 import os
-import subprocess
-import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import uuid4
 
-from django.db import connection
-from pytest_obligation.process_histories import ProcessHistory, fault_environment, fault_happened
+from pytest_obligation.process_histories import ProcessHistory
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.seams import ProviderSeam
@@ -27,6 +24,7 @@ from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
 from examples.books.services import create_book, retry_indexing
 from tests.conformance.index_examples import BookContent, examples_for
 from tests.examples.books_support import calls, index_environment
+from tests.harness.processes import run_child
 
 TITLE = "The Left Hand of Darkness"
 AUTHOR = "Ursula K. Le Guin"
@@ -66,9 +64,9 @@ def published(work: PublishBookWork) -> BookContent | None:
     return (entry.title, entry.author) if entry and entry.published else None
 
 
-def activated(work: PublishBookWork) -> bool:
+def activated(work: PublishBookWork) -> BookContent | None:
     entry = search.get(work.index_key)
-    return entry is not None and entry.published
+    return (entry.title, entry.author) if entry and entry.published else None
 
 
 @contextmanager
@@ -96,27 +94,8 @@ def create_admission_failure() -> Iterator[AdmissionFailureExample[IndexBookWork
 
 def run_process(point: str | None) -> ProcessResult:
     title = uuid4().hex
-    base = os.environ.get("DUE_DATABASE_URL", "postgresql://due:due@127.0.0.1:55439/due")
-    database_url = base.rsplit("/", 1)[0] + "/" + str(connection.settings_dict["NAME"])
     marker = Path(os.environ["DUE_BOOK_INDEX"]).parent / f"fault-{title}"
-    result = subprocess.run(
-        [sys.executable, "-m", "tests.harness.book_process", title],
-        env={
-            **os.environ,
-            "DJANGO_SETTINGS_MODULE": "examples.settings",
-            "DUE_DATABASE_URL": database_url,
-            **fault_environment(point, marker),
-        },
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    if point is not None:
-        assert fault_happened(marker), result.stderr
-    else:
-        assert result.returncode == 0, result.stderr
-    return title, result.returncode
+    return title, run_child("tests.harness.book_process", title, point, marker)
 
 
 @dataclass(frozen=True)
@@ -181,6 +160,7 @@ INDEX_EXAMPLES = replace(
         ProcessHistory(
             name="book indexing and publication process death",
             initial=BookOutcome(False, 0, False),
+            expected=BookOutcome(True, 1, True),
             run=run_process,
             observe=process_outcome,
             recover=recover_process,

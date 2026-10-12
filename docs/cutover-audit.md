@@ -155,3 +155,20 @@ model-free owner in `pytest_obligation.integrations.django.transactions`, with a
 bare import alias here for compatibility. BE also uses the public worker scopes,
 lock recorder and Beat driver instead of its remaining implementation copies.
 The public lock ledger is shared, and missing scope/SQL controls now run upstream.
+
+
+## Follow-up against newly merged backend behavior
+
+A later main-branch merge introduced an actual recording-lifecycle consumer of
+`CompletionLease`. The earlier decision to drop unused native APIs did not cover
+this newly shipped use. The focused [completion API](completion-leases.md) and
+its database/cancellation histories are now public; the unused native runtime
+facades remain removed. BE consumes this public owner.
+
+The repeated audit also removed a dead BE suite-inventory copy and consolidated
+registration overlay selection and existing-lifecycle delivery. `SweepDelivery`
+shares work-table recovery's bounded loop and downstream ticks. Provider-seam
+replay now forwards the independent expected outcome introduced by the latest
+obligation contracts. A real SQLite book-provider corruption control failed
+before that forwarding fix and passes only when both replay proofs reject the
+wrong content. File and book process-death histories from main remain connected.

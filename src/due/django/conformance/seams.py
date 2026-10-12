@@ -330,6 +330,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     execute=execute,
                     observe=lambda work: (self.provider_state or self.observe)(provider, work),
                     execution_count_for=lambda work: self.count_for(provider, work),
+                    expected=lambda work: self.delivered(provider, work),
                 )
 
         return binding
@@ -395,7 +396,9 @@ def seam_examples[W: UniverseDurableWork](
 
     ``retry`` is derived only for a bounded policy, ``replay`` only when the mode's
     effect method is the provider boundary, and ``convergence`` only for projections.
-    An adopter whose replay must repeat a lower layer passes ``replay=`` explicitly.
+    Replay checks the independently declared ``delivered`` outcome as well as convergence.
+    An adopter whose replay must repeat a lower layer or observe a different outcome
+    passes ``replay=`` explicitly.
     """
     derived: dict[str, Any] = {"make_work": seam.make_work, "delivery": seam.delivery}
     if capability.policy.max_rearms is not None and "retry" not in overrides:

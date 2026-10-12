@@ -45,3 +45,24 @@ def test_book_worker_verdict_survives_provider_cleanup(monkeypatch: pytest.Monke
         monkeypatch.setattr(IndexBook, "perform_effect", skip_index)
     with pytest.raises(AssertionError, match="worker reaches the required domain outcome") if broken else nullcontext():
         assert_lost_notification_reaches_domain_outcome(index_book, examples)
+
+
+@pytest.mark.parametrize("proof", ["assert_first_execution_has_visible_effect", "assert_replay_converges"])
+def test_derived_book_replay_rejects_consistently_wrong_content(monkeypatch: pytest.MonkeyPatch, proof: str) -> None:
+    from pytest_obligation.contract import contract_cases
+
+    from due.django.conformance.suite import effect_contract
+    from examples.books import search
+
+    write = search.put
+
+    def corrupt(entry: search.IndexEntry) -> str:
+        return write(entry.model_copy(update={"title": "wrong title"}))
+
+    # The real producer, worker and SQLite provider run; only the payload sent
+    # across the provider boundary is corrupted. Matching wrong replays must fail.
+    monkeypatch.setattr(search, "put", corrupt)
+    contract = effect_contract(index_book, examples=INDEX_EXAMPLES)
+    case = next(case.values[0] for case in contract_cases(contract) if case.id == f"REPLAY_SAFE_EXECUTION-{proof}")
+    with pytest.raises(AssertionError, match="declared product outcome"):
+        case.run()

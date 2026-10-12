@@ -81,11 +81,13 @@ def test_environment_surfaces_unclaimed_failure_and_restores_transport(tasks: tu
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
 @pytest.mark.parametrize("forever", [False, True])
+@pytest.mark.parametrize("kind", ["work_table", "sweep"])
 def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
-    tasks: tuple[Celery, list[str]], monkeypatch: pytest.MonkeyPatch, forever: bool
+    tasks: tuple[Celery, list[str]], monkeypatch: pytest.MonkeyPatch, forever: bool, kind: str
 ) -> None:
-    from due.django.conformance.delivery import WorkTableDelivery
-    from tests.harness.primitive import primitive
+    from due.django.conformance.bindings import DurableWorkBindings
+    from due.django.conformance.delivery import SweepDelivery, WorkTableDelivery
+    from tests.harness.primitive import primitive, record
 
     app, seen = tasks
     child = app.tasks["scheduler.child"]
@@ -103,7 +105,12 @@ def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
         if forever or ticks == 1:
             child.apply_async(args=("downstream",), countdown=7200)
 
-    with WorkTableDelivery(primitive, app=app).session() as delivery:
+    driver = (
+        WorkTableDelivery(primitive, app=app)
+        if kind == "work_table"
+        else SweepDelivery(DurableWorkBindings(primitive, record).sweep, app=app)
+    )
+    with driver.session() as delivery:
         child.delay("lost")
         delivery.lose()
         if forever:

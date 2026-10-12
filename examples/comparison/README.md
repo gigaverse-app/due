@@ -52,7 +52,7 @@ known dead. These are correctness histories, not comparable latency measurements
 
 ## What the comparison establishes
 
-Both implementations must pass all ten cases in both Django CI configurations.
+Both implementations must pass all eleven cases in both Django CI configurations.
 Crash recovery and atomic enqueueing are shared capabilities. Due additionally
 provides a model for fenced product settlement and application-bound generated
 contracts; its other demos exercise revision repair and uncertain operations.
