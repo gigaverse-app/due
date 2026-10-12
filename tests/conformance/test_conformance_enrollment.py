@@ -410,6 +410,28 @@ def test_single_row_admission_rejects_contradictory_or_empty_declarations(declar
 
 
 @pytest.mark.no_db
+def test_a_non_operation_routes_its_rejection_matrix_to_classified_failures():
+    contract = effect_contract(
+        primitive, examples=_immutable_examples(rejections={"not found": declared_only, "rate limited": declared_only})
+    )
+    assert set(contract.classified_failures) == {"not found", "rate limited"}
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize(
+    ("declared", "match"),
+    [
+        ({"rejections": {}}, "rejections needs at least one real provider scenario"),
+        ({"uncertainties": {"unknown": declared_only}}, "uncertainties examples require the operation execution mode"),
+    ],
+    ids=["empty-matrix", "uncertainty-outside-an-operation"],
+)
+def test_a_rejection_matrix_must_name_real_outcomes_and_uncertainty_stays_operation_only(declared, match):
+    with pytest.raises(ObligationContractDesignError, match=match):
+        effect_contract(primitive, examples=_immutable_examples(**declared))
+
+
+@pytest.mark.no_db
 def test_convergence_binding_and_family_decisions_reach_the_contract():
     from pytest_obligation.contract import (
         Claim,

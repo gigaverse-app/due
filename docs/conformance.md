@@ -92,6 +92,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | --- | --- | --- |
 | Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
+| Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
 | Replay-safe effect | `replay` | An actual second external execution leaves the same observable result |
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties` | UNKNOWN blocks resend; receipts repair publication through interruption histories |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
