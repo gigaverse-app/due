@@ -11,6 +11,7 @@ from uuid import uuid4
 from pytest_obligation.process_histories import ProcessHistory
 
 from due.django.conformance.delivery import WorkTableDelivery
+from due.django.conformance.seams import ProviderSeam
 from due.django.conformance.suite import (
     AdmissionFailureExample,
     ProducerExample,
@@ -20,7 +21,7 @@ from due.django.testing import hold_nudges
 from examples.books import search, services
 from examples.books.effects import index_book, publish_book
 from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
-from tests.conformance.index_examples import BookContent, Stage, examples_for
+from tests.conformance.index_examples import BookContent, examples_for
 from tests.examples.books_support import calls, index_environment
 from tests.harness.processes import run_child
 
@@ -62,9 +63,9 @@ def published(work: PublishBookWork) -> BookContent | None:
     return (entry.title, entry.author) if entry and entry.published else None
 
 
-def activated(work: PublishBookWork) -> bool:
+def activated(work: PublishBookWork) -> BookContent | None:
     entry = search.get(work.index_key)
-    return entry is not None and entry.published
+    return (entry.title, entry.author) if entry and entry.published else None
 
 
 def revisit_indexing(works: tuple[IndexBookWork, ...]) -> None:
@@ -167,20 +168,22 @@ BOOK_TERMINAL = TerminalExample(
 )
 
 
-INDEX_EXAMPLES = examples_for(
-    Stage(
-        capability=index_book,
-        make_work=make_index_work,
-        observe=indexed,
-        external_observe=index_content,
-        effect_calls=lambda work: calls.get().writes.count(index_key(work)),
-        unavailable=lambda: calls.get().writes.reject(lambda: OSError("search unavailable")),
-        execute=index_book.perform_effect,
-        terminal=BOOK_TERMINAL,
-        expected=(TITLE, AUTHOR),
-        external_expected=(TITLE, AUTHOR),
-    )
+# ARRANGE: create a book through its application command.
+# REAL PRODUCTION: IndexBook.perform_effect and fenced successor admission.
+# EXTERNAL SEAM: observe and fault the real SQLite search provider.
+# OBSERVE: independently read the index and the durable publication successor.
+INDEX_SEAM = ProviderSeam(
+    environment=index_environment,
+    make_work=make_index_work,
+    observe=lambda provider, work: indexed(work),
+    provider_state=lambda provider, work: index_content(work),
+    delivered=lambda provider, work: (TITLE, AUTHOR),
+    provider_expected=lambda provider, work: (TITLE, AUTHOR),
+    calls=lambda provider: provider.writes.total,
+    calls_for=lambda provider, work: provider.writes.count(index_key(work)),
+    refuse=lambda provider: provider.writes.reject(lambda: OSError("search unavailable")),
 )
+INDEX_EXAMPLES = examples_for(index_book, INDEX_SEAM, BOOK_TERMINAL)
 INDEX_EXAMPLES = replace(
     INDEX_EXAMPLES,
     immutable_inputs="Indexing captures the submission once; operator retry preserves that input and its identity.",
@@ -206,20 +209,22 @@ INDEX_EXAMPLES = replace(
         ),
     ),
 )
-PUBLISH_EXAMPLES = examples_for(
-    Stage(
-        capability=publish_book,
-        make_work=make_publish_work,
-        observe=published,
-        external_observe=activated,
-        effect_calls=lambda work: calls.get().publications.count(work.index_key),
-        unavailable=lambda: calls.get().publications.reject(lambda: OSError("search unavailable")),
-        execute=publish_book.perform_effect,
-        terminal=BOOK_TERMINAL,
-        expected=(TITLE, AUTHOR),
-        external_expected=True,
-    )
+# ARRANGE: finish the real indexing stage to admit its publication successor.
+# REAL PRODUCTION: PublishBook.perform_effect and fenced reader visibility.
+# EXTERNAL SEAM: observe and fault actual SQLite publication writes.
+# OBSERVE: read search visibility independently from the product pointer.
+PUBLISH_SEAM = ProviderSeam(
+    environment=index_environment,
+    make_work=make_publish_work,
+    observe=lambda provider, work: published(work),
+    provider_state=lambda provider, work: activated(work),
+    delivered=lambda provider, work: (TITLE, AUTHOR),
+    provider_expected=lambda provider, work: (TITLE, AUTHOR),
+    calls=lambda provider: provider.publications.total,
+    calls_for=lambda provider, work: provider.publications.count(work.index_key),
+    refuse=lambda provider: provider.publications.reject(lambda: OSError("search unavailable")),
 )
+PUBLISH_EXAMPLES = examples_for(publish_book, PUBLISH_SEAM, BOOK_TERMINAL)
 PUBLISH_EXAMPLES = replace(
     PUBLISH_EXAMPLES,
     immutable_inputs="Publication captures the upstream result key; later metadata and repeated settlement cannot replace it.",

@@ -81,11 +81,13 @@ def test_environment_surfaces_unclaimed_failure_and_restores_transport(tasks: tu
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
 @pytest.mark.parametrize("forever", [False, True])
+@pytest.mark.parametrize("kind", ["work_table", "sweep"])
 def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
-    tasks: tuple[Celery, list[str]], monkeypatch: pytest.MonkeyPatch, forever: bool
+    tasks: tuple[Celery, list[str]], monkeypatch: pytest.MonkeyPatch, forever: bool, kind: str
 ) -> None:
-    from due.django.conformance.delivery import WorkTableDelivery
-    from tests.harness.primitive import primitive
+    from due.django.conformance.bindings import DurableWorkBindings
+    from due.django.conformance.delivery import SweepDelivery, WorkTableDelivery
+    from tests.harness.primitive import primitive, record
 
     app, seen = tasks
     child = app.tasks["scheduler.child"]
@@ -103,7 +105,12 @@ def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
         if forever or ticks == 1:
             child.apply_async(args=("downstream",), countdown=7200)
 
-    with WorkTableDelivery(primitive, app=app).session() as delivery:
+    driver = (
+        WorkTableDelivery(primitive, app=app)
+        if kind == "work_table"
+        else SweepDelivery(DurableWorkBindings(primitive, record).sweep, app=app)
+    )
+    with driver.session() as delivery:
         child.delay("lost")
         delivery.lose()
         if forever:
@@ -115,3 +122,55 @@ def test_handoff_recovers_downstream_etas_and_rejects_unobserved_work(
         assert ticks == 3
         assert not recorded
     assert child.delay is record_only
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+def test_sweep_history_shares_binding_and_restores_nested_failure(tasks: tuple[Celery, list[str]]) -> None:
+    from contextlib import contextmanager, nullcontext
+
+    from pytest_obligation.crash_histories import HandoffHistory
+    from pytest_obligation.profiles.automatic_recovery import DueWorkSweep
+
+    from due.django.conformance.bindings import DurableWorkBindings
+    from due.django.conformance.delivery import SweepDelivery
+    from tests.harness.primitive import primitive, record
+
+    bindings = DurableWorkBindings(primitive, record)
+
+    opened = 0
+    closed = 0
+
+    @contextmanager
+    def counted() -> Iterator[DueWorkSweep]:
+        nonlocal opened, closed
+        opened += 1
+        try:
+            with bindings.sweep() as sweep:
+                yield sweep
+        finally:
+            closed += 1
+
+    driver = SweepDelivery(counted, app=tasks[0])
+    history = driver.scoped(
+        HandoffHistory(
+            name="binding lifetime",
+            arrange=lambda: nullcontext("owner"),
+            transition=lambda row: None,
+            observe=lambda row: row,
+            expected="owner",
+        )
+    )
+    with history.arrange():
+        with driver.session():
+            assert opened == 1 and closed == 0
+        with pytest.raises(RuntimeError, match="nested failure"):
+            with history.arrange(), driver.session():
+                assert opened == 2 and closed == 0
+                raise RuntimeError("nested failure")
+        with driver.session():
+            assert opened == 2 and closed == 1
+    assert closed == 2
+    with driver.session():
+        assert opened == 3 and closed == 2
+    assert closed == 3
