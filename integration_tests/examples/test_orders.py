@@ -8,13 +8,14 @@ from due.errors import EffectOutcomeUnknownError
 from examples.orders import provider
 from examples.orders.effects import print_order
 from examples.orders.models import PrintOrder
-from examples.orders.services import order_print
+from examples.orders.services import order_print, receive_printer_receipt
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
+@pytest.mark.parametrize("receipt_path", ["observation", "callback"])
 def test_unknown_print_is_observed_without_creating_a_second_physical_order(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, receipt_path: str
 ) -> None:
     monkeypatch.setenv("DUE_BOOK_INDEX", str(tmp_path / "printer.sqlite3"))
     monkeypatch.setenv("DUE_PRINTER_LOSE_RESPONSE", "1")
@@ -26,7 +27,13 @@ def test_unknown_print_is_observed_without_creating_a_second_physical_order(
     with WorkTableDelivery(print_order).session() as recovery:
         recovery.recover()
         assert PrintOrder.objects.get(pk=work.owner_id).status == "unknown"
-        monkeypatch.setenv("DUE_PRINTER_HIDE_RECEIPTS", "0")
+        if receipt_path == "callback":
+            receipt = provider.receipt(str(work.reference))
+            assert receipt is not None
+            assert receive_printer_receipt(receipt)
+            assert receive_printer_receipt(receipt)  # Duplicate delivery retains the same evidence.
+        else:
+            monkeypatch.setenv("DUE_PRINTER_HIDE_RECEIPTS", "0")
         recovery.recover()
     order = PrintOrder.objects.get(pk=work.owner_id)
     receipt = provider.receipt(str(order.reference))
