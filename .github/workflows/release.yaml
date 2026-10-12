@@ -40,6 +40,7 @@ jobs:
       && github.event.workflow_run.event == 'push'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
+    environment: release-automation
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -55,20 +56,21 @@ jobs:
           script: |
             const {data: branch} = await github.rest.repos.getBranch({...context.repo, branch: 'main'});
             core.setOutput('matches', branch.commit.sha === context.payload.workflow_run.head_sha);
-      - name: Explain release PR authentication
+      - name: Require release PR authentication
         env:
           HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
         run: |
           if [[ "$HAS_RELEASE_TOKEN" != "true" ]]; then
-            echo "::warning::Set RELEASE_PLEASE_TOKEN to a scoped release-bot token to run release PR CI without GitHub's GITHUB_TOKEN approval prompt."
+            echo "::error::Configure RELEASE_PLEASE_TOKEN in the main-only release-automation environment."
+            exit 1
           fi
       - id: release
         if: steps.current.outputs.matches == 'true'
         uses: googleapis/release-please-action@v4
         with:
-          # A dedicated bot token triggers ordinary PR CI. GITHUB_TOKEN remains a
-          # working fallback, but GitHub requires approval for each PR update.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          # A non-GITHUB_TOKEN credential triggers ordinary PR CI. The main-only
+          # environment keeps it unavailable to pull-request test jobs.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           target-branch: main
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

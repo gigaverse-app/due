@@ -30,14 +30,19 @@ on every update. This is a [GitHub token rule](https://docs.github.com/en/action
 not PyPI approval and not a request to publish. Approving those workflows only runs
 CI; **merging the release PR** is the publishing decision.
 
-To make release PR checks run normally, set the repository Actions secret
-`RELEASE_PLEASE_TOKEN` to a dedicated release-bot token with access to this
-repository and Contents and Pull requests read/write permissions. Do not reuse a
-broad private-repository token in a public repository. A GitHub App installation
-token can serve the same purpose if generated in the job. With no dedicated token,
-the workflow warns and retains the working `GITHUB_TOKEN` fallback, including
-GitHub's approval prompt. Never use `pull_request_target` to execute PR code merely
-to bypass approval.
+Release PR checks use `RELEASE_PLEASE_TOKEN` from the `release-automation`
+environment, restricted to the `main` branch without required reviewers. Normal
+PR jobs do not reference that environment. The release job fails clearly when
+the credential is absent; it never falls back to `GITHUB_TOKEN` and recreates the
+approval prompt.
+
+The current credential is the maintainer's existing GitHub CLI OAuth credential,
+provisioned through the API. It has `repo`, `workflow`, `admin:org` and `gist`
+scopes, broader than release automation needs. Revoking that CLI authorization
+also revokes this release credential. Prefer replacing it with a dedicated
+fine-grained token limited to these OSS repositories with Contents and Pull
+requests read/write, or an installation token from a dedicated GitHub App. Keep
+any replacement in the same main-only environment.
 
 ## Distribution name
 
