@@ -6,7 +6,6 @@ from unittest.mock import patch
 from django.db import connection
 from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity, AdmissionPublication
 from pytest_obligation.profiles.job_retry_limits import BoundedRetry
-from tests.harness.primitive import PrimitiveWork, primitive, record
 
 from due.django.conformance import DurableWorkBindings
 from due.django.models import DurableWorkState
@@ -16,6 +15,7 @@ from due.django.testing import hold_nudges, make_due
 from examples.documents.effects import PublishDocument, request_publication
 from examples.documents.models import Document, PublicationWork
 from tests.harness import primitive as fixture
+from tests.harness.primitive import PrimitiveWork, primitive, record
 
 
 @contextmanager

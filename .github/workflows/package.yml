@@ -41,4 +41,4 @@ jobs:
           package_sha=$(git subtree split --prefix=package "$source_sha")
           test "$(git rev-parse "$source_sha:package")" = "$(git rev-parse "$package_sha^{tree}")"
           git push origin "$package_sha:refs/heads/package"
-          printf 'Source: `%s`\n\nPackage: `%s`\n' "$source_sha" "$package_sha" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Source: %s\n\nPackage: %s\n' "$source_sha" "$package_sha" >> "$GITHUB_STEP_SUMMARY"

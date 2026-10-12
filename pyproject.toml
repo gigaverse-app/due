@@ -10,7 +10,7 @@ dev = [
 ]
 
 [tool.ruff]
-src = ["package/src", "package/shims", "."]
+src = ["package/src", "package/shims", "package", "."]
 line-length = 120
 target-version = "py314"
 
@@ -36,7 +36,3 @@ members = ["package"]
 
 [tool.uv.sources]
 django-due = { workspace = true }
-
-# Normal CI keeps main's reviewed replay-outcome implementation until its next
-# manual PyPI release. This development source is not emitted into wheel metadata.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" }

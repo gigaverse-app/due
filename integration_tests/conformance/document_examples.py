@@ -7,7 +7,6 @@ from pathlib import Path
 from pytest_obligation.contract import NotApplicable
 from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
-from tests.harness.processes import run_child as run_demo_child
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.seams import ProviderSeam, seam_examples
@@ -23,6 +22,7 @@ from examples.documents.effects import publish_document, request_publication, re
 from examples.documents.models import Document, PublicationWork
 from integration_tests.examples.file_support import file_environment as environment
 from integration_tests.examples.file_support import files as _files
+from integration_tests.harness.processes import run_child as run_demo_child
 
 
 def destination(work: PublicationWork) -> Path:

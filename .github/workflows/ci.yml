@@ -74,6 +74,12 @@ jobs:
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
+      - name: Prove the package export has no dependency on this repository
+        if: matrix.django == 'locked'
+        run: |
+          package_dir=$(mktemp -d)
+          git archive HEAD:package | tar -x -C "$package_dir"
+          uv run --directory "$package_dir" --extra selftest python -m pytest --due-work-check-fixtures
       - name: Run library controls without demo applications
         working-directory: package
         run: ../.venv/bin/python -m pytest --due-work-check-fixtures

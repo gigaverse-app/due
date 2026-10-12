@@ -10,7 +10,6 @@ from django.utils import timezone
 from pytest_obligation.contract import NotApplicable
 from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
-from tests.harness.processes import run_child
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.seams import ProviderSeam, seam_examples
@@ -27,6 +26,7 @@ from examples.scheduled.models import Publication, PublicationDeadline
 from examples.scheduled.services import cancel_publication, create_publication, retry_publication
 from integration_tests.examples.file_support import file_environment as environment
 from integration_tests.examples.file_support import files
+from integration_tests.harness.processes import run_child
 
 TEXT = "The next edition is ready."
 

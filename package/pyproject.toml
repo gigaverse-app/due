@@ -62,3 +62,8 @@ local_scheme = "no-local-version"
 # Embedded subtrees must not take a version from their parent repository's tags.
 fallback_version = "0.1.0.dev0"
 
+
+[tool.uv.sources]
+# Normal CI keeps main's reviewed replay-outcome implementation until its next
+# manual PyPI release. This development source is not emitted into wheel metadata.
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "eaa2385c8e4cfdc7711e9e37d972e162dd01e50d" }

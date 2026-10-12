@@ -15,17 +15,6 @@ import pytest
 from django.conf import settings
 from django.test import override_settings
 from pytest_obligation.contract import ObligationContractDesignError
-from tests.harness.enrollment import TEST_OWNED_CAPABILITIES, no_fixture
-from tests.harness.primitive import (
-    isolated_primitive_fixture as isolated_primitive_fixture,
-)
-from tests.harness.primitive import (
-    primitive,
-    record,
-)
-from tests.harness.primitive import (
-    root_registration_fixture as root_registration_fixture,
-)
 
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.operations import DurableExternalOperation
@@ -52,6 +41,17 @@ from due.django.public import (
 from due.django.runtime.registry import installed
 from due.django.runtime.tasks import capability_for
 from due.django.testing import hold_nudges
+from tests.harness.enrollment import TEST_OWNED_CAPABILITIES, no_fixture
+from tests.harness.primitive import (
+    isolated_primitive_fixture as isolated_primitive_fixture,
+)
+from tests.harness.primitive import (
+    primitive,
+    record,
+)
+from tests.harness.primitive import (
+    root_registration_fixture as root_registration_fixture,
+)
 
 PRODUCTION_CAPABILITIES = {entry.name: entry.capability for entry in installed.get().values()}
 
@@ -575,11 +575,11 @@ def _gated_contract(monkeypatch: pytest.MonkeyPatch):
     from datetime import timedelta
 
     from django.db.models import Q
-    from tests.harness.gated import GatedPrimitiveEffect
-    from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner
 
     from due.django.conformance.suite import DeliveryExample, EligibilityExample
     from due.django.public import ExecutionEligibility
+    from tests.harness.gated import GatedPrimitiveEffect
+    from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner
 
     capability = replace(
         GatedPrimitiveEffect.for_owner(owner=PrimitiveOwner, work=primitive.model, policy=primitive.policy),

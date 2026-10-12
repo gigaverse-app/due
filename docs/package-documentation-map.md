@@ -34,3 +34,5 @@ The package subtree includes the docs needed to change and operate the library. 
 | `docs/verification.md` | `package/docs/verification.md` | Library API, guarantees, adoption or maintenance |
 
 Root `README.md`, contributor/release guides, project plans and demo-specific documentation remain outside the package. `package/README.md` is the library entry point; it links to the public showcase instead of duplicating it.
+
+The package-local [development guide](../package/docs/development.md) owns reusable test commands and the source/split/export model. Full application integration proofs stay in `integration_tests/`; their fixtures are colocated there when they depend on demo applications.

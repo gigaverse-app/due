@@ -2,12 +2,12 @@
 
 from pytest_obligation import ObligationContract
 from pytest_obligation.contract import Claim, DueWorkSource, NotApplicable, Profile, due_work_contract_suite
-from tests.harness.primitive import PrimitiveWork, primitive, record
-from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 
 from due.django.capabilities.authoring import _DurableWorkTransaction
 from due.django.conformance import DurableWorkBindings
 from integration_tests.conformance.bindings import admission, age, publish, publish_retry, retries
+from tests.harness.primitive import PrimitiveWork, primitive, record
+from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 
 bindings = DurableWorkBindings(primitive, record)
 

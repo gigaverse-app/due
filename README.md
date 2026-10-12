@@ -155,7 +155,7 @@ Django books demo into a Due workflow and documents its upstream provenance.
 ```bash
 git clone https://github.com/gigaverse-app/due.git
 cd due
-uv sync --locked
+uv sync --all-packages --locked
 docker compose up -d
 export DJANGO_SETTINGS_MODULE=examples.settings
 uv run python -m django migrate
@@ -185,7 +185,7 @@ For a browser application with two independently recoverable stages, run the
 With the local services running:
 
 ```bash
-uv run pytest tests/integration/test_celery_worker.py -v
+uv run pytest integration_tests/integration/test_celery_worker.py -v
 ```
 
 This test commits a document and its publication obligation while withholding the
@@ -196,7 +196,7 @@ the recovery task through **Redis**, and checks the file and product state in
 For application-bound recovery, replay, revision, admission and real process-death checks:
 
 ```bash
-uv run pytest tests/conformance -p due.django.conformance.reporting \
+uv run pytest integration_tests/conformance -p due.django.conformance.reporting \
   --due-work-summary --due-work-profile-report=profiles.json --durable-work-report=effects.json
 ```
 
@@ -236,12 +236,13 @@ replay. [Operations and monitoring →](package/docs/operations.md)
 ## Contribute
 
 ```bash
-uv sync --locked
+uv sync --all-packages --locked
 uv run pre-commit install
 uv run pre-commit run --all-files
 docker compose up -d --wait
-uv run pytest --due-work-require-assessed --due-work-profile-report=profiles.json
-uv build
+(cd package && ../.venv/bin/python -m pytest --due-work-check-fixtures)
+uv run --no-sync pytest --due-work-require-assessed --due-work-profile-report=profiles.json
+uv build --project package --out-dir dist
 ```
 
 Pre-commit uses the Ruff and Pyrefly versions in `uv.lock`. CI also tests the
@@ -258,3 +259,5 @@ The [conformance API](package/docs/conformance-api.md#derive-routine-bindings-fr
 
 
 For an existing application, see [migration settings and stable wire names](package/docs/integration.md#migrating-an-existing-application).
+
+See [package ownership and subtree development](package/docs/development.md) for library edits made inside an adopter checkout.

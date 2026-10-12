@@ -58,7 +58,7 @@ behavior they checked had been extracted. They now run in standalone CI:
 | Invalid concurrent indexes, wrong key/include/predicate, unusable predicates, renamed equivalent indexes and alternate bitmap plans | Same database controls |
 | Planner settings survive schema probes | Same database controls; generic inspector controls remain in pytest-obligation |
 | Database-legal discovery, rejected desired state and poison stopping a discovery page | [`test_discovery_admissibility.py`](../tests/conformance/test_discovery_admissibility.py) |
-| Every recovery phase declares a proof and every shared proof names an existing test | [`test_recovery_isolation_phase_proofs.py`](../tests/conformance/test_recovery_isolation_phase_proofs.py) |
+| Every recovery phase declares a proof and every shared proof names an existing test | [`test_recovery_isolation_phase_proofs.py`](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_recovery_isolation_phase_proofs.py) |
 | Inline caller histories and unbounded discovery appear in reports and cannot disappear from collection | [`test_conformance_collection_declared_scenarios.py`](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_conformance_collection_declared_scenarios.py) |
 | An unbounded retry policy claims profile J through the persistent-failure proof, so its retry example must keep the work owed | [`test_conformance_enrollment.py`](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_conformance_enrollment.py), [`test_persistent_retry.py`](../tests/conformance/test_persistent_retry.py) |
 

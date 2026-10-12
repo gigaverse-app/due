@@ -11,3 +11,5 @@ Durable obligations for Django and PostgreSQL. This directory is a standalone in
 - [Runnable public applications](https://github.com/gigaverse-app/due#readme)
 
 Library source, reusable controls and maintenance docs travel together. Application demos, browser/worker integration tests and repository tooling stay in the [full public repository](https://github.com/gigaverse-app/due).
+
+[Local development, package tests and bidirectional subtree sync](docs/development.md).

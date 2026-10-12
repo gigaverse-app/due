@@ -9,7 +9,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from pytest_obligation.process_histories import ProcessHistory
-from tests.harness.processes import run_child
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.seams import ProviderSeam
@@ -24,6 +23,7 @@ from examples.books.effects import index_book, publish_book
 from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
 from integration_tests.conformance.index_examples import BookContent, examples_for
 from integration_tests.examples.books_support import calls, index_environment
+from integration_tests.harness.processes import run_child
 
 TITLE = "The Left Hand of Darkness"
 AUTHOR = "Ursula K. Le Guin"
