@@ -19,6 +19,11 @@ for entry in CatalogEntry.objects.all():
 PY
 ```
 
+Add `--inline` to try the projection immediately after admission commits. Inside an
+enclosing transaction it defers; a held claim leaves recovery responsible. The
+generated caller histories repeat the original entry ID after creating it, and
+exercise refusal, lost responses, transaction rollback and a competing claim.
+
 Run the controlled old-write history:
 
 ```bash

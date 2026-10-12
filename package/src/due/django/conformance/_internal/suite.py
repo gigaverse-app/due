@@ -117,6 +117,7 @@ from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
     RECEIPT_RECOVERY_HISTORIES,
     SYNCHRONOUS_CALLER_HISTORIES,
+    WAKE_HISTORIES,
     acknowledgement_replays,
     admission_atomicity,
     assert_lost_acknowledgement_replay_converges,
@@ -124,7 +125,9 @@ from due.django.conformance.scenarios import (
     assert_receipt_repairs_product,
     assert_synchronous_caller,
     assert_uncertainty_blocks_resend,
+    assert_wake_rereads_facts,
     run_evidence_history,
+    wakes_existing_work,
 )
 from due.django.conformance.scenarios import (
     AdmissionFailureExample as AdmissionFailureExample,
@@ -631,6 +634,11 @@ def effect_contract[W: UniverseDurableWork, ResultT](
         raise ObligationContractDesignError(f"{name}: derivation examples require registered production discovery")
     if not operation and examples.applied_receipt is not None:
         raise ObligationContractDesignError(f"{name}: ambiguity examples require the operation execution mode")
+    if examples.wake_commands and not wakes_existing_work(capability):
+        raise ObligationContractDesignError(
+            f"{name}: wake_commands require work a command can wake; evidence-required operations and "
+            "independent compensations cannot be woken"
+        )
     if not operation and examples.evidence_entry is not None:
         raise ObligationContractDesignError(f"{name}: evidence_entry requires the operation execution mode")
     if examples.admission_not_applicable is not None:
@@ -1311,6 +1319,20 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 # nudge suppressor would hide a caller racing its own worker.
                 with _binding(examples.synchronous_callers[caller]) as scenario:
                     assert_synchronous_caller(capability, scenario, history=history)
+
+        if examples.wake_commands:
+
+            @proof
+            @pytest.mark.parametrize("command", examples.wake_commands)
+            @pytest.mark.parametrize("history", WAKE_HISTORIES)
+            def test_wake_command_rereads_facts(self, command: str, history: str):
+                # The wake's notification is held and dropped; registered recovery must cover it.
+                with (
+                    _binding(examples.environment),
+                    hold_nudges(),
+                    _binding(examples.wake_commands[command]) as scenario,
+                ):
+                    assert_wake_rereads_facts(capability, scenario, history=history)
 
         if examples.perturb_inputs is not None:
             assert isinstance(capability, OwnedDurableWorkCapability)

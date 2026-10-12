@@ -287,8 +287,10 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         fail_effect: Callable[[P], AbstractContextManager[object]],
         failure: type[Exception] | None,
         requires_inline: bool = False,
+        repeat: Callable[[P, A], object] | None = None,
+        lose_response: Callable[[P], AbstractContextManager[object]] | None = None,
     ) -> Callable[[], AbstractContextManager[SynchronousCallerExample[R]]]:
-        """A request-path entry point that admits and then attempts inline."""
+        """A request-path entry point that admits and then attempts inline (see SynchronousCallerExample)."""
 
         @contextmanager
         def binding() -> Iterator[SynchronousCallerExample[R]]:
@@ -302,6 +304,8 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                     fail_effect=lambda: fail_effect(provider),
                     failure=failure,
                     requires_inline=requires_inline,
+                    repeat=(lambda: repeat(provider, arranged)) if repeat is not None else None,
+                    lose_response=(lambda: lose_response(provider)) if lose_response is not None else None,
                 )
 
         return binding

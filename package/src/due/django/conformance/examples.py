@@ -49,6 +49,9 @@ from due.django.conformance.scenarios import (
 from due.django.conformance.scenarios import (
     SynchronousCallerExample as SynchronousCallerExample,
 )
+from due.django.conformance.scenarios import (
+    WakeExample as WakeExample,
+)
 from due.django.public import (
     UniverseDurableWork,
 )
@@ -208,6 +211,8 @@ class EffectExamples[W: UniverseDurableWork]:
     convergence_families: Mapping[ConvergenceFamily, NotApplicable] = field(default_factory=dict)
     # Request-path entry points that admit and then attempt inline; see SynchronousCallerExample.
     synchronous_callers: dict[str, Binding[SynchronousCallerExample[Any]]] = field(default_factory=dict)
+    # Commands that commit new facts for existing work and wake it; see WakeExample.
+    wake_commands: dict[str, Binding[WakeExample[W, Any]]] = field(default_factory=dict)
     rejections: Mapping[str, Binding[RejectionExample[W, Any]]] | None = None
     uncertainties: Mapping[str, Binding[DeliveryExample[W, Any]]] | None = None
     observation: Binding[ObservationExample[W, Any, Any]] | None = None

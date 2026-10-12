@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 from django.db import OperationalError, transaction
+from pytest_obligation.contract import ObligationContractDesignError
 
 # pytest-global: Generated histories record the observations they actually assert, without application values.
 from pytest_obligation.evidence.observation import assert_observation
@@ -47,7 +48,10 @@ from due.django.public import (
     DurableWorkState,
     ReopenAfter,
     UniverseDurableWork,
+    WorkClaim,
     WorkExecutionContext,
+    WorkIncomplete,
+    claim_work,
     database_now,
 )
 
@@ -267,12 +271,17 @@ class SynchronousCallerExample[ObservationT]:
 
     ``call`` is what callers actually invoke (a view or public service method,
     never the private transaction seam), so an enclosing ``@aatomic`` or a
-    caller-held transaction is exercised as production composes it. It must
-    admit fresh work or a new revision of this capability on every call.
+    caller-held transaction is exercised as production composes it. Its first
+    invocation must owe a visible change of this capability.
     ``fail_effect`` makes the external boundary refuse; ``failure`` is the
     exception callers then see, or None when the entry point absorbs it.
     ``requires_inline`` declares that the call must refuse an enclosing
     transaction (complete()) instead of deferring (complete_or_defer()).
+    ``repeat`` invokes the same entry point again with the value ``call``
+    requested; it defaults to ``call`` itself, so bind it when ``call`` creates
+    a new owner each time. ``lose_response`` lets the provider apply the effect
+    and then fails the caller's request, as a timeout after acceptance does
+    (``ProviderProbe.lose_response``); the response-lost history requires it.
     """
 
     call: Callable[[], object]
@@ -282,10 +291,20 @@ class SynchronousCallerExample[ObservationT]:
     fail_effect: Callable[[], AbstractContextManager[object]]
     failure: type[Exception] | None
     requires_inline: bool = False
+    repeat: Callable[[], object] | None = None
+    lose_response: Callable[[], AbstractContextManager[object]] | None = None
 
 
 # pytest-global: Generated synchronous-caller histories; this tuple creates no fixtures.
-SYNCHRONOUS_CALLER_HISTORIES = ("inline", "enclosing-commit", "enclosing-rollback", "effect-failure")
+SYNCHRONOUS_CALLER_HISTORIES = (
+    "inline",
+    "enclosing-commit",
+    "enclosing-rollback",
+    "effect-failure",
+    "claim-held",
+    "repeat-same-value",
+    "response-lost",
+)
 
 
 def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
@@ -365,11 +384,22 @@ def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
             assert example.effect_calls() == settled_calls, "a duplicate deferred delivery repeated provider I/O"
             return
 
-        assert history == "effect-failure", history
+        if history == "repeat-same-value":
+            _assert_repeat_admits_nothing(capability, example, entry, sent)
+            return
+
+        if history == "response-lost":
+            _assert_lost_response_is_not_blindly_resent(capability, example, entry, sent)
+            return
+
         with example.fail_effect():
             with pytest.raises(example.failure) if example.failure else nullcontext():
                 example.call()
         owed = owed_ids()
+        if history == "claim-held":
+            _assert_caller_waits_for_the_held_claim(capability, example, entry, sent, owed)
+            return
+        assert history == "effect-failure", history
         assert owed, "a refused effect must leave the accepted change owed, not abandoned"
         assert not [args for args, _ in sent if args[0] == entry.name], "a failed inline attempt nudged its worker"
         failed_calls = example.effect_calls()
@@ -381,6 +411,169 @@ def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
 
 
 type _SentTask = tuple[tuple[str, int, str], dict[str, object]]
+
+
+def _work_rows(model: type[UniverseDurableWork]) -> dict[int, tuple[object, ...]]:
+    """Every work row's identity, revision and claim facts; a new row, revision or claim changes it."""
+    return {
+        row[0]: row[1:]
+        for row in model.objects.values_list(
+            "pk", "state", "desired_revision", "applied_revision", "fencing_token", "rearm_count"
+        )
+    }
+
+
+def _assert_caller_waits_for_the_held_claim[W: UniverseDurableWork, ResultT, ObservationT](
+    capability: DurableWorkCapability[W, ResultT],
+    example: SynchronousCallerExample[ObservationT],
+    entry: DurableWorkRegistration,
+    sent: list[_SentTask],
+    owed: set[int],
+) -> None:
+    """
+    Another worker holds the claim of the accepted change when the caller runs again.
+
+    The caller may take over only by fencing that claim (a new revision); while
+    the claim is held it must not reach the provider. Either way the change is
+    performed exactly once, after the holder dies and recovery delivers.
+    """
+    assert owed, "positive control: a refused effect must leave the accepted change owed"
+    calls = example.effect_calls()
+    claims: list[WorkClaim[W]] = []
+    for work in capability.model.objects.filter(pk__in=owed):
+        make_due(work)
+        claim = claim_work(capability.model, work.pk, lease_duration=capability.policy.lease_duration)
+        assert claim is not None, "positive control: another worker must hold the owed work's claim"
+        claims.append(claim)
+    try:
+        # Revisit the accepted owner; call() may create a different owner.
+        (example.repeat or example.call)()
+    except WorkIncomplete:
+        # complete() reports the held claim; complete_or_defer() returns it as a status instead.
+        assert example.requires_inline, "a deferring caller must report the held claim as a status, not raise"
+    if example.effect_calls() > calls:
+        held = [claim.work_id for claim in claims if claim.owned_work().exists()]
+        assert not held, f"the caller reached the external boundary while another worker still held work {held}"
+    owed |= set(outstanding_work(capability.model).values_list("pk", flat=True))
+    _settle_through_recovery(entry, capability.model, owed, sent)
+    assert_observation(
+        example.observe(), example.expected, because="the held claim's change is delivered after its holder dies"
+    )
+    assert example.effect_calls() == calls + 1, (
+        "the caller and the worker holding the claim must perform the accepted change exactly once"
+    )
+
+
+def _assert_repeat_admits_nothing[W: UniverseDurableWork, ResultT, ObservationT](
+    capability: DurableWorkCapability[W, ResultT],
+    example: SynchronousCallerExample[ObservationT],
+    entry: DurableWorkRegistration,
+    sent: list[_SentTask],
+) -> None:
+    """A repeat of the value already completed admits no revision, row, notification or effect."""
+    example.call()
+    assert_observation(example.observe(), example.expected, because="the first call completes the accepted change")
+    rows = _work_rows(capability.model)
+    settled = example.effect_calls()
+    sent.clear()
+    (example.repeat or example.call)()
+    assert _work_rows(capability.model) == rows, (
+        "a repeat of the same desired value must not admit new work, a new revision or a new claim; "
+        "bind repeat= when call() creates a new owner each time"
+    )
+    assert example.effect_calls() == settled, "a repeat of the same desired value performed the effect again"
+    assert not [args for args, _ in sent if args[0] == entry.name], "a repeat of a settled value notified its worker"
+    recover_durable_work_task(entry.name)
+    assert not [args for args, _ in sent if args[0] == entry.name], "a repeated settled value was redispatched"
+    assert example.effect_calls() == settled
+    assert_observation(example.observe(), example.expected, because="a repeat preserves the completed change")
+
+
+def _assert_lost_response_is_not_blindly_resent[W: UniverseDurableWork, ResultT, ObservationT](
+    capability: DurableWorkCapability[W, ResultT],
+    example: SynchronousCallerExample[ObservationT],
+    entry: DurableWorkRegistration,
+    sent: list[_SentTask],
+) -> None:
+    """
+    The provider accepted the inline attempt and the caller timed out.
+
+    Evidence-required work must stay UNKNOWN and undispatched: recovery may not
+    resend an effect that may have happened. Replay-safe work is replayed
+    exactly once by recovery and must converge on the accepted change.
+    """
+    if example.lose_response is None:
+        raise ObligationContractDesignError(
+            f"{entry.name}: bind SynchronousCallerExample.lose_response: the provider applies the effect, "
+            "then the caller's request fails (ProviderProbe.lose_response), so recovery's handling of an "
+            "uncertain inline attempt is proven"
+        )
+    model = capability.model
+    calls = example.effect_calls()
+    with example.lose_response(), suppress(Exception):
+        # The caller timed out; whatever it reports, its committed obligation is judged below.
+        example.call()
+    accepted = example.effect_calls()
+    assert accepted == calls + 1, "positive control: the lost response must follow exactly one real provider entry"
+    owed = set(outstanding_work(model).values_list("pk", flat=True))
+    assert owed, "a lost response must leave the accepted change owed, not settled or abandoned"
+    if not model.requires_effect_evidence:
+        _settle_through_recovery(entry, model, owed, sent)
+        assert_observation(
+            example.observe(), example.expected, because="replaying an uncertain replay-safe effect converges"
+        )
+        assert example.effect_calls() == accepted + 1, "recovery must replay the uncertain effect exactly once"
+        return
+    for _ in range(2):
+        for work in model.objects.filter(pk__in=owed):
+            if work.state in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
+                expire_lease(work)
+            # Backoff elapsed is not evidence of nonapplication.
+            make_due(work)
+        sent.clear()
+        recover_durable_work_task(entry.name)
+        for args, _ in sent:
+            if args[0] == entry.name and args[1] in owed:
+                with suppress(Exception):
+                    run_durable_work_task(*args)
+        states = set(model.objects.filter(pk__in=owed).values_list("state", flat=True))
+        assert states == {DurableWorkState.UNKNOWN}, (
+            f"an uncertain inline attempt left {sorted(states)}; only provider evidence may settle or retry it"
+        )
+        assert not due_work(model).filter(pk__in=owed).exists(), "uncertain work became dispatchable"
+        assert example.effect_calls() == accepted, "recovery blindly resent an effect whose outcome was unknown"
+
+
+def _settle_through_recovery(
+    entry: DurableWorkRegistration,
+    model: type[UniverseDurableWork],
+    ids: set[int],
+    sent: list[_SentTask],
+    *,
+    rounds: int = 3,
+) -> None:
+    """
+    Lose every lease and notification, then let registered recovery deliver until the work settles.
+
+    Each round expires reserved or active leases, ages due times, runs the
+    registration's recovery task and executes exactly the deliveries it
+    published for ``ids``. A failed delivery is judged by the state it leaves,
+    as a real worker's would be.
+    """
+    for _ in range(rounds):
+        pending = list(model.objects.filter(pk__in=ids).exclude(state=DurableWorkState.SUCCEEDED))
+        if not pending:
+            return
+        for work in pending:
+            if work.state in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
+                expire_lease(work)
+            make_due(work)
+        sent.clear()
+        recover_durable_work_task(entry.name)
+        for args, options in [(args, options) for args, options in sent if args[0] == entry.name and args[1] in ids]:
+            assert_registered_worker_options(entry, options)
+            with suppress(Exception):
+                run_durable_work_task(*args)
 
 
 def _recover_lost_deliveries[W: UniverseDurableWork](
@@ -407,6 +600,117 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
         assert_registered_worker_options(entry, options)
         assert run_durable_work_task(*args), "recovered delivery did not execute"
     return deliveries
+
+
+# pytest-global: Every adopter with a wake command supplies it through this shared scenario contract.
+@dataclass(frozen=True)
+class WakeExample[W: UniverseDurableWork, ObservationT]:
+    """
+    A real command that commits new facts for existing work and wakes it.
+
+    ``work`` was admitted by the real producer. ``wake`` is what callers invoke
+    (a view, service method or webhook handler): it changes the product facts
+    the work reads and calls the capability's ``wake()`` for that work; it must
+    not re-request the work. ``expected`` is the outcome of the NEW facts, so a
+    worker that settles from the admitted snapshot fails. ``effect_calls``
+    counts real provider entries.
+    """
+
+    work: W
+    wake: Callable[[], object]
+    observe: Callable[[], ObservationT]
+    expected: ObservationT
+    effect_calls: Callable[[], int]
+
+
+# pytest-global: Generated wake-command histories; this tuple creates no fixtures.
+WAKE_HISTORIES = ("ready", "claimed", "succeeded")
+
+
+def wakes_existing_work(capability: DurableWorkCapability[Any, Any]) -> bool:
+    """Whether a command can wake this capability's existing work (evidence and compensation cannot)."""
+    return capability.wakeable and not capability.model.requires_effect_evidence
+
+
+def assert_wake_rereads_facts[W: UniverseDurableWork, ResultT, ObservationT](
+    capability: DurableWorkCapability[W, ResultT],
+    example: WakeExample[W, ObservationT],
+    *,
+    history: str,
+) -> None:
+    """
+    A wake makes existing work re-read new facts, and recovery covers its lost notification.
+
+    ``ready``: the woken work keeps its revision and budget and becomes due now.
+    ``claimed``: another worker holds a claim that may have read the old facts;
+    the wake fences it (production advances the revision of a claimed pass and
+    keeps its budget). ``succeeded``: the settled revision reopens unchanged.
+    In every history the wake's notification is lost and the holder (if any)
+    dies; registered recovery must deliver one execution that settles from the
+    new facts.
+    """
+    from due.django.capabilities import authoring
+    from due.django.runtime.coordination import WakeAction
+
+    assert wakes_existing_work(capability), f"{capability.work_name} work cannot be woken"
+    entry = DurableWorkBindings(capability, lambda: pytest.fail("the wake example admits the work")).registration
+    model = capability.model
+    work = example.work
+    assert type(work) is model, "wake example must use the capability model"
+    actions: list[WakeAction] = []
+    original = authoring.wake_work
+    sent: list[_SentTask] = []
+
+    def observed_wake(woken: type[W], work_id: int, **options: Any) -> WakeAction:
+        action = original(woken, work_id, **options)
+        if woken is model and work_id == work.pk:
+            actions.append(action)
+        return action
+
+    def capture(*, args: tuple[str, int, str], **options: object) -> None:
+        sent.append((args, options))
+
+    with (
+        patch.object(run_durable_work_task, "apply_async", capture),
+        patch.object(authoring, "wake_work", observed_wake),
+    ):
+        make_due(work)
+        holder: WorkClaim[W] | None = None
+        if history == "succeeded":
+            capability.attempt_execution(work.pk)
+        elif history == "claimed":
+            holder = claim_work(model, work.pk, lease_duration=capability.policy.lease_duration)
+            assert holder is not None, "positive control: another worker must hold the work's claim"
+        else:
+            assert history == "ready", history
+        work.refresh_from_db()
+        arranged = {"ready": DurableWorkState.READY, "claimed": DurableWorkState.CLAIMED}.get(
+            history, DurableWorkState.SUCCEEDED
+        )
+        assert work.state == arranged, f"positive control: the example work must be {arranged}, got {work.state}"
+        revision, rearms = work.desired_revision, work.rearm_count
+        calls = example.effect_calls()
+        assert example.observe() != example.expected, "positive control: the new facts must owe a visible change"
+        sent.clear()
+        example.wake()
+        assert len(actions) == 1, (
+            f"the command woke this work {len(actions)} time(s); it must call the capability's wake() once, "
+            "not re-request the work"
+        )
+        work.refresh_from_db()
+        assert work.rearm_count == rearms, "a wake must not spend or refresh the retry budget"
+        if history == "claimed":
+            assert holder is not None
+            assert actions[0] == WakeAction.FENCED and not holder.owned_work().exists(), (
+                "a wake must fence the claimed pass that may have read the old facts"
+            )
+        else:
+            assert work.desired_revision == revision, "a wake must not start a new revision"
+        _settle_through_recovery(entry, model, {work.pk}, sent)
+        work.refresh_from_db()
+        assert work.state == DurableWorkState.SUCCEEDED, f"recovery left the woken work {work.state}"
+        assert_observation(example.observe(), example.expected, because="the woken work settles from the new facts")
+        assert example.effect_calls() == calls + 1, "the woken work must reach the provider exactly once"
 
 
 def acknowledgement_replays(capability: DurableWorkCapability[Any, Any]) -> bool:

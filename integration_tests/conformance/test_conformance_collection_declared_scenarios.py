@@ -25,7 +25,15 @@ CALLER_DISCOVERY_PROOFS = {
     "test_discovery_selection_is_complete",
     *(
         f"test_synchronous_caller[{history}-cleanup]"
-        for history in ("inline", "enclosing-commit", "enclosing-rollback", "effect-failure")
+        for history in (
+            "inline",
+            "enclosing-commit",
+            "enclosing-rollback",
+            "effect-failure",
+            "claim-held",
+            "repeat-same-value",
+            "response-lost",
+        )
     ),
 }
 
