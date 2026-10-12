@@ -50,6 +50,7 @@ jobs:
       - run: uv sync --directory .widget-upstream/python/widget-store --locked --python 3.14
       - run: createdb -h localhost -U due widget_dbos
       - run: uv run python -m django migrate --noinput
+      - run: uv run python -m django due_check
       - run: uv run --directory .widget-upstream/python/widget-store alembic upgrade head
       - run: uv run --directory .widget-upstream/python/widget-store python -m migrations.reset_database
       - name: Benchmark both real applications and exercise their crash buttons in Chromium

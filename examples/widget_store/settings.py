@@ -1,5 +1,6 @@
-"""Standalone storefront deployment: share the manifest, run only its recovery owner."""
+"""Standalone storefront: only its models, routes and recovery registration."""
 
 from examples.settings import *  # noqa: F403
 
-DUE_EXAMPLE_CAPABILITIES = ("checkout_order",)
+INSTALLED_APPS = ["due.django", "examples.widget_store.apps.WidgetStoreStandaloneConfig"]
+ROOT_URLCONF = "examples.widget_store.urls"
