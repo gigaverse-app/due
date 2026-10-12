@@ -19,6 +19,7 @@ from pytest_obligation.binding import is_real_reason
 from pytest_obligation.completion import BoundedCompletion, DeliveryReplay
 from pytest_obligation.contract import (
     NotApplicable,
+    ObligationContractDesignError,
 )
 from pytest_obligation.crash_histories import HandoffHistory
 from pytest_obligation.integrations.django.owed_rows import EdgeFamily
@@ -58,6 +59,7 @@ from due.django.public import (
 from due.errors import WorkFailureDisposition
 
 __all__ = [
+    "CheckpointedReplay",
     "DeliveryExample",
     "EffectExamples",
     "EligibilityExample",
@@ -69,12 +71,40 @@ __all__ = [
 
 
 @dataclass(frozen=True)
+class CheckpointedReplay[W: UniverseDurableWork]:
+    """The effect commits its own progress once the provider accepts, before settlement.
+
+    A multi-step effect often records each accepted provider call (a timestamp,
+    an id) in its own committed write, then skips that call when it runs again.
+    A replay after a lost acknowledgement then re-enters the effect without
+    reaching the provider: correct for this effect, and indistinguishable from a
+    redelivery that does nothing unless declared. ``because`` names the
+    checkpoint and why it commits outside settlement; ``applied`` reads it for
+    the work. The lost-acknowledgement proof requires the checkpoint to hold
+    after the lost acknowledgement and the replay to reach the provider no
+    further time.
+    """
+
+    because: str
+    applied: Callable[[W], bool]
+
+    def __post_init__(self) -> None:
+        if not is_real_reason(self.because):
+            raise ObligationContractDesignError(
+                "CheckpointedReplay.because must name the checkpoint the effect commits after the provider "
+                "accepts, and why it commits outside settlement"
+            )
+
+
+@dataclass(frozen=True)
 class DeliveryExample[W: UniverseDurableWork, ObservationT]:
     """An admitted work row and an independent oracle for its external effect.
 
     ``work`` comes from the real producer. ``observe`` reads product/provider
     state; ``expected`` is the value that successful recovery must produce.
     ``effect_calls`` optionally counts actual external entries to detect replay.
+    ``checkpoint`` declares an effect whose replay skips a provider call it
+    already recorded (see CheckpointedReplay).
     A work-row state flag alone cannot establish the product outcome.
     """
 
@@ -82,6 +112,7 @@ class DeliveryExample[W: UniverseDurableWork, ObservationT]:
     observe: Callable[[], ObservationT]
     expected: ObservationT
     effect_calls: Callable[[], int] | None = None
+    checkpoint: CheckpointedReplay[W] | None = None
 
 
 @dataclass(frozen=True)

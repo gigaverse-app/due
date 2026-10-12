@@ -44,6 +44,7 @@ from due.django.conformance.composition import (
 )
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.examples import (
+    CheckpointedReplay,
     DeliveryExample,
     EffectExamples,
     EligibilityExample,
@@ -63,6 +64,7 @@ from due.django.conformance.scenarios import (
 __all__ = [
     "AdmissionFailureExample",
     "CancellationExample",
+    "CheckpointedReplay",
     "CompensationExample",
     "DeliveryExample",
     "DurableWorkBindings",

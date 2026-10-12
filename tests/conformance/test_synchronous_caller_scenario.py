@@ -15,7 +15,7 @@ from due.django.conformance.scenarios import (
     SynchronousCallerExample,
     assert_synchronous_caller,
 )
-from due.django.public import CompletionErrors, CompletionStatus, DurableWorkState
+from due.django.public import CompletionErrors, CompletionStatus, DurableWorkState, WorkIncomplete
 from due.django.runtime.registry import DurableWorkRegistration
 from tests.harness import primitive as example
 from tests.harness.operation import ProviderResult, Publication, PublicationWork
@@ -219,6 +219,47 @@ def test_a_creating_caller_passes_with_its_same_owner_repeat(history: str) -> No
         observe=lambda: PrimitiveOwner.objects.get(pk=owners[-1].pk).value if owners else "before",
     )
     assert_synchronous_caller(primitive, scenario, history=history)
+
+
+class EndpointBusy(Exception):
+    """The entry point's own error for a change another worker is completing."""
+
+
+def translating_caller(owner: PrimitiveOwner) -> object:
+    # The entry point reports the held claim as its own error, raised from the library's report.
+    try:
+        return strict_caller(owner)
+    except WorkIncomplete as incomplete:
+        raise EndpointBusy("the change is already in progress") from incomplete
+
+
+def detached_caller(owner: PrimitiveOwner) -> object:
+    # Translates the report but deliberately detaches it, so nothing says the claim was held.
+    try:
+        return strict_caller(owner)
+    except WorkIncomplete:
+        raise EndpointBusy("the change is already in progress") from None
+
+
+def unrelated_failure_caller(owner: PrimitiveOwner) -> object:
+    # Swallows the report and fails for an unrelated reason.
+    try:
+        return strict_caller(owner)
+    except WorkIncomplete:
+        pass
+    raise EndpointBusy("an unrelated refusal")
+
+
+def test_a_held_claim_reported_through_the_entry_points_own_error_passes() -> None:
+    scenario = caller_example(translating_caller, requires_inline=True)
+    assert_synchronous_caller(primitive, scenario, history="claim-held")
+
+
+@pytest.mark.parametrize("call", [detached_caller, unrelated_failure_caller], ids=["from-none", "unrelated"])
+def test_an_error_not_raised_from_the_held_claim_still_fails(call: Callable[[PrimitiveOwner], object]) -> None:
+    scenario = caller_example(call, requires_inline=True)
+    with pytest.raises(EndpointBusy):
+        assert_synchronous_caller(primitive, scenario, history="claim-held")
 
 
 def test_response_lost_requires_its_binding() -> None:

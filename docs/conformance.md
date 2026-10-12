@@ -146,6 +146,19 @@ effect that adds a record per call, and a local "already sent" guard that skips
 the provider each fail this case; see the
 [self-test](../tests/conformance/test_lost_acknowledgement_replay.py).
 
+Some effects commit their own progress after each provider call is accepted
+(a step timestamp, a provider id) and skip a recorded call when they run
+again. Their replay correctly re-enters the effect without reaching the
+provider, which the proof cannot tell apart from a redelivery that does
+nothing. Such an effect declares it on its delivery example,
+`checkpoint=CheckpointedReplay(because=..., applied=...)` (or the same field on
+a `ProviderSeam`). `because` names the checkpoint and why it commits outside
+settlement; `applied(work)` reads it. The declaration is checked: the
+checkpoint must hold after the lost acknowledgement, recovery must re-enter
+the effect, and the replay must not reach the provider again. Without it, a
+replay with no further provider entry fails as before. A `DatabaseEffect`
+cannot declare one, because its writes roll back with settlement.
+
 ## Handoffs: require the right result, not just the same result
 
 `observation_handoff` reuses an `ObservationExample` for shared handoff histories.
