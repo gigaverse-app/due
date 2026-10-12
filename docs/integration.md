@@ -251,3 +251,22 @@ and evidence rules.
 The standalone Widget Store demonstrates bounded pool reuse with these task
 boundaries. Embedded Beat is a single-worker demo configuration; production
 fleets should retain one dedicated scheduler.
+
+### Beat wakeups and serial worker pools
+
+Manifest setup selects `due.django.runtime.beat:RecoveryScheduler` when
+Celery's stock persistent scheduler is configured. It preserves Celery's
+intentional 10 ms early check and existing schedule file, then sleeps the final
+positive remainder instead of spinning, bounded by Beat's maximum sleep. OS
+sleep can overshoot; this does not promise drift-free relative intervals or
+sub-millisecond dispatch. Custom scheduler classes remain owned
+by the application. The recovery cadence and Due's transient deadline hints do
+not change.
+
+For a Celery **prefork child that uses one database connection at a time**, size
+its Django pool with `min_size=1, max_size=1`, retaining
+`CONN_HEALTH_CHECKS=True` and task connection boundaries. Each child owns a
+separate pool. This avoids unnecessary spare sockets and repeated stale-socket
+checks after session loss; psycopg's outage backoff remains intact. Threaded
+web servers and workers using concurrent database access need their own larger
+pool. The widget supervisor demonstrates separate worker and web settings.

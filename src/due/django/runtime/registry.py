@@ -193,12 +193,20 @@ def configure_durable_work(
     generated = recovery_schedules(by_name.values())
     schedules = _merge_schedules(getattr(settings, "CELERY_BEAT_SCHEDULE", {}), generated)
     imports = tuple(dict.fromkeys((*getattr(settings, "CELERY_IMPORTS", ()), "due.django.runtime.tasks")))
+    from due.django.runtime.beat import recovery_scheduler
+
+    scheduler = recovery_scheduler(getattr(settings, "CELERY_BEAT_SCHEDULER", "celery.beat:PersistentScheduler"))
     # Validate both owners before mutating either or publishing the registry.
     # A collision must not leave half of an application wired to a new manifest.
     if celery_app is not None:
         app_schedules = _merge_schedules(celery_app.conf.beat_schedule, generated)
         app_imports = tuple(dict.fromkeys((*celery_app.conf.imports, *imports)))
-        celery_app.conf.update(beat_schedule=app_schedules, imports=app_imports)
+        celery_app.conf.update(
+            beat_schedule=app_schedules,
+            imports=app_imports,
+            beat_scheduler=recovery_scheduler(celery_app.conf.beat_scheduler, default=scheduler),
+        )
+    settings.CELERY_BEAT_SCHEDULER = scheduler
     settings.CELERY_BEAT_SCHEDULE = schedules
     settings.CELERY_IMPORTS = imports
     install_registrations(by_name)
