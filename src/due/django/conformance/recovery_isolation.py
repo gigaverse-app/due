@@ -153,7 +153,7 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
         recover_durable_work_task(entry.name)
 
     name = f"{entry.name}/{history}"
-    with examples.environment(), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
+    with _binding(examples.environment), hold_nudges(), patch(_APPLY_ASYNC, broker), ExitStack() as stack:
         arranged = arrange(capability, examples, bindings, stack, refusals, published)
         owed = bindings.make(age=timedelta(minutes=10))  # Owed only to dispatch: proof the later phases ran.
         if poison:

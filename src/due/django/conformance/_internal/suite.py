@@ -172,7 +172,7 @@ def _in_environment[T](examples: EffectExamples, factory: Binding[T]) -> Binding
     @contextmanager
     @wraps(factory)
     def bound():
-        with examples.environment(), _binding(factory) as value:
+        with _binding(examples.environment), _binding(factory) as value:
             yield value
 
     return bound
@@ -703,7 +703,7 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
     with (
         frozen_scheduler_clock() as clock,
         harness_owned_background_work(clock) as driver,
-        examples.environment(),
+        _binding(examples.environment),
         hold_nudges(),
         _binding(factory) as scenario,
         connection.execute_wrapper(record_mutation),
@@ -764,7 +764,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
             sent.append((args, options))
 
     with (
-        examples.environment(),
+        _binding(examples.environment),
         hold_nudges(),
         patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
         _binding(examples.delivery) as example,
@@ -809,7 +809,7 @@ def assert_two_workers_one_settlement[W: UniverseDurableWork, ResultT](
 
     bindings = DurableWorkBindings(capability, examples.make_work)
     with (
-        examples.environment(),
+        _binding(examples.environment),
         hold_nudges(),
         patch("due.django.runtime.tasks.run_durable_work_task.apply_async"),
         _binding(examples.delivery) as example,
@@ -841,7 +841,7 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
             sent.append((args, options))
 
     with (
-        examples.environment(),
+        _binding(examples.environment),
         hold_nudges(),
         patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
         _binding(examples.delivery) as example,
@@ -877,7 +877,7 @@ def assert_terminal_failure_is_visible_and_rearmable[W: UniverseDurableWork, Res
     assert capability.policy.max_rearms is not None, "unbounded policies never exhaust; no terminal proof applies"
     assert examples.retry is not None, "validated: bounded policies declare retry"
     with (
-        examples.environment(),
+        _binding(examples.environment),
         hold_nudges(),
         patch("due.django.runtime.tasks.run_durable_work_task.apply_async"),
         _binding(examples.retry) as failure,
@@ -941,7 +941,7 @@ def assert_settlement_wakes_declared_dependents[W: UniverseDurableWork, ResultT]
     """
     name = capability.model._meta.label_lower
     upstream_table = capability.model._meta.db_table
-    with environment(), hold_nudges() as held, _binding(delivery) as example:
+    with _binding(environment), hold_nudges() as held, _binding(delivery) as example:
         work = example.work
         dependents: dict[type[UniverseDurableWork], DurableWork] = {}
         for dependent in capability.wakes:
@@ -1114,7 +1114,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             @pytest.mark.parametrize("interruption", RECEIPT_RECOVERY_HISTORIES)
             def test_receipt_repairs_product_without_repeating_effect(self, interruption):
                 assert examples.receipt_repair is not None
-                with examples.environment(), _binding(examples.receipt_repair) as scenario:
+                with _binding(examples.environment), _binding(examples.receipt_repair) as scenario:
                     assert_receipt_repairs_product(capability, scenario, interruption=interruption)
 
         if isinstance(capability, ObservedExternalOperation):
@@ -1130,7 +1130,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     frozen_scheduler_clock() as clock,
                     pytest.MonkeyPatch.context() as patcher,
                     accounted_background_work(patcher, clock) as driver,
-                    examples.environment(),
+                    _binding(examples.environment),
                     hold_nudges(),
                     _binding(examples.observation) as scenario,
                 ):
@@ -1197,7 +1197,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                     # Legacy rows reach discovery through the same query as valid ones;
                     # the derivation example supplies the valid owner each edge perturbs.
                     assert examples.derivation is not None
-                    with examples.environment(), _binding(examples.derivation) as facts:
+                    with _binding(examples.environment), _binding(examples.derivation) as facts:
                         invariant(owned, facts.make_implied, edge)
 
                 proof(test_candidate_edge, name=name)
@@ -1218,7 +1218,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
                 def discovered() -> Iterator[CompletenessBinding]:
                     # Entered once per generated owner, so no fake or row outlives its example.
                     assert examples.derivation is not None
-                    with examples.environment(), _binding(examples.derivation) as facts:
+                    with _binding(examples.environment), _binding(examples.derivation) as facts:
                         yield discovery_completeness(owned, facts.make_implied)
 
                 @proof
@@ -1258,7 +1258,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             @proof
             @pytest.mark.parametrize("factory", examples.uncertainties.values(), ids=examples.uncertainties.keys())
             def test_uncertainty_blocks_resend(self, factory):
-                with examples.environment(), _binding(factory) as scenario:
+                with _binding(examples.environment), _binding(factory) as scenario:
                     assert_uncertainty_blocks_resend(capability, scenario)
 
             assert examples.rejections is not None
@@ -1267,7 +1267,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             @pytest.mark.parametrize("interruption", EVIDENCE_RECOVERY_HISTORIES)
             @pytest.mark.parametrize("factory", examples.rejections.values(), ids=examples.rejections.keys())
             def test_rejection_decision_survives_recovery(self, factory, interruption):
-                with examples.environment():
+                with _binding(examples.environment):
                     assert_rejection_survives_recovery(capability, factory, interruption=interruption)
 
         if isinstance(capability, DurableScheduledAction):
@@ -1277,7 +1277,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             def test_cancellation_after_provider_entry(self, worker_dies):
                 assert examples.snapshot is not None
                 with (
-                    examples.environment(),
+                    _binding(examples.environment),
                     hold_nudges(),
                     _binding(examples.snapshot) as scenario,
                 ):
@@ -1297,7 +1297,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             def test_late_projection_write_is_repaired(self, worker_dies, break_repair):
                 assert examples.snapshot is not None
                 with (
-                    examples.environment(),
+                    _binding(examples.environment),
                     hold_nudges(),
                     _binding(examples.snapshot) as scenario,
                 ):
@@ -1335,7 +1335,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
             def test_independent_compensation_after_primary_exhaustion(self, break_cleanup):
                 assert examples.compensation is not None
                 with (
-                    examples.environment(),
+                    _binding(examples.environment),
                     hold_nudges(),
                     _binding(examples.compensation) as scenario,
                 ):
