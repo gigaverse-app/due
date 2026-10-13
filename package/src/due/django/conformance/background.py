@@ -136,6 +136,11 @@ class AcceptedProviderRequest:
         self.apply()
         self.completed = True
 
+    def expire(self) -> None:
+        """The provider dropped this request after its lifetime; it never applies."""
+        assert not self.completed, "Provider request already completed"
+        self.completed = True
+
 
 # pytest-global: 2c observes task publications through this shared broker instead of a second, narrower observer; importing it registers nothing.
 @dataclass

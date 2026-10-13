@@ -69,7 +69,7 @@ print(json.dumps({'tasks': names, 'metrics': sorted(schemas),
     task_prefix = configured.get("DUE_TASK_NAMESPACE", "due.django.runtime.tasks")
     metric_prefix = configured.get("DUE_METRIC_NAMESPACE", "due")
     assert actual["tasks"] == [f"{task_prefix}.{name}_durable_work_task" for name in ("run", "recover", "observe")]
-    assert len(actual["metrics"]) == 15
+    assert len(actual["metrics"]) == 16
     assert all(name.startswith(f"{metric_prefix}_") for name in actual["metrics"])
     assert actual["tables"] == [
         configured.get("DUE_EFFECT_ATTEMPT_TABLE", "due_effectattempt"),

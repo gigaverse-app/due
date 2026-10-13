@@ -67,6 +67,7 @@ configures the SDK. Metrics failures do not roll back product truth.
 | `due_recovery_failures_total{effect,phase}` | Per-identity or phase failures |
 | `due_recovery_deferred{effect,phase}` | Identities temporarily held out with backoff |
 | `due_recovery_deferred_oldest_age_seconds{effect,phase}` | Age since the oldest held identity first failed |
+| `due_repair_retired_total{effect}` | Older-revision repair debt settled because the provider confirmed its target is gone |
 
 A useful stale-tick expression, after metrics have been initialized, is:
 
