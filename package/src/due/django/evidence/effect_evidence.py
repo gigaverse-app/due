@@ -33,6 +33,10 @@ class AppliedEffectEvidenceStore[ResultT](ABC):
     def read(self, attempt: EffectAttempt) -> ResultT:
         """Read canonical evidence for the captured attempt; no external I/O."""
 
+    def retains(self, stored: ResultT, received: ResultT) -> bool:
+        """Whether ``stored`` is what this store keeps for ``received``; equality unless it canonicalizes."""
+        return stored == received
+
 
 @dataclass(frozen=True)
 class CanonicalAppliedEffectEvidenceStore[ResultT, PayloadT](AppliedEffectEvidenceStore[ResultT]):
@@ -67,6 +71,11 @@ class CanonicalAppliedEffectEvidenceStore[ResultT, PayloadT](AppliedEffectEviden
         )
         if not matches:
             raise ValueError("provider receipt contradicts earlier evidence for this attempt")
+
+    def retains(self, stored: ResultT, received: ResultT) -> bool:
+        # The canonical encoding may redact or normalize (an echoed upload credential,
+        # field order); it is also what record() compares, so it defines the same evidence.
+        return self.encode(stored) == self.encode(received)
 
     def read(self, attempt: EffectAttempt) -> ResultT:
         # The Django field may be JSON or binary; decoding is the typed boundary.

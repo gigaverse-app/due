@@ -475,7 +475,8 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
         attempt = attempts[pk]
         attempt.refresh_from_db()
         assert attempt.outcome == EffectAttemptOutcome.APPLIED, "applied receipt was discarded instead of retained"
-        assert capability.evidence_store.read(attempt) == expected, "settlement retained a different applied receipt"
+        store = capability.evidence_store
+        assert store.retains(store.read(attempt), expected), "settlement retained a different applied receipt"
         assert not attempt.repair_pending, "applied receipt still owes product settlement"
         return state(pk)
 
