@@ -216,7 +216,8 @@ def prune_resolved_attempts(
     covered_before = later.filter(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False, observed_at__lt=before)
     candidates = (
         EffectAttempt.objects.filter(work_model=model._meta.label_lower, repair_pending=False)
-        .exclude(repair_settled_by=RepairSettledBy.POLICY_WINDOW)
+        # Policy-settled UNKNOWN stays as operator evidence, never a receipt.
+        .exclude(repair_settled_by__in=(RepairSettledBy.POLICY_WINDOW, RepairSettledBy.TARGET_RETIRED))
         .filter(Q(observed_at__lt=before) | (Q(outcome=EffectAttemptOutcome.UNKNOWN) & Q(Exists(covered_before))))
     )
     if keep_started_evidence:
@@ -261,6 +262,37 @@ def expire_repair_window(model: type[DurableWork], *, window: timedelta | None, 
             attempt.desired_revision,
         )
     return len(page)
+
+
+def retire_repair_for_gone_target(work: DurableWork) -> int:
+    """
+    Settle this work's older-revision repair debt: its provider target is gone.
+
+    Only for repeatable projections, and only on definitive provider evidence that
+    the captured target no longer exists. An escaped older write cannot change a
+    target that is gone, so nothing remains to repair. UNKNOWN stays UNKNOWN as
+    evidence; a later definite receipt restores ordinary receipt-based repair.
+    """
+    if type(work).requires_effect_evidence:
+        raise ValueError("non-repeatable operation evidence must never be retired")
+    from due.django.runtime.metrics import record_repair_retired
+
+    label = type(work)._meta.label_lower
+    retired = (
+        attempts_for(work)
+        .filter(repair_pending=True, desired_revision__lt=work.desired_revision)
+        .update(repair_pending=False, repair_settled_by=RepairSettledBy.TARGET_RETIRED)
+    )
+    if retired:
+        record_repair_retired(label, retired)
+        logger.warning(
+            "Durable repair retired, provider target gone: effect=%s work_id=%s attempts=%s revision=%s",
+            label,
+            work.pk,
+            retired,
+            work.desired_revision,
+        )
+    return retired
 
 
 def unknown_effect_attempts(model: type[DurableWork]) -> QuerySet[EffectAttempt]:

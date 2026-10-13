@@ -360,3 +360,67 @@ def test_standalone_admission_failure_proof_detects_leaks(fault: str | None, int
     detects = fault in {"early_provider", "early_notification"} or interrupt and fault is not None
     with pytest.raises(AssertionError, match=messages[fault]) if fault is not None and detects else nullcontext():
         assert_admission_failure(primitive, scenario, interrupt=interrupt)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("fault", [None, "revision_survives", "untouched"])
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_admission_failure_proof_covers_revising_an_existing_row(fault: str | None, interrupt: bool) -> None:
+    # A projection admits by revising its one row: the proof must see that
+    # revision as partial admission, and its rollback as the row's old values.
+    from contextlib import contextmanager
+
+    from django.db import transaction
+
+    from due.django.conformance.scenarios import (
+        AdmissionFailureExample,
+        ProducerExample,
+        assert_admission_failure,
+    )
+
+    owner = PrimitiveOwner.objects.create()
+    existing = record("before", owner=owner)
+    checkpoint: Callable[[], None] | None = None
+
+    class Interrupted(Exception):
+        pass
+
+    @contextmanager
+    def during(check: Callable[[], None]) -> Iterator[None]:
+        nonlocal checkpoint
+        checkpoint = check
+        try:
+            yield
+        finally:
+            checkpoint = None
+
+    def produce() -> tuple[PrimitiveWork, ...]:
+        # Deliberately broken root controls, never an adopter's implementation.
+        with nullcontext() if fault == "revision_survives" else transaction.atomic():
+            PrimitiveOwner.objects.filter(pk=owner.pk).update(value="accepted")
+            work = existing if fault == "untouched" else record("after", owner=owner)
+            if checkpoint:
+                checkpoint()
+                raise Interrupted()
+            return (work,)
+
+    scenario = AdmissionFailureExample(
+        admission=ProducerExample(
+            produce,
+            lambda: {"value": PrimitiveOwner.objects.get(pk=owner.pk).value},
+            {"value": "accepted"},
+            lambda: len(PrimitiveEffect.calls),
+        ),
+        during=during,
+        expected_error=Interrupted,
+    )
+    # pytest-obligation's admission oracle, over (row, revision) obligation identities.
+    messages = {
+        ("revision_survives", True): "interrupted admission leaked or deleted obligations",
+        ("untouched", True): "fault did not reach partial obligation writes",
+        ("untouched", False): "admission reused preexisting obligations",
+    }
+    expected = messages.get((fault, interrupt)) if fault is not None else None
+    with pytest.raises(AssertionError, match=expected) if expected else nullcontext():
+        assert_admission_failure(primitive, scenario, interrupt=interrupt)

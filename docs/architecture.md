@@ -88,8 +88,11 @@ idempotency keys stable across retries and distinct across requested revisions.
 Due's key includes the immutable admission identity as well as the revision.
 An application whose provider target is permanently gone (a deleted channel, a
 purged bucket) can settle an attempt's repair as `RepairSettledBy.TARGET_RETIRED`:
-no receipt can arrive, the outcome stays UNKNOWN evidence, and the repair window
-leaves it alone.
+no receipt can arrive, the outcome stays UNKNOWN evidence, and neither the repair
+window nor attempt pruning touches it. A projection does this from
+`write_projection` with `retire_escaped_writes(work)`, and only on definitive
+provider evidence that the target is gone, never on an outage or elapsed time. It
+settles older revisions only: the current revision is still owed to its target.
 
 ### An unknown outcome needs evidence
 

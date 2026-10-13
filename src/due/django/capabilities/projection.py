@@ -21,6 +21,7 @@ from due.django.evidence.attempts import (
     attempts_for,
     import_unknown_effect_attempt,
     publish_pending_attempt_census,
+    retire_repair_for_gone_target,
 )
 from due.django.models import (
     TERMINAL_WORK_STATES,
@@ -89,6 +90,17 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
     @abstractmethod
     def write_projection(self, work: WorkT) -> None:
         """Apply this immutable desired revision through the canonical provider port."""
+
+    def retire_escaped_writes(self, work: WorkT) -> int:
+        """
+        Settle older-revision repair debt once the provider target is gone for good.
+
+        Call from write_projection only with definitive provider evidence that the
+        captured target no longer exists and cannot return: never an outage, a
+        failed read or elapsed time. Safe from a stale executor, because a gone
+        target stays gone. Returns the number of attempts settled.
+        """
+        return retire_repair_for_gone_target(work)
 
     def record_unknown_effect_outcome(self, work: WorkT) -> None:
         """

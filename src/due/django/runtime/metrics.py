@@ -273,6 +273,18 @@ def record_repair_expired(effect: str) -> None:
     _due_repair_expired_total.labels(effect=effect).inc()
 
 
+_due_repair_retired_total = _counter(
+    f"{METRIC_NAMESPACE}_repair_retired_total",
+    "Older-revision repair debt settled because the provider confirmed its target is permanently gone.",
+    labels={"effect": str},
+)
+
+
+@_optional_observation
+def record_repair_retired(effect: str, count: int) -> None:
+    _due_repair_retired_total.labels(effect=effect).inc(count)
+
+
 _due_eligible = _gauge(
     f"{METRIC_NAMESPACE}_eligible",
     "Time-due work eligible for execution, for capabilities with an eligibility gate.",
