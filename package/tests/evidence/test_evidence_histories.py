@@ -473,3 +473,56 @@ def test_a_retired_provider_target_settles_repair_without_inventing_a_receipt(mo
     assert escaped.repair_settled_by == RepairSettledBy.TARGET_RETIRED
     assert escaped.get_repair_settled_by_display() == "provider target permanently gone"
     assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.observed_at is None
+
+
+@pytest.mark.usefixtures("evidence_tables")
+def test_a_gone_provider_target_retires_only_older_revision_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    An older revision's write that escaped (outcome UNKNOWN) stays repair debt until a receipt arrives. When the
+    provider proves its target is gone for good, retire_escaped_writes settles that debt as TARGET_RETIRED: the
+    attempt keeps its UNKNOWN evidence, pruning never mistakes it for a receipt, and the current revision's own
+    uncertain write is untouched, because the projection still owes it to the target it addresses.
+    """
+    from due.django.evidence.attempts import prune_resolved_attempts, retire_repair_for_gone_target
+    from due.django.models import RepairSettledBy
+
+    capability = capability_for("projection")
+    assert isinstance(capability, Projection)
+    work = record(capability)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    escaped = attempts_for(work).get()
+    # A later definite write of the same revision covers the escaped one: once that debt is
+    # settled, covered UNKNOWN is what pruning would otherwise delete as a resolved receipt.
+    monkeypatch.setattr(Provider, "failure", None)
+    make_due(work)
+    assert capability.attempt_execution(work.pk)
+    supersede_work(EvidenceWork, work.pk)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    make_due(work)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    work.refresh_from_db()
+    current = attempts_for(work).get(desired_revision=work.desired_revision)
+    # Positive control: both escaped writes are repair debt, one revision apart.
+    escaped.refresh_from_db()
+    assert escaped.desired_revision < current.desired_revision
+    assert escaped.repair_pending and current.repair_pending
+
+    with patch("due.django.runtime.metrics.record_repair_retired") as retired_metric:
+        assert capability.retire_escaped_writes(work) == 1
+        assert capability.retire_escaped_writes(work) == 0, "a gone target stays gone: retiring again is a no-op"
+    retired_metric.assert_called_once_with(EvidenceWork._meta.label_lower, 1)
+    escaped.refresh_from_db()
+    current.refresh_from_db()
+    assert (escaped.repair_pending, escaped.repair_settled_by) == (False, RepairSettledBy.TARGET_RETIRED)
+    assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.observed_at is None
+    assert current.repair_pending, "the current revision's write is not older debt"
+
+    prune_resolved_attempts(EvidenceWork, before=timezone.now() + timedelta(days=365), batch_size=100)
+    assert attempts_for(work).filter(pk=escaped.pk).exists(), "retired UNKNOWN evidence is never pruned as a receipt"
+
+    monkeypatch.setattr(EvidenceWork, "requires_effect_evidence", True)
+    with pytest.raises(ValueError, match="non-repeatable"):
+        retire_repair_for_gone_target(work)

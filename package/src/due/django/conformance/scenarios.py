@@ -112,6 +112,36 @@ class AdmissionFailureExample[W: UniverseDurableWork, ObservationT]:
         """Lose the connection right after a real ``model`` row is written."""
         return cls(admission, during=partial(_interrupt_after_save, model), expected_error=OperationalError)
 
+    @classmethod
+    def after_revision(
+        cls, admission: ProducerExample[W, ObservationT], model: type[UniverseDurableWork]
+    ) -> AdmissionFailureExample[W, ObservationT]:
+        """
+        Lose the connection right after an existing ``model`` row takes its new revision.
+
+        A projection admits by revising its one row: it saves the new desired state,
+        then advances ``desired_revision``. Only after the second write are product
+        and obligation both partially written, so this is the fault point for it.
+        """
+        return cls(admission, during=partial(_interrupt_after_revision, model), expected_error=OperationalError)
+
+
+@contextmanager
+def _interrupt_after_revision(model: type[UniverseDurableWork], checkpoint: Callable[[], None]) -> Iterator[None]:
+    from due.django.capabilities import authoring
+
+    supersede = authoring.supersede_work
+
+    def supersede_then_fail(work_model: type[UniverseDurableWork], work_id: int, **kwargs: Any) -> bool:
+        superseded = supersede(work_model, work_id, **kwargs)
+        if work_model is model:
+            checkpoint()
+            raise OperationalError("connection lost before admission committed")
+        return superseded
+
+    with patch.object(authoring, "supersede_work", supersede_then_fail):
+        yield
+
 
 @contextmanager
 def _interrupt_after_save(model: type[UniverseDurableWork], checkpoint: Callable[[], None]) -> Iterator[None]:
@@ -143,18 +173,24 @@ def admission_atomicity(capability, failure):
 
     example = failure.admission
 
+    # An obligation is one admitted revision of a work row. A projection admits by
+    # revising its single row, so a row at revision r carries revisions 1..r and
+    # each admission adds exactly one; ids alone would hide a revised row.
+    def revisions(rows):
+        return {(pk, revision) for pk, current in rows for revision in range(1, current + 1)}
+
     def admit():
         works = example.produce()
         assert works and all(type(work) is capability.model for work in works)
-        return tuple(work.pk for work in works)
+        return tuple((work.pk, work.desired_revision) for work in works)
 
     return AdmissionAtomicity(
         name=capability.model._meta.label_lower,
         admit=admit,
         observe=example.observe,
         expected=example.expected,
-        obligations=lambda: capability.model.objects.values_list("pk", flat=True),
-        outstanding=lambda: outstanding_work(capability.model).values_list("pk", flat=True),
+        obligations=lambda: revisions(capability.model.objects.values_list("pk", "desired_revision")),
+        outstanding=lambda: set(outstanding_work(capability.model).values_list("pk", "desired_revision")),
         effects=example.effect_calls,
         publications=publications,
         during=failure.during,
