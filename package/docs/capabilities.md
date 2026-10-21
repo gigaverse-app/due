@@ -81,6 +81,10 @@ A command can wake existing work with `capability.wake(work_id)`. When that
 caller will attempt completion inline, use `wake(work_id, notify_worker=False)`
 to suppress the worker notification. The same state transition, revision
 fencing and recovery fallback still apply; the default continues to notify.
+The runnable [catalog refresh command](https://github.com/gigaverse-app/due/blob/main/examples/catalog/README.md)
+uses this to restore a missing external index entry without editing its source.
+Pair the wake with `complete_or_defer(work)`: it restores a post-commit notification
+when an enclosing transaction prevents inline execution.
 
 See [dependent wakes](../tests/capabilities/test_dependent_wake.py),
 [discovery and poisoned rows](../tests/capabilities/test_recovery_deferral.py),

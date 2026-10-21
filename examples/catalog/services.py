@@ -28,3 +28,14 @@ def save_and_project_entry(title: str, author: str, *, entry_id: int | None = No
     work = save_entry(title, author, entry_id=entry_id, notify_worker=False)
     project_catalog.complete_or_defer(work)
     return work
+
+
+def refresh_entry(entry_id: int) -> CatalogWork:
+    """Repair the external index from retained inputs without editing the catalog."""
+    work = CatalogWork.objects.get(owner_id=entry_id)
+    # Persist the new obligation before inline I/O. If this caller dies, the
+    # registered recovery sweep still owns it; no competing fast nudge is needed.
+    project_catalog.wake(work.pk, notify_worker=False)
+    project_catalog.complete_or_defer(work)
+    work.refresh_from_db()
+    return work
