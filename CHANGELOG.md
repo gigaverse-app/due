@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/gigaverse-app/due/compare/v0.6.0...v0.7.0) (2026-10-21)
+
+
+### Features
+
+* allow inline callers to wake work without a worker notification ([#51](https://github.com/gigaverse-app/due/issues/51)) ([c13a3ca](https://github.com/gigaverse-app/due/commit/c13a3cacb6ab6b2f5687156ed4088023768dd9ce))
+* share checkpointed projection recovery and stopped retries ([#57](https://github.com/gigaverse-app/due/issues/57)) ([018c4e7](https://github.com/gigaverse-app/due/commit/018c4e772b791b9b52801c2adaffd6a5588c6143))
+
 ## [0.6.0](https://github.com/gigaverse-app/due/compare/v0.5.0...v0.6.0) (2026-10-21)
 
 
