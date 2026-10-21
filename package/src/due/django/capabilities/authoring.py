@@ -613,7 +613,11 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         Phases that record or settle obligations from product facts and provider evidence.
 
         Capabilities extend this tuple, never ``recover``/``derive``. A step that
-        loops over identities runs each one in ``recovery.isolate(phase, identity)``.
+        loops over identities uses ``recovery.run_page`` (or the existing lease
+        reservation protocol), so failed rows cannot monopolize its first page.
+        ``isolate`` alone catches errors but does not skip deferred candidates.
+        Bind each custom callback in ``EffectExamples.recovery_steps``; naming
+        a phase does not generate its product fixtures or fault seam.
         """
         return ()
 
