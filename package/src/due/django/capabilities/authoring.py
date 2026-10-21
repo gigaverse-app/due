@@ -46,7 +46,6 @@ from due.django.runtime.coordination import (
     prune_completed_work,
     publish_work_census,
     reap_expired_work,
-    rearm_stopped_work,
     require_autocommit,
     require_fenced_settlement,
     run_work,
@@ -109,28 +108,17 @@ class DurableWorkPolicy:
     retention: timedelta | None = timedelta(days=7)
     batch_size: int = 100
     max_repair_window: timedelta | None = None
-    # Generic dispatch examines this many candidates; failed publications keep
-    # their reservations until lease recovery. Adopters may scan a recovery page
-    # to fill the publication budget (for example, a batch-coalescing worker).
-    dispatch_batch_size: int | None = None
 
     def __post_init__(self) -> None:
         if self.lease_duration <= timedelta(0) or self.delay_at(0) < timedelta(0):
             raise ValueError("lease must be positive and retry delay nonnegative")
         if (self.max_rearms is not None and self.max_rearms < 0) or self.batch_size <= 0:
             raise ValueError("max_rearms must be nonnegative or None, and batch_size positive")
-        if self.dispatch_batch_size is not None and self.dispatch_batch_size <= 0:
-            raise ValueError("dispatch_batch_size must be positive or None")
         if self.retention is not None and self.retention <= timedelta(0):
             raise ValueError("retention must be positive or None")
 
         if self.max_repair_window is not None and self.max_repair_window <= timedelta(0):
             raise ValueError("max_repair_window must be positive or None")
-
-    @property
-    def dispatch_limit(self) -> int:
-        """Bound publication separately without slowing recovery of existing work."""
-        return min(self.batch_size, self.dispatch_batch_size or self.batch_size)
 
     def delay_at(self, step: int) -> timedelta:
         """Evaluate timing before a retry transition; never advance its counter."""
@@ -408,7 +396,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             if dependent_id is not None:
                 _wake(dependent.work, dependent_id, partial(_enqueue_registered, dependent.work))
 
-    def wake(self, work_id: int, *, notify_worker: bool = True) -> WakeAction:
+    def wake(self, work_id: int) -> WakeAction:
         """
         Make this existing work read facts committing in the caller's transaction.
 
@@ -416,13 +404,11 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         A settlement of other work declares ``wakes=`` on that capability instead.
         Take every other row lock first; this locks only the work row. The
         notification follows the outermost commit, and recovery covers a lost
-        one. Pass ``notify_worker=False`` when the caller attempts completion
-        inline; the state transition and recovery guarantee remain unchanged.
-        See the library guide's "Waking dependent work" for each state.
+        one. See the library guide's "Waking dependent work" for each state.
         """
         if not self.wakeable:
             raise TypeError(f"{type(self).__name__} work is claimed by its producer's protocol; it cannot be woken")
-        return _wake(self.model, work_id, self.enqueue_execution, notify_worker=notify_worker)
+        return _wake(self.model, work_id, self.enqueue_execution)
 
     @property
     def work_name(self) -> str:
@@ -679,7 +665,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             publish=self.nudge,
             eligibility=self.eligibility,
             lease_duration=self.policy.lease_duration,
-            batch_size=self.policy.dispatch_limit,
+            batch_size=self.policy.batch_size,
             recovery=recovery,
         )
 
@@ -710,15 +696,9 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         return 0
 
 
-def _wake(
-    model: type[UniverseDurableWork],
-    work_id: int,
-    enqueue: Callable[[int], object],
-    *,
-    notify_worker: bool = True,
-) -> WakeAction:
+def _wake(model: type[UniverseDurableWork], work_id: int, enqueue: Callable[[int], object]) -> WakeAction:
     action = wake_work(model, work_id)
-    if notify_worker and action is not WakeAction.QUEUED:
+    if action is not WakeAction.QUEUED:
         transport.notify_after_commit(model._meta.label_lower, enqueue, work_id)
     return action
 
@@ -840,31 +820,21 @@ class _DurableWorkTransaction[
                 desired[field.attname] = captured[field.attname]
         return self._capability.model(**desired)
 
-    def request_work(
-        self,
-        work: WorkT | None = None,
-        *,
-        not_before: datetime | None = None,
-        retry_stopped: bool = False,
-        **values: object,
-    ) -> WorkT:
+    def request_work(self, work: WorkT | None = None, *, not_before: datetime | None = None, **values: object) -> WorkT:
         """
         Record intent now; notify the worker only after the outermost commit.
 
         This never calls the provider or mutates the product owner. Unchanged
         input preserves completion, retry budget and a stopped failure; new input
-        starts a revision. Explicit ``retry_stopped=True`` gives unchanged stopped
-        failures a fresh budget without changing their revision or losing effect
-        evidence. ``retry_failed()`` retains its revision-replacing behavior.
-        Recovery owns delivery if the post-commit notification is lost.
+        starts a revision. Re-arming stopped work is a separate authorized
+        decision: retry_failed(). Recovery owns delivery if the post-commit
+        notification is lost.
         """
 
         if not self._open:
             raise RuntimeError("request_work() must be called inside atomic()")
         if self._scheduled:
             raise RuntimeError("request_work() may be called only once per atomic()")
-        if retry_stopped and self._capability.model.requires_effect_evidence:
-            raise ValueError("provider occurrences require evidence reconciliation")
         if not_before is not None and is_naive(not_before):
             raise ValueError("not_before must be timezone-aware")
 
@@ -905,12 +875,6 @@ class _DurableWorkTransaction[
             if not_before is not None:
                 self._capability.model.objects.filter(pk=current.id).update(available_at=not_before)
             current.refresh_from_db()
-
-        elif retry_stopped and current.state in (DurableWorkState.EXHAUSTED, DurableWorkState.TERMINAL_FAILED):
-            rearm_stopped_work(current)
-            if not_before is not None:
-                current.available_at = not_before
-                current.save(update_fields=["available_at", "updated_at"])
 
         assert current.id is not None, "persisted durable effect must have an id"
         self.existing_work = current
@@ -1108,11 +1072,10 @@ class OwnedDurableWorkCapability[
         """
 
         with transaction.atomic():
-            owner_manager = getattr(self.owner_model, self.model.work_owner_manager_name)
             try:
-                owner = owner_manager.select_for_update(skip_locked=not wait_for_owner).get(pk=owner_id)
+                owner = self.owner_model.objects.select_for_update(skip_locked=not wait_for_owner).get(pk=owner_id)
             except self.owner_model.DoesNotExist:
-                if not wait_for_owner and owner_manager.filter(pk=owner_id).exists():
+                if not wait_for_owner and self.owner_model.objects.filter(pk=owner_id).exists():
                     raise WorkOwnerBusy(f"{self.owner_model._meta.label_lower}:{owner_id}") from None
                 raise
             try:

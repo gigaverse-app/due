@@ -14,7 +14,7 @@ from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryPass, RecoveryStep
 from due.django.runtime.registry import DurableWorkRegistration, recovery_schedules
 from tests.harness.enrollment import no_fixture
-from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner, primitive, primitive_tables
+from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner, PrimitiveWork, primitive, primitive_tables
 from tests.harness.registrations import durable_work_installed
 
 
@@ -83,7 +83,7 @@ def cleanup_binding(implementation=Cleanup, *, wrong_seam=False):
             implementation, "unrelated" if wrong_seam else "process", lambda self, identity: identity, identities
         ),
     )
-    examples = EffectExamples(
+    examples = EffectExamples[PrimitiveWork](
         make_work=no_fixture,
         delivery=no_fixture,
         recovery_steps={RecoveryPhase.DISCOVERY: RecoveryStepBinding(run=capability.cleanup, example=lambda: facts)},

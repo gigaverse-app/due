@@ -527,8 +527,7 @@ def lock_work_owner(work: DurableWork) -> models.Model | None:
     if field is not None:
         # Immutable work outlives owner deletion (SET_NULL). The original
         # snapshot may still carry the deleted id; absence needs no owner lock.
-        owner_manager = getattr(field.remote_field.model, work.work_owner_manager_name)
-        return owner_manager.select_for_update().filter(pk=getattr(work, field.attname)).first()
+        return field.remote_field.model.objects.select_for_update().filter(pk=getattr(work, field.attname)).first()
     return None
 
 
@@ -545,41 +544,7 @@ def lock_owner_of_work(model: type[DurableWork], work_id: int) -> None:
     field = _owner_relation(model)
     if field is not None:
         owner_ids = model.objects.filter(pk=work_id).values(field.attname)
-        owner_manager = getattr(field.remote_field.model, model.work_owner_manager_name)
-        owner_manager.select_for_update().filter(pk__in=owner_ids).first()
-
-
-def rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn = database_now) -> None:
-    """Retry identical input under its row lock, retaining revision and effect evidence."""
-    if not connection.in_atomic_block:
-        raise RuntimeError("rearming stopped work requires its admission transaction")
-    if current.requires_effect_evidence:
-        raise ValueError("provider occurrences require evidence reconciliation")
-    if current.state not in (DurableWorkState.EXHAUSTED, DurableWorkState.TERMINAL_FAILED):
-        raise WorkOwnershipLost("only stopped failures can receive a fresh retry budget")
-    current.state = DurableWorkState.READY
-    # The input is unchanged, so old UNKNOWN writes cannot overwrite a different
-    # revision yet. Keep their evidence for future input changes; fence old claims
-    # with a new token instead of making that uncertainty spuriously stale.
-    current.fencing_token = uuid4()
-    current.rearm_count = 0
-    current.lease_expires_at = None
-    current.available_at = now()
-    current.completed_at = None
-    current.last_error_code = ""
-    current.save(
-        update_fields=[
-            "state",
-            "fencing_token",
-            "rearm_count",
-            "lease_expires_at",
-            "available_at",
-            "completed_at",
-            "last_error_code",
-            "updated_at",
-        ]
-    )
-    record_work_operation(current._meta.label_lower, DurableWorkOperation.CONTINUED)
+        field.remote_field.model.objects.select_for_update().filter(pk__in=owner_ids).first()
 
 
 def supersede_work[WorkT: DurableWork](

@@ -77,11 +77,6 @@ concrete table. [Observation recovery tests](../tests/capabilities/test_observat
 | An output may outlive the worker that produced it | `IndependentCompensation.record_cleanup_before_call` | Persist cleanup intent before crossing the external boundary. |
 | A caller needs required completion | `Completion` and completion errors | Express incomplete/stopped work explicitly to the caller. |
 
-A command can wake existing work with `capability.wake(work_id)`. When that
-caller will attempt completion inline, use `wake(work_id, notify_worker=False)`
-to suppress the worker notification. The same state transition, revision
-fencing and recovery fallback still apply; the default continues to notify.
-
 See [dependent wakes](../tests/capabilities/test_dependent_wake.py),
 [discovery and poisoned rows](../tests/capabilities/test_recovery_deferral.py),
 [gates with evidence](../tests/capabilities/test_eligibility_evidence.py),
@@ -99,21 +94,3 @@ Use the public fault controls in `due.django.testing` to withhold nudges, expire
 leases and interrupt execution. Check both the obligation and the product state.
 Library proofs cannot establish your provider's idempotency or whether your
 success callback publishes the correct business result.
-
-
-### Checkpointed projections
-
-A paginated writer can keep its `OwnedDurableWorkCapability` and reuse
-`projection_recovery_steps` and `settle_projection_observation` from
-`due.django.capabilities.projection`. Wrap each mutating provider call in
-`applied_effect_call`; reads alone need no effect attempt. Persist the observation
-start before the first page, preserve it across continuations, and settle only
-after every page is established. A reopened completed scan starts a new pass.
-These are the same repair/retention steps used by `DurableProjection`, not a
-separate scheduler. Old UNKNOWN calls remain owed under the declared repair policy.
-
-`projections_with_stale_writes(queryset, window=None)` selects projections with
-unresolved evidence from older revisions. It preserves the caller's scope and
-uses the same repair predicate as projection settlement; identical current
-revision writes cannot overwrite a newer payload. Import it from
-`due.django.public` for SQL-backed readiness observations.

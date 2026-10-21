@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from due.django.capabilities.authoring import DurableWorkPolicy
-from due.django.capabilities.projection import DurableProjection, settle_projection_observation
+from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import CancellationResult, DurableScheduledAction
 from due.django.evidence.attempts import (
     attempt_by_id,
@@ -24,7 +24,6 @@ from due.django.evidence.attempts import (
     unsettled_work,
 )
 from due.django.models import DurableWorkState, EffectAttemptOutcome
-from due.django.public import projections_with_stale_writes
 from due.django.runtime import coordination
 from due.django.runtime.coordination import claim_work, supersede_work
 from due.django.runtime.metrics import DurableWorkOperation
@@ -290,7 +289,6 @@ def test_same_revision_uncertainty_stops_rewrites_but_protects_future_projection
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert remote == [old_value]
-    assert not projections_with_stale_writes(EvidenceWork.objects.filter(pk=work.pk)).exists()
     # An escaped identical write cannot change the current projection. Keep its
     # evidence without paying for perpetual identical writes or inventing a receipt.
     capability.derive()
@@ -305,7 +303,6 @@ def test_same_revision_uncertainty_stops_rewrites_but_protects_future_projection
     assert capability.attempt_execution(work.pk)
     work.refresh_from_db()
     assert work.state == DurableWorkState.READY
-    assert projections_with_stale_writes(EvidenceWork.objects.filter(pk=work.pk)).exists()
     assert remote[-1] == new_value
     remote.append(old_value)  # The escaped request lands after the newer revision.
     make_due(work)
@@ -317,7 +314,6 @@ def test_same_revision_uncertainty_stops_rewrites_but_protects_future_projection
     assert capability.attempt_execution(work.pk)
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
-    assert not projections_with_stale_writes(EvidenceWork.objects.filter(pk=work.pk)).exists()
     capability.derive()
     assert not capability.attempt_execution(work.pk)
 
@@ -530,37 +526,3 @@ def test_a_gone_provider_target_retires_only_older_revision_repair(monkeypatch: 
     monkeypatch.setattr(EvidenceWork, "requires_effect_evidence", True)
     with pytest.raises(ValueError, match="non-repeatable"):
         retire_repair_for_gone_target(work)
-
-
-@pytest.mark.usefixtures("evidence_tables")
-def test_paginated_observation_does_not_cover_a_late_write_between_pages(monkeypatch: pytest.MonkeyPatch) -> None:
-    capability = capability_for("projection")
-    work = record(capability)
-    monkeypatch.setattr(Provider, "failure", TimeoutError)
-    with pytest.raises(TimeoutError):
-        capability.attempt_execution(work.pk)
-    escaped = attempts_for(work).get()
-    supersede_work(EvidenceWork, work.pk)
-    pass_started = coordination.database_now()
-    # A provider receipt after page one cannot be covered by page two's success.
-    observe_effect_outcome(escaped, EffectAttemptOutcome.APPLIED)
-    monkeypatch.setattr(Provider, "failure", None)
-
-    def finish_pass(self, current, result):
-        return settle_projection_observation(current, since=pass_started, policy=self.policy)
-
-    monkeypatch.setattr(Projection, "finalize_success", finish_pass)
-    make_due(work)
-    assert capability.attempt_execution(work.pk)
-    work.refresh_from_db()
-    escaped.refresh_from_db()
-    assert work.state == DurableWorkState.READY
-    assert escaped.repair_pending
-    # A complete fresh pass begun after the late receipt does settle the debt.
-    pass_started = coordination.database_now()
-    make_due(work)
-    assert capability.attempt_execution(work.pk)
-    work.refresh_from_db()
-    escaped.refresh_from_db()
-    assert work.state == DurableWorkState.SUCCEEDED
-    assert not escaped.repair_pending

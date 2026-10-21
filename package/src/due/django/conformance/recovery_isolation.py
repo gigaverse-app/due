@@ -44,6 +44,10 @@ from pytest_obligation.poison import PoisonSwitch, assert_poison_is_isolated
 from due.django.capabilities.authoring import _DurableWorkTransaction
 from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import DurableWorkBindings
+from due.django.conformance.recovery_steps import PHASE_PROOFS as PHASE_PROOFS
+from due.django.conformance.recovery_steps import Generated as Generated
+from due.django.conformance.recovery_steps import NoApplicationCode as NoApplicationCode
+from due.django.conformance.recovery_steps import ProvenOnce as ProvenOnce
 from due.django.conformance.recovery_steps import recovery_histories
 from due.django.models import RecoveryDeferral
 from due.django.public import (
@@ -130,19 +134,8 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
                 # Still poisoned, yet the next tick is clean: the identity no longer leads its page.
                 tick()
         else:
-            # The control has two healthy owners; honor the declared publication page.
-            ticks = (
-                (2 + capability.policy.dispatch_limit - 1) // capability.policy.dispatch_limit
-                if history == "dispatch"
-                else 1
-            )
-            for _ in range(ticks):
-                tick()
-            assert arranged.progressed() and arranged.bad_progressed(), f"{name}: the control history did not progress"
-        # The dispatch control arranges three rows; a bounded page may hold only
-        # the first two. Their reservations let the next tick select the third.
-        if owed.pk not in published:
             tick()
+            assert arranged.progressed() and arranged.bad_progressed(), f"{name}: the control history did not progress"
         assert owed.pk in published, (
             f"{name}: dispatch did not run after the {'poisoned' if poison else 'control'} phase; one bad "
             f"identity stopped delivery of every owed obligation of its kind"
