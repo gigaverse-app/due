@@ -41,6 +41,7 @@ from due.django.conformance.composition import compensations_for
 from due.django.conformance.discovery_admissibility import candidate_edges, related_candidate_edges
 from due.django.conformance.observations import OBSERVATION_HISTORIES
 from due.django.conformance.recovery_isolation import recovery_isolation_histories
+from due.django.conformance.recovery_steps import validate_recovery_step_bindings
 from due.django.conformance.registrations import registered_capability, registration_of
 from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
@@ -60,6 +61,12 @@ def example_sources(examples: EffectExamples, root: Path) -> ExampleSources:
         value = getattr(examples, field.name)
         if field.name == "convergence_families":
             continue  # Reasoned decisions, not bindings; contract_report states them.
+        if field.name == "recovery_steps":
+            result[field.name] = {
+                phase.value: source_location(binding.example or binding.run, root)
+                for phase, binding in examples.recovery_steps.items()
+            }
+            continue
         if value is None:
             result[field.name] = None
         elif callable(value):
@@ -89,6 +96,7 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         "J": "finite production retry budget",
     }
     capability = cls.__durable_work_capability__
+    validate_recovery_step_bindings(capability, cls.__durable_work_examples__.recovery_steps)
     entry = registration_of(capability.model)
     assert registered_capability(entry.name) is capability, (
         f"{cls.__name__}: suite substituted its registered capability"

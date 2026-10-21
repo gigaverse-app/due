@@ -19,6 +19,7 @@ from due.django.conformance.suite import (
     assert_terminal_failure_is_visible_and_rearmable,
     failing_external_call,
 )
+from due.django.public import DurableWorkState
 from tests.harness.primitive import (
     PrimitiveEffect,
     PrimitiveOwner,
@@ -35,10 +36,17 @@ def observe(work: PrimitiveWork) -> str:
     return PrimitiveOwner.objects.get(pk=work.owner_id).value
 
 
-def rearm(work: PrimitiveWork) -> None:
+def rearm(work: PrimitiveWork, *, retry_stopped: bool) -> None:
     assert work.owner_id is not None
     with primitive.atomic(work.owner_id) as pending:
-        assert pending.retry_failed()
+        if retry_stopped:
+            pending.request_work(PrimitiveWork(payload=work.payload, universe=work.universe), retry_stopped=True)
+        else:
+            assert pending.retry_failed()
+
+
+def unfenced_rearm(work: PrimitiveWork) -> None:
+    PrimitiveWork.objects.filter(pk=work.pk).update(state=DurableWorkState.READY, rearm_count=0, completed_at=None)
 
 
 def delivery() -> DeliveryExample:
@@ -48,19 +56,26 @@ def delivery() -> DeliveryExample:
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
-@pytest.mark.parametrize("fault", [None, "invisible_failure", "broken_rearm"])
-def test_root_terminal_proof_runs_and_detects_missing_application_transitions(fault):
+@pytest.mark.parametrize("fault", [None, "invisible_failure", "broken_rearm", "unfenced_rearm"])
+@pytest.mark.parametrize("retry_stopped", [False, True])
+def test_root_terminal_proof_runs_and_detects_missing_application_transitions(fault, retry_stopped):
+    rearm_work = (
+        (lambda work: None)
+        if fault == "broken_rearm"
+        else unfenced_rearm
+        if fault == "unfenced_rearm"
+        else partial(rearm, retry_stopped=retry_stopped)
+    )
     examples = EffectExamples(
         make_work=record,
         delivery=delivery,
         retry=partial(failing_external_call, "tests.harness.primitive.call"),
-        terminal=lambda: TerminalExample(
-            observe=observe, rearm=(lambda work: None) if fault == "broken_rearm" else rearm
-        ),
+        terminal=lambda: TerminalExample(observe=observe, rearm=rearm_work),
     )
     expected = {
         "invisible_failure": "no product-visible consequence",
-        "broken_rearm": "did not start a new revision",
+        "broken_rearm": "did not fence the old execution",
+        "unfenced_rearm": "did not fence the old execution",
     }
     with (
         patch.object(PrimitiveEffect, "finalize_retry", lambda *args: None)

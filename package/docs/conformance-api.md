@@ -12,6 +12,7 @@ the intended public imports, not a promise of API stability before 1.0.
 | [`suite`](../src/due/django/conformance/suite.py) | `effect_contract_suite` enrolls a pytest class; `effect_contract` builds a shared `ObligationContract` for advanced composition. Existing example-type imports remain supported. |
 | [`examples`](../src/due/django/conformance/examples.py) | `EffectExamples` and the delivery, retry, terminal, eligibility, rejection and discovery declarations below. |
 | [`provider`](../src/due/django/conformance/provider.py) | `ProviderProbe`: typed real-call observation, per-identity counters and scoped before/after provider faults. |
+| [`recovery_steps`](../src/due/django/conformance/recovery_steps.py) | `RecoveryStepBinding`, `RecoveryStepExample`, `poison_recovery_call`: exact custom callbacks and product fault boundaries. |
 | [`binding`](../src/due/django/conformance/binding.py) | `Binding[T]`: a zero-argument factory returning `T` or a context manager yielding `T`. |
 | [`host`](../src/due/django/conformance/host.py) | `work_table_host` connects the shared proof engine to Django, PostgreSQL and Celery. Configure after Django setup. |
 | [`delivery`](../src/due/django/conformance/delivery.py) | `WorkTableDelivery` drives bounded recovery for shared handoff histories. |
@@ -75,6 +76,7 @@ capability requires it. Use the generated report to see the actual assessment;
 | `eligibility` | One gate example or a mapping of named variants; keep readiness transitions in production. |
 | `immutable_inputs`, `perturb_inputs`, `convergence_not_assessed`, `snapshot` | [Prove fixed inputs by perturbing product facts and revisiting admission](conformance.md#prove-an-immutable-input-declaration), record missing E evidence, or exercise real supersession. |
 | `derivation` | Canonical fact arrangement and independent desired-state observation. |
+| `recovery_steps` | Every custom callback returned by `derivation_steps()` or `recorded_work_steps()`, keyed by its phase; see the executable coverage contract below. |
 | `discovery_edges` | Related rows the discovery reads, by family name, as `EdgeFamily(model=..., edge_row=owner -> row)`; their database-legal edge values get the discovery admissibility cases. |
 | `applied_receipt`, `receipt_repair` | A canonical applied receipt and a scoped delivery proving recovery repairs product state without repeating the effect. |
 | `evidence_entry` | Optional, operations only: the application's production entry point for a late receipt (a webhook handler or reconciliation command), called with the work and `applied_receipt(work)`. When bound, profile C's late-evidence invariants deliver the receipt through it and settle through registered recovery, instead of the library's evidence recorder. An entry point that drops or misroutes the receipt, or writes the product without recording evidence, leaves the ambiguity unresolved and fails. [Self-test](../tests/conformance/test_evidence_entry_point.py). |
@@ -91,6 +93,71 @@ capability requires it. Use the generated report to see the actual assessment;
 | `compensation` | The independent cleanup relationship and its product oracle. |
 | `handoffs`, `process_handoffs` | Shared `HandoffHistory` declarations and real child-process histories. Process histories own child initialization. |
 | `environment`, `fixtures` | Outer context for ordinary examples, plus pytest fixture names used by generated cases. Provider resources must survive final observation. |
+
+## Executable recovery coverage
+
+A phase names metrics and deferrals; it does not identify an implementation.
+Enrollment inventories the actual `RecoveryStep.run` callbacks. Unchanged library
+implementations retain their shared proofs. Every application callback, including
+an override of a built-in step, requires an exact binding:
+
+```python
+from due.django.conformance.recovery_steps import (
+    RecoveryStepBinding, RecoveryStepExample, poison_recovery_call,
+)
+
+# Product fixture creates an orphan via real admission and source deletion.
+def orphan_example():
+    return RecoveryStepExample(
+        make_pending=create_orphan,
+        pending=orphan_still_owes_cleanup,
+        poison=lambda ids: poison_recovery_call(
+            CleanupCapability, "clean_one", lambda self, identity: identity, ids,
+        ),
+    )
+
+examples = EffectExamples(
+    # ...ordinary delivery/retry/product bindings...
+    recovery_steps={RecoveryPhase.DISCOVERY: RecoveryStepBinding(
+        run=cleanup._recover_orphans, example=orphan_example,
+    )},
+)
+```
+
+Use the same production capability instance. The callback must be stable across
+step enumeration. A wrapper with the same name, another instance, a stale phase,
+or a missing declaration fails enrollment. Collection repeats this check and
+requires both generated cases; changing the runtime after suite construction or
+removing a generated case cannot silently retain coverage. No reason-only waiver
+counts as a proof.
+
+The application supplies independent pending identities in selection order, an
+observation of what they owe, and a scoped per-identity fault with a firing count.
+It does not drive ticks or emulate selection. The generated proof fills the real
+`policy.batch_size` page with poisoned identities and puts a healthy one behind
+it. Two registered recovery ticks must report the fault, progress the healthy
+identity, preserve every failed obligation and persist their holds. A third tick
+with the fault still armed must avoid those identities. After holds expire and
+the fault is removed, the same recovery must finish the preserved work. The
+paired control requires progress for every identity without faults.
+
+Use `RecoveryPass.run_page` with the policy batch size for custom cleanup loops.
+Catching each error with `isolate` alone does not skip deferred candidates on the
+next tick. Existing dispatch reservation protocols retain their own shared
+history: an override may explicitly bind `shared_history="dispatch"` (or `"reap"`
+for a reaper) instead of an example. This runs the existing fault proof through
+the registered tick; it is not an exemption. The shared history must match the
+actual phase. Other custom callbacks require a product example; a new recovery
+shape needs a real shared proof before it can acquire a declaration shortcut.
+
+The declaration controls in
+[`test_recovery_step_coverage.py`](../tests/conformance/test_recovery_step_coverage.py)
+reject missing, stale and incorrect bindings. The real PostgreSQL controls in
+[`test_recovery_step_faults.py`](../tests/conformance/test_recovery_step_faults.py)
+reject a monopolized first page, an unrelated fault seam, a no-op control and
+permanently abandoned deferred work. Existing shared runtime tests remain the
+owner of library-only census, retention, deadline, attempt and evidence steps;
+application overrides of those methods leave that inventory automatically.
 
 ## Ownership and dependency direction
 

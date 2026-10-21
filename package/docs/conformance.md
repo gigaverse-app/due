@@ -99,6 +99,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Projection or scheduled action | `snapshot` | Supersession; late projection repair or cancellation after external entry |
 | Canonical discovery | `derivation` | Fact-derived obligations, admissible database edge values, poisoned candidates |
 | Execution gate | `eligibility` (one or named variants) | Blocked intent, bounded inspection and periodic recovery |
+| Custom recovery callback | `recovery_steps`, bound to each actual callback | [Faulted first-page progress, preserved work, backoff and retry](conformance-api.md#executable-recovery-coverage) |
 | Independent compensation | `compensation` | Cleanup survives producer exhaustion and late completion |
 | Product command | `producers`, `admissions`, `admission_failures` | Commit/rollback, lost wakeup, standalone partial-admission rollback |
 | Inline caller | `synchronous_callers` | Recovery after request-path interruptions; a held claim is not bypassed; a repeated value admits nothing; a lost response is not blindly resent |

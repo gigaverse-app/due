@@ -152,3 +152,50 @@ def test_delay_cannot_authorize_retry_or_change_continuation_timing(
         expected = DurableWorkState.UNKNOWN if history == "unknown" else DurableWorkState.TERMINAL_FAILED
         assert work.state == expected
         assert work.available_at == original_available_at
+
+
+@pytest.mark.parametrize("changed_input", [False, True])
+def test_explicit_stopped_retry_preserves_only_unchanged_revision(
+    capability: PrimitiveEffect, changed_input: bool
+) -> None:
+    from due.django.evidence.attempts import record_effect_attempt
+    from due.django.models import EffectAttemptOutcome
+    from due.django.runtime.coordination import complete_work, retry_work
+
+    work = record()
+    PrimitiveWork.objects.filter(pk=work.pk).update(rearm_count=capability.policy.max_rearms)
+    old_claim = claim_work(PrimitiveWork, work.pk, lease_duration=capability.policy.lease_duration)
+    assert old_claim is not None
+    attempt = record_effect_attempt(old_claim)
+    expire_lease(work)
+    assert capability.recover() == 0
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.EXHAUSTED
+    assert work.owner_id is not None
+    with capability.atomic(work.owner_id, notify_worker=False) as pending:
+        retried = pending.request_work(
+            PrimitiveWork(payload="changed" if changed_input else work.payload, universe=work.universe),
+            retry_stopped=True,
+        )
+    assert retried.state == DurableWorkState.READY
+    assert retried.rearm_count == 0
+    assert retried.desired_revision == work.desired_revision + int(changed_input)
+    if not changed_input:
+        assert retried.fencing_token != old_claim.token
+    successor = claim_work(PrimitiveWork, work.pk, lease_duration=capability.policy.lease_duration)
+    assert successor is not None
+    assert not complete_work(old_claim), "An old execution must not settle the resumed revision"
+    # A further failure is allowed even though the previous budget was exhausted.
+    assert retry_work(
+        successor, error_code="unavailable", max_rearms=capability.policy.max_rearms, retry_delay=timedelta(0)
+    )
+    retried.refresh_from_db()
+    assert retried.state == DurableWorkState.RETRYABLE
+    assert retried.rearm_count == 1
+    assert retried.attempt_count > work.attempt_count
+    successor = claim_work(PrimitiveWork, work.pk, lease_duration=capability.policy.lease_duration)
+    assert successor is not None
+    assert complete_work(successor)
+    attempt.refresh_from_db()
+    assert attempt.outcome == EffectAttemptOutcome.UNKNOWN
+    assert attempt.repair_pending, "Retrying identical input must retain uncertainty for future changed input"

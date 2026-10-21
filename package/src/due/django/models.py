@@ -250,6 +250,8 @@ class DurableWork(models.Model):
     """
 
     work_owner_field: ClassVar[str | None] = None
+    # Admission and settlement must use the same owner visibility and lock order.
+    work_owner_manager_name: ClassVar[str] = "objects"
     requires_effect_evidence: ClassVar[bool] = False
 
     state = models.CharField(

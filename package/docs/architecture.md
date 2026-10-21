@@ -126,6 +126,13 @@ failure budget. Expired CLAIMED executions consume their declared recovery/retry
 policy. UNKNOWN work remains discoverable for evidence and operator attention;
 it is not blindly replayed. EXHAUSTED and TERMINAL_FAILED remain visibly stopped.
 An explicit authorized rearm is different from an identical producer request.
+For replay-safe work, `request_work(..., retry_stopped=True)` explicitly rearms
+unchanged stopped input under the admission lock: it resets the failure budget
+and rotates the claim token while retaining the desired revision and all attempt
+evidence. Changed input still starts a new revision. This prevents an identical
+projection retry from turning its own uncertain writes into stale-revision debt;
+the retained evidence still protects later input changes. Provider occurrences
+must reconcile evidence instead and cannot use this option.
 
 Each recovery phase isolates per-identity failures and continues other work, then
 raises a grouped failure. Poisoned identities receive bounded backoff so they

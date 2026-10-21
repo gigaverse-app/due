@@ -22,6 +22,7 @@ from .capabilities.authoring import (
     WorkOwnerBusy,
     registered_nudge,
 )
+from .capabilities.projection import projections_with_stale_writes
 from .declarations.capture import Capture
 from .declarations.dependents import Dependent
 from .declarations.eligibility import ExecutionEligibility
@@ -104,6 +105,7 @@ __all__ = [
     "outstanding_work",
     "publish_work_census",
     "prune_completed_work",
+    "projections_with_stale_writes",
     "reap_expired_work",
     "renew_work",
     "require_fenced_settlement",

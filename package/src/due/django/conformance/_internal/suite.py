@@ -112,6 +112,7 @@ from due.django.conformance.recovery_isolation import (
     assert_one_poisoned_identity_does_not_stall_recovery,
     recovery_isolation_histories,
 )
+from due.django.conformance.recovery_steps import validate_recovery_step_bindings
 from due.django.conformance.registrations import durable_work_installed, registered_capability
 from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
@@ -1074,12 +1075,12 @@ def assert_terminal_failure_is_visible_and_rearmable[W: UniverseDurableWork, Res
             work.refresh_from_db()
             assert work.desired_revision == revision and work.state in FAILED_TERMINAL_STATES
             return
-        revision = work.desired_revision
+        revision, token = work.desired_revision, work.fencing_token
         terminal.rearm(work)
         work.refresh_from_db()
-        assert work.desired_revision > revision, (
-            f"{entry.name}: re-request after exhaustion did not start a new revision"
-        )
+        assert work.desired_revision >= revision and (
+            work.desired_revision > revision or work.fencing_token != token
+        ), f"{entry.name}: re-request after exhaustion did not fence the old execution"
         assert work.rearm_count == 0, f"{entry.name}: re-armed work kept the exhausted budget"
         assert work.state in (DurableWorkState.READY, DurableWorkState.QUEUED), (
             f"{entry.name}: re-armed work is not due again ({work.state})"
@@ -1225,6 +1226,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
     from due.django.conformance.collected_effects import enforce_proof_outcome
     from due.django.conformance.suite_collection import collect_suite
 
+    validate_recovery_step_bindings(capability, examples.recovery_steps)
     contract = effect_contract(capability, examples=examples)
     entry = DurableWorkBindings(capability, examples.make_work).registration
     compensations = compensations_for(capability)
