@@ -9,18 +9,19 @@ from due.django.capabilities.authoring import DurableWorkCapability
 from due.django.conformance.binding import entered_binding
 from due.django.conformance.bindings import DurableWorkBindings
 from due.django.conformance.examples import EffectExamples
-from due.django.conformance.recovery_steps import bound_recovery_steps, poison_paged_step
+from due.django.conformance.recovery_steps import bound_recovery_steps, custom_recovery_steps, poison_paged_step
 from due.django.models import RecoveryDeferral
-from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryPage
 from due.django.runtime.tasks import recover_durable_work_task, run_durable_work_task
 from due.django.testing import end_recovery_holds, hold_nudges
 
 
 def assert_custom_recovery_step(
-    capability: DurableWorkCapability[Any, Any], examples: EffectExamples, phase: RecoveryPhase, *, poison: bool
+    capability: DurableWorkCapability[Any, Any], examples: EffectExamples, key: str, *, poison: bool
 ) -> None:
-    binding = bound_recovery_steps(capability, examples.recovery_steps)[phase]
+    binding = bound_recovery_steps(capability, examples.recovery_steps)[key]
+    step = next(step for step in custom_recovery_steps(capability) if step.identity == key)
+    phase = step.phase
     entry = DurableWorkBindings(capability, examples.make_work).registration
     with (
         entered_binding(examples.environment),
@@ -34,14 +35,18 @@ def assert_custom_recovery_step(
             # An explicit product fault may be inside a transaction; keep it.
             # Otherwise the actual pager supplies the per-row boundary.
             facts = facts.model_copy(
-                update={"poison": lambda identities: poison_paged_step(phase, identities, effect=capability.work_name)}
+                update={
+                    "poison": lambda identities: poison_paged_step(
+                        phase, identities, effect=capability.work_name, step=step.key or ""
+                    )
+                }
             )
 
         def held(identities):
             actual = set(
-                RecoveryDeferral.objects.filter(effect=capability.work_name, phase=phase).values_list(
-                    "identity", flat=True
-                )
+                RecoveryDeferral.objects.filter(
+                    effect=capability.work_name, phase=phase, step=step.key or ""
+                ).values_list("identity", flat=True)
             )
             assert actual >= {str(identity) for identity in identities}, (
                 "every failed candidate must remain deferred for a later retry"
@@ -49,7 +54,7 @@ def assert_custom_recovery_step(
 
         try:
             assert_recovery_history(
-                name=f"{entry.name}/{phase.value}",
+                name=f"{entry.name}/{key}",
                 example=facts,
                 run_tick=lambda: recover_durable_work_task(entry.name),
                 page_size=run.size if isinstance(run, RecoveryPage) else capability.policy.batch_size,

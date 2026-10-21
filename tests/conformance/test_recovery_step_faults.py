@@ -24,6 +24,7 @@ from tests.harness.recovery_steps import (
     cleanup_binding,
     collection_only_replay,
     reap_override_binding,
+    two_cleanup_bindings,
 )
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -92,3 +93,10 @@ def test_collection_requires_the_generated_custom_step_cases():
         config = SimpleNamespace(args=[str(path)])
         with pytest.raises(AssertionError, match=r"lost collected proofs:.*step:discovery-poisoned"):
             collect_suite(cast(pytest.Config, config), [cast(pytest.Function, item)])
+
+
+@pytest.mark.parametrize("key", ["orphans", "expired"])
+@pytest.mark.parametrize("poison", [False, True])
+def test_shared_phase_generates_a_real_fault_history_for_each_step(key, poison):
+    with two_cleanup_bindings() as (capability, examples):
+        assert_custom_recovery_step(capability, examples, key, poison=poison)

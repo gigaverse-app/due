@@ -134,6 +134,19 @@ Due owns the loop, fair paging, fault seam and retry clock. There is no repeated
 `run=` declaration or manual monkeypatch. Unchanged library steps require no
 additional example. The action may be a function, bound method or fresh lambda.
 
+Give an extra loop a stable `key="withdraw_orphans"` when it shares a phase
+with another loop; map `"withdraw_orphans"` to its product example. A key is
+persistent retry identity, not a metric label. Omit it for the existing single
+loop per phase. Duplicate keys fail before any step runs. Phases can now describe
+what the work actually does: two DISCOVERY loops need no misleading OBSERVATION
+label, and cannot release each other's holds. Renaming a key starts a new retry
+namespace; it never changes the product obligation.
+
+The library factory uses explicit immutable bindings for its model, policy,
+retention and evidence behavior. Only the exact library implementation with the
+current adopter's inputs inherits a library proof; matching function bytecode,
+names or wrapper metadata does not establish coverage.
+
 An adopter's `_reap` or `_dispatch` override automatically runs the corresponding
 shared history without a declaration. An override that skips its fault seam fails.
 

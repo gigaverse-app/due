@@ -7,7 +7,7 @@ its name cannot lend a library proof to an application callback.
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from types import FunctionType, MethodType
+from types import MethodType
 from typing import Any
 from unittest.mock import patch
 from uuid import UUID
@@ -17,6 +17,7 @@ from pytest_obligation.poison import PoisonSwitch
 from pytest_obligation.recovery import RecoveryExample as RecoveryStepExample
 from pytest_obligation.recovery import poison_call, poison_many, validate_recovery_bindings
 
+from due.django.capabilities._attempt_recovery import AttemptRecovery
 from due.django.capabilities.authoring import DurableWorkCapability
 from due.django.conformance.binding import Binding
 from due.django.runtime.metrics import RecoveryPhase
@@ -93,14 +94,15 @@ class RecoveryStepBinding:
 
 @contextmanager
 def poison_paged_step(
-    phase: RecoveryPhase, identities: Sequence[RecoveryIdentity], *, effect: str | None = None
+    phase: RecoveryPhase, identities: Sequence[RecoveryIdentity], *, effect: str | None = None, step: str = ""
 ) -> Iterator[Callable[[], int]]:
     """The default fault: ``run_page`` raises for an armed identity before calling the step for it.
 
-    Phases are unique per capability (``recovery_steps``), so the phase alone
-    selects the custom loop. A loop that does not page through ``run_page``
+    The effect, phase and step key select the registered loop independently
+    of other loops using the same phase. A loop that does not use ``run_page``
     never meets this fault, and the generated proof fails as unfired.
     """
+    step_key = step
     original = RecoveryPass.run_page
     switch = PoisonSwitch()
     with poison_many(switch.poisoned, identities) as fired:
@@ -108,7 +110,7 @@ def poison_paged_step(
         def run_page(
             self: RecoveryPass, page_phase: RecoveryPhase, ordered_ids: Any, size: int, step: Callable[[Any], int]
         ) -> int:
-            if page_phase != phase or (effect is not None and self.effect != effect):
+            if page_phase != phase or (effect is not None and self.effect != effect) or self.step_key != step_key:
                 return original(self, page_phase, ordered_ids, size, step)
 
             def faulted(identity: Any) -> int:
@@ -125,10 +127,10 @@ type RecoveryExampleBinding = RecoveryStepBinding | Binding[RecoveryStepExample]
 
 
 def bound_recovery_steps(
-    capability: DurableWorkCapability[Any, Any], bindings: Mapping[RecoveryPhase, RecoveryExampleBinding]
-) -> dict[RecoveryPhase, RecoveryStepBinding]:
+    capability: DurableWorkCapability[Any, Any], bindings: Mapping[str, RecoveryExampleBinding]
+) -> dict[str, RecoveryStepBinding]:
     """Paged registrations derive the executable callback; authors supply only product examples."""
-    actual = {step.phase: step for step in custom_recovery_steps(capability)}
+    actual = {step.identity: step for step in custom_recovery_steps(capability)}
     resolved = {}
     for phase, binding in bindings.items():
         if isinstance(binding, RecoveryStepBinding):
@@ -142,29 +144,28 @@ def bound_recovery_steps(
                 )
             resolved[phase] = RecoveryStepBinding(run=step.run, example=binding)
     validate_recovery_bindings(
-        {phase.value: step.run for phase, step in actual.items()},
-        {phase.value: binding.run for phase, binding in resolved.items()},
+        {key: step.run for key, step in actual.items()},
+        {key: binding.run for key, binding in resolved.items()},
     )
     return resolved
 
 
 def recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[RecoveryStep, ...]:
     steps = (*capability.derivation_steps(), *capability.recorded_work_steps())
-    phases = [step.phase for step in steps]
-    if len(set(phases)) != len(phases):
-        raise ObligationContractDesignError("recovery steps repeat a phase; each loop needs its own identity")
+    keys = [step.identity for step in steps]
+    if len(set(keys)) != len(keys):
+        raise ObligationContractDesignError("recovery steps repeat a key; name each loop with its own stable key")
     return steps
 
 
 def _implementation(run: Callable[..., Any]) -> object:
-    # A genuine callable boundary: bound methods are recreated on each access;
-    # library factories recreate closures. Compare their executable code, never
-    # __name__, __module__, decorator metadata, or the claimed phase alone.
     if isinstance(run, MethodType):
-        # A known implementation bound to another capability is not this
-        # adopter's shared step, even if the dataclass instances compare equal.
-        return (_implementation(run.__func__), id(run.__self__))
-    return run.__code__ if isinstance(run, FunctionType) else run
+        # Only the exact library descriptor gets value matching. Its model,
+        # policy and retention travel with execution; closures never borrow a
+        # proof through __code__, and subclass overrides are not library code.
+        owner = run.__self__
+        return (run.__func__, owner if type(owner) is AttemptRecovery else id(owner))
+    return run
 
 
 def library_recovery_proofs(
@@ -181,6 +182,7 @@ def library_recovery_proofs(
     from due.django.capabilities.observed_operations import ObservedExternalOperation
     from due.django.capabilities.operations import DurableExternalOperation
     from due.django.capabilities.projection import DurableProjection
+    from due.django.capabilities.scheduled import DurableScheduledAction
 
     methods = (
         (RecoveryPhase.REAP, DurableWorkCapability._reap),
@@ -197,7 +199,13 @@ def library_recovery_proofs(
     )
     proofs = {(phase, _implementation(MethodType(run, capability))): PHASE_PROOFS[phase] for phase, run in methods}
     for step in attempt_recovery_steps(
-        capability.model, capability.policy, retention=DurableProjection.attempt_retention, derivation=()
+        capability.model,
+        capability.policy,
+        retention=capability.attempt_retention
+        if isinstance(capability, (DurableProjection, DurableScheduledAction))
+        else DurableProjection.attempt_retention,
+        keep_started_evidence=isinstance(capability, DurableScheduledAction),
+        derivation=(),
     ):
         proofs[step.phase, _implementation(step.run)] = PHASE_PROOFS[step.phase]
     return proofs
@@ -219,7 +227,8 @@ def _overrides_shared_history(capability: DurableWorkCapability[Any, Any], step:
     name = _SHARED_HISTORY_METHODS.get(step.phase)
     run = step.run
     return (
-        name is not None
+        step.key is None
+        and name is not None
         and isinstance(run, MethodType)
         and run.__self__ is capability
         and run.__func__ is getattr(type(capability), name)
@@ -232,12 +241,13 @@ def custom_recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[
     return tuple(
         step
         for step in recovery_steps(capability)
-        if (step.phase, _implementation(step.run)) not in library and not _overrides_shared_history(capability, step)
+        if (step.key is not None or (step.phase, _implementation(step.run)) not in library)
+        and not _overrides_shared_history(capability, step)
     )
 
 
 def validate_recovery_step_bindings(
-    capability: DurableWorkCapability[Any, Any], bindings: Mapping[RecoveryPhase, RecoveryExampleBinding]
+    capability: DurableWorkCapability[Any, Any], bindings: Mapping[str, RecoveryExampleBinding]
 ) -> None:
     bound_recovery_steps(capability, bindings)
 
@@ -246,9 +256,9 @@ def recovery_histories(capability: DurableWorkCapability[Any, Any]) -> tuple[str
     library = library_recovery_proofs(capability)
     histories = []
     for step in recovery_steps(capability):
-        proof = library.get((step.phase, _implementation(step.run)))
+        proof = library.get((step.phase, _implementation(step.run))) if step.key is None else None
         if isinstance(proof, Generated) or _overrides_shared_history(capability, step):
             histories.append(step.phase.value)
         elif proof is None:
-            histories.append(f"step:{step.phase.value}")
+            histories.append(f"step:{step.identity}")
     return tuple(histories)

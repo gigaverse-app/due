@@ -318,8 +318,8 @@ def test_a_broken_candidate_query_does_not_take_the_recorded_work_census_down():
     assert deferrals.called
 
 
-def test_a_tick_cannot_declare_one_phase_twice():
-    with pytest.raises(ValueError, match="declares a phase twice"):
+def test_a_tick_cannot_declare_one_step_key_twice():
+    with pytest.raises(ValueError, match="repeats a step key"):
         primitive._run_steps((*primitive.recorded_work_steps(), *primitive.recorded_work_steps()), RecoveryPass("x"))
 
 
