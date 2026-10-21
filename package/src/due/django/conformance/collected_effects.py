@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TypedDict
 
 import pytest
+from pytest_obligation.collection import assert_collected_proofs as assert_collected_proofs
 
 
 class SourceLocation(TypedDict):
@@ -64,10 +65,6 @@ class CollectedEffect(TypedDict):
 REPORT = pytest.StashKey[dict[str, CollectedEffect]]()
 NAMES = pytest.StashKey[dict[str, str]]()
 UNASSESSED = pytest.StashKey[set[str]]()
-
-
-def assert_collected_proofs(expected: set[str], actual: set[str], suite: str) -> None:
-    assert not (expected - actual), f"{suite}: registered capability lost collected proofs: {sorted(expected - actual)}"
 
 
 def record_collected(

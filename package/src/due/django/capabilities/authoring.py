@@ -108,17 +108,28 @@ class DurableWorkPolicy:
     retention: timedelta | None = timedelta(days=7)
     batch_size: int = 100
     max_repair_window: timedelta | None = None
+    # Generic dispatch examines this many candidates; failed publications keep
+    # their reservations until lease recovery. Adopters may scan a recovery page
+    # to fill the publication budget (for example, a batch-coalescing worker).
+    dispatch_batch_size: int | None = None
 
     def __post_init__(self) -> None:
         if self.lease_duration <= timedelta(0) or self.delay_at(0) < timedelta(0):
             raise ValueError("lease must be positive and retry delay nonnegative")
         if (self.max_rearms is not None and self.max_rearms < 0) or self.batch_size <= 0:
             raise ValueError("max_rearms must be nonnegative or None, and batch_size positive")
+        if self.dispatch_batch_size is not None and self.dispatch_batch_size <= 0:
+            raise ValueError("dispatch_batch_size must be positive or None")
         if self.retention is not None and self.retention <= timedelta(0):
             raise ValueError("retention must be positive or None")
 
         if self.max_repair_window is not None and self.max_repair_window <= timedelta(0):
             raise ValueError("max_repair_window must be positive or None")
+
+    @property
+    def dispatch_limit(self) -> int:
+        """Bound publication separately without slowing recovery of existing work."""
+        return min(self.batch_size, self.dispatch_batch_size or self.batch_size)
 
     def delay_at(self, step: int) -> timedelta:
         """Evaluate timing before a retry transition; never advance its counter."""
@@ -598,15 +609,14 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     @staticmethod
     def _run_steps(steps: tuple[RecoveryStep, ...], recovery: RecoveryPass) -> dict[RecoveryPhase, int]:
-        phases = [step.phase for step in steps]
-        if len(set(phases)) != len(phases):
-            # Metrics, holds and failure notes are keyed by phase; two loops under one name are indistinguishable.
-            raise ValueError(f"a recovery tick declares a phase twice: {[phase.value for phase in phases]}")
+        keys = [step.identity for step in steps]
+        if len(set(keys)) != len(keys):
+            # Validate the whole inventory before any action. Two loops may
+            # share a phase, but must never release each other's retry holds.
+            raise ValueError(f"a recovery tick repeats a step key: {keys}")
         results: dict[RecoveryPhase, int] = {}
         for step in steps:
-            # A whole phase that raises (a broken candidate query, a lost
-            # database connection) is isolated like one identity: later phases run.
-            with recovery.isolate(step.phase):
+            with recovery.step(step.key or ""), recovery.isolate(step.phase):
                 results[step.phase] = results.get(step.phase, 0) + step.run(recovery)
         return results
 
@@ -615,7 +625,11 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         Phases that record or settle obligations from product facts and provider evidence.
 
         Capabilities extend this tuple, never ``recover``/``derive``. A step that
-        loops over identities runs each one in ``recovery.isolate(phase, identity)``.
+        loops over identities uses ``recovery.run_page`` (or the existing lease
+        reservation protocol), so failed rows cannot monopolize its first page.
+        ``isolate`` alone catches errors but does not skip deferred candidates.
+        Bind each custom callback in ``EffectExamples.recovery_steps``; naming
+        a phase does not generate its product fixtures or fault seam.
         """
         return ()
 
@@ -663,7 +677,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             publish=self.nudge,
             eligibility=self.eligibility,
             lease_duration=self.policy.lease_duration,
-            batch_size=self.policy.batch_size,
+            batch_size=self.policy.dispatch_limit,
             recovery=recovery,
         )
 

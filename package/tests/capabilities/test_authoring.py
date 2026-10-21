@@ -24,7 +24,7 @@ from due.django.public import (
     retry_work,
 )
 from due.django.runtime.recovery_pass import RecoveryPass
-from due.django.testing import hold_nudges
+from due.django.testing import expire_lease, hold_nudges
 from tests.harness.primitive import (
     PrimitiveEffect,
     PrimitiveOwner,
@@ -318,8 +318,8 @@ def test_a_broken_candidate_query_does_not_take_the_recorded_work_census_down():
     assert deferrals.called
 
 
-def test_a_tick_cannot_declare_one_phase_twice():
-    with pytest.raises(ValueError, match="declares a phase twice"):
+def test_a_tick_cannot_declare_one_step_key_twice():
+    with pytest.raises(ValueError, match="repeats a step key"):
         primitive._run_steps((*primitive.recorded_work_steps(), *primitive.recorded_work_steps()), RecoveryPass("x"))
 
 
@@ -354,3 +354,33 @@ def test_celery_soft_time_limit_ends_the_tick_instead_of_being_isolated():
     with pytest.raises(SoftTimeLimitExceeded):
         capability.recover()
     assert seen == [first.pk]
+
+
+def test_dispatch_limit_does_not_reduce_recovery_page():
+    capability = replace(primitive, policy=replace(POLICY, batch_size=10, dispatch_batch_size=1))
+    settled = [record() for _ in range(11)]
+    for work in settled:
+        claim = claim_work(PrimitiveWork, work.pk, lease_duration=POLICY.lease_duration)
+        assert claim is not None and complete_work(claim)
+    PrimitiveWork.objects.filter(pk__in=[work.pk for work in settled]).update(
+        completed_at=timezone.now() - timedelta(days=8)
+    )
+    expired = [record() for _ in range(10)]
+    for work in expired:
+        assert claim_work(PrimitiveWork, work.pk, lease_duration=POLICY.lease_duration) is not None
+        expire_lease(work)
+    with patch.object(type(capability), "nudge") as publish:
+        capability.recover()
+    for work in expired:
+        work.refresh_from_db()
+        assert work.rearm_count == 1
+    assert sum(work.state == DurableWorkState.QUEUED for work in expired) == 1
+    assert sum(work.state == DurableWorkState.RETRYABLE for work in expired) == 9
+    assert publish.call_count == 1
+    assert PrimitiveWork.objects.filter(pk__in=[work.pk for work in settled]).count() == 1
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_dispatch_limit_must_be_positive(limit):
+    with pytest.raises(ValueError, match="dispatch_batch_size"):
+        replace(POLICY, dispatch_batch_size=limit)
