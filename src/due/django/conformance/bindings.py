@@ -254,7 +254,7 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
                 make_owed=self.make,
                 make_terminal=self.terminal,
                 recovery_delay=timedelta(0),
-                page_size=capability.policy.batch_size,
+                page_size=capability.policy.dispatch_limit,
                 assert_scheduled=self.assert_scheduled,
                 tick_interval=timedelta(seconds=self.registration.cadence_seconds),
                 in_flight=InFlightExecution(

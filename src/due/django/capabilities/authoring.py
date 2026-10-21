@@ -108,17 +108,28 @@ class DurableWorkPolicy:
     retention: timedelta | None = timedelta(days=7)
     batch_size: int = 100
     max_repair_window: timedelta | None = None
+    # Generic dispatch examines this many candidates; failed publications keep
+    # their reservations until lease recovery. Adopters may scan a recovery page
+    # to fill the publication budget (for example, a batch-coalescing worker).
+    dispatch_batch_size: int | None = None
 
     def __post_init__(self) -> None:
         if self.lease_duration <= timedelta(0) or self.delay_at(0) < timedelta(0):
             raise ValueError("lease must be positive and retry delay nonnegative")
         if (self.max_rearms is not None and self.max_rearms < 0) or self.batch_size <= 0:
             raise ValueError("max_rearms must be nonnegative or None, and batch_size positive")
+        if self.dispatch_batch_size is not None and self.dispatch_batch_size <= 0:
+            raise ValueError("dispatch_batch_size must be positive or None")
         if self.retention is not None and self.retention <= timedelta(0):
             raise ValueError("retention must be positive or None")
 
         if self.max_repair_window is not None and self.max_repair_window <= timedelta(0):
             raise ValueError("max_repair_window must be positive or None")
+
+    @property
+    def dispatch_limit(self) -> int:
+        """Bound publication separately without slowing recovery of existing work."""
+        return min(self.batch_size, self.dispatch_batch_size or self.batch_size)
 
     def delay_at(self, step: int) -> timedelta:
         """Evaluate timing before a retry transition; never advance its counter."""
@@ -664,7 +675,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             publish=self.nudge,
             eligibility=self.eligibility,
             lease_duration=self.policy.lease_duration,
-            batch_size=self.policy.batch_size,
+            batch_size=self.policy.dispatch_limit,
             recovery=recovery,
         )
 

@@ -132,8 +132,18 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
                 # Still poisoned, yet the next tick is clean: the identity no longer leads its page.
                 tick()
         else:
-            tick()
+            # The control has two healthy owners; honor the declared publication page.
+            ticks = (
+                (2 + capability.policy.dispatch_limit - 1) // capability.policy.dispatch_limit
+                if history == "dispatch"
+                else 1
+            )
+            for _ in range(ticks):
+                tick()
             assert arranged.progressed() and arranged.bad_progressed(), f"{name}: the control history did not progress"
+        # The extra owed owner may fall outside the bounded dispatch page.
+        if owed.pk not in published:
+            tick()
         assert owed.pk in published, (
             f"{name}: dispatch did not run after the {'poisoned' if poison else 'control'} phase; one bad "
             f"identity stopped delivery of every owed obligation of its kind"
