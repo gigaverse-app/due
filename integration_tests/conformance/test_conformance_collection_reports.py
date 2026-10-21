@@ -234,7 +234,18 @@ def origin_run(tmp_path_factory: pytest.TempPathFactory) -> ChildRun:
                 assert_observation({"identity": 1}, {"identity": 1}, because="handwritten same name")
         """,
     )
-    return child.run("test_async.py", "test_native.py", "-q", "--durable-observation-report=observations.json")
+    # The overridden specimen deliberately removes generated coverage. Select
+    # that single observation-origin probe explicitly; a whole-suite run must
+    # now reject it (obligation's collection controls test that rejection).
+    return child.run(
+        "test_async.py",
+        "test_native.py::TestGenerated",
+        "test_native.py::TestInherited",
+        "test_native.py::TestOverride::test_safety_contract",
+        "test_native.py::TestSameName",
+        "-q",
+        "--durable-observation-report=observations.json",
+    )
 
 
 @pytest.mark.no_db

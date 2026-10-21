@@ -41,7 +41,7 @@ from due.django.conformance.composition import (
 from due.django.conformance.observations import (
     ObservationExample,
 )
-from due.django.conformance.recovery_steps import RecoveryStepBinding
+from due.django.conformance.recovery_steps import RecoveryExampleBinding
 from due.django.conformance.scenarios import (
     AdmissionFailureExample as AdmissionFailureExample,
 )
@@ -220,7 +220,7 @@ class EffectExamples[W: UniverseDurableWork]:
     convergence_not_assessed: str | None = None
     snapshot: Binding[SupersessionExample[W, Any]] | None = None
     derivation: Binding[FactExamples[W]] | None = None
-    recovery_steps: Mapping[RecoveryPhase, RecoveryStepBinding] = field(default_factory=dict)
+    recovery_steps: Mapping[RecoveryPhase, RecoveryExampleBinding] = field(default_factory=dict)
     # Related rows the discovery reads (a parent's scope the candidate query joins, a tenant desired_for
     # copies), by family name: each family's edge_row maps the owner to the row whose database-legal
     # edge values the discovery admissibility cases write. Owner fields are always perturbed.

@@ -52,6 +52,18 @@ class UnfairCleanup(Cleanup):
         return changed
 
 
+class PagedCleanup(Cleanup):
+    def derivation_steps(self) -> tuple[RecoveryStep, ...]:
+        return (
+            RecoveryStep.paged(
+                RecoveryPhase.DISCOVERY,
+                self.candidates,
+                lambda identity: self.process(identity),
+                size=self.policy.batch_size,
+            ),
+        )
+
+
 class NoopCleanup(Cleanup):
     def cleanup(self, recovery: RecoveryPass) -> int:
         return 0
@@ -113,6 +125,9 @@ def cleanup_binding(implementation=Cleanup, *, seam=None):
         delivery=no_fixture,
         recovery_steps={RecoveryPhase.DISCOVERY: RecoveryStepBinding(run=capability.cleanup, example=lambda: facts)},
     )
+    if implementation is PagedCleanup:
+        # The normal author path supplies product facts without repeating run.
+        examples = replace(examples, recovery_steps={RecoveryPhase.DISCOVERY: lambda: facts})
     with _installed(capability, "cleanup-control"):
         yield capability, examples
 

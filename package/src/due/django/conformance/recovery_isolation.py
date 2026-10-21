@@ -30,7 +30,7 @@ Coverage follows the executable steps, not phase labels. Unchanged library
 callbacks keep their shared proofs, and so do an adopter's own ``_reap`` and
 ``_dispatch`` overrides: those histories fault seams every override must reach,
 and fail when the fault never fires. Every other custom callback requires an
-exact RecoveryStepBinding. Its generated history poisons a full first page so it
+product example (and an exact binding for arbitrary loops). Its generated history poisons a full first page so it
 also proves progress across ticks.
 """
 
