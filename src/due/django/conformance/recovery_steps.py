@@ -17,8 +17,9 @@ from pytest_obligation.poison import PoisonSwitch
 from pytest_obligation.recovery import RecoveryExample as RecoveryStepExample
 from pytest_obligation.recovery import poison_call, poison_many, validate_recovery_bindings
 
-from due.django.capabilities._attempt_recovery import AttemptRecovery
+from due.django.capabilities._attempt_recovery import AttemptRecovery, attempt_recovery_steps
 from due.django.capabilities.authoring import DurableWorkCapability
+from due.django.capabilities.projection import ProjectionRecovery
 from due.django.conformance.binding import Binding
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryPage, RecoveryPass, RecoveryStep
@@ -164,7 +165,7 @@ def _implementation(run: Callable[..., Any]) -> object:
         # policy and retention travel with execution; closures never borrow a
         # proof through __code__, and subclass overrides are not library code.
         owner = run.__self__
-        return (run.__func__, owner if type(owner) is AttemptRecovery else id(owner))
+        return (run.__func__, owner if type(owner) in (AttemptRecovery, ProjectionRecovery) else id(owner))
     return run
 
 
@@ -177,11 +178,10 @@ def library_recovery_proofs(
     overrides do not enter this inventory: methods are taken from their owning
     library classes, not resolved through the adopter instance.
     """
-    from due.django.capabilities._attempt_recovery import attempt_recovery_steps
     from due.django.capabilities.authoring import OwnedDurableWorkCapability
     from due.django.capabilities.observed_operations import ObservedExternalOperation
     from due.django.capabilities.operations import DurableExternalOperation
-    from due.django.capabilities.projection import DurableProjection
+    from due.django.capabilities.projection import DurableProjection, projection_recovery_steps
     from due.django.capabilities.scheduled import DurableScheduledAction
 
     methods = (
@@ -194,10 +194,11 @@ def library_recovery_proofs(
         (RecoveryPhase.EVIDENCE_SETTLEMENT, DurableExternalOperation._settle_applied_evidence),
         (RecoveryPhase.NONAPPLICATION, DurableExternalOperation._reconcile_nonapplication_page),
         (RecoveryPhase.OBSERVATION, ObservedExternalOperation._recover_observations),
-        (RecoveryPhase.STALE_WRITE_REOPEN, DurableProjection._reopen_stale_writes),
-        (RecoveryPhase.ATTEMPT_CENSUS, DurableProjection._attempt_census),
     )
     proofs = {(phase, _implementation(MethodType(run, capability))): PHASE_PROOFS[phase] for phase, run in methods}
+    for step in projection_recovery_steps(capability.model, capability.policy, derivation=()):
+        if step.phase in (RecoveryPhase.STALE_WRITE_REOPEN, RecoveryPhase.ATTEMPT_CENSUS):
+            proofs[step.phase, _implementation(step.run)] = PHASE_PROOFS[step.phase]
     for step in attempt_recovery_steps(
         capability.model,
         capability.policy,

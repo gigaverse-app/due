@@ -4,7 +4,8 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 from abc import abstractmethod
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import ClassVar, final
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from django.db.models import Exists, OuterRef, Q
 
 from due.django.capabilities._attempt_recovery import attempt_recovery_steps
 from due.django.capabilities.authoring import (
+    DurableWorkPolicy,
     OwnedDurableWorkCapability,
     _validate_simple_callbacks,
 )
@@ -32,6 +34,7 @@ from due.django.models import (
     UniverseDurableWork,
 )
 from due.django.runtime.coordination import (
+    ContinueAfter,
     ReopenAfter,
     WorkExecutionContext,
     database_now,
@@ -43,7 +46,7 @@ from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryPass, RecoveryStep
 
 
-def _with_stale_writes[WorkT: UniverseDurableWork](
+def projections_with_stale_writes[WorkT: UniverseDurableWork](
     work: models.QuerySet[WorkT], *, window: timedelta | None = None
 ) -> models.QuerySet[WorkT]:
     """
@@ -61,6 +64,84 @@ def _with_stale_writes[WorkT: UniverseDurableWork](
     if window is not None:
         stale = stale.exclude(outcome=EffectAttemptOutcome.UNKNOWN, started_at__lt=database_now() - window)
     return work.filter(Exists(stale))
+
+
+def settle_projection_observation[WorkT: UniverseDurableWork](
+    work: WorkT,
+    *,
+    since: datetime,
+    policy: DurableWorkPolicy,
+    repair_interval: timedelta = timedelta(minutes=5),
+    applied_attempt: EffectAttempt | None = None,
+) -> ReopenAfter | None:
+    """Settle a current projection observed over one complete, possibly paginated pass.
+
+    ``since`` precedes every read/write in that pass. A late write observed after
+    it still owes repair: completing the last page cannot vouch for earlier pages.
+    Call only after the entire desired view has been established, under its fence.
+    """
+    require_fenced_settlement(work)
+    covered = Q(outcome=EffectAttemptOutcome.APPLIED, observed_at__lte=since)
+    if applied_attempt is not None:
+        covered |= Q(pk=applied_attempt.pk)
+    attempts_for(work).filter(covered).update(repair_pending=False, repair_settled_by=RepairSettledBy.RECEIPT)
+    model: type[WorkT] = type(work)
+    if projections_with_stale_writes(model.objects.filter(pk=work.pk), window=policy.max_repair_window).exists():
+        return ReopenAfter(repair_interval, "stale_write_repair")
+    return None
+
+
+def projection_recovery_steps[WorkT: UniverseDurableWork](
+    model: type[WorkT],
+    policy: DurableWorkPolicy,
+    *,
+    derivation: tuple[RecoveryStep, ...],
+    retention: timedelta = timedelta(days=7),
+) -> tuple[RecoveryStep, ...]:
+    """Reuse projection repair for checkpointed writers without a second recovery owner.
+
+    Mutating calls must use ``applied_effect_call``. A reopened paginated writer
+    must start a fresh pass; its previous cursor cannot repair already-read pages.
+    """
+
+    owner = ProjectionRecovery(model, policy)
+    return (
+        *attempt_recovery_steps(
+            model,
+            policy,
+            retention=retention,
+            derivation=(*derivation, RecoveryStep(RecoveryPhase.STALE_WRITE_REOPEN, owner.reopen_stale_writes)),
+        ),
+        RecoveryStep(RecoveryPhase.ATTEMPT_CENSUS, owner.census),
+    )
+
+
+@dataclass(frozen=True)
+class ProjectionRecovery:
+    """Retain the model/policy binding of the shared checkpointed-writer factory."""
+
+    model: type[UniverseDurableWork]
+    policy: DurableWorkPolicy
+
+    def reopen_stale_writes(self, recovery: RecoveryPass) -> int:
+        # Late receipts can arrive after the new revision was acknowledged.
+        # Exhausted rows remain visible; recovery never grants a new retry budget.
+        with transaction.atomic():
+            page = list(
+                projections_with_stale_writes(
+                    self.model.objects.select_for_update(skip_locked=True), window=self.policy.max_repair_window
+                )
+                .filter(state=DurableWorkState.SUCCEEDED)
+                .order_by("completed_at", "pk")[: self.policy.batch_size]
+            )
+            available_at = database_now()
+            for work in page:
+                reopen_locked_work(work, available_at=available_at, reason="stale_write_repair")
+        return len(page)
+
+    def census(self, recovery: RecoveryPass) -> int:
+        publish_pending_attempt_census(self.model)
+        return 0
 
 
 class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
@@ -113,11 +194,11 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
         """
         import_unknown_effect_attempt(self.model, work, prior_revision=True)
 
-    def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt:
+    def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
         if (
             self.policy.max_repair_window is not None
             and work.applied_revision == work.desired_revision
-            and not _with_stale_writes(
+            and not projections_with_stale_writes(
                 self.model.objects.filter(pk=work.pk), window=self.policy.max_repair_window
             ).exists()
         ):
@@ -137,52 +218,18 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
         return attempt
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> ReopenAfter | None:
-        require_fenced_settlement(work)
-        # Only writes known to have finished before this call began are covered
-        # by this application. A receipt arriving during/after I/O still owes a
-        # repair, even if its claim is already gone. UNKNOWN is never erased.
-        attempts_for(work).filter(
-            Q(pk=result.pk) | Q(outcome=EffectAttemptOutcome.APPLIED, observed_at__lte=result.started_at)
-        ).update(repair_pending=False, repair_settled_by=RepairSettledBy.RECEIPT)
-        if _with_stale_writes(self.model.objects.filter(pk=work.pk), window=self.policy.max_repair_window).exists():
-            return ReopenAfter(self.uncertain_repair_interval, "stale_write_repair")
-        return None
-
-    def derivation_steps(self) -> tuple[RecoveryStep, ...]:
-        return (
-            *attempt_recovery_steps(
-                self.model,
-                self.policy,
-                retention=self.attempt_retention,
-                derivation=(
-                    *super().derivation_steps(),
-                    RecoveryStep(RecoveryPhase.STALE_WRITE_REOPEN, self._reopen_stale_writes),
-                ),
-            ),
-            RecoveryStep(RecoveryPhase.ATTEMPT_CENSUS, self._attempt_census),
+        return settle_projection_observation(
+            work,
+            since=result.started_at,
+            policy=self.policy,
+            repair_interval=self.uncertain_repair_interval,
+            applied_attempt=result,
         )
 
-    def _reopen_stale_writes(self, recovery: RecoveryPass) -> int:
-        # A late receipt can arrive after the newer revision was acknowledged.
-        # Recovery reactivates successful rows; exhausted rows remain retained
-        # and visible, never silently granted a new retry budget. These are
-        # library-only writes, so the page needs no per-row isolation.
-        with transaction.atomic():
-            page = list(
-                _with_stale_writes(
-                    self.model.objects.select_for_update(skip_locked=True), window=self.policy.max_repair_window
-                )
-                .filter(state=DurableWorkState.SUCCEEDED)
-                .order_by("completed_at", "pk")[: self.policy.batch_size]
-            )
-            available_at = database_now()
-            for work in page:
-                reopen_locked_work(work, available_at=available_at, reason="stale_write_repair")
-        return len(page)
-
-    def _attempt_census(self, recovery: RecoveryPass) -> int:
-        publish_pending_attempt_census(self.model)
-        return 0
+    def derivation_steps(self) -> tuple[RecoveryStep, ...]:
+        return projection_recovery_steps(
+            self.model, self.policy, retention=self.attempt_retention, derivation=super().derivation_steps()
+        )
 
     def reopen_work(self, owner_id: int | str | UUID) -> None:
         """
