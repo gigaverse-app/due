@@ -596,15 +596,14 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     @staticmethod
     def _run_steps(steps: tuple[RecoveryStep, ...], recovery: RecoveryPass) -> dict[RecoveryPhase, int]:
-        phases = [step.phase for step in steps]
-        if len(set(phases)) != len(phases):
-            # Metrics, holds and failure notes are keyed by phase; two loops under one name are indistinguishable.
-            raise ValueError(f"a recovery tick declares a phase twice: {[phase.value for phase in phases]}")
+        keys = [step.identity for step in steps]
+        if len(set(keys)) != len(keys):
+            # Validate the whole inventory before any action. Two loops may
+            # share a phase, but must never release each other's retry holds.
+            raise ValueError(f"a recovery tick repeats a step key: {keys}")
         results: dict[RecoveryPhase, int] = {}
         for step in steps:
-            # A whole phase that raises (a broken candidate query, a lost
-            # database connection) is isolated like one identity: later phases run.
-            with recovery.isolate(step.phase):
+            with recovery.step(step.key or ""), recovery.isolate(step.phase):
                 results[step.phase] = results.get(step.phase, 0) + step.run(recovery)
         return results
 

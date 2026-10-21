@@ -143,3 +143,44 @@ def reap_override_binding(implementation):
 
     with _installed(capability, "reap-override-control"):
         yield capability, EffectExamples[PrimitiveWork](make_work=make_work, delivery=no_fixture)
+
+
+class TwoPagedCleanups(Cleanup):
+    """Independent product predicates with the same metrics phase."""
+
+    def derivation_steps(self):
+        return tuple(
+            RecoveryStep.paged(
+                RecoveryPhase.DISCOVERY,
+                lambda value=value: (
+                    PrimitiveOwner.objects.filter(value=value).order_by("pk").values_list("pk", flat=True)
+                ),
+                self.process,
+                size=2,
+                key=value,
+            )
+            for value in ("orphans", "expired")
+        )
+
+
+@contextmanager
+def two_cleanup_bindings():
+    capability = TwoPagedCleanups.for_owner(
+        owner=PrimitiveOwner,
+        work=PrimitiveWork,
+        policy=replace(primitive.policy, batch_size=2),
+    )
+
+    def example(value):
+        return RecoveryStepExample(
+            make_pending=lambda: PrimitiveOwner.objects.create(value=value).pk,
+            pending=lambda identity: PrimitiveOwner.objects.filter(pk=identity, value=value).exists(),
+        )
+
+    examples = EffectExamples(
+        make_work=no_fixture,
+        delivery=no_fixture,
+        recovery_steps={value: lambda value=value: example(value) for value in ("orphans", "expired")},
+    )
+    with _installed(capability, "two-cleanups"):
+        yield capability, examples
