@@ -43,7 +43,7 @@ from due.django.public import (
 from due.django.runtime import coordination
 from due.django.runtime.names import METRIC_NAMESPACE
 from due.django.runtime.registry import DurableWorkRegistration
-from due.django.testing import expire_lease, hold_nudges, make_due
+from due.django.testing import end_recovery_holds, expire_lease, hold_nudges, make_due
 
 
 def assert_registered_worker_options(entry: DurableWorkRegistration, options: Mapping[str, object]) -> None:
@@ -237,6 +237,14 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
             # EXTERNAL SEAM: the broker refuses this one work id on every publication.
             return refusals.poisoned(work.pk)
 
+        def resume_recovery():
+            end_recovery_holds(self.capability.model)
+            # Only time passes: production must reclaim and redispatch every
+            # lost reservation; never reset its state from the binding.
+            self.capability.model.objects.filter(state=DurableWorkState.QUEUED).update(
+                lease_expires_at=database_now() - timedelta(seconds=1)
+            )
+
         with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", publish):
             yield DueWorkSweep(
                 # REAL PRODUCTION: exact coordinator selection, tick and transitions.
@@ -266,6 +274,7 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
                 else (),
                 lifecycle=self.lifecycle(),
                 poison=poison,
+                resume_recovery=resume_recovery,
                 still_owed=lambda work: (
                     coordination.outstanding_work(self.capability.model).filter(pk=work.pk).exists()
                 ),

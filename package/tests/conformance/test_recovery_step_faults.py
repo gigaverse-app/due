@@ -18,6 +18,7 @@ from tests.harness.recovery_steps import (
     Cleanup,
     DelegatingReap,
     NoopCleanup,
+    PagedCleanup,
     SkippingReap,
     UnfairCleanup,
     cleanup_binding,
@@ -30,8 +31,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 @pytest.mark.parametrize("seam", [None, "process"], ids=["default-pager-fault", "declared-seam"])
 @pytest.mark.parametrize("poison", [False, True])
-def test_registered_cleanup_progresses_and_preserves_failed_work(poison, seam):
-    with cleanup_binding(seam=seam) as (capability, examples):
+@pytest.mark.parametrize("implementation", [Cleanup, PagedCleanup])
+def test_registered_cleanup_progresses_and_preserves_failed_work(poison, seam, implementation):
+    with cleanup_binding(implementation, seam=seam) as (capability, examples):
         assert_custom_recovery_step(capability, examples, RecoveryPhase.DISCOVERY, poison=poison)
 
 
