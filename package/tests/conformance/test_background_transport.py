@@ -12,9 +12,38 @@ from celery import Celery
 from celery import current_app as celery_app
 
 from due.django.conformance.background import BackgroundWork
+from tests.harness.dependents import dependent_tables_fixture as dependent_tables_fixture
 from tests.harness.primitive import (
     isolated_primitive_fixture as isolated_primitive_fixture,
 )
+
+
+@pytest.mark.usefixtures("dependent_tables")
+def test_sweep_preserves_other_registrations_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    from due.django.conformance.bindings import DurableWorkBindings
+    from due.django.conformance.registrations import durable_work_installed
+    from due.django.runtime.registry import DurableWorkRegistration
+    from due.django.runtime.tasks import run_durable_work_task
+    from tests.harness.dependents import DependentWork, ReadOwner, record_dependent
+    from tests.harness.primitive import PrimitiveOwner, primitive, record
+
+    other = ReadOwner.for_owner(
+        owner=PrimitiveOwner, work=DependentWork, input_fields=("universe",), policy=primitive.policy
+    )
+    entry = DurableWorkRegistration(name="dependent_self_test", capability=other, queue="celery")
+    work = record()
+    other_work = record_dependent(PrimitiveOwner.objects.get(pk=work.owner_id))
+    with durable_work_installed(entry), monkeypatch.context() as broker_patch:
+        broker_patch.delattr(run_durable_work_task, "apply_async")
+        driver = BackgroundWork().install(broker_patch)
+        with DurableWorkBindings(primitive, record).sweep() as sweep:
+            assert sweep.dispatched_ids is not None
+            other.enqueue_execution(other_work.pk)
+            assert sweep.dispatched_ids() == []
+            driver.drain()
+            assert ReadOwner.settled == ["before"]
+            sweep.run_tick()
+            assert sweep.dispatched_ids() == [work.pk]
 
 
 @pytest.mark.no_db

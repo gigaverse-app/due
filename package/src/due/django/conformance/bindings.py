@@ -14,6 +14,7 @@ from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
 
+from celery import Task
 from prometheus_client import REGISTRY
 from pytest_obligation.integrations.django.lifecycle_states import Lifecycle
 from pytest_obligation.profiles.automatic_recovery import (
@@ -212,9 +213,16 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
         counts = Counter()
         dispatched = []
         deliveries = []
+        from due.django.runtime.tasks import run_durable_work_task
+
+        registration_name = self.registration.name
         refusals = PoisonSwitch()
 
         def publish(*, args, **options):
+            # The task is shared by every capability. Other model hooks may
+            # publish alongside this proof; leave their transport unchanged.
+            if args[0] != registration_name:
+                return Task.apply_async(run_durable_work_task, args=args, **options)
             # EXTERNAL SEAM: reserve in production, hold only the broker boundary.
             refusals.check(args[1], f"broker refused work {args[1]}")
             deliveries.append(options)

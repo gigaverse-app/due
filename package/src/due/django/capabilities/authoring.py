@@ -407,7 +407,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             if dependent_id is not None:
                 _wake(dependent.work, dependent_id, partial(_enqueue_registered, dependent.work))
 
-    def wake(self, work_id: int) -> WakeAction:
+    def wake(self, work_id: int, *, notify_worker: bool = True) -> WakeAction:
         """
         Make this existing work read facts committing in the caller's transaction.
 
@@ -415,11 +415,13 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         A settlement of other work declares ``wakes=`` on that capability instead.
         Take every other row lock first; this locks only the work row. The
         notification follows the outermost commit, and recovery covers a lost
-        one. See the library guide's "Waking dependent work" for each state.
+        one. Pass ``notify_worker=False`` when the caller attempts completion
+        inline; the state transition and recovery guarantee remain unchanged.
+        See the library guide's "Waking dependent work" for each state.
         """
         if not self.wakeable:
             raise TypeError(f"{type(self).__name__} work is claimed by its producer's protocol; it cannot be woken")
-        return _wake(self.model, work_id, self.enqueue_execution)
+        return _wake(self.model, work_id, self.enqueue_execution, notify_worker=notify_worker)
 
     @property
     def work_name(self) -> str:
@@ -706,9 +708,15 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         return 0
 
 
-def _wake(model: type[UniverseDurableWork], work_id: int, enqueue: Callable[[int], object]) -> WakeAction:
+def _wake(
+    model: type[UniverseDurableWork],
+    work_id: int,
+    enqueue: Callable[[int], object],
+    *,
+    notify_worker: bool = True,
+) -> WakeAction:
     action = wake_work(model, work_id)
-    if action is not WakeAction.QUEUED:
+    if notify_worker and action is not WakeAction.QUEUED:
         transport.notify_after_commit(model._meta.label_lower, enqueue, work_id)
     return action
 

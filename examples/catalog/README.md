@@ -24,10 +24,24 @@ enclosing transaction it defers; a held claim leaves recovery responsible. The
 generated caller histories repeat the original entry ID after creating it, and
 exercise refusal, lost responses, transaction rollback and a competing claim.
 
-Run the controlled old-write history:
+If the external index loses an entry, restore it from the retained projection
+without editing the book:
 
 ```bash
-uv run pytest tests/examples/test_catalog.py tests/conformance/test_catalog_contract.py -v
+DJANGO_SETTINGS_MODULE=examples.settings uv run python -m django refresh_catalog_entry 1
+```
+
+The command commits a fresh wake with `notify_worker=False`, then tries completion
+inline. A successful refresh emits no competing worker notification. If the
+provider fails or the process dies, the persisted obligation remains available
+to registered recovery. Inside an enclosing transaction, completion defers until
+commit; rollback cancels the refresh. Each invocation is an explicit request to
+rewrite the external entry, even if the previous refresh already succeeded.
+
+Run the controlled old-write and refresh histories:
+
+```bash
+uv run pytest integration_tests/examples/test_catalog.py integration_tests/examples/test_catalog_refresh.py integration_tests/conformance/test_catalog_contract.py -v
 ```
 
 The tests hold the old external call, change the desired title and execute the
