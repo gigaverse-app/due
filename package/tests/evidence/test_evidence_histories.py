@@ -564,3 +564,127 @@ def test_paginated_observation_does_not_cover_a_late_write_between_pages(monkeyp
     escaped.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert not escaped.repair_pending
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize("seconds", [0, -1])
+def test_repair_interval_requires_positive_duration(seconds: int) -> None:
+    with pytest.raises(ValueError, match="repair_interval"):
+        DurableWorkPolicy(repair_interval=timedelta(seconds=seconds))
+
+
+@pytest.mark.usefixtures("evidence_tables")
+@pytest.mark.parametrize("checkpointed", [False, True], ids=["projection", "checkpointed-pass"])
+@pytest.mark.parametrize("interval", [timedelta(minutes=5), timedelta(hours=1)])
+def test_repair_timing_preserves_evidence_and_repairs_only_when_due(
+    monkeypatch: pytest.MonkeyPatch, checkpointed: bool, interval: timedelta
+) -> None:
+    from due.django.testing import use_database_clock
+
+    capability = capability_for("projection")
+    capability = replace(capability, policy=replace(capability.policy, repair_interval=interval))
+    work = record(capability)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    escaped = attempts_for(work).get()
+    supersede_work(EvidenceWork, work.pk)
+    monkeypatch.setattr(Provider, "failure", None)
+
+    if checkpointed:
+        # The same public settlement entry point used by paginated adopters.
+        def finish_pass(self, current, result):
+            return settle_projection_observation(current, since=result.started_at, policy=self.policy)
+
+        monkeypatch.setattr(Projection, "finalize_success", finish_pass)
+
+    at = coordination.database_now() + timedelta(seconds=1)
+    with use_database_clock(lambda: at):
+        assert capability.attempt_execution(work.pk)
+        work.refresh_from_db()
+        assert work.available_at == at + interval
+        count = attempts_for(work).count()
+        # Recovery must not erase the schedule or treat retained debt as immediately due.
+        capability.derive()
+        assert not capability.attempt_execution(work.pk)
+        assert attempts_for(work).count() == count
+        escaped.refresh_from_db()
+        assert escaped.outcome == EffectAttemptOutcome.UNKNOWN
+        assert escaped.observed_at is None and escaped.repair_pending
+        assert unsettled_work(EvidenceWork.objects.filter(pk=work.pk), strict=True).exists()
+
+    with use_database_clock(lambda: at + interval - timedelta(microseconds=1)):
+        assert not capability.attempt_execution(work.pk)
+    with use_database_clock(lambda: at + interval):
+        assert capability.attempt_execution(work.pk)
+        work.refresh_from_db()
+        assert work.available_at == at + 2 * interval
+        assert work.rearm_count == 0  # Successful repairs do not consume the failure budget.
+
+    # Uncertainty remains owed long after ordinary attempt retention, without fabricated proof.
+    with use_database_clock(lambda: at + timedelta(days=30)):
+        capability.derive()
+        escaped.refresh_from_db()
+        assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.repair_pending
+        observe_effect_outcome(escaped, EffectAttemptOutcome.APPLIED)
+    with use_database_clock(lambda: at + timedelta(days=30, seconds=1)):
+        assert capability.attempt_execution(work.pk)
+        work.refresh_from_db()
+        escaped.refresh_from_db()
+        assert work.state == DurableWorkState.SUCCEEDED
+        assert not escaped.repair_pending
+        assert escaped.outcome == EffectAttemptOutcome.APPLIED
+
+
+@pytest.mark.usefixtures("evidence_tables")
+def test_new_desired_state_does_not_wait_for_the_old_repair_interval(monkeypatch: pytest.MonkeyPatch) -> None:
+    capability = capability_for("projection")
+    capability = replace(capability, policy=replace(capability.policy, repair_interval=timedelta(hours=1)))
+    work = record(capability)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    escaped = attempts_for(work).get()
+    supersede_work(EvidenceWork, work.pk)
+    monkeypatch.setattr(Provider, "failure", None)
+    assert capability.attempt_execution(work.pk)
+    assert not capability.attempt_execution(work.pk)
+    work.refresh_from_db()
+    with capability.atomic(work.owner_id, notify_worker=False) as pending:
+        pending.request_work(EvidenceWork(universe=work.universe, run_at=work.run_at + timedelta(hours=1)))
+    assert capability.attempt_execution(work.pk), "new intent must not inherit old repair pacing"
+    escaped.refresh_from_db()
+    assert escaped.outcome == EffectAttemptOutcome.UNKNOWN and escaped.repair_pending
+
+
+@pytest.mark.usefixtures("evidence_tables")
+@pytest.mark.parametrize("override", ["property", "helper"])
+def test_explicit_legacy_repair_timing_overrides_remain_compatible(
+    monkeypatch: pytest.MonkeyPatch, override: str
+) -> None:
+    from due.django.testing import use_database_clock
+
+    capability = capability_for("projection")
+    capability = replace(capability, policy=replace(capability.policy, repair_interval=timedelta(hours=1)))
+    interval = timedelta(seconds=5)
+    if override == "property":
+        monkeypatch.setattr(Projection, "uncertain_repair_interval", property(lambda self: interval))
+    else:
+
+        def finish_pass(self, current, result):
+            return settle_projection_observation(
+                current, since=result.started_at, policy=self.policy, repair_interval=interval
+            )
+
+        monkeypatch.setattr(Projection, "finalize_success", finish_pass)
+    work = record(capability)
+    monkeypatch.setattr(Provider, "failure", TimeoutError)
+    with pytest.raises(TimeoutError):
+        capability.attempt_execution(work.pk)
+    supersede_work(EvidenceWork, work.pk)
+    monkeypatch.setattr(Provider, "failure", None)
+    at = coordination.database_now() + timedelta(seconds=1)
+    with use_database_clock(lambda: at):
+        assert capability.attempt_execution(work.pk)
+        work.refresh_from_db()
+        assert work.available_at == at + interval
