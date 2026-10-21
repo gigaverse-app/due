@@ -204,3 +204,25 @@ def test_every_named_step_in_a_shared_phase_requires_its_own_example():
 def test_unstable_step_keys_are_rejected(key):
     with pytest.raises(ValueError, match="key"):
         RecoveryStep(RecoveryPhase.DISCOVERY, no_fixture, key=key)
+
+
+@pytest.mark.parametrize("wrong", ["model", "policy"])
+def test_projection_factory_retains_its_model_and_policy_for_proof_matching(wrong):
+    from due.django.capabilities.projection import projection_recovery_steps
+    from tests.harness.enrollment import EnrollmentOperationWork, Projection
+
+    class ForeignProjection(Projection):
+        def derivation_steps(self):
+            return projection_recovery_steps(
+                EnrollmentOperationWork if wrong == "model" else self.model,
+                replace(self.policy, batch_size=7) if wrong == "policy" else self.policy,
+                derivation=(),
+            )
+
+    capability = ForeignProjection.for_owner(
+        owner=PrimitiveOwner,
+        work=PrimitiveWork,
+        policy=DurableWorkPolicy(retention=None),
+    )
+    with pytest.raises(ObligationContractDesignError, match="missing="):
+        validate_recovery_step_bindings(capability, {})

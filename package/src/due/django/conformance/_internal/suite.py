@@ -1075,12 +1075,12 @@ def assert_terminal_failure_is_visible_and_rearmable[W: UniverseDurableWork, Res
             work.refresh_from_db()
             assert work.desired_revision == revision and work.state in FAILED_TERMINAL_STATES
             return
-        revision = work.desired_revision
+        revision, token = work.desired_revision, work.fencing_token
         terminal.rearm(work)
         work.refresh_from_db()
-        assert work.desired_revision > revision, (
-            f"{entry.name}: re-request after exhaustion did not start a new revision"
-        )
+        assert work.desired_revision >= revision and (
+            work.desired_revision > revision or work.fencing_token != token
+        ), f"{entry.name}: re-request after exhaustion did not fence the old execution"
         assert work.rearm_count == 0, f"{entry.name}: re-armed work kept the exhausted budget"
         assert work.state in (DurableWorkState.READY, DurableWorkState.QUEUED), (
             f"{entry.name}: re-armed work is not due again ({work.state})"

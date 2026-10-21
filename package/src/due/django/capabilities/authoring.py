@@ -46,6 +46,7 @@ from due.django.runtime.coordination import (
     prune_completed_work,
     publish_work_census,
     reap_expired_work,
+    rearm_stopped_work,
     require_autocommit,
     require_fenced_settlement,
     run_work,
@@ -838,21 +839,31 @@ class _DurableWorkTransaction[
                 desired[field.attname] = captured[field.attname]
         return self._capability.model(**desired)
 
-    def request_work(self, work: WorkT | None = None, *, not_before: datetime | None = None, **values: object) -> WorkT:
+    def request_work(
+        self,
+        work: WorkT | None = None,
+        *,
+        not_before: datetime | None = None,
+        retry_stopped: bool = False,
+        **values: object,
+    ) -> WorkT:
         """
         Record intent now; notify the worker only after the outermost commit.
 
         This never calls the provider or mutates the product owner. Unchanged
         input preserves completion, retry budget and a stopped failure; new input
-        starts a revision. Re-arming stopped work is a separate authorized
-        decision: retry_failed(). Recovery owns delivery if the post-commit
-        notification is lost.
+        starts a revision. Explicit ``retry_stopped=True`` gives unchanged stopped
+        failures a fresh budget without changing their revision or losing effect
+        evidence. ``retry_failed()`` retains its revision-replacing behavior.
+        Recovery owns delivery if the post-commit notification is lost.
         """
 
         if not self._open:
             raise RuntimeError("request_work() must be called inside atomic()")
         if self._scheduled:
             raise RuntimeError("request_work() may be called only once per atomic()")
+        if retry_stopped and self._capability.model.requires_effect_evidence:
+            raise ValueError("provider occurrences require evidence reconciliation")
         if not_before is not None and is_naive(not_before):
             raise ValueError("not_before must be timezone-aware")
 
@@ -893,6 +904,12 @@ class _DurableWorkTransaction[
             if not_before is not None:
                 self._capability.model.objects.filter(pk=current.id).update(available_at=not_before)
             current.refresh_from_db()
+
+        elif retry_stopped and current.state in (DurableWorkState.EXHAUSTED, DurableWorkState.TERMINAL_FAILED):
+            rearm_stopped_work(current)
+            if not_before is not None:
+                current.available_at = not_before
+                current.save(update_fields=["available_at", "updated_at"])
 
         assert current.id is not None, "persisted durable effect must have an id"
         self.existing_work = current
@@ -1090,10 +1107,11 @@ class OwnedDurableWorkCapability[
         """
 
         with transaction.atomic():
+            owner_manager = getattr(self.owner_model, self.model.work_owner_manager_name)
             try:
-                owner = self.owner_model.objects.select_for_update(skip_locked=not wait_for_owner).get(pk=owner_id)
+                owner = owner_manager.select_for_update(skip_locked=not wait_for_owner).get(pk=owner_id)
             except self.owner_model.DoesNotExist:
-                if not wait_for_owner and self.owner_model.objects.filter(pk=owner_id).exists():
+                if not wait_for_owner and owner_manager.filter(pk=owner_id).exists():
                     raise WorkOwnerBusy(f"{self.owner_model._meta.label_lower}:{owner_id}") from None
                 raise
             try:
