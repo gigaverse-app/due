@@ -42,13 +42,9 @@ class WrongLibraryReceiver(PrimitiveEffect):
         )
 
 
-@pytest.mark.parametrize(
-    "implementation,history",
-    [(ExtraRecovery, "step:discovery"), (OverriddenRecovery, "step:reap")],
-)
-def test_actual_custom_callback_requires_its_own_history(implementation, history):
-    capability = implementation.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
-    assert history in recovery_isolation_histories(capability)
+def test_actual_custom_callback_requires_its_own_history():
+    capability = ExtraRecovery.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
+    assert "step:discovery" in recovery_isolation_histories(capability)
 
 
 def _custom():
@@ -98,39 +94,24 @@ def test_unchanged_library_implementations_retain_their_shared_proofs(capability
     assert not any(history.startswith("step:") for history in recovery_isolation_histories(capability))
 
 
-def test_same_phase_name_does_not_make_an_overridden_builtin_a_library_proof():
+def test_an_overridden_builtin_gets_its_shared_history_without_a_declaration():
+    # Not a library proof: the override runs the generated reap history itself,
+    # which fails when its fault never fires (test_recovery_step_faults.py).
     capability = OverriddenRecovery.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
-    with pytest.raises(ObligationContractDesignError, match="missing=.*reap"):
-        validate_recovery_step_bindings(capability, {})
+    validate_recovery_step_bindings(capability, {})
+    histories = recovery_isolation_histories(capability)
+    assert "reap" in histories
+    assert "step:reap" not in histories
+    with pytest.raises(ObligationContractDesignError, match="stale=.*reap"):
+        validate_recovery_step_bindings(
+            capability, {RecoveryPhase.REAP: RecoveryStepBinding(run=capability._reap, example=no_fixture)}
+        )
 
 
 def test_library_implementation_on_another_capability_is_not_an_inherited_proof():
     capability = WrongLibraryReceiver.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
     with pytest.raises(ObligationContractDesignError, match="missing=.*dispatch"):
         validate_recovery_step_bindings(capability, {})
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {},
-        {"example": no_fixture, "shared_history": "dispatch"},
-        {"shared_history": "discovery"},
-        {"shared_history": "library:counts"},
-    ],
-)
-def test_each_binding_selects_exactly_one_supported_executable_proof(kwargs):
-    with pytest.raises(ObligationContractDesignError):
-        RecoveryStepBinding(run=_custom().clean_orphans, **kwargs)
-
-
-def test_shared_proof_must_match_the_actual_phase():
-    capability = _custom()
-    with pytest.raises(ObligationContractDesignError, match="cannot prove discovery"):
-        validate_recovery_step_bindings(
-            capability,
-            {RecoveryPhase.DISCOVERY: RecoveryStepBinding(run=capability.clean_orphans, shared_history="dispatch")},
-        )
 
 
 def test_collection_revalidates_changed_callbacks_before_accepting_old_declarations(monkeypatch):

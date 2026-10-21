@@ -27,9 +27,11 @@ The ``control`` case runs the same history without the poison, so a green
 poisoned case cannot come from a history that never progresses at all.
 
 Coverage follows the executable steps, not phase labels. Unchanged library
-callbacks keep their shared proofs; every custom callback requires an exact
-RecoveryStepBinding. Its generated history poisons a full first page so it also
-proves progress across ticks.
+callbacks keep their shared proofs, and so do an adopter's own ``_reap`` and
+``_dispatch`` overrides: those histories fault seams every override must reach,
+and fail when the fault never fires. Every other custom callback requires an
+exact RecoveryStepBinding. Its generated history poisons a full first page so it
+also proves progress across ticks.
 """
 
 from collections.abc import Callable, Iterator
@@ -91,12 +93,8 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
     if history.startswith("step:"):
         from due.django.conformance.recovery_step_proof import assert_custom_recovery_step
 
-        phase = RecoveryPhase(history.removeprefix("step:"))
-        binding = examples.recovery_steps[phase]
-        if binding.shared_history is None:
-            assert_custom_recovery_step(capability, examples, phase, poison=poison)
-            return
-        history = binding.shared_history
+        assert_custom_recovery_step(capability, examples, RecoveryPhase(history.removeprefix("step:")), poison=poison)
+        return
     arrange = {"reap": _reap, "dispatch": _dispatch, "discovery": _discovery}[history]
     bindings = DurableWorkBindings(capability, examples.make_work)
     entry = bindings.registration

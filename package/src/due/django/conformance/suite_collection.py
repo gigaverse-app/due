@@ -63,7 +63,7 @@ def example_sources(examples: EffectExamples, root: Path) -> ExampleSources:
             continue  # Reasoned decisions, not bindings; contract_report states them.
         if field.name == "recovery_steps":
             result[field.name] = {
-                phase.value: source_location(binding.example or binding.run, root)
+                phase.value: source_location(binding.example, root)
                 for phase, binding in examples.recovery_steps.items()
             }
             continue

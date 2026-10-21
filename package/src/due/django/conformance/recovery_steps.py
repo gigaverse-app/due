@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass
 from types import FunctionType, MethodType
-from typing import Any, Literal
+from typing import Any
 from unittest.mock import patch
 from uuid import UUID
 
@@ -83,29 +83,34 @@ class RecoveryStepExample:
     """Product fixtures and observations; the shared proof owns ticks and faults.
 
     ``make_pending`` creates independent candidates in selection order, through
-    real product transitions. ``poison`` raises PoisonedIdentity for the supplied
-    candidates at their per-row boundary and returns its observed firing count.
-    ``pending`` observes the product obligation, not dispatch state.
+    real product transitions. ``pending`` observes the product obligation, not
+    dispatch state. ``poison`` is optional: by default the fault is raised at
+    ``RecoveryPass.run_page``'s per-row ``step(identity)`` call for this phase
+    (see ``poison_paged_step``), so a step that pages through ``run_page`` needs
+    no fault seam. Supply ``poison`` (usually ``poison_recovery_call``) for a
+    step that pages another way, or to fault inside the row's own transaction.
     """
 
     make_pending: Callable[[], RecoveryIdentity]
     pending: Callable[[RecoveryIdentity], bool]
-    poison: Callable[[Sequence[RecoveryIdentity]], AbstractContextManager[Callable[[], int]]]
+    poison: Callable[[Sequence[RecoveryIdentity]], AbstractContextManager[Callable[[], int]]] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class RecoveryStepBinding:
-    """The exact registered callback and its scoped product fault example."""
+    """The exact registered callback and its product example."""
 
     run: Callable[[RecoveryPass], int]
-    example: Binding[RecoveryStepExample] | None = None
-    shared_history: Literal["reap", "dispatch"] | None = None
+    example: Binding[RecoveryStepExample]
 
-    def __post_init__(self) -> None:
-        if (self.example is None) == (self.shared_history is None):
-            raise ObligationContractDesignError("a recovery binding requires exactly one example or shared_history")
-        if self.shared_history is not None and self.shared_history not in ("reap", "dispatch"):
-            raise ObligationContractDesignError("shared_history must name an executable shared reap or dispatch proof")
+
+@contextmanager
+def _armed(identities: Sequence[RecoveryIdentity]) -> Iterator[tuple[PoisonSwitch, Callable[[], int]]]:
+    """One switch armed for every identity, with their summed firing count."""
+    switch = PoisonSwitch()
+    with ExitStack() as stack:
+        counts = [stack.enter_context(switch.poisoned(identity)) for identity in identities]
+        yield switch, lambda: sum(count() for count in counts)
 
 
 @contextmanager
@@ -119,16 +124,41 @@ def poison_recovery_call(
     declared seam fired for the arranged candidates.
     """
     original = getattr(target, attribute)
-    switch = PoisonSwitch()
-    with ExitStack() as stack:
-        counts = [stack.enter_context(switch.poisoned(identity)) for identity in identities]
+    with _armed(identities) as (switch, fired):
 
         def invoke(*args: Any, **kwargs: Any) -> Any:
             switch.check(identity_of(*args, **kwargs), f"{attribute} recovery fault")
             return original(*args, **kwargs)
 
         with patch.object(target, attribute, invoke):
-            yield lambda: sum(count() for count in counts)
+            yield fired
+
+
+@contextmanager
+def poison_paged_step(phase: RecoveryPhase, identities: Sequence[RecoveryIdentity]) -> Iterator[Callable[[], int]]:
+    """The default fault: ``run_page`` raises for an armed identity before calling the step for it.
+
+    Phases are unique per capability (``recovery_steps``), so the phase alone
+    selects the custom loop. A loop that does not page through ``run_page``
+    never meets this fault, and the generated proof fails as unfired.
+    """
+    original = RecoveryPass.run_page
+    with _armed(identities) as (switch, fired):
+
+        def run_page(
+            self: RecoveryPass, page_phase: RecoveryPhase, ordered_ids: Any, size: int, step: Callable[[Any], int]
+        ) -> int:
+            if page_phase != phase:
+                return original(self, page_phase, ordered_ids, size, step)
+
+            def faulted(identity: Any) -> int:
+                switch.check(identity, f"{phase.value} recovery fault")
+                return step(identity)
+
+            return original(self, page_phase, ordered_ids, size, faulted)
+
+        with patch.object(RecoveryPass, "run_page", run_page):
+            yield fired
 
 
 def recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[RecoveryStep, ...]:
@@ -186,9 +216,37 @@ def library_recovery_proofs(
     return proofs
 
 
+#: Built-in methods whose adopter overrides are proven by the shared history of the same name.
+_SHARED_HISTORY_METHODS = {RecoveryPhase.REAP: "_reap", RecoveryPhase.DISPATCH: "_dispatch"}
+
+
+def _overrides_shared_history(capability: DurableWorkCapability[Any, Any], step: RecoveryStep) -> bool:
+    """Whether ``step`` is this capability's own override of ``_reap``/``_dispatch``, in that phase.
+
+    The shared reap and dispatch histories fault the seams any reaper or
+    dispatcher must reach (claim settlement hooks; the broker publication)
+    through the registered tick, and fail when that fault never fires. So an
+    override needs no declaration: one that bypasses those seams fails its
+    generated case instead of inheriting a proof by name.
+    """
+    name = _SHARED_HISTORY_METHODS.get(step.phase)
+    run = step.run
+    return (
+        name is not None
+        and isinstance(run, MethodType)
+        and run.__self__ is capability
+        and run.__func__ is getattr(type(capability), name)
+    )
+
+
 def custom_recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[RecoveryStep, ...]:
+    """Steps that need an adopter binding: neither a library implementation nor a shared-history override."""
     library = library_recovery_proofs(capability)
-    return tuple(step for step in recovery_steps(capability) if (step.phase, _implementation(step.run)) not in library)
+    return tuple(
+        step
+        for step in recovery_steps(capability)
+        if (step.phase, _implementation(step.run)) not in library and not _overrides_shared_history(capability, step)
+    )
 
 
 def validate_recovery_step_bindings(
@@ -203,10 +261,6 @@ def validate_recovery_step_bindings(
             "Bind each real step with RecoveryStepBinding(run=..., example=...)."
         )
     for phase, binding in bindings.items():
-        if binding.shared_history is not None and binding.shared_history != phase.value:
-            raise ObligationContractDesignError(
-                f"shared recovery history {binding.shared_history} cannot prove {phase}"
-            )
         # INVARIANT: a declaration for another callback (even under the same
         # phase/name) cannot certify the registered production implementation.
         actual = custom[phase].run
@@ -226,8 +280,8 @@ def recovery_histories(capability: DurableWorkCapability[Any, Any]) -> tuple[str
     histories = []
     for step in recovery_steps(capability):
         proof = library.get((step.phase, _implementation(step.run)))
-        if proof is None:
-            histories.append(f"step:{step.phase.value}")
-        elif isinstance(proof, Generated):
+        if isinstance(proof, Generated) or _overrides_shared_history(capability, step):
             histories.append(step.phase.value)
+        elif proof is None:
+            histories.append(f"step:{step.phase.value}")
     return tuple(histories)

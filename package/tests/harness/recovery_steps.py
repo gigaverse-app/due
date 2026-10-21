@@ -68,29 +68,63 @@ class AbandoningCleanup(Cleanup):
         return super().candidates().filter(claimed_at__isnull=True)
 
 
+class DelegatingReap(PrimitiveEffect):
+    """An override that still reaches the library's claim settlement."""
+
+    def _reap(self, recovery: RecoveryPass) -> int:
+        return super()._reap(recovery)
+
+
+class SkippingReap(PrimitiveEffect):
+    """Deliberately wrong: an override that never settles an expired claim."""
+
+    def _reap(self, recovery: RecoveryPass) -> int:
+        return 0
+
+
 @contextmanager
-def cleanup_binding(implementation=Cleanup, *, wrong_seam=False):
+def _installed(capability, name):
+    entry = DurableWorkRegistration(name=name, capability=capability)
+    with (
+        primitive_tables(),
+        durable_work_installed(entry),
+        override_settings(CELERY_BEAT_SCHEDULE={**settings.CELERY_BEAT_SCHEDULE, **recovery_schedules([entry])}),
+    ):
+        yield
+
+
+@contextmanager
+def cleanup_binding(implementation=Cleanup, *, seam=None):
+    """``seam=None`` uses the default fault at ``run_page``; a method name poisons that call instead."""
     capability = implementation.for_owner(
         owner=primitive.owner_model,
         work=primitive.model,
         policy=replace(primitive.policy, batch_size=2),
     )
-    entry = DurableWorkRegistration(name="cleanup-control", capability=capability)
     facts = RecoveryStepExample(
         make_pending=lambda: PrimitiveOwner.objects.create(value="pending").pk,
         pending=lambda identity: PrimitiveOwner.objects.filter(pk=identity, value="pending").exists(),
-        poison=lambda identities: poison_recovery_call(
-            implementation, "unrelated" if wrong_seam else "process", lambda self, identity: identity, identities
-        ),
+        poison=None
+        if seam is None
+        else lambda identities: poison_recovery_call(implementation, seam, lambda self, identity: identity, identities),
     )
     examples = EffectExamples[PrimitiveWork](
         make_work=no_fixture,
         delivery=no_fixture,
         recovery_steps={RecoveryPhase.DISCOVERY: RecoveryStepBinding(run=capability.cleanup, example=lambda: facts)},
     )
-    with (
-        primitive_tables(),
-        durable_work_installed(entry),
-        override_settings(CELERY_BEAT_SCHEDULE={**settings.CELERY_BEAT_SCHEDULE, **recovery_schedules([entry])}),
-    ):
+    with _installed(capability, "cleanup-control"):
         yield capability, examples
+
+
+@contextmanager
+def reap_override_binding(implementation):
+    """A real registered adopter whose only custom step is its own ``_reap`` override."""
+    capability = implementation.for_owner(owner=primitive.owner_model, work=primitive.model, policy=primitive.policy)
+
+    def make_work():
+        with capability.atomic(PrimitiveOwner.objects.create().pk, notify_worker=False) as pending:
+            return pending.request_work(PrimitiveWork(payload="after", universe="acme"))
+
+    with _installed(capability, "reap-override-control"):
+        yield capability, EffectExamples[PrimitiveWork](make_work=make_work, delivery=no_fixture)
