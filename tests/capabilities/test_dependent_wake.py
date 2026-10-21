@@ -113,13 +113,14 @@ STATE_TABLE = [
 ]
 
 
+@pytest.mark.parametrize("notify_worker", [False, True])
 @pytest.mark.parametrize("state, offset, action, revision_delta, rearm_count", STATE_TABLE)
-def test_wake_follows_the_state_table(state, offset, action, revision_delta, rearm_count) -> None:
+def test_wake_follows_the_state_table(state, offset, action, revision_delta, rearm_count, notify_worker) -> None:
     _, work = owner_with_dependent()
     arrange(work, state, available_at_offset=offset)
     work.refresh_from_db()
     with hold_nudges() as held:
-        assert dependent.wake(work.pk) is action
+        assert dependent.wake(work.pk, notify_worker=notify_worker) is action
     woken = DependentWork.objects.get(pk=work.pk)
     assert woken.desired_revision == work.desired_revision + revision_delta
     assert woken.rearm_count == rearm_count
@@ -129,7 +130,7 @@ def test_wake_follows_the_state_table(state, offset, action, revision_delta, rea
     else:
         assert woken.state in (DurableWorkState.READY, DurableWorkState.RETRYABLE)
         assert woken.available_at <= database_now()
-        assert wakes(held) == 1
+        assert wakes(held) == int(notify_worker)
 
 
 def test_wake_rolls_back_with_its_callers_transaction() -> None:
