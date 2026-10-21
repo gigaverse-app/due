@@ -103,8 +103,11 @@ an override of a built-in step, requires an exact binding:
 
 ```python
 from due.django.conformance.recovery_steps import (
-    RecoveryStepBinding, RecoveryStepExample, poison_recovery_call,
+    RecoveryStepBinding,
+    RecoveryStepExample,
+    poison_recovery_call,
 )
+
 
 # Product fixture creates an orphan via real admission and source deletion.
 def orphan_example():
@@ -112,15 +115,22 @@ def orphan_example():
         make_pending=create_orphan,
         pending=orphan_still_owes_cleanup,
         poison=lambda ids: poison_recovery_call(
-            CleanupCapability, "clean_one", lambda self, identity: identity, ids,
+            CleanupCapability,
+            "clean_one",
+            lambda self, identity: identity,
+            ids,
         ),
     )
 
+
 examples = EffectExamples(
     # ...ordinary delivery/retry/product bindings...
-    recovery_steps={RecoveryPhase.DISCOVERY: RecoveryStepBinding(
-        run=cleanup._recover_orphans, example=orphan_example,
-    )},
+    recovery_steps={
+        RecoveryPhase.DISCOVERY: RecoveryStepBinding(
+            run=cleanup._recover_orphans,
+            example=orphan_example,
+        )
+    },
 )
 ```
 

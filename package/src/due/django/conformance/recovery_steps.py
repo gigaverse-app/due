@@ -144,7 +144,9 @@ def _implementation(run: Callable[..., Any]) -> object:
     # library factories recreate closures. Compare their executable code, never
     # __name__, __module__, decorator metadata, or the claimed phase alone.
     if isinstance(run, MethodType):
-        run = run.__func__
+        # A known implementation bound to another capability is not this
+        # adopter's shared step, even if the dataclass instances compare equal.
+        return (_implementation(run.__func__), id(run.__self__))
     return run.__code__ if isinstance(run, FunctionType) else run
 
 
@@ -176,7 +178,7 @@ def library_recovery_proofs(
         (RecoveryPhase.STALE_WRITE_REOPEN, DurableProjection._reopen_stale_writes),
         (RecoveryPhase.ATTEMPT_CENSUS, DurableProjection._attempt_census),
     )
-    proofs = {(phase, _implementation(run)): PHASE_PROOFS[phase] for phase, run in methods}
+    proofs = {(phase, _implementation(MethodType(run, capability))): PHASE_PROOFS[phase] for phase, run in methods}
     for step in attempt_recovery_steps(
         capability.model, capability.policy, retention=DurableProjection.attempt_retention, derivation=()
     ):

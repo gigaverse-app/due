@@ -33,6 +33,15 @@ class OverriddenRecovery(PrimitiveEffect):
         return 0
 
 
+class WrongLibraryReceiver(PrimitiveEffect):
+    def recorded_work_steps(self) -> tuple[RecoveryStep, ...]:
+        other = replace(self)
+        return tuple(
+            RecoveryStep(step.phase, other._dispatch) if step.phase == RecoveryPhase.DISPATCH else step
+            for step in super().recorded_work_steps()
+        )
+
+
 @pytest.mark.parametrize(
     "implementation,history",
     [(ExtraRecovery, "step:discovery"), (OverriddenRecovery, "step:reap")],
@@ -92,6 +101,12 @@ def test_unchanged_library_implementations_retain_their_shared_proofs(capability
 def test_same_phase_name_does_not_make_an_overridden_builtin_a_library_proof():
     capability = OverriddenRecovery.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
     with pytest.raises(ObligationContractDesignError, match="missing=.*reap"):
+        validate_recovery_step_bindings(capability, {})
+
+
+def test_library_implementation_on_another_capability_is_not_an_inherited_proof():
+    capability = WrongLibraryReceiver.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
+    with pytest.raises(ObligationContractDesignError, match="missing=.*dispatch"):
         validate_recovery_step_bindings(capability, {})
 
 
