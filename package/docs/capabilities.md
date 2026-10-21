@@ -103,3 +103,30 @@ Use the public fault controls in `due.django.testing` to withhold nudges, expire
 leases and interrupt execution. Check both the obligation and the product state.
 Library proofs cannot establish your provider's idempotency or whether your
 success callback publishes the correct business result.
+
+
+### Checkpointed projections
+
+A paginated writer can keep its `OwnedDurableWorkCapability` and reuse
+`projection_recovery_steps` and `settle_projection_observation` from
+`due.django.capabilities.projection`. Wrap each mutating provider call in
+`applied_effect_call`; reads alone need no effect attempt. Persist the observation
+start before the first page, preserve it across continuations, and settle only
+after every page is established. A reopened completed scan starts a new pass.
+These are the same repair/retention steps used by `DurableProjection`, not a
+separate scheduler. Old UNKNOWN calls remain owed under the declared repair policy.
+
+`projections_with_stale_writes(queryset, window=None)` selects projections with
+unresolved evidence from older revisions. It preserves the caller's scope and
+uses the same repair predicate as projection settlement; identical current
+revision writes cannot overwrite a newer payload. Import it from
+`due.django.public` for SQL-backed readiness observations.
+
+
+### Owners hidden from ordinary readers
+
+A work model can set `work_owner_manager_name = "all_objects"` when cleanup
+must retain access to soft-deleted owners. The default is `"objects"`.
+Admission and both runtime owner-lock paths use this same manager, preserving
+owner-before-work locking and visibility. This changes lifecycle visibility,
+not authorization: the application still decides who may request the work.

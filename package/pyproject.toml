@@ -64,10 +64,10 @@ fallback_version = "0.1.0.dev0"
 
 
 [tool.uv.sources]
-# Paired development source: pytest-obligation PR #85 owns recovery enforcement.
-# Release testing extras only after its >=0.14.0 API is published. This source
-# is used by contributor CI and is not emitted into wheel metadata.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "b9540033331beb3d1b4e5351ef3282cb43ad39e6", subdirectory = "package" }
+# Reviewed public source includes recovery enforcement and index-plan fixes.
+# Contributor CI uses this revision; wheel metadata keeps the published >=0.14.0
+# dependency and does not include a Git source.
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "ca21ff0bce65023cc7c69c9b180488eb9b919ba4", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]
