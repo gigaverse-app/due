@@ -7,4 +7,4 @@
 - [x] Public package: 977 tests pass. Application integration: 968 pass, 2 expected failures; profile, effect and observation reports generated.
 - [x] Ruff, Pyrefly and Django migration consistency pass.
 - [ ] Backend companion #5463: live/Collection/event/native adoption and generated schema parity.
-- [ ] GitHub CI: locked/minimum Django, isolated package export and wheel checks.
+- [x] GitHub CI: locked/minimum Django, isolated package export and wheel checks.

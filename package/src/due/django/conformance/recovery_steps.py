@@ -98,8 +98,8 @@ def poison_paged_step(
 ) -> Iterator[Callable[[], int]]:
     """The default fault: ``run_page`` raises for an armed identity before calling the step for it.
 
-    Phases are unique per capability (``recovery_steps``), so the phase alone
-    selects the custom loop. A loop that does not page through ``run_page``
+    The effect, phase and step key select the registered loop independently
+    of other loops using the same phase. A loop that does not use ``run_page``
     never meets this fault, and the generated proof fails as unfired.
     """
     step_key = step
