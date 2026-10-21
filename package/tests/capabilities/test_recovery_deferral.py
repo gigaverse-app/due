@@ -268,7 +268,9 @@ def test_a_soft_limit_while_recording_a_hold_ends_the_tick(monkeypatch: pytest.M
     capability = _one_owner_per_page(owners, {owner.pk for owner in owners}, page_size=10)
     attempted: list[str] = []
 
-    def stopped_while_deferring(effect: str, phase: RecoveryPhase, identity: str, error: str) -> None:
+    def stopped_while_deferring(
+        effect: str, phase: RecoveryPhase, identity: str, error: str, *, step: str = ""
+    ) -> None:
         attempted.append(identity)
         raise SoftTimeLimitExceeded()
 
@@ -495,3 +497,71 @@ def test_an_owner_a_fix_excludes_publishes_no_hold_from_the_next_tick(monkeypatc
     assert failed[-1] < 62
     assert [(count, age > 3600) for minute, count, age in published if minute == 61] == [(1, True)], "paging"
     assert [(minute, count, age) for minute, count, age in published if minute >= 62] == [(62, 0, 0.0), (63, 0, 0.0)]
+
+
+@pytest.mark.parametrize("overlapping", [False, True])
+def test_same_phase_steps_keep_independent_holds_and_retry(overlapping):
+    from due.django.runtime.recovery_pass import RecoveryStep
+
+    first, second = PrimitiveOwner.objects.create(), PrimitiveOwner.objects.create()
+    second_id = first.pk if overlapping else second.pk
+    seen = []
+    poisoned = {first.pk}
+
+    def fail(identity):
+        if identity in poisoned:
+            raise ValueError("cleanup refused")
+        seen.append(("first", identity))
+        return 1
+
+    def succeed(identity):
+        seen.append(("second", identity))
+        return 1
+
+    steps = (
+        RecoveryStep.paged(
+            RecoveryPhase.DISCOVERY,
+            lambda: PrimitiveOwner.objects.filter(pk=first.pk).values_list("pk", flat=True),
+            fail,
+            size=1,
+            key="first",
+        ),
+        RecoveryStep.paged(
+            RecoveryPhase.DISCOVERY,
+            lambda: PrimitiveOwner.objects.filter(pk=second_id).values_list("pk", flat=True),
+            succeed,
+            size=1,
+            key="second",
+        ),
+    )
+    for _ in range(2):
+        tick = RecoveryPass(EFFECT)
+        primitive._run_steps(steps, tick)
+        if tick.errors:
+            with pytest.raises(RecoveryIncomplete):
+                tick.raise_if_failed()
+    assert seen == [("second", second_id), ("second", second_id)]
+    assert RecoveryDeferral.objects.get(effect=EFFECT, step="first").identity == str(first.pk)
+    poisoned.clear()
+    end_recovery_holds(PrimitiveWork)
+    tick = RecoveryPass(EFFECT)
+    primitive._run_steps(steps, tick)
+    tick.raise_if_failed()
+    assert ("first", first.pk) in seen
+    assert not RecoveryDeferral.objects.filter(effect=EFFECT).exists()
+
+
+def test_duplicate_step_keys_fail_before_any_action():
+    from due.django.runtime.recovery_pass import RecoveryStep
+
+    def never(recovery):
+        pytest.fail("duplicate keys must fail before executing either step")
+
+    with pytest.raises(ValueError, match="key"):
+        primitive._run_steps(
+            (
+                RecoveryStep(RecoveryPhase.DISCOVERY, never, key="cleanup"),
+                RecoveryStep(RecoveryPhase.OBSERVATION, never, key="cleanup"),
+            ),
+            RecoveryPass(EFFECT),
+        )

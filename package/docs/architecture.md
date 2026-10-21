@@ -206,3 +206,20 @@ from profile H's raw external-effect replay. `EffectExamples.completions` binds
 explicit terminal outcomes with a simulated time bound. The shared oracles live
 in pytest-obligation; Due only supplies its real task bodies, clock and registered
 recovery cadence. Lost hints remain recoverable without a second protocol.
+
+
+### Recovery step ownership
+
+`RecoveryStep.key` identifies a loop independently from its metrics phase.
+Defaults preserve the existing single-loop API and empty-key deferral rows.
+Named steps isolate selection, success release, candidate removal and injected
+faults by (effect, phase, step, identity). Phase counters aggregate their results;
+step keys are not unbounded metric labels. Conformance generates one product
+history per custom step key and validates the actual factory inputs.
+
+Migration `due.0003_recoverydeferral_step` preserves existing holds and supplies
+a database default for older writers. Apply migrations before new processes.
+Old workers do not understand named holds; during a mixed-version rollout they
+can retry early, but holds are advisory and owed work stays in product rows.
+A schema rollback coalesces duplicate holds conservatively before restoring
+the old unique constraint. No obligation, receipt or work row is removed.

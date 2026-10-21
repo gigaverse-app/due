@@ -108,6 +108,7 @@ class RecoveryDeferral(models.Model):
 
     effect = models.CharField(max_length=128)
     phase = models.CharField(max_length=32)
+    step = models.CharField(max_length=128, default="", db_default="", blank=True)
     # The isolated identity's primary key as text: owners may be integer or UUID keyed.
     identity = models.CharField(max_length=64)
     failures = models.PositiveIntegerField(default=1)
@@ -119,7 +120,9 @@ class RecoveryDeferral(models.Model):
     class Meta:
         db_table = getattr(settings, "DUE_RECOVERY_DEFERRAL_TABLE", "due_recoverydeferral")
         constraints = [
-            models.UniqueConstraint(fields=["effect", "phase", "identity"], name="recovery_deferral_identity_uq"),
+            models.UniqueConstraint(
+                fields=["effect", "phase", "step", "identity"], name="recovery_deferral_identity_uq"
+            ),
         ]
         indexes = [
             models.Index(fields=["effect", "retry_at"], name="recovery_deferral_retry_ix"),

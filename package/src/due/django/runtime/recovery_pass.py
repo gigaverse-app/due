@@ -4,6 +4,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
+import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -137,8 +138,8 @@ class RecoveryIncomplete(ExceptionGroup):
 
 
 @dataclass
-class _PhaseHolds:
-    """The deferral rows of one phase as of the tick's clock."""
+class _StepHolds:
+    """The deferral rows of one step as of the tick's clock."""
 
     #: Identities held out of this phase right now.
     waiting: set[str] = field(default_factory=set)
@@ -168,9 +169,10 @@ class RecoveryPass:
     failures: int = 0
     _now: datetime | None = None
     #: Every deferral row of the effect, read once per tick on the first page.
-    _holds: dict[RecoveryPhase, _PhaseHolds] | None = None
+    _holds: dict[tuple[RecoveryPhase, str], _StepHolds] | None = None
+    step_key: str = field(default="", init=False)
     #: Phases that paged this tick: only their isolated identities are deferred.
-    _paged: set[RecoveryPhase] = field(default_factory=set)
+    _paged: set[tuple[RecoveryPhase, str]] = field(default_factory=set)
     #: Phases whose failure counter this tick has created (at zero, before any failure).
     _counted: set[RecoveryPhase] = field(default_factory=set)
 
@@ -279,24 +281,39 @@ class RecoveryPass:
             incomplete.effect = self.effect
             raise incomplete
 
-    def _holds_for(self, phase: RecoveryPhase) -> _PhaseHolds:
+    @contextmanager
+    def step(self, key: str = "") -> Iterator[None]:
+        """Scope holds to one stable step; phase labels remain aggregated metrics."""
+        previous = self.step_key
+        self.step_key = key
+        try:
+            yield
+        finally:
+            self.step_key = previous
+
+    def _holds_for(self, phase: RecoveryPhase) -> _StepHolds:
         if self._holds is None:
             now = self.clock()
-            self._holds = {deferring: _PhaseHolds() for deferring in DEFERRING_PHASES}
-            rows = RecoveryDeferral.objects.filter(effect=self.effect).values_list("phase", "identity", "retry_at")
-            for phase_value, identity, retry_at in rows:
-                holds = self._holds.get(RecoveryPhase(phase_value)) if phase_value in RecoveryPhase else None
-                if holds is None:
-                    continue  # A phase this code no longer pages; forgotten in time.
+            self._holds = {}
+            rows = RecoveryDeferral.objects.filter(effect=self.effect).values_list(
+                "phase", "step", "identity", "retry_at"
+            )
+            for phase_value, step, identity, retry_at in rows:
+                if phase_value not in DEFERRING_PHASES:
+                    continue  # An obsolete step/phase is eventually forgotten.
+                holds = self._holds.setdefault((RecoveryPhase(phase_value), step), _StepHolds())
                 if retry_at > now:
                     holds.waiting.add(identity)
                 else:
                     holds.ended[identity] = retry_at
-        self._paged.add(phase)
-        return self._holds[phase]
+        key = (phase, self.step_key)
+        self._paged.add(key)
+        return self._holds.setdefault(key, _StepHolds())
 
     def _record(self, phase: RecoveryPhase, identity: object, error: Exception) -> None:
-        error.add_note(f"durable-work recovery: effect={self.effect} phase={phase.value} identity={identity!r}")
+        error.add_note(
+            f"durable-work recovery: effect={self.effect} phase={phase.value} step={self.step_key!r} identity={identity!r}"
+        )
         self.failures += 1
         if len(self.errors) < MAX_REPORTED_FAILURES:
             self.errors.append(error)
@@ -308,13 +325,13 @@ class RecoveryPass:
             extra={"effect": self.effect, "phase": phase.value, "identity": identity},
         )
         record_recovery_failure(self.effect, phase)
-        if identity is not None and phase in self._paged:
+        if identity is not None and (phase, self.step_key) in self._paged:
             self._defer(phase, str(identity), repr(error))
 
     def _defer(self, phase: RecoveryPhase, identity: str, error: str) -> None:
         """Hold one isolated identity out of its phase; never mask the failure being recorded."""
         try:
-            defer_identity(self.effect, phase, identity, error)
+            defer_identity(self.effect, phase, identity, error, step=self.step_key)
         except Exception as failure:
             if ends_the_tick(failure, self.propagate):
                 raise
@@ -339,7 +356,9 @@ class RecoveryPass:
         try:
             gone = absent - {str(identity) for identity in ordered_ids.filter(pk__in=absent)}
             if gone:
-                RecoveryDeferral.objects.filter(effect=self.effect, phase=phase, identity__in=gone).delete()
+                RecoveryDeferral.objects.filter(
+                    effect=self.effect, phase=phase, step=self.step_key, identity__in=gone
+                ).delete()
         except NotSupportedError:
             return  # A union cannot be filtered; such holds are forgotten by age instead.
         except Exception as failure:
@@ -357,10 +376,10 @@ class RecoveryPass:
             holds.forget(identity)
 
     def _release(self, phase: RecoveryPhase, identity: str) -> None:
-        holds = self._holds.get(phase) if self._holds is not None else None
+        holds = self._holds.get((phase, self.step_key)) if self._holds is not None else None
         if holds is None or identity not in holds.known:
             return
-        RecoveryDeferral.objects.filter(effect=self.effect, phase=phase, identity=identity).delete()
+        RecoveryDeferral.objects.filter(effect=self.effect, phase=phase, step=self.step_key, identity=identity).delete()
         holds.forget(identity)
 
 
@@ -406,13 +425,13 @@ def recovery_tick(
         record_recovery_completed(effect, _coordination_now().timestamp())
 
 
-def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str) -> None:
+def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str, *, step: str = "") -> None:
     """Record one more consecutive failure and push ``retry_at`` out by the backoff."""
     with transaction.atomic():
         now = _coordination_now()
         current = (
             RecoveryDeferral.objects.select_for_update()
-            .filter(effect=effect, phase=phase, identity=identity)
+            .filter(effect=effect, phase=phase, step=step, identity=identity)
             .values_list("pk", "failures")
             .first()
         )
@@ -423,6 +442,7 @@ def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str)
                     RecoveryDeferral.objects.create(
                         effect=effect,
                         phase=phase,
+                        step=step,
                         identity=identity,
                         first_failed_at=now,
                         last_failed_at=now,
@@ -433,7 +453,7 @@ def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str)
             except IntegrityError:
                 current = (
                     RecoveryDeferral.objects.select_for_update()
-                    .filter(effect=effect, phase=phase, identity=identity)
+                    .filter(effect=effect, phase=phase, step=step, identity=identity)
                     .values_list("pk", "failures")
                     .get()
                 )
@@ -529,10 +549,19 @@ def install_recovery_reporting() -> None:
 
 @dataclass(frozen=True)
 class RecoveryStep:
-    """One named phase of a capability's recovery tick."""
+    """One executable recovery step. Keys own retry holds; phases label metrics."""
 
     phase: RecoveryPhase
     run: Callable[[RecoveryPass], int]
+    key: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.key is not None and re.fullmatch(r"[a-z][a-z0-9_-]{0,127}", self.key) is None:
+            raise ValueError("recovery step key must be a stable lowercase name of at most 128 characters")
+
+    @property
+    def identity(self) -> str:
+        return self.phase.value if self.key is None else self.key
 
     @classmethod
     def paged[IdentityT](
@@ -542,6 +571,7 @@ class RecoveryStep:
         action: Callable[[IdentityT], int],
         *,
         size: int,
+        key: str | None = None,
     ) -> RecoveryStep:
         """Register a per-item action with library-owned paging, isolation and backoff.
 
@@ -553,7 +583,7 @@ class RecoveryStep:
             raise ValueError("recovery page size must be positive")
         if phase not in DEFERRING_PHASES:
             raise ValueError(f"{phase.value} does not support paged recovery")
-        return cls(phase, RecoveryPage(phase, candidates, action, size))
+        return cls(phase, RecoveryPage(phase, candidates, action, size), key=key)
 
 
 @dataclass(frozen=True)

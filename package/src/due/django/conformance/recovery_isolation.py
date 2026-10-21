@@ -93,7 +93,7 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
     if history.startswith("step:"):
         from due.django.conformance.recovery_step_proof import assert_custom_recovery_step
 
-        assert_custom_recovery_step(capability, examples, RecoveryPhase(history.removeprefix("step:")), poison=poison)
+        assert_custom_recovery_step(capability, examples, history.removeprefix("step:"), poison=poison)
         return
     arrange = {"reap": _reap, "dispatch": _dispatch, "discovery": _discovery}[history]
     bindings = DurableWorkBindings(capability, examples.make_work)

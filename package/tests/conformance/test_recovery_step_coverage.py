@@ -139,3 +139,68 @@ def test_collection_revalidates_changed_callbacks_before_accepting_old_declarati
     # collection boundary, before it can register a coverage report.
     with pytest.raises(ObligationContractDesignError, match="different production callback"):
         collect_suite(cast(pytest.Config, None), [cast(pytest.Function, SimpleNamespace(cls=suite))])
+
+
+@pytest.mark.parametrize("wrong", ["model", "policy", "retention", "evidence"])
+def test_factory_cannot_inherit_proof_for_different_bound_inputs(wrong):
+    from datetime import timedelta
+
+    from due.django.capabilities._attempt_recovery import attempt_recovery_steps
+    from tests.harness.enrollment import EnrollmentOperationWork, Projection
+
+    class FactoryProjection(Projection):
+        def derivation_steps(self):
+            return attempt_recovery_steps(
+                EnrollmentOperationWork if wrong == "model" else self.model,
+                replace(self.policy, batch_size=7) if wrong == "policy" else self.policy,
+                retention=timedelta(days=1) if wrong == "retention" else self.attempt_retention,
+                keep_started_evidence=wrong == "evidence",
+                derivation=(),
+            )
+
+    capability = FactoryProjection.for_owner(
+        owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy(retention=None)
+    )
+    with pytest.raises(ObligationContractDesignError, match="missing="):
+        validate_recovery_step_bindings(capability, {})
+
+
+def test_factory_with_current_product_policy_needs_no_extra_declaration():
+    from datetime import timedelta
+
+    from due.django.capabilities._attempt_recovery import attempt_recovery_steps
+    from tests.harness.enrollment import Projection
+
+    class FactoryProjection(Projection):
+        attempt_retention = timedelta(days=14)
+
+        def derivation_steps(self):
+            return attempt_recovery_steps(self.model, self.policy, retention=self.attempt_retention, derivation=())
+
+    capability = FactoryProjection.for_owner(
+        owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy(retention=None, batch_size=7)
+    )
+    validate_recovery_step_bindings(capability, {})
+
+
+def test_every_named_step_in_a_shared_phase_requires_its_own_example():
+    class TwoPages(PrimitiveEffect):
+        def derivation_steps(self):
+            return tuple(
+                RecoveryStep.paged(RecoveryPhase.DISCOVERY, no_fixture, no_fixture, size=2, key=key)
+                for key in ("orphans", "expired")
+            )
+
+    capability = TwoPages.for_owner(owner=PrimitiveOwner, work=PrimitiveWork, policy=DurableWorkPolicy())
+    assert set(recovery_isolation_histories(capability)) >= {"step:orphans", "step:expired"}
+    with pytest.raises(ObligationContractDesignError, match="missing=.*expired"):
+        validate_recovery_step_bindings(capability, {"orphans": no_fixture})
+    validate_recovery_step_bindings(capability, {"orphans": no_fixture, "expired": no_fixture})
+    with pytest.raises(ObligationContractDesignError):
+        validate_recovery_step_bindings(capability, {RecoveryPhase.DISCOVERY: no_fixture})
+
+
+@pytest.mark.parametrize("key", ["", "two words", "UpperCase", "x" * 129])
+def test_unstable_step_keys_are_rejected(key):
+    with pytest.raises(ValueError, match="key"):
+        RecoveryStep(RecoveryPhase.DISCOVERY, no_fixture, key=key)
