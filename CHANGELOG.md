@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/gigaverse-app/due/compare/v0.7.0...v0.7.1) (2026-10-21)
+
+
+### Documentation
+
+* use release versions for editable source consumers ([#59](https://github.com/gigaverse-app/due/issues/59)) ([1e4e566](https://github.com/gigaverse-app/due/commit/1e4e566b7dde70611e04efa0d5215a9a2d9c4c6e))
+
 ## [0.7.0](https://github.com/gigaverse-app/due/compare/v0.6.0...v0.7.0) (2026-10-21)
 
 
