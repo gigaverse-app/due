@@ -88,13 +88,46 @@ Re-run that commit's failed CI first. An empty tag is allowed only for a TestPyP
 development rehearsal. A successful upload is immutable; do not reuse a version
 for different source.
 
+## Editable source consumers and release identities
+
+Publish a release containing the feature PRs before asking stable consumers to
+adopt it. A package version in a consumer identifies a release tag; commit IDs,
+package splits and content trees are generated lock data, not values an engineer
+should calculate by hand. Do not retag an existing version after a squash merge
+or a publishing retry.
+
+```text
+BEFORE: feature PR -> consumer copies candidate hashes -> squash merge -> manual hash cleanup
+AFTER:  feature PR -> release PR -> immutable vX.Y.Z -> consumer imports version + generated lock
+```
+
+For Gigaverse BE, use its maintained
+[public-library import workflow](https://github.com/gigaverse-app/gigaverse-backend/blob/main/docs/technical-design/public-due-cutover.md):
+
+```bash
+uv run python deployment/scripts/public_libraries.py due --import-release 0.7.0
+uv lock
+```
+
+Review and commit the staged package/manifest and dependency-lock changes.
+The consumer verifies the release tag's full revision and reconstructed package
+tree. Source remains editable; BE-only improvements remain visible as a separate
+exportable delta against that named baseline. The embedded package's development
+fallback version is not the consumer's provenance authority.
+
+A consumer can explicitly import a PR candidate for cross-repository testing.
+Once a release includes it, BE's release updater opens or updates a draft adoption
+PR and derives the final hashes, including after squash merges. The updater
+preserves reviewer commits and independent consumer changes and does not merge
+the adoption PR. A candidate is retained if no release covers its changes yet.
+See the consumer guide for the command and conflict-resolution procedure; do not
+maintain a second copy of that logic here.
+
 ## Current dependency release prerequisite
 
-The latest merged Due conformance code requires obligation's new replay and retry
-proofs, introduced after pytest-obligation 0.10.0. Normal development
-and CI retain main's reviewed Git pin through `tool.uv.sources`. Wheel metadata
-contains only `pytest-obligation>=0.11.0,<1`, with no direct Git dependency.
-Publish the next pytest-obligation release containing those changes before
-merging Due's first release PR. The release build installs the wheel's testing
-extra from published packages and refuses to publish if that dependency is not
-yet available. A runtime-only install does not need pytest-obligation.
+The Due 0.7 conformance code requires pytest-obligation 0.14.0 or later.
+Development CI uses the reviewed Git source through `tool.uv.sources`; wheel
+metadata contains `pytest-obligation>=0.14.0,<1`, with no direct Git dependency.
+pytest-obligation 0.14.0 is published. The release build still verifies that the
+wheel's testing extra resolves entirely from published packages before publishing.
+A runtime-only install does not need pytest-obligation.
