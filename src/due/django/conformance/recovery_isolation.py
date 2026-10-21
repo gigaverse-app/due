@@ -26,8 +26,12 @@ reported the injected failure, and the poisoned identity is still owed. On top:
 The ``control`` case runs the same history without the poison, so a green
 poisoned case cannot come from a history that never progresses at all.
 
-Where every other recovery phase is proven is declared in ``PHASE_PROOFS``;
-a phase added to ``RecoveryPhase`` without an entry fails its self-test.
+Coverage follows the executable steps, not phase labels. Unchanged library
+callbacks keep their shared proofs, and so do an adopter's own ``_reap`` and
+``_dispatch`` overrides: those histories fault seams every override must reach,
+and fail when the fault never fires. Every other custom callback requires an
+exact RecoveryStepBinding. Its generated history poisons a full first page so it
+also proves progress across ticks.
 """
 
 from collections.abc import Callable, Iterator
@@ -42,11 +46,15 @@ from pytest_obligation.poison import PoisonSwitch, assert_poison_is_isolated
 from due.django.capabilities.authoring import _DurableWorkTransaction
 from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import DurableWorkBindings
+from due.django.conformance.recovery_steps import PHASE_PROOFS as PHASE_PROOFS
+from due.django.conformance.recovery_steps import Generated as Generated
+from due.django.conformance.recovery_steps import NoApplicationCode as NoApplicationCode
+from due.django.conformance.recovery_steps import ProvenOnce as ProvenOnce
+from due.django.conformance.recovery_steps import recovery_histories
 from due.django.models import RecoveryDeferral
 from due.django.public import (
     DurableWorkCapability,
     DurableWorkState,
-    OwnedDurableWorkCapability,
     UniverseDurableWork,
     database_now,
 )
@@ -58,70 +66,9 @@ from due.django.testing import hold_nudges
 _APPLY_ASYNC = "due.django.runtime.tasks.run_durable_work_task.apply_async"
 
 
-@dataclass(frozen=True)
-class Generated:
-    """Proven per registered adopter by a generated case."""
-
-    case: str
-
-
-@dataclass(frozen=True)
-class ProvenOnce:
-    """A library loop with no adopter-specific seam, proven once on the test primitive."""
-
-    test: str
-
-
-@dataclass(frozen=True)
-class NoApplicationCode:
-    """The phase runs no per-identity application code, so nothing in it can be poisoned."""
-
-    because: str
-
-
-#: Where the isolation of every recovery phase is proven. Exhaustive over ``RecoveryPhase``.
-PHASE_PROOFS: dict[RecoveryPhase, Generated | ProvenOnce | NoApplicationCode] = {
-    RecoveryPhase.DISCOVERY: Generated("test_one_poisoned_identity_does_not_stall_recovery[discovery-*]"),
-    RecoveryPhase.REAP: Generated("test_one_poisoned_identity_does_not_stall_recovery[reap-*]"),
-    RecoveryPhase.DISPATCH: Generated("test_one_poisoned_identity_does_not_stall_recovery[dispatch-*]"),
-    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
-        "integration_tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
-    ),
-    RecoveryPhase.EVIDENCE_SETTLEMENT: ProvenOnce(
-        "package/tests/capabilities/test_operation_recovery_isolation.py"
-        "::test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures"
-    ),
-    RecoveryPhase.NONAPPLICATION: ProvenOnce(
-        "package/tests/capabilities/test_operation_recovery_isolation.py"
-        "::test_recovery_preserves_owed_evidence_and_isolates_only_identity_failures"
-    ),
-    RecoveryPhase.OBSERVATION: ProvenOnce(
-        "package/tests/capabilities/test_observation_recovery.py"
-        "::test_one_refused_observation_publication_does_not_hold_back_the_next"
-    ),
-    RecoveryPhase.DEADLINE_WAKEUP: ProvenOnce(
-        "integration_tests/capabilities/test_deadline_wakeups.py::test_failed_hint_does_not_block_due_work_or_other_hints"
-    ),
-    RecoveryPhase.CENSUS: NoApplicationCode(
-        "counts recorded work; the application's undiscovered count runs isolated as a discovery failure"
-    ),
-    RecoveryPhase.RETENTION: NoApplicationCode("deletes settled work rows by age, in bulk"),
-    RecoveryPhase.REPAIR_WINDOW: NoApplicationCode("re-opens the repair window by query, in bulk"),
-    RecoveryPhase.STALE_WRITE_REOPEN: NoApplicationCode(
-        "re-opens superseded successes under skip-locked row locks; runs no product callback"
-    ),
-    RecoveryPhase.ATTEMPT_RESOLUTION: NoApplicationCode("resolves attempt rows by query"),
-    RecoveryPhase.ATTEMPT_RETENTION: NoApplicationCode("deletes resolved attempt rows by age, in bulk"),
-    RecoveryPhase.ATTEMPT_CENSUS: NoApplicationCode("counts attempt rows"),
-}
-
-
 def recovery_isolation_histories(capability: DurableWorkCapability[Any, Any]) -> tuple[str, ...]:
-    """Every generated history this capability's tick needs (see ``PHASE_PROOFS``)."""
-    histories = ["reap", "dispatch"]
-    if isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None:
-        histories.append("discovery")
-    return tuple(histories)
+    """Derive histories from executable steps, including custom callbacks."""
+    return recovery_histories(capability)
 
 
 @dataclass(frozen=True)
@@ -143,6 +90,11 @@ class _History:
 def assert_one_poisoned_identity_does_not_stall_recovery(
     capability: DurableWorkCapability[Any, Any], examples: Any, *, history: str, poison: bool
 ) -> None:
+    if history.startswith("step:"):
+        from due.django.conformance.recovery_step_proof import assert_custom_recovery_step
+
+        assert_custom_recovery_step(capability, examples, RecoveryPhase(history.removeprefix("step:")), poison=poison)
+        return
     arrange = {"reap": _reap, "dispatch": _dispatch, "discovery": _discovery}[history]
     bindings = DurableWorkBindings(capability, examples.make_work)
     entry = bindings.registration

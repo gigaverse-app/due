@@ -63,6 +63,7 @@ DEFERRAL_FORGET_AFTER = timedelta(days=7)
 #: that dispatch per identity page as DISPATCH.
 DEFERRING_PHASES = (
     RecoveryPhase.DISCOVERY,
+    RecoveryPhase.OBSERVATION,
     RecoveryPhase.REAP,
     RecoveryPhase.EVIDENCE_SETTLEMENT,
     RecoveryPhase.NONAPPLICATION,
