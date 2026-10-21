@@ -650,6 +650,7 @@ def test_new_desired_state_does_not_wait_for_the_old_repair_interval(monkeypatch
     assert capability.attempt_execution(work.pk)
     assert not capability.attempt_execution(work.pk)
     work.refresh_from_db()
+    assert work.owner_id is not None
     with capability.atomic(work.owner_id, notify_worker=False) as pending:
         pending.request_work(EvidenceWork(universe=work.universe, run_at=work.run_at + timedelta(hours=1)))
     assert capability.attempt_execution(work.pk), "new intent must not inherit old repair pacing"
