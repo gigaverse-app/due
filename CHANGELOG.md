@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/gigaverse-app/due/compare/v0.5.0...v0.6.0) (2026-10-21)
+
+
+### Features
+
+* use shared recovery enforcement with simpler paged adoption ([#55](https://github.com/gigaverse-app/due/issues/55)) ([3a4753c](https://github.com/gigaverse-app/due/commit/3a4753cae5338be24ff7588257ccb638b801c9fc))
+
+
+### Bug fixes
+
+* bind recovery proofs to their targets and isolate step retries ([#56](https://github.com/gigaverse-app/due/issues/56)) ([336b430](https://github.com/gigaverse-app/due/commit/336b43024be47839d612e8eebc90a43567a483ba))
+* enforce coverage for executable recovery steps ([0c59476](https://github.com/gigaverse-app/due/commit/0c59476c4a73968c4ba5601c74c0e1d7d93b9821))
+
 ## [0.5.0](https://github.com/gigaverse-app/due/compare/v0.4.0...v0.5.0) (2026-10-13)
 
 
