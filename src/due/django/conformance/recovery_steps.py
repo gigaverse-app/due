@@ -5,7 +5,7 @@ its name cannot lend a library proof to an application callback.
 """
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import AbstractContextManager, ExitStack, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 from types import FunctionType, MethodType
 from typing import Any
@@ -14,11 +14,13 @@ from uuid import UUID
 
 from pytest_obligation.contract import ObligationContractDesignError
 from pytest_obligation.poison import PoisonSwitch
+from pytest_obligation.recovery import RecoveryExample as RecoveryStepExample
+from pytest_obligation.recovery import poison_call, poison_many, validate_recovery_bindings
 
 from due.django.capabilities.authoring import DurableWorkCapability
 from due.django.conformance.binding import Binding
 from due.django.runtime.metrics import RecoveryPhase
-from due.django.runtime.recovery_pass import RecoveryPass, RecoveryStep
+from due.django.runtime.recovery_pass import RecoveryPage, RecoveryPass, RecoveryStep
 
 type RecoveryIdentity = int | str | UUID
 
@@ -78,22 +80,7 @@ PHASE_PROOFS: dict[RecoveryPhase, LibraryProof] = {
 }
 
 
-@dataclass(frozen=True, kw_only=True)
-class RecoveryStepExample:
-    """Product fixtures and observations; the shared proof owns ticks and faults.
-
-    ``make_pending`` creates independent candidates in selection order, through
-    real product transitions. ``pending`` observes the product obligation, not
-    dispatch state. ``poison`` is optional: by default the fault is raised at
-    ``RecoveryPass.run_page``'s per-row ``step(identity)`` call for this phase
-    (see ``poison_paged_step``), so a step that pages through ``run_page`` needs
-    no fault seam. Supply ``poison`` (usually ``poison_recovery_call``) for a
-    step that pages another way, or to fault inside the row's own transaction.
-    """
-
-    make_pending: Callable[[], RecoveryIdentity]
-    pending: Callable[[RecoveryIdentity], bool]
-    poison: Callable[[Sequence[RecoveryIdentity]], AbstractContextManager[Callable[[], int]]] | None = None
+poison_recovery_call = poison_call
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -105,37 +92,9 @@ class RecoveryStepBinding:
 
 
 @contextmanager
-def _armed(identities: Sequence[RecoveryIdentity]) -> Iterator[tuple[PoisonSwitch, Callable[[], int]]]:
-    """One switch armed for every identity, with their summed firing count."""
-    switch = PoisonSwitch()
-    with ExitStack() as stack:
-        counts = [stack.enter_context(switch.poisoned(identity)) for identity in identities]
-        yield switch, lambda: sum(count() for count in counts)
-
-
-@contextmanager
-def poison_recovery_call(
-    target: object, attribute: str, identity_of: Callable[..., RecoveryIdentity], identities: Sequence[RecoveryIdentity]
+def poison_paged_step(
+    phase: RecoveryPhase, identities: Sequence[RecoveryIdentity], *, effect: str | None = None
 ) -> Iterator[Callable[[], int]]:
-    """Fault one real per-row call; all other calls delegate unchanged.
-
-    This is the test-only dynamic interception boundary, not an application
-    selector or copied recovery implementation. Shared counters prove the
-    declared seam fired for the arranged candidates.
-    """
-    original = getattr(target, attribute)
-    with _armed(identities) as (switch, fired):
-
-        def invoke(*args: Any, **kwargs: Any) -> Any:
-            switch.check(identity_of(*args, **kwargs), f"{attribute} recovery fault")
-            return original(*args, **kwargs)
-
-        with patch.object(target, attribute, invoke):
-            yield fired
-
-
-@contextmanager
-def poison_paged_step(phase: RecoveryPhase, identities: Sequence[RecoveryIdentity]) -> Iterator[Callable[[], int]]:
     """The default fault: ``run_page`` raises for an armed identity before calling the step for it.
 
     Phases are unique per capability (``recovery_steps``), so the phase alone
@@ -143,12 +102,13 @@ def poison_paged_step(phase: RecoveryPhase, identities: Sequence[RecoveryIdentit
     never meets this fault, and the generated proof fails as unfired.
     """
     original = RecoveryPass.run_page
-    with _armed(identities) as (switch, fired):
+    switch = PoisonSwitch()
+    with poison_many(switch.poisoned, identities) as fired:
 
         def run_page(
             self: RecoveryPass, page_phase: RecoveryPhase, ordered_ids: Any, size: int, step: Callable[[Any], int]
         ) -> int:
-            if page_phase != phase:
+            if page_phase != phase or (effect is not None and self.effect != effect):
                 return original(self, page_phase, ordered_ids, size, step)
 
             def faulted(identity: Any) -> int:
@@ -159,6 +119,33 @@ def poison_paged_step(phase: RecoveryPhase, identities: Sequence[RecoveryIdentit
 
         with patch.object(RecoveryPass, "run_page", run_page):
             yield fired
+
+
+type RecoveryExampleBinding = RecoveryStepBinding | Binding[RecoveryStepExample]
+
+
+def bound_recovery_steps(
+    capability: DurableWorkCapability[Any, Any], bindings: Mapping[RecoveryPhase, RecoveryExampleBinding]
+) -> dict[RecoveryPhase, RecoveryStepBinding]:
+    """Paged registrations derive the executable callback; authors supply only product examples."""
+    actual = {step.phase: step for step in custom_recovery_steps(capability)}
+    resolved = {}
+    for phase, binding in bindings.items():
+        if isinstance(binding, RecoveryStepBinding):
+            resolved[phase] = binding
+        else:
+            step = actual.get(phase)
+            if step is None or not isinstance(step.run, RecoveryPage):
+                raise ObligationContractDesignError(
+                    f"{phase}: a plain product example requires RecoveryStep.paged; "
+                    "an arbitrary callback needs RecoveryStepBinding(run=..., example=...)"
+                )
+            resolved[phase] = RecoveryStepBinding(run=step.run, example=binding)
+    validate_recovery_bindings(
+        {phase.value: step.run for phase, step in actual.items()},
+        {phase.value: binding.run for phase, binding in resolved.items()},
+    )
+    return resolved
 
 
 def recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[RecoveryStep, ...]:
@@ -250,29 +237,9 @@ def custom_recovery_steps(capability: DurableWorkCapability[Any, Any]) -> tuple[
 
 
 def validate_recovery_step_bindings(
-    capability: DurableWorkCapability[Any, Any], bindings: Mapping[RecoveryPhase, RecoveryStepBinding]
+    capability: DurableWorkCapability[Any, Any], bindings: Mapping[RecoveryPhase, RecoveryExampleBinding]
 ) -> None:
-    custom = {step.phase: step for step in custom_recovery_steps(capability)}
-    missing, extra = custom.keys() - bindings.keys(), bindings.keys() - custom.keys()
-    if missing or extra:
-        raise ObligationContractDesignError(
-            "recovery_steps must cover exactly the custom executable callbacks; "
-            f"missing={sorted(str(phase) for phase in missing)}, stale={sorted(str(phase) for phase in extra)}. "
-            "Bind each real step with RecoveryStepBinding(run=..., example=...)."
-        )
-    for phase, binding in bindings.items():
-        # INVARIANT: a declaration for another callback (even under the same
-        # phase/name) cannot certify the registered production implementation.
-        actual = custom[phase].run
-        same = binding.run is actual
-        if isinstance(actual, MethodType):
-            same = (
-                isinstance(binding.run, MethodType)
-                and binding.run.__func__ is actual.__func__
-                and binding.run.__self__ is actual.__self__
-            )
-        if not same:
-            raise ObligationContractDesignError(f"recovery_steps[{phase}] is bound to a different production callback")
+    bound_recovery_steps(capability, bindings)
 
 
 def recovery_histories(capability: DurableWorkCapability[Any, Any]) -> tuple[str, ...]:

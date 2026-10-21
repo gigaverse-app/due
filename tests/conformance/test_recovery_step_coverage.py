@@ -88,6 +88,17 @@ def test_actual_custom_binding_is_accepted_without_evaluating_product_fixtures()
     )
 
 
+def test_plain_example_cannot_certify_an_arbitrary_callback():
+    with pytest.raises(ObligationContractDesignError, match="requires RecoveryStep.paged"):
+        validate_recovery_step_bindings(_custom(), {RecoveryPhase.DISCOVERY: no_fixture})
+
+
+@pytest.mark.parametrize("size", [0, -1])
+def test_paged_registration_refuses_a_nonprogressing_page_size(size):
+    with pytest.raises(ValueError, match="positive"):
+        RecoveryStep.paged(RecoveryPhase.DISCOVERY, no_fixture, no_fixture, size=size)
+
+
 @pytest.mark.parametrize("capability", TEST_OWNED_CAPABILITIES)
 def test_unchanged_library_implementations_retain_their_shared_proofs(capability):
     validate_recovery_step_bindings(capability, {})

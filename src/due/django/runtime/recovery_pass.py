@@ -534,6 +534,40 @@ class RecoveryStep:
     phase: RecoveryPhase
     run: Callable[[RecoveryPass], int]
 
+    @classmethod
+    def paged[IdentityT](
+        cls,
+        phase: RecoveryPhase,
+        candidates: Callable[[], QuerySet[Any, IdentityT]],
+        action: Callable[[IdentityT], int],
+        *,
+        size: int,
+    ) -> RecoveryStep:
+        """Register a per-item action with library-owned paging, isolation and backoff.
+
+        Supply an ordered, unsliced identity query and the product action.
+        The action owns any transaction/recheck it needs. Conformance derives
+        the fault seam from this same registration; tests need only product examples.
+        """
+        if size <= 0:
+            raise ValueError("recovery page size must be positive")
+        if phase not in DEFERRING_PHASES:
+            raise ValueError(f"{phase.value} does not support paged recovery")
+        return cls(phase, RecoveryPage(phase, candidates, action, size))
+
+
+@dataclass(frozen=True)
+class RecoveryPage[IdentityT]:
+    """Executable page registration; runtime and conformance consume the same action."""
+
+    phase: RecoveryPhase
+    candidates: Callable[[], QuerySet[Any, IdentityT]]
+    action: Callable[[IdentityT], int]
+    size: int
+
+    def __call__(self, recovery: RecoveryPass) -> int:
+        return recovery.run_page(self.phase, self.candidates(), self.size, self.action)
+
 
 def _stamp_unclean(effect: str, heartbeat: bool) -> None:
     """
