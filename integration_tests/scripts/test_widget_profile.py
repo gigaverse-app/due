@@ -199,3 +199,47 @@ def test_profiler_injection_does_not_shadow_application_dependencies(tmp_path):
         check=True,
     )
     assert result.stdout.strip() == "original app driver"
+
+
+@pytest.mark.parametrize("mode", ["cpu", "wall"])
+def test_flat_capture_preserves_every_public_function_counter(mode):
+    """Compare collectors on one frozen real profile, not two noisy runs."""
+    import subprocess
+    import sys
+
+    program = r"""
+import json, threading, yappi
+from scripts.widget_profile_bootstrap.sitecustomize import collect_functions
+
+def work():
+    sum(range(200))
+
+yappi.set_clock_type(MODE)
+yappi.set_context_name_callback(lambda: threading.current_thread().name)
+yappi.start(builtins=True, profile_threads=True)
+work()
+# Distinct code objects sharing a source identity are merged by public Yappi.
+for _ in range(4):
+    exec(compile("(lambda: sum(range(10)))()", "generated.py", "exec"))
+threads = [threading.Thread(target=work) for _ in range(12)]
+for thread in threads:
+    thread.start()
+for thread in threads:
+    thread.join()
+yappi.stop()
+expected = []
+for thread in yappi.get_thread_stats():
+    for function in yappi.get_func_stats(filter={"ctx_id": thread.id}):
+        expected.append(dict(name=function.name, module=function.module,
+            lineno=function.lineno, calls=function.ncall,
+            self_seconds=function.tsub, inclusive_seconds=function.ttot, thread=thread.id))
+actual = collect_functions()
+key = lambda row: (row["thread"], row["module"], row["lineno"], row["name"])
+assert sorted(actual, key=key) == sorted(expected, key=key)
+assert sum(row["calls"] for row in actual if row["name"] == "work") == 13
+assert any(row["thread"] == 0 for row in actual)
+print(json.dumps({"functions": len(actual)}))
+""".replace("MODE", repr(mode))
+    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["functions"] > 100

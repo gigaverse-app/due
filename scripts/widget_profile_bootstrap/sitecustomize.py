@@ -13,6 +13,48 @@ import time
 from pathlib import Path
 
 
+def collect_functions() -> list[dict]:
+    """Read flat counters without constructing/sorting unused call graphs.
+
+    Yappi is pinned to 1.7.6. Its documented raw enumerator preserves context IDs
+    (including main-thread zero), unlike the unfiltered public aggregation.
+    Pause/resume matches Yappi's public collector, with a much shorter pause.
+    Exact parity with that collector is tested on real CPU and wall captures.
+    """
+    import _yappi  # pyrefly: ignore[missing-import]  # Pinned compiled Yappi extension.
+
+    functions: dict[tuple, dict] = {}
+
+    def append(entry: tuple) -> None:
+        name, module, line, calls, _, builtin, total, own, _, _, context, context_name, _, _ = entry
+        if context_name == "widget-profile-writer" or os.path.basename(module) == "yappi.py" or module == "_yappi":
+            return
+        # Public Yappi merges distinct code objects with the same source identity.
+        key = (context, module, 0 if builtin else line, name)
+        if key in functions:
+            row = functions[key]
+            row["calls"] += calls
+            row["self_seconds"] += own
+            row["inclusive_seconds"] += total
+        else:
+            functions[key] = dict(
+                name=name,
+                module=module,
+                lineno=line,
+                calls=calls,
+                self_seconds=own,
+                inclusive_seconds=total,
+                thread=context,
+            )
+
+    _yappi._pause()
+    try:
+        _yappi.enum_func_stats(append, {})
+    finally:
+        _yappi._resume()
+    return list(functions.values())
+
+
 def start(directory: Path, mode: str, role: str) -> None:
     import yappi
 
@@ -27,24 +69,7 @@ def start(directory: Path, mode: str, role: str) -> None:
         if not lock.acquire(blocking=False):
             return
         try:
-            functions = []
-            for thread in yappi.get_thread_stats():
-                if thread.name == "widget-profile-writer":
-                    continue
-                # The ctx_id= keyword ignores zero in Yappi 1.7.6. The explicit
-                # filter correctly selects the main thread instead of all threads.
-                for function in yappi.get_func_stats(filter={"ctx_id": thread.id}):
-                    functions.append(
-                        {
-                            "name": function.name,
-                            "module": function.module,
-                            "lineno": function.lineno,
-                            "calls": function.ncall,
-                            "self_seconds": function.tsub,
-                            "inclusive_seconds": function.ttot,
-                            "thread": thread.id,
-                        }
-                    )
+            functions = collect_functions()
             result = {
                 "pid": pid,
                 "parent_pid": parent_pid,
