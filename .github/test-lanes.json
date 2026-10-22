@@ -23,7 +23,8 @@
       "inputs": [
         "package/src/**",
         "package/shims/**",
-        "package/tests/**"
+        "package/tests/**",
+        ".github/workflows/ci.yml"
       ]
     },
     "integration": {
@@ -35,7 +36,8 @@
         "package/shims/**",
         "examples/**",
         "integration_tests/**",
-        "scripts/check_adoption_report.py"
+        "scripts/check_adoption_report.py",
+        ".github/workflows/ci.yml"
       ]
     },
     "widget_comparison": {
@@ -52,8 +54,27 @@
         "integration_tests/integration/processes.py",
         "integration_tests/__init__.py",
         "integration_tests/integration/__init__.py",
-        "integration_tests/scripts/test_widget_profile.py"
+        "integration_tests/scripts/test_widget_profile.py",
+        ".github/workflows/widget-store.yml"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "**/*.py",
+        "**/*.pyi",
+        "pyrefly.toml",
+        "**/pyrefly.toml",
+        ".github/workflows/ci.yml"
       ]
     }
-  }
+  },
+  "global_inputs": [
+    "**/pyproject.toml",
+    "pyproject.toml",
+    "**/uv.lock",
+    "uv.lock",
+    ".github/test-lanes.json",
+    ".github/actions/**",
+    ".python-version"
+  ]
 }

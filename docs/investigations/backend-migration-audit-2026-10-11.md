@@ -77,7 +77,7 @@ integrity, constraints, indexes, idempotency keys and post-migration recovery.
 `durable_effect_schema_v1` helper and historical migrations importable.
 
 Sources: [BE models][be-models], [receipt base][be-receipts],
-[Due initial migration](../src/due/django/migrations/0001_initial.py).
+[Due initial migration](../../package/src/due/django/migrations/0001_initial.py).
 
 ### M2 — Application wiring errors no longer abort the recovery tick
 
@@ -101,8 +101,8 @@ and unchanged owed evidence. Verify a test cannot leak Due registrations into
 the next test. Keep positive controls for ordinary isolated row failures.
 
 Sources: [BE installed slots][be-installed], [wiring snapshot][be-wiring-state],
-[Due recovery classifier](../src/due/django/runtime/recovery_pass.py),
-[Due slots](../src/due/_installed.py).
+[Due recovery classifier](../../package/src/due/django/runtime/recovery_pass.py),
+[Due slots](../../package/src/due/_installed.py).
 
 ### M3 — The public pytest plugin cannot simply coexist with BE's current bootstrap
 
@@ -128,8 +128,8 @@ proof, xfailed mandatory proof and filtered-lane negative controls must fail.
 Native reports must retain their previous assessment and execution coverage.
 
 Sources: [BE conftest][be-conftest], [BE reporting][be-reporting],
-[BE collection guard][be-collection], [Due plugin](../src/due/pytest_plugin.py),
-[Due host](../src/due/django/conformance/host.py).
+[BE collection guard][be-collection], [Due plugin](../../package/src/due/pytest_plugin.py),
+[Due host](../../package/src/due/django/conformance/host.py).
 
 ### M4 — Adopter bindings require semantic adaptation, beyond work-table imports
 
@@ -156,7 +156,7 @@ corresponding generated proof must fail with its expected invariant.
 
 Sources: [MediaLive declarations][be-medialive-contract],
 [MediaLive histories][be-medialive-histories],
-[Due contract builder](../src/due/django/conformance/suite.py).
+[Due contract builder](../../package/src/due/django/conformance/suite.py).
 
 ### M5 — The handoff driver has a smaller recovery contract
 
@@ -183,7 +183,7 @@ cleanup after retirement. Recovery must run only declared production entry point
 use a bounded declared horizon and fail if owed follow-up work is left unobserved.
 
 Sources: [BE handoff runner][be-handoff], [MediaLive interleavings][be-medialive-races],
-[Due delivery](../src/due/django/conformance/delivery.py).
+[Due delivery](../../package/src/due/django/conformance/delivery.py).
 
 ### M6 — Some harness proof controls and query-scale evidence remain unported
 
@@ -242,8 +242,8 @@ prove one live schedule per registration with obsolete rows retired. Test
 universe restoration and actual primary/replica routing under concurrent work.
 
 Sources: [BE wiring][be-wiring], [BE task registry][be-registry],
-[Due hooks](../src/due/django/integration.py),
-[Due schedule cleanup](../src/due/django/runtime/registry.py).
+[Due hooks](../../package/src/due/django/integration.py),
+[Due schedule cleanup](../../package/src/due/django/runtime/registry.py).
 
 ### M8 — Operational evidence and native consumers must retain their owners
 
@@ -272,7 +272,7 @@ operator command and expected telemetry. Native and migration-history suites
 remain green.
 
 Sources: [BE alerts][be-alerts], [BE evidence boundary][be-evidence-boundary],
-[Due dependencies](../pyproject.toml).
+[Due dependencies](../../package/pyproject.toml).
 
 ## The 17-adopter migration acceptance matrix
 
