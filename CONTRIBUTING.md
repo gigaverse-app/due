@@ -73,3 +73,27 @@ uv pip install --python /tmp/due-wheel dist/*.whl
 Release versions and manual publishing approvals are described in [RELEASING.md](RELEASING.md).
 
 See [package ownership and subtree development](package/docs/development.md) for library edits made inside an adopter checkout.
+
+
+## Selective CI inputs
+
+`.github/test-lanes.json` selects complete library, integration and widget
+comparison lanes. Build, lint and type checks always run. Main and `test:full`
+run complete suites; a failed planner also runs the affected workflow in full.
+
+The widget comparison uses the standalone widget app. Its inputs include all
+Due runtime/shims, widget code/assets/migrations, shared Django settings and Celery
+bootstrap, widget benchmark/browser/resource/profile scripts (including the
+profile bootstrap), and `integration_tests/integration/processes.py` plus parent
+package initializers. The process helper starts the benchmark's subprocesses;
+it must trigger the widget lane even though it lives under integration tests.
+
+Changes confined to books, catalog, documents or adoption-report checking still
+run their integration lane, but do not run the unrelated four-job widget matrix.
+When adding a cross-app import, subprocess, file read or bootstrap dependency,
+update the widget inputs in the same PR. These are explicit audited dependencies,
+not a claim that static imports discover arbitrary runtime behavior.
+
+The planner JSON explains every lane decision. An affected test outside all lane
+roots runs every configured lane and names the missing mapping; add that directory
+to a lane whose pytest command actually executes it.

@@ -43,8 +43,15 @@
       "inputs": [
         "package/src/**",
         "package/shims/**",
-        "examples/**",
-        "scripts/**",
+        "examples/widget_store/**",
+        "examples/settings.py",
+        "examples/celery_app.py",
+        "examples/__init__.py",
+        "scripts/widget_*",
+        "scripts/__init__.py",
+        "integration_tests/integration/processes.py",
+        "integration_tests/__init__.py",
+        "integration_tests/integration/__init__.py",
         "integration_tests/scripts/test_widget_profile.py"
       ]
     }
