@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -10,6 +12,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      lanes: ${{ steps.select.outputs.lanes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: select
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@8205bed3c64be3cf9320b71a24ff6e48f37f5427
+        with:
+          config: .github/test-lanes.json
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+          full: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test:full') }}
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -35,6 +52,11 @@ jobs:
       - run: uv run --no-sync pyrefly check
 
   tests:
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).library ||
+          fromJSON(needs.select-tests.outputs.lanes).integration) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -75,42 +97,54 @@ jobs:
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
       - name: Prove the package export has no dependency on this repository
-        if: matrix.django == 'locked'
+        if: ${{ (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).library) && matrix.django == 'locked' }}
         run: |
           package_dir=$(mktemp -d)
           git archive HEAD:package | tar -x -C "$package_dir"
           uv run --directory "$package_dir" --extra selftest python -m pytest --due-work-check-fixtures
       - name: Run library controls without demo applications
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).library }}
         working-directory: package
         run: ../.venv/bin/python -m pytest --due-work-check-fixtures
       - name: Run full suite including live web, worker and Beat recovery
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync pytest --due-work-check-fixtures --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=integration_tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json
       - name: Require executed obligation guarantees
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
       - name: Require complete application conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_document --verified A B D E H I J --effect-report effects.json --effect publish_document --required-effect-case "test_due_work_contract[process-document process death-assert_process_deaths_converge]"
       - name: Require complete book indexing conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract index_book --verified A B D H I J --effect-report effects.json --effect index_book --required-effect-case "test_due_work_contract[completion-searchable book-assert_completes_within]" --required-effect-case "test_immutable_inputs_hold[admission-create book]" --required-effect-case "test_immutable_inputs_hold[admission_failure-create book]" --required-effect-case "test_due_work_contract[process-book indexing and publication process death-assert_process_deaths_converge]"
       - name: Require complete book publication conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book --required-effect-case "test_immutable_inputs_hold[producer-index settlement]"
       - name: Require catalog projection conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract project_catalog --verified A B D E H I J --effect-report effects.json --effect project_catalog
       # Non-repeatable orders decline harmless replay and retain evidence indefinitely.
       - name: Require observed print-order conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C I J --effect-report effects.json --effect print_order
       - name: Require scheduled publication conformance
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_at_deadline --verified A B E H I J --effect-report effects.json --effect publish_at_deadline --required-effect-case "test_due_work_contract[process-scheduled publication process death-assert_process_deaths_converge]"
       - name: Require widget checkout guarantees and crash histories
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract checkout_order --verified A B G I J --effect-report effects.json --effect checkout_order --required-effect-case "test_due_work_contract[delivery-replay-reconnected dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[completion-paid hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-paid sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[delivery-replay-final dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[process-widget paid process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget paid process death without hints-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death without hints-assert_process_deaths_converge]"
       - name: Validate application setup
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python -m django due_check
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
       - run: uv run --no-sync python -m django makemigrations --check --dry-run
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
       - uses: actions/upload-artifact@v7
-        if: always()
+        if: ${{ always() && (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration) }}
         with:
           name: obligation-profiles-${{ matrix.django }}
           path: |

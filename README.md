@@ -261,3 +261,16 @@ The [conformance API](package/docs/conformance-api.md#derive-routine-bindings-fr
 For an existing application, see [migration settings and stable wire names](package/docs/integration.md#migrating-an-existing-application).
 
 See [package ownership and subtree development](package/docs/development.md) for library edits made inside an adopter checkout.
+
+## Selective CI
+
+Pull requests use [pytest-selective](https://github.com/gigaverse-app/pytest-selective)
+to select complete affected test lanes before their services start. Selected lanes
+keep all existing tests and required conformance evidence checks. Main pushes,
+manual workflow runs, the `test:full` PR label, and unavailable planning proof run
+every lane. The adoption change itself runs the full suite.
+
+The repository owns the lane map and dynamic/subprocess inputs in
+[.github/test-lanes.json](.github/test-lanes.json). Update those inputs when adding
+a new runtime discovery path or external checkout; static imports cannot model
+every registration. Changes to CI and dependency metadata run all lanes.
