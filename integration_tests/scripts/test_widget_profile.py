@@ -243,3 +243,48 @@ print(json.dumps({"functions": len(actual)}))
     result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["functions"] > 100
+
+
+def test_periodic_snapshot_keeps_profiling_after_collection(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    bootstrap = Path(__file__).resolve().parents[2] / "scripts/widget_profile_bootstrap"
+    program = r"""
+import json, os, time
+from pathlib import Path
+
+def work():
+    sum(range(200))
+
+work()
+path = Path(os.environ["WIDGET_PROFILE_OUTPUT"]) / f"{os.getpid()}.json"
+deadline = time.monotonic() + 10
+while not path.exists():
+    assert time.monotonic() < deadline, "periodic snapshot never arrived"
+    time.sleep(0.02)
+rows = json.loads(path.read_text())["functions"]
+assert sum(row["calls"] for row in rows if row["name"] == "work") == 1
+assert not any(row["name"] == "background" for row in rows)
+work()
+print(os.getpid())
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program, "celery", "worker"],
+        env={
+            **os.environ,
+            "PYTHONPATH": str(bootstrap),
+            "WIDGET_PROFILE_OUTPUT": str(tmp_path),
+            "WIDGET_PROFILE_CLOCK": "cpu",
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    rows = json.loads((tmp_path / f"{int(result.stdout)}.json").read_text())["functions"]
+    assert sum(row["calls"] for row in rows if row["name"] == "work") == 2
+    assert not any(row["name"] == "background" for row in rows)
+    assert not list(tmp_path.glob("error-*"))
