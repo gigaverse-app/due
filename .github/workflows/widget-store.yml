@@ -7,6 +7,9 @@ on:
     branches: [main]
 permissions:
   contents: read
+  actions: read
+  checks: read
+  pull-requests: read
 concurrency:
   group: widgets-${{ github.ref }}
   cancel-in-progress: true
@@ -15,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.select.outputs.lanes }}
+      required: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.select.outputs.lanes || '{}').widget_comparison) != 'false' }}
+      reused: ${{ steps.evidence.outputs.reused }}
+      receipt: ${{ steps.evidence.outputs.receipt }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,12 +31,24 @@ jobs:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
           full: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test:full') }}
+      - id: evidence
+        name: Find successful captures of these exact inputs
+        if: >-
+          ${{ github.event_name == 'pull_request' &&
+              !contains(github.event.pull_request.labels.*.name, 'test:full') &&
+              toJSON(fromJSON(steps.select.outputs.lanes || '{}').widget_comparison) != 'false' }}
+        uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@9c009f3fc96af88167abd0aee5876320aa7cff2b
+        with:
+          # Default identity binds the entire tested merge tree, base and head tree.
+          # No local cache keys or incomplete hand-maintained input inventories.
+          lanes: '{"widgets":"Widget comparison gate"}'
 
   compare:
     needs: select-tests
     if: >-
       ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
-          fromJSON(needs.select-tests.outputs.lanes).widget_comparison) }}
+          (needs.select-tests.outputs.required != 'false' &&
+           toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -144,3 +162,26 @@ jobs:
           name: widget-store-${{ matrix.revision }}-reverse-${{ matrix.reverse }}${{ matrix.capture != 'benchmark' && format('-{0}', matrix.capture) || '' }}
           path: test-results/widgets/
           if-no-files-found: error
+
+  comparison-gate:
+    name: Widget comparison gate
+    needs: [select-tests, compare]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all captures or matching successful evidence
+        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@9c009f3fc96af88167abd0aee5876320aa7cff2b
+        with:
+          needs: '{"compare":${{ toJSON(needs.compare) }}}'
+          required: >-
+            {"compare":${{ needs.select-tests.result != 'success' ||
+              (needs.select-tests.outputs.required != 'false' &&
+               toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true') }}}
+      # Only actual complete execution establishes proof. A reused or empty run
+      # cannot renew the 24-hour evidence lifetime or hide missing captures.
+      - name: 'PR evidence #${{ github.event.pull_request.number }} head ${{ github.event.pull_request.head.sha }}'
+        if: ${{ github.event_name == 'pull_request' && needs.compare.result == 'success' }}
+        run: echo 'All ten isolated captures completed successfully.'
+      - name: ${{ needs.select-tests.outputs.receipt || 'No execution receipt' }}
+        if: ${{ needs.compare.result == 'success' && needs.select-tests.outputs.receipt != '' }}
+        run: echo 'Recording completed captures for this exact tested tree.'
