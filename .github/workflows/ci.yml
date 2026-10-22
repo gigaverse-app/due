@@ -8,8 +8,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
   ci-contracts:
@@ -25,6 +25,11 @@ jobs:
           uv run --no-project --python 3.14
           --with "$(python scripts/ci/selector_requirement.py)"
           python -m unittest discover -s ci_tests -v
+      - name: Check aggregate gate against the execution lanes
+        run: >-
+          uv run --no-project --python 3.14
+          --with "ci-esta @ https://github.com/gigaverse-app/ci-esta/archive/78e5e2b078ce6d9b4df488a102c387f3548aa00a.tar.gz"
+          ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
 
@@ -37,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@99f9af2bbe92534074657664903a1ce03bdeb44f
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@4bc213178e1bdf12dc15bf6baf8951ba8a394a4a
         with:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -47,10 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@78e5e2b078ce6d9b4df488a102c387f3548aa00a
         with:
-          enable-cache: true
-      - run: uv sync --all-packages --locked --only-group lint
+          python-version: '3.14'
+          sync-args: --all-packages --only-group lint
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync pre-commit validate-config
@@ -65,10 +70,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@78e5e2b078ce6d9b4df488a102c387f3548aa00a
         with:
-          enable-cache: true
-      - run: uv sync --all-packages --locked
+          python-version: '3.14'
+          sync-args: --all-packages
       - run: uv run --no-sync pyrefly check
 
   tests:
@@ -110,10 +115,10 @@ jobs:
       DUE_BROKER_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@78e5e2b078ce6d9b4df488a102c387f3548aa00a
         with:
-          enable-cache: true
-      - run: uv sync --all-packages --locked
+          python-version: '3.14'
+          sync-args: --all-packages
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
@@ -187,7 +192,7 @@ jobs:
       # Keep required check names present even when the expensive matrix is skipped.
       # A skipped matrix is valid only with an explicit successful no-test plan.
       - name: Require executed tests or a proven empty plan
-        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@28e935c1360e9b2936802d8d83fc2bb938e34d83
+        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@78e5e2b078ce6d9b4df488a102c387f3548aa00a
         with:
           # Planning failures activate the complete suite. Gate its actual outcome;
           # only successful planning with two literal false values permits a skip.
@@ -220,3 +225,15 @@ jobs:
           name: distributions
           path: dist/
           if-no-files-found: error
+
+  validation-gate:
+    name: Validation gate
+    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: gigaverse-app/ci-esta/.github/actions/validation-gate@78e5e2b078ce6d9b4df488a102c387f3548aa00a
+        with:
+          needs: ${{ toJSON(needs) }}
+          lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
+          lane-jobs: '{"typecheck":["typecheck"]}'

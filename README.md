@@ -265,3 +265,8 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 affect, behind CI-esta's required-check gates; every run gets a CI-esta
 [timing report](.github/workflows/observe-ci.yml). Due's conformance lane runs the
 pytest-obligation tests generated from its contracts.</sub>
+
+### How this project keeps CI fast
+
+See the [CI toolkit integration](docs/ci-toolkit.md) for lane selection, validated
+environment caches, required gates and real dependency critical-path reports.
