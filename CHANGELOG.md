@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.2](https://github.com/gigaverse-app/due/compare/v0.7.1...v0.7.2) (2026-10-22)
+
+
+### Performance
+
+* collect flat widget profiles without unused call graphs ([7e4e63d](https://github.com/gigaverse-app/due/commit/7e4e63de32aacded847a42baa6aba8847707db6e))
+* reduce profiler overhead and isolate parallel widget captures ([5536de6](https://github.com/gigaverse-app/due/commit/5536de688cec0b9d105201a4456e6811a0580546))
+* run complete widget captures on isolated runners ([d6878d8](https://github.com/gigaverse-app/due/commit/d6878d8f12c338f993c4ba74874381fc4392bb94))
+
+
+### Documentation
+
+* connect Due, recovery proofs, and test selection with badges ([#63](https://github.com/gigaverse-app/due/issues/63)) ([b50158b](https://github.com/gigaverse-app/due/commit/b50158b9c4c355ada4d50fc895169a71fcebaa9c))
+* publish full widget runtime and coverage measurements ([af61523](https://github.com/gigaverse-app/due/commit/af61523545149bc961406f7796138b88ec1df998))
+* record full widget runtime and coverage evidence ([883d217](https://github.com/gigaverse-app/due/commit/883d217e1693cafc8005bf1cc1359dc65e4a18ee))
+* replace sister-project sections with footer badges ([c25006c](https://github.com/gigaverse-app/due/commit/c25006c15008ec61bd5f52f0b0a6c4782db38b52))
+* replace sister-project sections with footer badges ([3140da3](https://github.com/gigaverse-app/due/commit/3140da389a5f2de74f2a895d0bd968d1911b5759))
+
 ## [0.7.1](https://github.com/gigaverse-app/due/compare/v0.7.0...v0.7.1) (2026-10-21)
 
 
