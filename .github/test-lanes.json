@@ -25,7 +25,7 @@
         "package/src/**",
         "package/shims/**",
         "package/tests/**",
-        ".github/workflows/ci.yml"
+        ".github/workflows/ci.yml#tests"
       ]
     },
     "integration": {
@@ -38,7 +38,7 @@
         "examples/**",
         "integration_tests/**",
         "scripts/check_adoption_report.py",
-        ".github/workflows/ci.yml"
+        ".github/workflows/ci.yml#tests"
       ]
     },
     "widget_comparison": {
@@ -56,7 +56,7 @@
         "integration_tests/__init__.py",
         "integration_tests/integration/__init__.py",
         "integration_tests/scripts/test_widget_profile.py",
-        ".github/workflows/widget-store.yml"
+        ".github/workflows/widget-store.yml#compare"
       ]
     },
     "typecheck": {
@@ -65,7 +65,7 @@
         "**/*.pyi",
         "pyrefly.toml",
         "**/pyrefly.toml",
-        ".github/workflows/ci.yml"
+        ".github/workflows/ci.yml#typecheck"
       ]
     }
   },
