@@ -3,14 +3,14 @@
 import email.policy
 import tarfile
 import zipfile
-from email.parser import BytesParser
+from email.parser import Parser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def check_metadata(raw: bytes, readme: str) -> None:
-    metadata = BytesParser(policy=email.policy.default).parsebytes(raw)
+    metadata = Parser(policy=email.policy.default).parsestr(raw.decode("utf-8"))
     assert metadata["Name"] == "django-due", "wrong distribution name"
     assert metadata["Description-Content-Type"] == "text/markdown", "README must render as Markdown"
     description = metadata.get_payload()
