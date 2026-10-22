@@ -9,14 +9,16 @@ permissions:
   contents: read
   actions: read
   checks: read
-  pull-requests: read
+  pull-requests: write # Posts the CI-esta sticky.
 
 jobs:
   report:
-    uses: gigaverse-app/ci-esta/.github/workflows/report.yml@48409f32e90f3b4f1aa161d3b1259fae1e6eedba
+    uses: gigaverse-app/ci-esta/.github/workflows/report.yml@3be6e84b86a36b9018798c2806a291f17fd077bf
     with:
       run-id: ${{ github.event.workflow_run.id }}
       run-attempt: ${{ github.event.workflow_run.run_attempt }}
       head-sha: ${{ github.event.workflow_run.head_sha }}
       pull-request-number: ${{ format('{0}', github.event.workflow_run.pull_requests[0].number || '') }}
       required-gates-json: ${{ github.event.workflow_run.name == 'CI' && '[{"kind":"actions_job","job_name":"tests (locked)"},{"kind":"actions_job","job_name":"tests (minimum)"},{"kind":"actions_job","job_name":"lint"},{"kind":"actions_job","job_name":"typecheck"},{"kind":"actions_job","job_name":"build"},{"kind":"actions_job","job_name":"ci-contracts"}]' || '[{"kind":"actions_job","job_name":"Widget comparison gate"}]' }}
+      post-sticky: true
+      sticky-key: ${{ github.event.workflow_run.name }}
