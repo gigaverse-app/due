@@ -221,6 +221,32 @@ The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](package/docs/operations.md)
 
+## Build durable work, test recovery, select the right CI work
+
+[![Durable runtime: Due](https://img.shields.io/badge/durable_runtime-Due-0F766E)](https://github.com/gigaverse-app/due)
+[![Recovery proofs: pytest-obligation](https://img.shields.io/badge/recovery_proofs-pytest--obligation-7C3AED)](https://github.com/gigaverse-app/pytest-obligation)
+[![Test selection: pytest-selective](https://img.shields.io/badge/test_selection-pytest--selective-2563EB)](https://github.com/gigaverse-app/pytest-selective)
+
+| Project | What you gain | How it fits with the others |
+| --- | --- | --- |
+| [Due](https://github.com/gigaverse-app/due) | Durable Django/PostgreSQL work that can recover after a worker or message is lost | Provides the application's execution and recovery path |
+| [pytest-obligation](https://github.com/gigaverse-app/pytest-obligation) | Failure and recovery tests bound to your real workflow | Exercises Due-backed or other application workflows and reports the guarantees actually assessed |
+| [pytest-selective](https://github.com/gigaverse-app/pytest-selective) | Explainable Git-based plans before application startup | Selects affected files or activates complete conformance lanes without trimming their evidence checks |
+
+For a document publisher, Due keeps publication owed after a worker dies.
+Bind pytest-obligation to the real publication and recovery path to exercise that
+failure. Then use pytest-selective to decide when the **complete proof lane**
+must run. You gain recoverable work, evidence about failure behavior, and focused
+CI planning. Keep full-suite checkpoints and explicit dependency declarations.
+
+Each project is useful independently. These badges describe their roles, not an
+automatic integration or a guarantee for arbitrary application code. Start with
+[Due's conformance binding](package/docs/conformance.md), then the selector's
+[whole-lane action](https://github.com/gigaverse-app/pytest-selective/tree/main/.github/actions/plan-lanes).
+Due requires Python 3.14+; pytest-obligation's core and pytest-selective support
+Python 3.11+. Use a planner interpreter that understands your source syntax;
+planning can run separately from your tests.
+
 ## Documentation
 
 | You want to… | Read |
