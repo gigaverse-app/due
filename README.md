@@ -243,8 +243,9 @@ Each project is useful independently. These badges describe their roles, not an
 automatic integration or a guarantee for arbitrary application code. Start with
 [Due's conformance binding](package/docs/conformance.md), then the selector's
 [whole-lane action](https://github.com/gigaverse-app/pytest-selective/tree/main/.github/actions/plan-lanes).
-Due and the selector require Python 3.14+; pytest-obligation's core supports
-Python 3.11+. Planning can run separately from your tests.
+Due requires Python 3.14+; pytest-obligation's core and pytest-selective support
+Python 3.11+. Use a planner interpreter that understands your source syntax;
+planning can run separately from your tests.
 
 ## Documentation
 
