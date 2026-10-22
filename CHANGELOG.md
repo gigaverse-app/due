@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.4](https://github.com/gigaverse-app/due/compare/v0.7.3...v0.7.4) (2026-10-22)
+
+
+### Documentation
+
+* show the CI-esta logo on the CI-esta badge ([#81](https://github.com/gigaverse-app/due/issues/81)) ([2fc77bc](https://github.com/gigaverse-app/due/commit/2fc77bc4975c68aa41d2ea10f6ff9434042d67b6))
+
 ## [0.7.3](https://github.com/gigaverse-app/due/compare/v0.7.2...v0.7.3) (2026-10-22)
 
 
