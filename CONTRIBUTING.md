@@ -100,9 +100,9 @@ fresh PostgreSQL and Redis. Both `tests (locked)` and `tests (minimum)` remain
 required, even when prior proof allows a test runner to be skipped.
 
 Execution evidence also distinguishes library-only, integration-only and combined
-validation through exact job names. A narrower run cannot prove a later broader
-fallback, even when the Git inputs are identical. The required gate names stay
-the same for all three scopes. Planner fallbacks and missing or inconsistent
+validation through CI-esta's `execution-context`. A narrower run cannot prove a
+later broader run, even when the Git inputs are identical. Job names stay stable,
+so a later failure revokes older proof across scopes. Planner fallbacks and missing or inconsistent
 plan metadata execute fresh work without issuing reusable evidence. This keeps
 broader fallback results from hiding a later failure in the normal, narrower scope.
 

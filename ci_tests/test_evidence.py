@@ -54,23 +54,24 @@ class EvidenceMatrixTests(unittest.TestCase):
                 self.assertFalse(self.scope_outputs(raw, "success", normal)["reusable"])
 
     def test_execution_scope_distinguishes_partial_validation_from_full_fallback(self):
-        for lanes, outcome, library, integration, suffix in (
-            ('{"library":true,"integration":true}', "success", True, True, ""),
-            ('{"library":true,"integration":false}', "success", True, False, " [library]"),
-            ('{"library":false,"integration":true}', "success", False, True, " [integration]"),
-            ('{"library":false,"integration":false}', "success", False, False, " [none]"),
-            ('{"library":"false","integration":null}', "success", True, True, ""),
-            ('{"library":false,"integration":false}', "failure", True, True, ""),
-            ("{}", "success", True, True, ""),
-            ("null", "success", True, True, ""),
-            ("invalid", "success", True, True, ""),
+        for lanes, outcome, library, integration in (
+            ('{"library":true,"integration":true}', "success", True, True),
+            ('{"library":true,"integration":false}', "success", True, False),
+            ('{"library":false,"integration":true}', "success", False, True),
+            ('{"library":false,"integration":false}', "success", False, False),
+            ('{"library":"false","integration":null}', "success", True, True),
+            ('{"library":false,"integration":false}', "failure", True, True),
+            ("{}", "success", True, True),
+            ("null", "success", True, True),
+            ("invalid", "success", True, True),
         ):
             with self.subTest(lanes=lanes, outcome=outcome):
                 outputs = self.scope_outputs(lanes, outcome, None)
                 self.assertEqual(
-                    {key: outputs[key] for key in ("library", "integration", "suffix")},
-                    {"library": library, "integration": integration, "suffix": suffix},
+                    {key: outputs[key] for key in ("library", "integration")},
+                    {"library": library, "integration": integration},
                 )
+                self.assertEqual(json.loads(outputs["context"]), {"library": library, "integration": integration})
 
     def test_only_proven_django_variants_leave_the_execution_matrix(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
