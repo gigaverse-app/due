@@ -91,6 +91,7 @@ class RoutingTests(unittest.TestCase):
                 "typecheck": {"typecheck"},
                 "test-gates": set(),
                 "build": set(),
+                "validation-gate": set(),
             },
             ".github/workflows/widget-store.yml": {
                 "select-tests": set(),
