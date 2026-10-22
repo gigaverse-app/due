@@ -221,6 +221,32 @@ The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](package/docs/operations.md)
 
+## Build durable work, test recovery, select the right CI work
+
+[![Durable runtime: Due](https://img.shields.io/badge/durable_runtime-Due-0F766E)](https://github.com/gigaverse-app/due)
+[![Recovery proofs: pytest-obligation](https://img.shields.io/badge/recovery_proofs-pytest--obligation-7C3AED)](https://github.com/gigaverse-app/pytest-obligation)
+[![Test selection: pytest-selective](https://img.shields.io/badge/test_selection-pytest--selective-2563EB)](https://github.com/gigaverse-app/pytest-selective)
+
+| Project | What you gain | How it fits with the others |
+| --- | --- | --- |
+| [Due](https://github.com/gigaverse-app/due) | Durable Django/PostgreSQL work that can recover after a worker or message is lost | Provides the application's execution and recovery path |
+| [pytest-obligation](https://github.com/gigaverse-app/pytest-obligation) | Failure and recovery tests bound to your real workflow | Exercises Due-backed or other application workflows and reports the guarantees actually assessed |
+| [pytest-selective](https://github.com/gigaverse-app/pytest-selective) | Explainable Git-based plans before application startup | Selects affected files or activates complete conformance lanes without trimming their evidence checks |
+
+For a document publisher, Due keeps publication owed after a worker dies.
+Bind pytest-obligation to the real publication and recovery path to exercise that
+failure. Then use pytest-selective to decide when the **complete proof lane**
+must run. You gain recoverable work, evidence about failure behavior, and focused
+CI planning. Keep full-suite checkpoints and explicit dependency declarations.
+
+Each project is useful independently. These badges describe their roles, not an
+automatic integration or a guarantee for arbitrary application code. Start with
+[Due's conformance binding](package/docs/conformance.md), then the selector's
+[whole-lane action](https://github.com/gigaverse-app/pytest-selective/tree/main/.github/actions/plan-lanes).
+Due requires Python 3.14+; pytest-obligation's core and pytest-selective support
+Python 3.11+. Use a planner interpreter that understands your source syntax;
+planning can run separately from your tests.
+
 ## CI measurement and validation reuse
 
 [CI-esta](https://github.com/gigaverse-app/ci-esta) provides GitHub Actions timing
@@ -272,3 +298,17 @@ The [conformance API](package/docs/conformance-api.md#derive-routine-bindings-fr
 For an existing application, see [migration settings and stable wire names](package/docs/integration.md#migrating-an-existing-application).
 
 See [package ownership and subtree development](package/docs/development.md) for library edits made inside an adopter checkout.
+
+## Selective CI
+
+Pull requests use [pytest-selective](https://github.com/gigaverse-app/pytest-selective)
+to select complete affected test lanes before their services start, including
+the four-job Widget Store comparison matrix. Selected lanes
+keep all existing tests and required conformance evidence checks. Main pushes,
+manual workflow runs, the `test:full` PR label, and unavailable planning proof run
+every lane. The adoption change itself runs the full suite.
+
+The repository owns the lane map and dynamic/subprocess inputs in
+[.github/test-lanes.json](.github/test-lanes.json). Update those inputs when adding
+a new runtime discovery path or external checkout; static imports cannot model
+every registration. Changes to CI and dependency metadata run all lanes.
