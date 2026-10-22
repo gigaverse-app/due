@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   report:
-    uses: gigaverse-app/ci-esta/.github/workflows/report.yml@68ca50420140e970b90fbd79147244fb7d57b070
+    uses: gigaverse-app/ci-esta/.github/workflows/report.yml@48409f32e90f3b4f1aa161d3b1259fae1e6eedba
     with:
       run-id: ${{ github.event.workflow_run.id }}
       run-attempt: ${{ github.event.workflow_run.run_attempt }}
