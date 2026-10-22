@@ -83,7 +83,15 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(self.selection(".github/workflows/widget-store.yml"), {"widget_comparison"})
 
     def test_environment_and_shared_runtime_keep_full_validation(self):
-        for path in ("uv.lock", ".github/test-lanes.json", "package/src/due/__init__.py"):
+        for path in (
+            "uv.lock",
+            ".github/test-lanes.json",
+            "package/src/due/__init__.py",
+            "requirements.txt",
+            "package/requirements-dev.txt",
+            "poetry.lock",
+            "pylock.toml",
+        ):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path), set(self.config.lanes))
 
