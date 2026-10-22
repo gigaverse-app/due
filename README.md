@@ -221,6 +221,17 @@ The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](package/docs/operations.md)
 
+## CI measurement and validation reuse
+
+[CI-esta](https://github.com/gigaverse-app/ci-esta) provides GitHub Actions timing
+reports, evidence-based reuse of completed validation lanes, and strict aggregate
+gates. It complements Due's application-level recovery and
+[pytest-obligation](https://github.com/gigaverse-app/pytest-obligation)'s conformance
+proofs. A reused CI lane is not an application guarantee; retain the required
+executed-profile checks and full runs for changing external services. See the
+[cross-project integration guide](https://github.com/gigaverse-app/ci-esta/blob/main/docs/integrations.md).
+This is an optional toolkit, not a claim that Due's workflows have migrated.
+
 ## Documentation
 
 | You want to… | Read |
