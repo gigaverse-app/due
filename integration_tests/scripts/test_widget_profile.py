@@ -58,6 +58,48 @@ def test_complete_capture_covers_business_calls_before_and_after_crash(tmp_path)
     assert summary["processes_by_role"] == {"due_web": 2, "due_worker": 4, "dbos": 2}
 
 
+@pytest.mark.parametrize("field", ["self_seconds", "inclusive_seconds"])
+def test_negative_diagnostic_timing_preserves_the_usable_capture(tmp_path, field):
+    capture(tmp_path)
+    path = tmp_path / "functions/10.json"
+    profile = json.loads(path.read_text())
+    # Observed in real CPU artifacts: one Celery proxy row among thousands of
+    # valid functions, after both application journeys completed successfully.
+    anomaly = dict(
+        name="run_durable_work_task.__getattr__",
+        module="/app/celery/local.py",
+        lineno=140,
+        calls=2,
+        self_seconds=0.0,
+        inclusive_seconds=0.0,
+        thread=11,
+    )
+    anomaly[field] = -0.006129379000000001
+    profile["functions"].append(anomaly)
+    path.write_text(json.dumps(profile))
+    original = path.read_bytes()
+
+    summary = validate_capture(tmp_path, "cpu")
+
+    assert path.read_bytes() == original  # Preserve the original evidence, never clamp it.
+    assert summary["timing_anomalies"] == [{"pid": 10, "role": "due_web", "function": anomaly}]
+    assert summary["business_calls_by_role"] == {"due_web": 20, "due_worker": 20, "dbos": 20}
+    assert summary["calls_by_role"] == {"due_web": 20, "due_worker": 40, "dbos": 20}
+    for ranking in ("top_self_seconds", "top_inclusive_seconds"):
+        assert not any("__getattr__" in name for name, _ in summary[ranking]["due_web"])
+
+
+def test_a_process_with_only_invalid_timing_remains_unusable(tmp_path):
+    capture(tmp_path)
+    path = tmp_path / "functions/11.json"
+    profile = json.loads(path.read_text())
+    profile["functions"][0]["inclusive_seconds"] = -0.01
+    path.write_text(json.dumps(profile))
+    # A child has business coverage, but cannot stand in for its missing parent profile.
+    with pytest.raises(AssertionError):
+        validate_capture(tmp_path, "cpu")
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -74,6 +116,7 @@ def test_complete_capture_covers_business_calls_before_and_after_crash(tmp_path)
         "missing_second_generation",
         "orphan",
         "negative_time",
+        "negative_inclusive_time",
         "nan_time",
         "negative_calls",
         "bad_timestamp",
@@ -112,6 +155,8 @@ def test_rejects_unusable_profiles(tmp_path, fault):
             value["parent_pid"] = 999
         elif fault == "negative_time":
             value["functions"][0]["self_seconds"] = -1
+        elif fault == "negative_inclusive_time":
+            value["functions"][0]["inclusive_seconds"] = -1
         elif fault == "nan_time":
             value["functions"][0]["self_seconds"] = float("nan")
         elif fault == "negative_calls":
