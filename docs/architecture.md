@@ -94,6 +94,33 @@ window nor attempt pruning touches it. A projection does this from
 provider evidence that the target is gone, never on an outage or elapsed time. It
 settles older revisions only: the current revision is still owed to its target.
 
+### Repair timing is separate from repair lifetime
+
+Declare `DurableWorkPolicy(repair_interval=timedelta(minutes=5))` to pace
+successful projection passes that still have older-revision repair debt. The
+five-minute default is unchanged. Both `Projection` and checkpointed writers
+using `settle_projection_observation` read the same policy. The legacy
+`uncertain_repair_interval` override and the helper's explicit `repair_interval`
+argument still take precedence for compatibility; new adopters use the policy.
+Intervals must be positive. A deadline already stored in `available_at` is not
+rewritten when configuration changes; the next successful pass uses the new policy.
+
+| Decision | Existing owner | What it does not establish |
+| --- | --- | --- |
+| How often to repeat successful repair | `repair_interval` | No evidence is resolved; no failure budget is spent |
+| When to retry a failed attempt | `retry_delay`, `max_rearms` | A failure count does not cap successful repair passes |
+| Whether to stop automatic UNKNOWN repair after an age | `max_repair_window` (`None`: unbounded) | Expiry is policy, not provider completion; UNKNOWN evidence remains |
+| Retain identity/evidence | Projection `retention=None`, attempt retention rules | Retained evidence need not mean frequent polling |
+| How much work one recovery tick scans/publishes | `batch_size`, `dispatch_batch_size` | Per-tick capacity is not a global provider request rate |
+| Proof that further repair is unnecessary | Confirmed receipts or permanently retired target | Absence now, elapsed time and exhausted budgets are not that proof |
+
+A longer interval can leave a late overwrite visible longer. It never delays
+initial intent or superseding desired state, and it does not cancel a delayed
+provider request. With no repair window, debt remains repairable indefinitely;
+there is no separate successful-repair count limit. Choosing a finite lifetime
+or count requires an explicit product policy for unresolved debt after stopping.
+Do not repurpose `max_rearms`, fabricate a receipt, or delete evidence to impose it.
+
 ### An unknown outcome needs evidence
 
 ```mermaid

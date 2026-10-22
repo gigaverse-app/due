@@ -71,7 +71,7 @@ def settle_projection_observation[WorkT: UniverseDurableWork](
     *,
     since: datetime,
     policy: DurableWorkPolicy,
-    repair_interval: timedelta = timedelta(minutes=5),
+    repair_interval: timedelta | None = None,
     applied_attempt: EffectAttempt | None = None,
 ) -> ReopenAfter | None:
     """Settle a current projection observed over one complete, possibly paginated pass.
@@ -80,6 +80,9 @@ def settle_projection_observation[WorkT: UniverseDurableWork](
     it still owes repair: completing the last page cannot vouch for earlier pages.
     Call only after the entire desired view has been established, under its fence.
     """
+    interval = policy.repair_interval if repair_interval is None else repair_interval
+    if interval <= timedelta(0):
+        raise ValueError("repair_interval must be positive")
     require_fenced_settlement(work)
     covered = Q(outcome=EffectAttemptOutcome.APPLIED, observed_at__lte=since)
     if applied_attempt is not None:
@@ -87,7 +90,8 @@ def settle_projection_observation[WorkT: UniverseDurableWork](
     attempts_for(work).filter(covered).update(repair_pending=False, repair_settled_by=RepairSettledBy.RECEIPT)
     model: type[WorkT] = type(work)
     if projections_with_stale_writes(model.objects.filter(pk=work.pk), window=policy.max_repair_window).exists():
-        return ReopenAfter(repair_interval, "stale_write_repair")
+        # Timing never resolves evidence or consumes the failed-attempt budget.
+        return ReopenAfter(interval, "stale_write_repair")
     return None
 
 
@@ -161,7 +165,8 @@ class DurableProjection[OwnerT: models.Model, WorkT: UniverseDurableWork](
 
     @property
     def uncertain_repair_interval(self) -> timedelta:
-        return timedelta(minutes=5)
+        """Compatibility hook; new adopters declare policy.repair_interval."""
+        return self.policy.repair_interval
 
     def __post_init__(self) -> None:
         super().__post_init__()

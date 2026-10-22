@@ -113,6 +113,9 @@ class DurableWorkPolicy:
     # their reservations until lease recovery. Adopters may scan a recovery page
     # to fill the publication budget (for example, a batch-coalescing worker).
     dispatch_batch_size: int | None = None
+    # Pace successful projection repair independently of failed-attempt retries,
+    # retained evidence, repair expiry and per-tick dispatch capacity.
+    repair_interval: timedelta = dataclass_field(default=timedelta(minutes=5), kw_only=True)
 
     def __post_init__(self) -> None:
         if self.lease_duration <= timedelta(0) or self.delay_at(0) < timedelta(0):
@@ -124,6 +127,8 @@ class DurableWorkPolicy:
         if self.retention is not None and self.retention <= timedelta(0):
             raise ValueError("retention must be positive or None")
 
+        if self.repair_interval <= timedelta(0):
+            raise ValueError("repair_interval must be positive")
         if self.max_repair_window is not None and self.max_repair_window <= timedelta(0):
             raise ValueError("max_repair_window must be positive or None")
 
