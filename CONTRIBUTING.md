@@ -183,3 +183,16 @@ tested merge. It was deliberately cancelled after verifying execution admission,
 before pushing the main merge and this measurement record. Its verification
 cost is separate from the successful attempt-1 comparison above; it is not a
 second completed full-suite result.
+# Measured parallel conformance
+
+The full validation gate improved from 538 to 282 seconds in the controlled
+serial/four-worker pair, with identical 982 integration test identities and
+outcomes per Django variant. Every conformance validator remained enabled.
+The comparison includes package-export independence and library controls;
+Widget Store is a separate workflow.
+
+See the [raw critical-path report and test inventories](https://github.com/gigaverse-app/ci-esta/blob/main/docs/benchmarks/2026-10-23-critical-execution.md).
+Use `-n 4 --dist worksteal` for the package and integration sessions, and keep
+profile/effect/observation validation after pytest. Database isolation, unique
+worker queues and controller-side report merging are required, not optional.
+
