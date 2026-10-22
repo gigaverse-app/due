@@ -37,6 +37,16 @@
         "integration_tests/**",
         "scripts/check_adoption_report.py"
       ]
+    },
+    "widget_comparison": {
+      "roots": [],
+      "inputs": [
+        "package/src/**",
+        "package/shims/**",
+        "examples/**",
+        "scripts/**",
+        "integration_tests/scripts/test_widget_profile.py"
+      ]
     }
   }
 }

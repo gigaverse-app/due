@@ -265,7 +265,8 @@ See [package ownership and subtree development](package/docs/development.md) for
 ## Selective CI
 
 Pull requests use [pytest-selective](https://github.com/gigaverse-app/pytest-selective)
-to select complete affected test lanes before their services start. Selected lanes
+to select complete affected test lanes before their services start, including
+the four-job Widget Store comparison matrix. Selected lanes
 keep all existing tests and required conformance evidence checks. Main pushes,
 manual workflow runs, the `test:full` PR label, and unavailable planning proof run
 every lane. The adoption change itself runs the full suite.

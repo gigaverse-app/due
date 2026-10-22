@@ -1,6 +1,8 @@
 name: Widget Store comparison
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
   push:
     branches: [main]
 permissions:
@@ -9,7 +11,26 @@ concurrency:
   group: widgets-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  select-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      lanes: ${{ steps.select.outputs.lanes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: select
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@8205bed3c64be3cf9320b71a24ff6e48f37f5427
+        with:
+          config: .github/test-lanes.json
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+          full: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test:full') }}
+
   compare:
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).widget_comparison) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
