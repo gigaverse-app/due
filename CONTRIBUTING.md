@@ -99,6 +99,11 @@ uploads pass. A missing, stale or contradicted proof starts that variant with
 fresh PostgreSQL and Redis. Both `tests (locked)` and `tests (minimum)` remain
 required, even when prior proof allows a test runner to be skipped.
 
+Execution evidence also distinguishes library-only, integration-only and combined
+validation through exact job names. A narrower run cannot prove a later broader
+fallback, even when the Git inputs are identical. The required gate names stay
+the same for all three scopes.
+
 Explicit reruns execute the requested lanes again. Main, manual dispatch and
 `test:full` bypass reuse entirely. The time limit bounds reuse across hosted
 runner and service-image updates outside Git; full checkpoints still exercise

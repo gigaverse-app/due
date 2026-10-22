@@ -35,8 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.select.outputs.lanes }}
-      library: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.select.outputs.lanes || '{}').library) != 'false' }}
-      integration: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.select.outputs.lanes || '{}').integration) != 'false' }}
+      library: ${{ steps.scope.outputs.library }}
+      integration: ${{ steps.scope.outputs.integration }}
+      suffix: ${{ steps.scope.outputs.suffix }}
       reused: ${{ steps.evidence.outputs.reused }}
       receipt: ${{ steps.evidence.outputs.receipt }}
       django: ${{ steps.matrix.outputs.django }}
@@ -50,17 +51,32 @@ jobs:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
           full: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test:full') }}
+      - id: scope
+        name: Identify the complete set of tests this execution proves
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          LANES: ${{ steps.select.outputs.lanes }}
+          OUTCOME: ${{ steps.select.outcome }}
+        with:
+          script: |
+            let lanes = {};
+            try { lanes = JSON.parse(process.env.LANES || '{}') || {}; } catch { /* Unknown selection executes everything. */ }
+            const library = process.env.OUTCOME !== 'success' || lanes.library !== false;
+            const integration = process.env.OUTCOME !== 'success' || lanes.integration !== false;
+            core.setOutput('library', library);
+            core.setOutput('integration', integration);
+            // Exact job names prevent a partial suite from proving a later full fallback.
+            core.setOutput('suffix', library && integration ? '' : library ? ' [library]' : integration ? ' [integration]' : ' [none]');
       - id: evidence
         name: Find completed Django suites for these exact inputs
         if: >-
           ${{ github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
-              (toJSON(fromJSON(steps.select.outputs.lanes || '{}').library) != 'false' ||
-               toJSON(fromJSON(steps.select.outputs.lanes || '{}').integration) != 'false') }}
+              (steps.scope.outputs.library != 'false' || steps.scope.outputs.integration != 'false') }}
         uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@9c009f3fc96af88167abd0aee5876320aa7cff2b
         with:
           # Whole-tree receipts also bind the base, head tree and shared tooling.
-          lanes: '{"locked":"Execute tests (locked)","minimum":"Execute tests (minimum)"}'
+          lanes: ${{ format('{{"locked":"Execute tests (locked){0}","minimum":"Execute tests (minimum){0}"}}', steps.scope.outputs.suffix) }}
       - id: matrix
         name: Start only Django variants without successful evidence
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
@@ -102,7 +118,7 @@ jobs:
       - run: uv run --no-sync pyrefly check
 
   tests:
-    name: Execute tests (${{ matrix.django }})
+    name: Execute tests (${{ matrix.django }})${{ needs.select-tests.result == 'success' && needs.select-tests.outputs.suffix || '' }}
     needs: select-tests
     if: >-
       ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
