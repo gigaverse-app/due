@@ -55,6 +55,7 @@ def validate_capture(directory: Path, mode: str) -> dict:
     business = Counter()
     generations = Counter()
     calls = Counter()
+    timing_anomalies = []
     own = defaultdict(Counter)
     inclusive = defaultdict(Counter)
     for profile in profiles:
@@ -70,11 +71,18 @@ def validate_capture(directory: Path, mode: str) -> dict:
         role = profile["role"]
         assert role in {"due_web", "due_worker", "due_beat", "dbos"}, "unknown process role"
         assert profile["functions"], "empty process profile"
+        usable_rows = 0
         for function in profile["functions"]:
             count, self_time, total = function["calls"], function["self_seconds"], function["inclusive_seconds"]
-            assert count > 0 and all(math.isfinite(t) and t >= 0 for t in (self_time, total)), (
-                "invalid function statistics"
-            )
+            assert count > 0 and all(math.isfinite(t) for t in (self_time, total)), "invalid function statistics"
+            if self_time < 0 or total < 0:
+                # Live Yappi snapshots can contain a negative inclusive counter.
+                # Preserve the raw evidence and disclose the unusable row instead
+                # of inventing a zero or discarding thousands of valid functions.
+                # It cannot contribute timing, calls, or business-coverage proof.
+                timing_anomalies.append({"pid": profile["pid"], "role": role, "function": function})
+                continue
+            usable_rows += 1
             key = f"{function['module']}:{function['lineno']} {function['name']}"
             own[role][key] += self_time
             inclusive[role][key] += total
@@ -89,6 +97,7 @@ def validate_capture(directory: Path, mode: str) -> dict:
                 and function["name"].endswith(".tick")
             ):
                 generations[ancestor] += count
+        assert usable_rows > 0, f"process {profile['pid']}: no usable function timing"
     assert all(business[role] > 0 for role in BUSINESS_FUNCTIONS), "missing business-function coverage"
     assert all(generations[pid] > 0 for pid in roots), "missing business coverage in a crash generation"
     return {
@@ -97,9 +106,10 @@ def validate_capture(directory: Path, mode: str) -> dict:
         "processes_by_role": dict(Counter(p["role"] for p in profiles)),
         "business_calls_by_role": dict(business),
         "calls_by_role": dict(calls),
+        "timing_anomalies": timing_anomalies,
         "top_self_seconds": {role: counts.most_common(30) for role, counts in own.items()},
         "top_inclusive_seconds": {role: counts.most_common(30) for role, counts in inclusive.items()},
-        "scope": "In-process function profiles, including builtins and application threads. CPU uses per-thread CPU clocks; wall includes waits and overlaps across threads. Writer thread excluded. Snapshots every second can omit the final interval of killed processes; scheduling delays can extend that interval. Active calls can have incomplete inclusive totals. No claim of complete call counts. Instrumentation changes timing and CPU cost; these are diagnostic profiles, not performance comparisons.",
+        "scope": "In-process function profiles, including builtins and application threads. CPU uses per-thread CPU clocks; wall includes waits and overlaps across threads. Writer thread excluded. Snapshots every second can omit the final interval of killed processes; scheduling delays can extend that interval. Active calls can have incomplete inclusive totals. Finite negative timing rows are preserved in raw files, listed in timing_anomalies and excluded from summary totals and coverage proof. No claim of complete call counts. Instrumentation changes timing and CPU cost; these are diagnostic profiles, not performance comparisons.",
     }
 
 
@@ -162,7 +172,14 @@ def main() -> None:
     summary = validate_capture(directory, args.mode)
     summary.update(started_utc=started, finished_utc=datetime.now(UTC).isoformat(), command=command)
     (directory / "quality.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(json.dumps({key: summary[key] for key in ("mode", "processes_by_role", "business_calls_by_role")}))
+    print(
+        json.dumps(
+            {
+                **{key: summary[key] for key in ("mode", "processes_by_role", "business_calls_by_role")},
+                "timing_anomaly_count": len(summary["timing_anomalies"]),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
