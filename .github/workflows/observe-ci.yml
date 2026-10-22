@@ -20,5 +20,7 @@ jobs:
       head-sha: ${{ github.event.workflow_run.head_sha }}
       pull-request-number: ${{ format('{0}', github.event.workflow_run.pull_requests[0].number || '') }}
       required-gates-json: ${{ github.event.workflow_run.name == 'CI' && '[{"kind":"actions_job","job_name":"tests (locked)"},{"kind":"actions_job","job_name":"tests (minimum)"},{"kind":"actions_job","job_name":"lint"},{"kind":"actions_job","job_name":"typecheck"},{"kind":"actions_job","job_name":"build"},{"kind":"actions_job","job_name":"ci-contracts"}]' || '[{"kind":"actions_job","job_name":"Widget comparison gate"}]' }}
-      post-sticky: true
+      # One sticky per pull request: CI's lane plan already covers widget_comparison;
+      # the Widget Store report stays in its job summary and artifact.
+      post-sticky: ${{ github.event.workflow_run.name == 'CI' }}
       sticky-key: ${{ github.event.workflow_run.name }}
