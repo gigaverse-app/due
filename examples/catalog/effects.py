@@ -7,10 +7,6 @@ from examples.catalog.models import CatalogEntry, CatalogWork
 
 
 class CatalogProjection(Projection[CatalogEntry, CatalogWork]):
-    @property
-    def uncertain_repair_interval(self) -> timedelta:
-        return timedelta(seconds=5)
-
     def write_projection(self, work: CatalogWork) -> None:
         # This provider has no revision fence: an already-sent older write can
         # overwrite it. Due retains evidence and owes repair, not remote cancellation.
@@ -29,5 +25,5 @@ project_catalog = CatalogProjection.for_owner(
     owner=CatalogEntry,
     work=CatalogWork,
     input_fields=("universe", "index_key", "title", "author"),
-    policy=DurableWorkPolicy(retention=None),
+    policy=DurableWorkPolicy(retention=None, repair_interval=timedelta(seconds=5)),
 )
