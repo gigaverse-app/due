@@ -136,3 +136,36 @@ Preserve explicit subprocess inputs: the widget benchmark uses shared settings,
 Celery bootstrap, profiling scripts, and the integration process helper. A new
 dynamic dependency must be declared with its consuming lane. Docs links and both
 distribution descriptions are validated even when all runtime lanes skip.
+
+## Measured integration evidence reuse
+
+On 2026-10-22, PR #78 compared a fresh run with an ordinary label event on the
+same head (`59db75dc36dcbb294ede24e975590e863a03987c`) and tested merge
+(`24e466876255e80b4725ccb07865fd6bd28f5efa`). Both used the same lane decisions:
+library, integration and type checking were selected. Only completed CI-esta
+evidence removed the repeated Django execution.
+
+| CI case | Run / attempt | Required gates elapsed | Summed runner seconds | Started jobs | Django service jobs |
+| --- | --- | ---: | ---: | ---: | ---: |
+| No matching proof | [39860945819 / 1](https://github.com/gigaverse-app/due/actions/runs/39860945819/attempts/1) | 594 s | 908 s | 9 | 2 |
+| Identical inputs with proof | [39862232992 / 1](https://github.com/gigaverse-app/due/actions/runs/39862232992/attempts/1) | 42 s | 100 s | 7 | 0 |
+
+This pair saved 808 runner seconds (89.0%). The avoided locked and minimum
+Django jobs used 459 and 349 seconds respectively. Both required test gates,
+lint, type checking, packaging and CI contract checks passed in both runs.
+The reuse run emitted no replacement execution receipt or test artifact.
+
+Elapsed time is workflow creation to completion of all six named required
+checks, so it includes admission delays. The first runner started after 88 s
+in the fresh run and 4 s in the reuse run; elapsed savings are not entirely
+test execution savings. Runner seconds sum actual job durations and are not
+rounded billing minutes or a prediction for every future run.
+
+CI-esta reports for both source attempts completed without collection errors.
+Their separate observers used another
+[21 runner seconds](https://github.com/gigaverse-app/due/actions/runs/39862194815)
+and [18 runner seconds](https://github.com/gigaverse-app/due/actions/runs/39862334245)
+respectively, outside the validation dependency chain and the table above.
+The superseded predecessor run `39860104313 / 1` used 762 observed runner
+seconds before cancellation; it is iteration cost, excluded from this successful
+same-revision comparison.
