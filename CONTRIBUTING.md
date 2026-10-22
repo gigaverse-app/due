@@ -77,9 +77,34 @@ See [package ownership and subtree development](package/docs/development.md) for
 
 ## Selective CI inputs
 
-`.github/test-lanes.json` selects complete library, integration and widget
-comparison lanes. Build, lint and type checks always run. Main and `test:full`
-run complete suites; a failed planner also runs the affected workflow in full.
+`.github/test-lanes.json` uses pytest-selective to select complete library,
+integration, widget comparison and type-check lanes. Build, lint and CI contract
+checks always run. Main, manual dispatch and `test:full` run complete suites.
+A failed planner executes the affected workflow in full, but the regular test
+gates require successful planning before merge.
+
+Workflow inputs name execution jobs, such as `.github/workflows/ci.yml#tests`.
+An edit to that job runs its library and integration lanes; a type-check job edit
+runs type checking. Workflow-level settings still affect every lane in that
+workflow. Selector pin changes, reporting, comments and unrelated jobs do not
+start test services. The always-running CI contract tests check the pinned
+selector and classify every job. If tests start consuming another job's output,
+declare that job as an additional input: job dependencies are not inferred.
+
+For automatic PR events, CI-esta can reuse each Django variant independently
+after it has completed the same whole-tree inputs within 24 hours. The receipt
+binds the tested merge tree, base, head tree and shared tooling; it is recorded
+only after all admitted tests, obligation validators, setup checks and artifact
+uploads pass. A missing, stale or contradicted proof starts that variant with
+fresh PostgreSQL and Redis. Both `tests (locked)` and `tests (minimum)` remain
+required, even when prior proof allows a test runner to be skipped.
+
+Explicit reruns execute the requested lanes again. Main, manual dispatch and
+`test:full` bypass reuse entirely. The time limit bounds reuse across hosted
+runner and service-image updates outside Git; full checkpoints still exercise
+the current environment. Reused runs do not renew receipts or upload replacement
+test artifacts. Use the original successful run's artifacts, whose receipt
+matches the current planner's receipt.
 
 The widget comparison uses the standalone widget app. Its inputs include all
 Due runtime/shims, widget code/assets/migrations, shared Django settings and Celery
@@ -89,7 +114,7 @@ package initializers. The process helper starts the benchmark's subprocesses;
 it must trigger the widget lane even though it lives under integration tests.
 
 Changes confined to books, catalog, documents or adoption-report checking still
-run their integration lane, but do not run the unrelated four-job widget matrix.
+run their integration lane, but do not run the unrelated ten-capture widget matrix.
 When adding a cross-app import, subprocess, file read or bootstrap dependency,
 update the widget inputs in the same PR. These are explicit audited dependencies,
 not a claim that static imports discover arbitrary runtime behavior.

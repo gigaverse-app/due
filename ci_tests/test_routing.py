@@ -83,14 +83,28 @@ class RoutingTests(unittest.TestCase):
     def test_each_workflow_job_runs_only_the_lanes_it_executes(self):
         # Every job is listed, so a new job must be classified here before it merges.
         executes = {
-            ".github/workflows/ci.yml": {"tests": {"library", "integration"}, "typecheck": {"typecheck"}},
-            ".github/workflows/widget-store.yml": {"compare": {"widget_comparison"}},
+            ".github/workflows/ci.yml": {
+                "ci-contracts": set(),
+                "select-tests": set(),
+                "lint": set(),
+                "tests": {"library", "integration"},
+                "typecheck": {"typecheck"},
+                "test-gates": set(),
+                "build": set(),
+            },
+            ".github/workflows/widget-store.yml": {
+                "select-tests": set(),
+                "compare": {"widget_comparison"},
+                "comparison-gate": set(),
+            },
         }
         for path, lanes_by_job in executes.items():
-            for job in yaml.safe_load((ROOT / path).read_text())["jobs"]:
+            jobs = yaml.safe_load((ROOT / path).read_text())["jobs"]
+            self.assertEqual(set(jobs), set(lanes_by_job), "classify each job's execution dependencies")
+            for job in jobs:
                 with self.subTest(path=path, job=job):
                     selected = self.selection(path, edit=self.with_scenario_env("jobs", job))
-                    self.assertEqual(selected, lanes_by_job.get(job, set()))
+                    self.assertEqual(selected, lanes_by_job[job])
 
     def test_settings_every_job_inherits_run_the_workflow_lanes(self):
         for path, lanes in (
