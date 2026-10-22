@@ -101,3 +101,10 @@ per-thread identities and the same duplicate-source merging as the public collec
 It avoids constructing call graphs that the JSON output never used. Real CPU/wall
 parity tests cover every counter, and fork plus periodic-snapshot tests check that
 capture continues through application work and child generations.
+
+Live snapshots can contain an impossible negative function time. The validator
+keeps the raw row, lists it in `quality.json` under `timing_anomalies`, and excludes
+it from summary timings, call totals and business-coverage proof. It does not
+replace the value with zero. Every process still needs usable timing, and every
+crash generation still needs valid business-function coverage. Nonfinite timing,
+invalid call counts, missing processes and incomplete journeys remain failures.
