@@ -77,7 +77,26 @@ jobs:
       - run: uv sync --all-packages --locked
       - run: uv sync --directory .widget-baseline --all-packages --locked
         if: matrix.revision == 'baseline'
-      - run: uv run playwright install --with-deps chromium
+      - name: Install and verify headless Chromium
+        run: |
+          # These acceptance tests use the default headless shell, not a browser channel.
+          uv run --no-sync playwright install --only-shell chromium
+          probe=$(mktemp --suffix=.py)
+          cat > "$probe" <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch()
+              page = browser.new_page()
+              page.set_content('<button>Ready</button>')
+              page.get_by_role('button', name='Ready').click()
+              page.screenshot()
+              browser.close()
+          PY
+          if ! uv run --no-sync python "$probe"; then
+            # Recover runners missing system libraries; verify again before benchmarking.
+            uv run --no-sync playwright install-deps chromium
+            uv run --no-sync python "$probe"
+          fi
       - run: uv sync --directory .widget-upstream/python/widget-store --locked --python 3.14
       - name: Enable measured PostgreSQL execution and WAL statistics
         env:
