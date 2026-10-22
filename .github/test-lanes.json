@@ -1,0 +1,52 @@
+{
+  "graph": {
+    "module_roots": [
+      "package/src",
+      "package/shims",
+      "package",
+      "."
+    ],
+    "test_roots": [
+      "package/tests",
+      "integration_tests"
+    ],
+    "pytest_policy": {
+      "pyproject.toml": "0f8feceee9ab4f42e7f72fbb61dd11eef02d9a966e3056bc62ab9b4188ff11e0"
+    },
+    "global_modules": []
+  },
+  "lanes": {
+    "library": {
+      "roots": [
+        "package/tests"
+      ],
+      "inputs": [
+        "package/src/**",
+        "package/shims/**",
+        "package/tests/**"
+      ]
+    },
+    "integration": {
+      "roots": [
+        "integration_tests"
+      ],
+      "inputs": [
+        "package/src/**",
+        "package/shims/**",
+        "examples/**",
+        "integration_tests/**",
+        "scripts/check_adoption_report.py"
+      ]
+    },
+    "widget_comparison": {
+      "roots": [],
+      "inputs": [
+        "package/src/**",
+        "package/shims/**",
+        "examples/**",
+        "scripts/**",
+        "integration_tests/scripts/test_widget_profile.py"
+      ]
+    }
+  }
+}
