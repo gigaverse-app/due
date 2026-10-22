@@ -11,6 +11,7 @@
       "integration_tests"
     ],
     "pytest_policy": {
+      "package/pyproject.toml": "f928b7f7adc75b1171b99f126879846904dca255050d3c560bcf10dad3cf447a",
       "pyproject.toml": "0f8feceee9ab4f42e7f72fbb61dd11eef02d9a966e3056bc62ab9b4188ff11e0"
     },
     "global_modules": []
