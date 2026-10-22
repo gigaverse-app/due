@@ -169,3 +169,10 @@ respectively, outside the validation dependency chain and the table above.
 The superseded predecessor run `39860104313 / 1` used 762 observed runner
 seconds before cancellation; it is iteration cost, excluded from this successful
 same-revision comparison.
+
+The [explicit rerun control, attempt 2](https://github.com/gigaverse-app/due/actions/runs/39862232992/attempts/2)
+resolved no reusable variants and started both Django service jobs on the same
+tested merge. It was deliberately cancelled after verifying execution admission,
+before pushing the main merge and this measurement record. Its verification
+cost is separate from the successful attempt-1 comparison above; it is not a
+second completed full-suite result.
