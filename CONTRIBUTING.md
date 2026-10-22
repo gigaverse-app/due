@@ -102,7 +102,9 @@ required, even when prior proof allows a test runner to be skipped.
 Execution evidence also distinguishes library-only, integration-only and combined
 validation through exact job names. A narrower run cannot prove a later broader
 fallback, even when the Git inputs are identical. The required gate names stay
-the same for all three scopes.
+the same for all three scopes. Planner fallbacks and missing or inconsistent
+plan metadata execute fresh work without issuing reusable evidence. This keeps
+broader fallback results from hiding a later failure in the normal, narrower scope.
 
 Explicit reruns execute the requested lanes again. Main, manual dispatch and
 `test:full` bypass reuse entirely. The time limit bounds reuse across hosted

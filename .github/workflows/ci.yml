@@ -67,10 +67,19 @@ jobs:
             core.setOutput('integration', integration);
             // Exact job names prevent a partial suite from proving a later full fallback.
             core.setOutput('suffix', library && integration ? '' : library ? ' [library]' : integration ? ' [integration]' : ' [none]');
+            let plan = {};
+            try { plan = JSON.parse(require('fs').readFileSync('test-lanes.json', 'utf8')) || {}; } catch { /* No plan means fresh execution. */ }
+            // Fallback coverage can differ from the deterministic plan for this tree.
+            // Never cache that broader scope or resurrect it after a narrower failure.
+            const reusable = process.env.OUTCOME === 'success' &&
+              typeof plan.reason === 'string' && plan.reason.trim() !== '' &&
+              !/fallback|explicit full-suite checkpoint/i.test(plan.reason) &&
+              plan.lanes?.library === library && plan.lanes?.integration === integration;
+            core.setOutput('reusable', reusable);
       - id: evidence
         name: Find completed Django suites for these exact inputs
         if: >-
-          ${{ github.event_name == 'pull_request' &&
+          ${{ steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               (steps.scope.outputs.library != 'false' || steps.scope.outputs.integration != 'false') }}
         uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@9c009f3fc96af88167abd0aee5876320aa7cff2b
