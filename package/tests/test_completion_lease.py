@@ -240,3 +240,6 @@ def test_available_requires_an_unsliced_query_for_its_model() -> None:
         completion.available(PrimitiveOwner.objects.all()[:1], lease_duration=timedelta(minutes=1))
     with pytest.raises(ValueError, match="positive"):
         completion.available(PrimitiveOwner.objects.all(), lease_duration=timedelta(0))
+
+
+# CI selection benchmark: compare this identical head with and without test:full.
