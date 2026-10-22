@@ -97,3 +97,17 @@ not a claim that static imports discover arbitrary runtime behavior.
 The planner JSON explains every lane decision. An affected test outside all lane
 roots runs every configured lane and names the missing mapping; add that directory
 to a lane whose pytest command actually executes it.
+# CI routing checks
+
+The always-running `ci-contracts` job checks this repository's actual lane
+configuration against real Git snapshots. README/prose and repository metadata
+must not launch library, application, or widget benchmarks. Workflow inputs are
+owned by their execution lanes: `ci.yml` affects library/integration/type checks;
+`widget-store.yml` affects the widget comparison. Dependency and planner
+configuration changes still run every lane, as do full checkpoints and missing
+history. Python changes still run type checking.
+
+Preserve explicit subprocess inputs: the widget benchmark uses shared settings,
+Celery bootstrap, profiling scripts, and the integration process helper. A new
+dynamic dependency must be declared with its consuming lane. Docs links and both
+distribution descriptions are validated even when all runtime lanes skip.
