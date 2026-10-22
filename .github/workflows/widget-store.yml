@@ -35,9 +35,19 @@ jobs:
     timeout-minutes: 25
     strategy:
       fail-fast: false
+      # Each capture retains its full workload on its own services/runner. Profiling
+      # never competes with timing samples or another profile for CPU/DB resources.
       matrix:
-        reverse: [false, true]
         revision: [baseline, candidate]
+        capture: [benchmark, cpu-1, cpu-2, wall]
+        reverse: [false]
+        include:
+          - revision: baseline
+            capture: benchmark
+            reverse: true
+          - revision: candidate
+            capture: benchmark
+            reverse: true
     services:
       postgres:
         image: postgres:17
@@ -78,6 +88,7 @@ jobs:
       - run: uv sync --directory .widget-baseline --all-packages --locked
         if: matrix.revision == 'baseline'
       - name: Install and verify headless Chromium
+        if: matrix.capture == 'benchmark'
         run: |
           # These acceptance tests use the default headless shell, not a browser channel.
           uv run --no-sync playwright install --only-shell chromium
@@ -116,22 +127,20 @@ jobs:
       - run: uv run --directory .widget-upstream/python/widget-store alembic upgrade head
       - run: uv run --directory .widget-upstream/python/widget-store python -m migrations.reset_database
       - name: Benchmark both real applications and exercise their crash buttons in Chromium
+        if: matrix.capture == 'benchmark'
         env:
           WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           WIDGET_REDIS_CONTAINER: ${{ job.services.redis.id }}
         run: uv run python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
-      - name: Repeat quality-gated CPU profiles separately from timing
-        if: matrix.reverse == false
-        run: |
-          for repeat in 1 2; do
-            uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/cpu-$repeat" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5
-          done
+      - name: Capture a quality-gated CPU profile separately from timing
+        if: startsWith(matrix.capture, 'cpu-')
+        run: uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/${{ matrix.capture }}" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5
       - name: Profile wait paths including connection-loss recovery
-        if: matrix.reverse == false
+        if: matrix.capture == 'wall'
         run: uv run python -m scripts.widget_profile --mode wall --output test-results/widgets/profile/wall -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 2
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: widget-store-${{ matrix.revision }}-reverse-${{ matrix.reverse }}
+          name: widget-store-${{ matrix.revision }}-reverse-${{ matrix.reverse }}${{ matrix.capture != 'benchmark' && format('-{0}', matrix.capture) || '' }}
           path: test-results/widgets/
           if-no-files-found: error

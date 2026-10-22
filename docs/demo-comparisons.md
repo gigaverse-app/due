@@ -71,3 +71,23 @@ requests, independently of whether the provider actually writes bytes.
 - Temporal still provides workflow history and its own timer/testing environment.
   Due's application contracts are useful in an existing Django/Celery deployment;
   they do not replace those workflow-engine facilities.
+
+### CI capture layout
+
+The Widget Store workflow keeps ten captures: each baseline/candidate revision gets
+forward and reverse browser benchmarks, two five-sample CPU profiles, and one
+two-sample wall profile. Each capture owns a runner, PostgreSQL and Redis; profiling
+never competes with a benchmark or another capture. The ten one-second business
+stages, warmup, failed payment, crash restart, and connection-loss journeys remain
+unchanged. Parallel captures reduce elapsed CI time at the cost of repeated setup.
+
+Benchmark artifacts retain `widget-store-{revision}-reverse-{false|true}` names.
+Profile artifacts append `-cpu-1`, `-cpu-2`, or `-wall` to the corresponding
+`reverse-false` name. Their internal `profile/{capture}/` paths and `quality.json`
+gates are unchanged. Download all ten artifacts for the complete evidence bundle.
+
+The pinned Yappi 1.7.6 collector reads flat counters in one enumeration, retaining
+per-thread identities and the same duplicate-source merging as the public collector.
+It avoids constructing call graphs that the JSON output never used. Real CPU/wall
+parity tests cover every counter, and fork plus periodic-snapshot tests check that
+capture continues through application work and child generations.
