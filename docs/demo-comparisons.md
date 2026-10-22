@@ -86,6 +86,16 @@ Profile artifacts append `-cpu-1`, `-cpu-2`, or `-wall` to the corresponding
 `reverse-false` name. Their internal `profile/{capture}/` paths and `quality.json`
 gates are unchanged. Download all ten artifacts for the complete evidence bundle.
 
+Automatic PR events reuse a complete successful bundle from the same PR for up to
+24 hours when CI-esta verifies the exact tested merge tree, base, head tree, and
+shared tooling. A label change can therefore finish without launching ten more
+runners. Changed trees, missing evidence, later failures, manual reruns, `test:full`,
+and main builds execute the captures again. The `Widget comparison gate` records
+proof only after all ten captures succeed; reused runs cannot refresh its lifetime.
+Reused runs have no new capture artifacts. Download the bundle from the original
+successful PR run within the last 24 hours; its gate has the same `Validated inputs`
+receipt as the new run's evidence lookup.
+
 The pinned Yappi 1.7.6 collector reads flat counters in one enumeration, retaining
 per-thread identities and the same duplicate-source merging as the public collector.
 It avoids constructing call graphs that the JSON output never used. Real CPU/wall
