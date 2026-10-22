@@ -91,3 +91,39 @@ per-thread identities and the same duplicate-source merging as the public collec
 It avoids constructing call graphs that the JSON output never used. Real CPU/wall
 parity tests cover every counter, and fork plus periodic-snapshot tests check that
 capture continues through application work and child generations.
+
+### CI runtime measurement
+
+These runs execute every capture; savings here do not come from test selection.
+Application, benchmark and resource-observation source files are identical between
+the before and after revisions. The profiler collector and capture scheduling change.
+
+| Metric | Before | After | Interpretation |
+| --- | ---: | ---: | --- |
+| Full widget workflow elapsed | 14m56s | 6m04s | 59.4% lower; includes queue/setup through final job completion |
+| Total runner-seconds | 2,151 | 2,320 | 7.9% higher; isolated parallel captures repeat setup |
+| Browser benchmarks / CPU profiles / wall profiles | 4 / 4 / 2 | 4 / 4 / 2 | No capture removed |
+| Flat snapshot median on one frozen Django workload | 55.37ms | 6.52ms | Seven alternating collections, identical 5,652 counters across 33 threads |
+
+[Before run](https://github.com/gigaverse-app/due/actions/runs/39844723125),
+[after run and ten artifacts](https://github.com/gigaverse-app/due/actions/runs/39851887164),
+[implementation and verification](https://github.com/gigaverse-app/due/pull/72).
+The intermediate collector-only serial run used 793 elapsed seconds and 2,060
+runner-seconds. Relative to that [run](https://github.com/gigaverse-app/due/actions/runs/39849895045),
+parallelization reduced elapsed time 54.1% and increased runner time 12.6%.
+These are individual successful runs on different hosted runners, not a universal
+speedup or a claim of lower compute cost.
+
+Artifact inspection confirmed both applications in all ten results, unchanged
+sample counts, every connection-loss journey, sixteen browser screenshots, and
+six passing quality reports with business coverage across crash generations.
+Twenty-three profiler tests also cover exact CPU/wall counter parity, ongoing
+periodic snapshots, fork separation and invalid-capture rejection.
+
+The earlier [browser setup change](https://github.com/gigaverse-app/due/pull/67)
+also retained a real launch/click/screenshot probe with a system-library recovery
+path. Its four validation jobs installed and verified Chromium in 4–6 seconds,
+compared with 22, 26, 112 and 624 seconds in the
+[earlier full run](https://github.com/gigaverse-app/due/actions/runs/39843954580).
+The 624-second installation was a download/system-package outlier, not a stable
+baseline. Complete browser crash journeys still execute afterward.
