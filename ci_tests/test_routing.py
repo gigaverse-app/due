@@ -62,6 +62,22 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path), set())
 
+    def test_nested_or_new_pytest_collection_policy_forces_every_lane(self):
+        for path in ("package/pyproject.toml", "package/.pytest.ini"):
+            with self.subTest(path=path):
+                self.git("reset", "--hard", self.base)
+                self.git("clean", "-fd")
+                target = self.repo / path
+                if target.exists():
+                    target.write_text(
+                        target.read_text().replace('testpaths = ["tests"]', 'testpaths = ["other_tests"]')
+                    )
+                else:
+                    target.write_text("[pytest]\ntestpaths = other_tests\n")
+                result = plan(self.repo, self.config, self.base, self.commit())
+                self.assertTrue(all(result.lanes.values()), result.model_dump_json())
+                self.assertIn("fallback", result.reason)
+
     def test_workflow_changes_only_run_their_execution_lanes(self):
         self.assertEqual(self.selection(".github/workflows/ci.yml"), {"library", "integration", "typecheck"})
         self.assertEqual(self.selection(".github/workflows/widget-store.yml"), {"widget_comparison"})

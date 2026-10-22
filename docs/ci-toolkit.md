@@ -33,3 +33,28 @@ For adoption in another repository, follow CI-esta's
 and [critical-path guide](https://github.com/gigaverse-app/ci-esta/blob/main/docs/critical-path.md).
 Compare matched successful runs, record cold/warm cache states, and retain raw
 run identities before making a numerical performance claim.
+
+
+## Learn from the tests that ran
+
+The primary test lane retains JUnit and per-file timing hints using CI-esta's
+shared `learn-test-timings` action. Artifacts are separate for each dependency,
+Python or OS variant. Due records the integration suite; obligation records its
+framework-free core matrix. Existing conformance and coverage checks remain.
+
+Download a successful artifact and use `ci-esta-pytest plan --durations
+.ci-test-durations.json --test-root tests --shards 4 --exact-files --output-dir
+splits`, substituting this project's actual test roots. Unknown files remain in
+the plan. These hints affect scheduling only and cannot grant a passing result.
+Follow the [timing feedback tutorial](https://github.com/gigaverse-app/ci-esta/blob/main/docs/learned-test-timings.md)
+for execution, empty shards and per-service isolation. Compare the existing
+parallel strategy before adding hosted runners.
+
+
+## Keep collection policy explicit
+
+The selector now fingerprints every committed pytest configuration, including
+nested package and demo configurations. The real-Git routing regressions prove
+that changed or newly added collection policy forces every lane. Review those
+settings before refreshing the fingerprints; a fallback is a reason to inspect
+the policy, not to remove the guard.

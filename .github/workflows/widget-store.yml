@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@99f9af2bbe92534074657664903a1ce03bdeb44f
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@c2a1d0bed2e9a7819f754f730a7eca99044a860d
         with:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -99,7 +99,7 @@ jobs:
           repository: gigaverse-app/due
           ref: 1f1562416a0c0bc62f6c429dad88a2d7d84728f3
           path: .widget-baseline
-      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@78e5e2b078ce6d9b4df488a102c387f3548aa00a
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@e9d279269e80a4e68435dbd65cdb9dbd23048f7b
         with:
           python-version: '3.14'
           sync-args: --all-packages
