@@ -52,6 +52,7 @@ jobs:
       - run: uv run --no-sync pyrefly check
 
   tests:
+    name: Execute tests (${{ matrix.django }})
     needs: select-tests
     if: >-
       ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
@@ -153,6 +154,35 @@ jobs:
             observations.json
             test-results/**/*.log
           if-no-files-found: error
+
+  test-gates:
+    name: tests (${{ matrix.django }})
+    needs: [select-tests, tests]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        django: [locked, minimum]
+    steps:
+      # Keep required check names present even when the expensive matrix is skipped.
+      # A skipped matrix is valid only with an explicit successful no-test plan.
+      - name: Require executed tests or a proven empty plan
+        env:
+          TEST_RESULT: ${{ needs.tests.result }}
+          PLAN_RESULT: ${{ needs.select-tests.result }}
+          LANES: ${{ needs.select-tests.outputs.lanes }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          if os.environ['TEST_RESULT'] == 'success':
+              raise SystemExit(0)
+          if os.environ['TEST_RESULT'] == 'skipped' and os.environ['PLAN_RESULT'] == 'success':
+              lanes = json.loads(os.environ['LANES'])
+              if lanes.get('library') is False and lanes.get('integration') is False:
+                  raise SystemExit(0)
+          raise SystemExit('Tests did not pass and no successful empty plan authorizes a skip')
+          PY
 
   build:
     runs-on: ubuntu-latest
