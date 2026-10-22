@@ -49,6 +49,9 @@ class EvidenceMatrixTests(unittest.TestCase):
             with self.subTest(plan=plan):
                 outputs = self.scope_outputs(json.dumps(lanes), "success", plan)
                 self.assertEqual(outputs["reusable"], reusable)
+        for raw in ("{}", "null", '{"library":"true","integration":true}'):
+            with self.subTest(raw=raw):
+                self.assertFalse(self.scope_outputs(raw, "success", normal)["reusable"])
 
     def test_execution_scope_distinguishes_partial_validation_from_full_fallback(self):
         for lanes, outcome, library, integration, suffix in (

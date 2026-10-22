@@ -72,6 +72,7 @@ jobs:
             // Fallback coverage can differ from the deterministic plan for this tree.
             // Never cache that broader scope or resurrect it after a narrower failure.
             const reusable = process.env.OUTCOME === 'success' &&
+              lanes.library === library && lanes.integration === integration &&
               typeof plan.reason === 'string' && plan.reason.trim() !== '' &&
               !/fallback|explicit full-suite checkpoint/i.test(plan.reason) &&
               plan.lanes?.library === library && plan.lanes?.integration === integration;
