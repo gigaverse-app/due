@@ -187,22 +187,16 @@ jobs:
       # Keep required check names present even when the expensive matrix is skipped.
       # A skipped matrix is valid only with an explicit successful no-test plan.
       - name: Require executed tests or a proven empty plan
-        env:
-          TEST_RESULT: ${{ needs.tests.result }}
-          PLAN_RESULT: ${{ needs.select-tests.result }}
-          LANES: ${{ needs.select-tests.outputs.lanes }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          if os.environ['TEST_RESULT'] == 'success':
-              raise SystemExit(0)
-          if os.environ['TEST_RESULT'] == 'skipped' and os.environ['PLAN_RESULT'] == 'success':
-              lanes = json.loads(os.environ['LANES'])
-              if lanes.get('library') is False and lanes.get('integration') is False:
-                  raise SystemExit(0)
-          raise SystemExit('Tests did not pass and no successful empty plan authorizes a skip')
-          PY
+        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@28e935c1360e9b2936802d8d83fc2bb938e34d83
+        with:
+          # Planning failures activate the complete suite. Gate its actual outcome;
+          # only successful planning with two literal false values permits a skip.
+          needs: '{"tests":${{ toJSON(needs.tests) }}}'
+          required: >-
+            {"tests":${{ needs.tests.result != 'success' &&
+              (needs.select-tests.result != 'success' ||
+               toJSON(fromJSON(needs.select-tests.outputs.lanes || '{}').library) != 'false' ||
+               toJSON(fromJSON(needs.select-tests.outputs.lanes || '{}').integration) != 'false') }}}
 
   build:
     runs-on: ubuntu-latest
