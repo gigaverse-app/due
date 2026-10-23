@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@v0.1
+        uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -37,7 +37,7 @@ jobs:
           ${{ github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               toJSON(fromJSON(steps.select.outputs.lanes || '{}').widget_comparison) != 'false' }}
-        uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@v0.1
+        uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1
         with:
           # Default identity binds the entire tested merge tree, base and head tree.
           # No local cache keys or incomplete hand-maintained input inventories.
@@ -99,7 +99,7 @@ jobs:
           repository: gigaverse-app/due
           ref: 1f1562416a0c0bc62f6c429dad88a2d7d84728f3
           path: .widget-baseline
-      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@v0.1
+      - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
         with:
           python-version: '3.14'
           sync-args: --all-packages
@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Require all captures or matching successful evidence
-        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@v0.1
+        uses: gigaverse-app/ci-esta/actions/validation-gate@v1
         with:
           needs: '{"compare":${{ toJSON(needs.compare) }}}'
           required: >-
