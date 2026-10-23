@@ -77,7 +77,8 @@ def main():
     if stale:
         parser.exit(1, "Regenerate branding: " + ", ".join(stale) + "\n")
     if args.png:
-        import resvg_py
+        # Optional export tool, installed by the documented uv --with command.
+        import resvg_py  # pyrefly: ignore [missing-import]
 
         for source, target, width, height in (
             ("logo.svg", "icon.png", 256, 256),
