@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.4](https://github.com/gigaverse-app/due/compare/v0.7.3...v0.7.4) (2026-10-23)
+
+
+### Performance
+
+* parallelize isolated Django conformance sessions ([#86](https://github.com/gigaverse-app/due/issues/86)) ([2feacb5](https://github.com/gigaverse-app/due/commit/2feacb53650700f818e0829cd11e0bc98903eb51))
+
+
+### Documentation
+
+* show the CI-esta logo on the CI-esta badge ([#81](https://github.com/gigaverse-app/due/issues/81)) ([2fc77bc](https://github.com/gigaverse-app/due/commit/2fc77bc4975c68aa41d2ea10f6ff9434042d67b6))
+
 ## [0.7.3](https://github.com/gigaverse-app/due/compare/v0.7.2...v0.7.3) (2026-10-22)
 
 
