@@ -76,7 +76,9 @@ Conventional Commit titles.
 
 Release Please calculates SemVer from Conventional Commits: `fix:` and `perf:`
 bump the patch, `feat:` bumps the minor, and breaking changes bump the minor while
-below 1.0. Docs/tests/CI-only changes do not independently request a release.
+below 1.0. Docs, style, refactoring, tests, build, CI and chore changes do not independently
+request a release unless they declare a breaking change. A `feat:` bumps the minor
+even below 1.0; a breaking change bumps the major once the package reaches 1.0.
 `hatch-vcs` derives package versions from Git tags. Untagged source builds as a
 development version; embedded subtrees use the explicit development fallback.
 Neither the package metadata nor the lock needs a version edit on release PRs.
