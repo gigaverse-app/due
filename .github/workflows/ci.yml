@@ -31,7 +31,7 @@ jobs:
       - name: Check aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14
-          --with "ci-esta @ https://github.com/gigaverse-app/ci-esta/archive/6914acabd398fdcef929719370257277f483dc7d.tar.gz"
+          --with "ci-esta>=0.1.0,<0.2.0"
           ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
@@ -51,7 +51,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@6c65e923adf9e4283ba64c0db994304b3d426031
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@v0.1
         with:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -88,7 +88,7 @@ jobs:
           ${{ steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               (steps.scope.outputs.library != 'false' || steps.scope.outputs.integration != 'false') }}
-        uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@6914acabd398fdcef929719370257277f483dc7d
+        uses: gigaverse-app/ci-esta/.github/actions/resolve-lane-evidence@v0.1
         with:
           # Whole-tree receipts also bind the base, head tree and shared tooling.
           lanes: '{"locked":"Execute tests (locked)","minimum":"Execute tests (minimum)"}'
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@6914acabd398fdcef929719370257277f483dc7d
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@v0.1
         with:
           python-version: '3.14'
           sync-args: --all-packages --only-group lint
@@ -127,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@6914acabd398fdcef929719370257277f483dc7d
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@v0.1
         with:
           python-version: '3.14'
           sync-args: --all-packages
@@ -173,7 +173,7 @@ jobs:
       DUE_BROKER_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@6914acabd398fdcef929719370257277f483dc7d
+      - uses: gigaverse-app/ci-esta/.github/actions/setup-cached-uv@v0.1
         with:
           python-version: '3.14'
           sync-args: --all-packages
@@ -193,7 +193,7 @@ jobs:
       - name: Run full suite including live web, worker and Beat recovery
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
         run: uv run --no-sync pytest -n 4 --dist worksteal --due-work-check-fixtures --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=integration_tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json --junitxml=test-timings.xml -o junit_family=xunit1
-      - uses: gigaverse-app/ci-esta/.github/actions/learn-test-timings@6914acabd398fdcef929719370257277f483dc7d
+      - uses: gigaverse-app/ci-esta/.github/actions/learn-test-timings@v0.1
         if: ${{ success() && hashFiles('test-timings.xml') != '' }}
         with:
           junit-pattern: test-timings.xml
@@ -262,7 +262,7 @@ jobs:
       # Keep required check names present even when the expensive matrix is skipped.
       # Reused suites never emit a new receipt or extend its 24-hour lifetime.
       - name: Require successful planning and executed or proven tests
-        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@6914acabd398fdcef929719370257277f483dc7d
+        uses: gigaverse-app/ci-esta/.github/actions/validation-gate@v0.1
         with:
           needs: ${{ toJSON(needs) }}
           required: >-
@@ -300,7 +300,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - uses: gigaverse-app/ci-esta/.github/actions/validation-gate@6914acabd398fdcef929719370257277f483dc7d
+      - uses: gigaverse-app/ci-esta/.github/actions/validation-gate@v0.1
         with:
           needs: ${{ toJSON(needs) }}
           lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
