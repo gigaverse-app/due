@@ -1,0 +1,128 @@
+site_name: Due
+site_description: Recover Django background work after crashes with durable work tables
+  and explicit completion evidence.
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://due.readthedocs.io/en/latest/"]
+repo_url: https://github.com/gigaverse-app/due
+repo_name: gigaverse-app/due
+edit_uri: ''
+docs_dir: documentation
+site_dir: site
+strict: true
+exclude_docs: '*.py
+
+  *.txt
+
+  *.in
+
+  overrides/
+
+  '
+theme:
+  name: material
+  custom_dir: documentation/overrides
+  language: en
+  font: false
+  palette:
+    primary: teal
+    accent: cyan
+  features:
+  - navigation.sections
+  - navigation.top
+  - search.suggest
+  - search.highlight
+  - content.code.copy
+plugins:
+- search
+hooks:
+- documentation/hooks.py
+markdown_extensions:
+- admonition
+- attr_list
+- tables
+- pymdownx.details
+- pymdownx.highlight
+- pymdownx.superfences:
+    custom_fences:
+      - name: mermaid
+        class: mermaid
+        format: !!python/name:pymdownx.superfences.fence_code_format
+- toc:
+    permalink: true
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+extra:
+  published_sources:
+  - docs/alternatives.md
+  - docs/ci-toolkit.md
+  - docs/recovery-walkthrough.md
+  - docs/why-due.md
+  - package/docs/architecture.md
+  - package/docs/capabilities.md
+  - package/docs/completion-leases.md
+  - package/docs/conformance-api.md
+  - package/docs/conformance.md
+  - package/docs/integration.md
+  - package/docs/migrations.md
+  - package/docs/migrations/arq.md
+  - package/docs/migrations/celery.md
+  - package/docs/migrations/chancy.md
+  - package/docs/migrations/dbos.md
+  - package/docs/migrations/django-q2.md
+  - package/docs/migrations/django-rq.md
+  - package/docs/migrations/django-tasks-db.md
+  - package/docs/migrations/django-tasks-rq.md
+  - package/docs/migrations/django-tasks.md
+  - package/docs/migrations/dramatiq.md
+  - package/docs/migrations/huey.md
+  - package/docs/migrations/pgmq.md
+  - package/docs/migrations/pgqueuer.md
+  - package/docs/migrations/procrastinate.md
+  - package/docs/migrations/rq.md
+  - package/docs/migrations/taskiq.md
+  - package/docs/migrations/temporal.md
+  - package/docs/operations.md
+  - package/docs/verification.md
+  - CONTRIBUTING.md
+  - RELEASING.md
+nav:
+- Start here: index.md
+- Quickstart: package/docs/integration.md
+- Guides:
+  - Alternatives: docs/alternatives.md
+  - CI toolkit: docs/ci-toolkit.md
+  - Recovery walkthrough: docs/recovery-walkthrough.md
+  - Why due: docs/why-due.md
+  - Architecture: package/docs/architecture.md
+  - Capabilities: package/docs/capabilities.md
+  - Completion leases: package/docs/completion-leases.md
+  - Conformance api: package/docs/conformance-api.md
+  - Conformance: package/docs/conformance.md
+  - Migrations: package/docs/migrations.md
+  - Arq: package/docs/migrations/arq.md
+  - Celery: package/docs/migrations/celery.md
+  - Chancy: package/docs/migrations/chancy.md
+  - Dbos: package/docs/migrations/dbos.md
+  - Django q2: package/docs/migrations/django-q2.md
+  - Django rq: package/docs/migrations/django-rq.md
+  - Django tasks db: package/docs/migrations/django-tasks-db.md
+  - Django tasks rq: package/docs/migrations/django-tasks-rq.md
+  - Django tasks: package/docs/migrations/django-tasks.md
+  - Dramatiq: package/docs/migrations/dramatiq.md
+  - Huey: package/docs/migrations/huey.md
+  - Pgmq: package/docs/migrations/pgmq.md
+  - Pgqueuer: package/docs/migrations/pgqueuer.md
+  - Procrastinate: package/docs/migrations/procrastinate.md
+  - Rq: package/docs/migrations/rq.md
+  - Taskiq: package/docs/migrations/taskiq.md
+  - Temporal: package/docs/migrations/temporal.md
+  - Operations: package/docs/operations.md
+  - Verification: package/docs/verification.md
+- Related tools: ecosystem.md
+- Contributing: CONTRIBUTING.md
+- Releasing: RELEASING.md
+- Documentation publishing: publishing.md

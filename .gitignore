@@ -15,3 +15,7 @@ observations.json
 test-results/
 
 .widget-upstream/
+
+# Built documentation
+/site/
+/.venv-docs/
