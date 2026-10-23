@@ -1,18 +1,16 @@
 ![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png?v=e6e1fea2a5af)
 
 # Due
-
-[![Documentation](https://readthedocs.org/projects/due/badge/?version=latest)](https://due.readthedocs.io/en/latest/)
-
-[Read the documentation](https://due.readthedocs.io/en/latest/) · [Related tools](https://due.readthedocs.io/en/latest/ecosystem/)
-
-**An attempt can end. The obligation remains.**
-
 [![CI](https://github.com/gigaverse-app/due/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/due/actions/workflows/ci.yml)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![Django 6](https://img.shields.io/badge/Django-6-092E20?logo=django)](package/docs/integration.md)
 [![Typed](https://img.shields.io/badge/typing-py.typed-blue)](package/src/due/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](package/LICENSE)
+[![Documentation](https://readthedocs.org/projects/due/badge/?version=latest)](https://due.readthedocs.io/en/latest/)
+
+**An attempt can end. The obligation remains.**
+
+[Read the documentation](https://due.readthedocs.io/en/latest/) · [Related tools](https://due.readthedocs.io/en/latest/ecosystem/)
 
 The PyPI distribution name is **`django-due`** (`pip install django-due`).
 Python imports remain **`due`**. See [releasing](RELEASING.md) for the manual release process.
