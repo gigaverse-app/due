@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block extrahead %}{% if page %}
+  <meta name="google-site-verification" content="nMeR7AdZoox-0Z54vKTPjcL_qJDeBoObabtC6T-Hqog" />
   <meta property="og:type" content="website">
   <meta property="og:title" content="{{ (page.title ~ ' | ' ~ config.site_name) | e }}">
   <meta property="og:description" content="{{ (page.meta.description | default(config.site_description, true)) | e }}">

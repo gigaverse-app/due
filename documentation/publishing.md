@@ -34,8 +34,14 @@ The override adds Open Graph and social summary metadata without analytics.
 
 ## Search measurement
 
-Register the public URL prefix in Google Search Console using the owner's
-account and submit the sitemap. If verification requires an HTML file or meta
-tag, add the supplied verification value in a separate reviewed change.
-Record indexing, impressions and clicks to tutorials before claiming SEO gains.
+The maintainer's Google Search Console URL-prefix property is
+`https://due.readthedocs.io/en/latest/`. Its public ownership verification tag
+is in `documentation/overrides/main.html`; keep it present after verification.
+This tag is intended to be public and does not authenticate application requests.
+
+After deploying the tag, verify ownership in Search Console and submit
+`https://due.readthedocs.io/en/latest/sitemap.xml`. Inspect indexing,
+impressions, clicks, and tutorial landing pages over time. Property verification
+and sitemap submission do not guarantee that Google indexes or ranks a page.
 No search ranking or traffic improvement has been measured by this publishing change.
+If the canonical domain changes, verify the new property and submit its sitemap.
