@@ -45,3 +45,19 @@ impressions, clicks, and tutorial landing pages over time. Property verification
 and sitemap submission do not guarantee that Google indexes or ranks a page.
 No search ranking or traffic improvement has been measured by this publishing change.
 If the canonical domain changes, verify the new property and submit its sitemap.
+
+## Keep the site useful
+
+Publish instructions, API or safety boundaries, and comparisons that help a
+reader make a decision. Use descriptive navigation labels and group pages by
+the reader's task. Getting started comes before advanced reference; contributor
+maintenance belongs in its own section. Avoid filename-derived titles and
+expanded lists of every library or report.
+
+Do not publish completed implementation checklists, extraction or migration
+status ledgers, PR-by-PR progress, or generated run reports as guides. Extract
+any lasting instruction into its existing guide and delete superseded notes.
+Benchmark case studies may retain methods, immutable source identities and
+limitations; link the raw evidence instead of giving each artifact a sidebar
+entry. Keep the explicit `published_sources` list curated, and check incoming
+links when removing a page.

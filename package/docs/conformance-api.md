@@ -284,7 +284,7 @@ Unbounded discovery generates `test_discovery_selection_is_complete`. It compare
 the production candidate query with the real per-owner derivation, so an owner
 that derivation would enroll cannot silently disappear from recovery. Discovery
 with an explicit horizon does not claim to cover every possible owner and does
-not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/docs/selection-completeness.md)
+not receive this check. The [shared proof's scope and limits](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/selection-completeness.md)
 apply; the generated case participates in normal collection and outcome guards.
 
 Discovery also generates two admissibility cases per database-legal edge value

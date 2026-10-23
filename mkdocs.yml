@@ -26,7 +26,6 @@ theme:
     primary: teal
     accent: cyan
   features:
-  - navigation.sections
   - navigation.top
   - search.suggest
   - search.highlight
@@ -90,39 +89,44 @@ extra:
   - CONTRIBUTING.md
   - RELEASING.md
 nav:
-- Start here: index.md
-- Quickstart: package/docs/integration.md
-- Guides:
-  - Alternatives: docs/alternatives.md
-  - CI toolkit: docs/ci-toolkit.md
+- Home: index.md
+- Getting started:
+  - Quickstart: package/docs/integration.md
+  - Why Due: docs/why-due.md
   - Recovery walkthrough: docs/recovery-walkthrough.md
-  - Why due: docs/why-due.md
+  - Compare alternatives: docs/alternatives.md
+- Core concepts:
   - Architecture: package/docs/architecture.md
   - Capabilities: package/docs/capabilities.md
   - Completion leases: package/docs/completion-leases.md
-  - Conformance api: package/docs/conformance-api.md
-  - Conformance: package/docs/conformance.md
-  - Migrations: package/docs/migrations.md
-  - Arq: package/docs/migrations/arq.md
+- Migration guides:
+  - Choose your migration: package/docs/migrations.md
+  - arq: package/docs/migrations/arq.md
   - Celery: package/docs/migrations/celery.md
   - Chancy: package/docs/migrations/chancy.md
-  - Dbos: package/docs/migrations/dbos.md
-  - Django q2: package/docs/migrations/django-q2.md
-  - Django rq: package/docs/migrations/django-rq.md
-  - Django tasks db: package/docs/migrations/django-tasks-db.md
-  - Django tasks rq: package/docs/migrations/django-tasks-rq.md
-  - Django tasks: package/docs/migrations/django-tasks.md
+  - DBOS: package/docs/migrations/dbos.md
+  - Django Q2: package/docs/migrations/django-q2.md
+  - django-rq: package/docs/migrations/django-rq.md
+  - Django Tasks: package/docs/migrations/django-tasks.md
+  - django-tasks-db: package/docs/migrations/django-tasks-db.md
+  - django-tasks-rq: package/docs/migrations/django-tasks-rq.md
   - Dramatiq: package/docs/migrations/dramatiq.md
   - Huey: package/docs/migrations/huey.md
-  - Pgmq: package/docs/migrations/pgmq.md
-  - Pgqueuer: package/docs/migrations/pgqueuer.md
+  - PGMQ: package/docs/migrations/pgmq.md
+  - PgQueuer: package/docs/migrations/pgqueuer.md
   - Procrastinate: package/docs/migrations/procrastinate.md
-  - Rq: package/docs/migrations/rq.md
+  - RQ: package/docs/migrations/rq.md
   - Taskiq: package/docs/migrations/taskiq.md
   - Temporal: package/docs/migrations/temporal.md
+- Testing and operations:
+  - Conformance testing: package/docs/conformance.md
+  - Conformance API: package/docs/conformance-api.md
+  - What the tests establish: package/docs/verification.md
   - Operations: package/docs/operations.md
-  - Verification: package/docs/verification.md
-- Related tools: ecosystem.md
-- Contributing: CONTRIBUTING.md
-- Releasing: RELEASING.md
-- Documentation publishing: publishing.md
+- Related tools and CI:
+  - Related tools: ecosystem.md
+  - CI toolkit: docs/ci-toolkit.md
+- Contributing:
+  - Development setup: CONTRIBUTING.md
+  - Releasing: RELEASING.md
+  - Documentation publishing: publishing.md
