@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due logo">
-<title>Due: the returning check</title>
-<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset="0.5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due: a task kept through retries">
+<title>Due: a task kept through retries</title>
+<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset=".5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
 <rect width="64" height="64" rx="15" fill="url(#brand-tile)"/>
-<path d="m14 28 10 10 18-20" fill="none" stroke="#FFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M49 26c7 15-5 29-21 25-5-1-8-4-10-7" fill="none" stroke="#FFE4E6" stroke-width="4" stroke-linecap="round"/>
-<path d="m14 49 2-10 10 2" fill="none" stroke="#FFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M24 12h12l8 8v20a4 4 0 0 1-4 4H24a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Z" fill="#FFF"/>
+<path d="M36 12v8h8" fill="#FDA4AF"/>
+<path d="M27 27h10M27 34h7" stroke="#BE123C" stroke-width="3" stroke-linecap="round"/>
+<path d="M12 23C4 42 18 58 36 54c12-2 20-13 17-25" fill="none" stroke="#FFF" stroke-width="4.5" stroke-linecap="round"/>
+<path d="m47 34 6-7 6 7" fill="none" stroke="#FFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

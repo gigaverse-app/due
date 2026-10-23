@@ -18,16 +18,24 @@ def digest(path):
 
 
 def motif() -> str:
-    return """<g stroke-linecap="round" stroke-linejoin="round">
-<rect x="2" y="10" width="27" height="34" rx="5" fill="#311B28" stroke="#713145" transform="rotate(-8 15 27)"/>
-<path d="m10 22 9 9m0-9-9 9" stroke="#FB7185" stroke-width="2"/>
-<path d="M33 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
-<rect x="54" y="10" width="27" height="34" rx="5" fill="#4C1D31" stroke="#FB7185"/>
-<path d="M62 23c6-6 13-1 10 6m-4-1 4 2 3-4" fill="none" stroke="#FECDD3" stroke-width="2"/>
-<path d="M85 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
-<rect x="106" y="10" width="27" height="34" rx="5" fill="#E11D48"/>
-<path d="m113 27 5 5 9-11" fill="none" stroke="#FFFFFF" stroke-width="3"/>
-<path d="M113 49c-28 15-61 13-86 1m5-3-6 3 3 5" fill="none" stroke="#FB7185" stroke-width="1.5" opacity="0.55"/>
+    return f"""<g stroke-linecap="round" stroke-linejoin="round">
+<g transform="rotate(-6 18 25)">
+<rect x="5" y="8" width="26" height="32" rx="4" fill="#311B28" stroke="#A65B70" stroke-width="1.5"/>
+<path d="M12 18h12M12 24h12M12 30h7" stroke="#FECDD3" stroke-width="2"/>
+</g>
+<path d="M37 24h16m-5-4 5 4-5 4" fill="none" stroke="#C58797" stroke-width="1.8"/>
+<rect x="61" y="8" width="26" height="32" rx="4" fill="#4C1D31" stroke="#FB7185" stroke-width="1.5"/>
+<path d="M68 25a7 7 0 1 1 11 4m-1-5 1 6 5-2" fill="none" stroke="#FECDD3" stroke-width="2"/>
+<path d="M93 24h16m-5-4 5 4-5 4" fill="none" stroke="#C58797" stroke-width="1.8"/>
+<g transform="rotate(3 130 24)">
+<rect x="117" y="8" width="26" height="32" rx="4" fill="#E11D48"/>
+<path d="m123 24 5 5 9-11" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+</g>
+<g font-family="{FONT}" font-size="9.5" font-weight="600" text-anchor="middle">
+<text x="18" y="55" fill="#C9A3AE">owed</text>
+<text x="74" y="55" fill="#FDA4AF">retry</text>
+<text x="130" y="55" fill="#FDA4AF">done</text>
+</g>
 </g>"""
 
 
@@ -37,7 +45,7 @@ def render():
     name, tagline, color, accent = (escape(brand[k], quote=True) for k in ("name", "tagline", "color", "accent"))
     first, second = (escape(line) for line in brand["banner_lines"])
     repository = brand["repository"]
-    width, text_x, motif_x = (640, 152, 490)
+    width, text_x, motif_x = (640, 152, 480)
     wordmark = f'D<tspan fill="{color}">ue</tspan>'
     defs = f"""<defs><linearGradient id="brand-glow" x1="0" y1="0" x2="1" y2="0">
 <stop stop-color="{color}" stop-opacity="0.21"/><stop offset="0.55" stop-color="{color}" stop-opacity="0"/>
@@ -66,7 +74,7 @@ def render():
 <text x="290" y="256" font-family="{FONT}" font-size="25" fill="#A9B5C4">Durable work for Django + PostgreSQL</text>
 <text x="80" y="420" font-family="{FONT}" font-size="34" font-weight="600" fill="#F0F6FC">{first}</text>
 <text x="80" y="470" font-family="{FONT}" font-size="34" font-weight="600" fill="{accent}">{second}</text>
-<g transform="translate(730 335) scale(3.25)">{motif()}</g>
+<g transform="translate(720 335) scale(3.25)">{motif()}</g>
 <text x="80" y="600" font-family="{FONT}" font-size="22" fill="#8B949E">github.com/gigaverse-app/{repository}</text>
 </svg>
 '''

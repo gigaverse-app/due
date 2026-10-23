@@ -7,29 +7,39 @@
 </radialGradient></defs>
 <rect width="1280" height="640" fill="#0D1117"/>
 <rect width="1280" height="640" fill="url(#brand-aura)"/>
-<g transform="translate(80 96) scale(2.5)"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due logo">
-<title>Due: the returning check</title>
-<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset="0.5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
+<g transform="translate(80 96) scale(2.5)"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due: a task kept through retries">
+<title>Due: a task kept through retries</title>
+<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset=".5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
 <rect width="64" height="64" rx="15" fill="url(#brand-tile)"/>
-<path d="m14 28 10 10 18-20" fill="none" stroke="#FFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M49 26c7 15-5 29-21 25-5-1-8-4-10-7" fill="none" stroke="#FFE4E6" stroke-width="4" stroke-linecap="round"/>
-<path d="m14 49 2-10 10 2" fill="none" stroke="#FFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M24 12h12l8 8v20a4 4 0 0 1-4 4H24a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Z" fill="#FFF"/>
+<path d="M36 12v8h8" fill="#FDA4AF"/>
+<path d="M27 27h10M27 34h7" stroke="#BE123C" stroke-width="3" stroke-linecap="round"/>
+<path d="M12 23C4 42 18 58 36 54c12-2 20-13 17-25" fill="none" stroke="#FFF" stroke-width="4.5" stroke-linecap="round"/>
+<path d="m47 34 6-7 6 7" fill="none" stroke="#FFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 </g>
 <text x="290" y="200" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-2" fill="#F0F6FC">D<tspan fill="#FB7185">ue</tspan></text>
 <text x="290" y="256" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="25" fill="#A9B5C4">Durable work for Django + PostgreSQL</text>
 <text x="80" y="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="#F0F6FC">An attempt can end.</text>
 <text x="80" y="470" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="#FDA4AF">The obligation remains.</text>
-<g transform="translate(730 335) scale(3.25)"><g stroke-linecap="round" stroke-linejoin="round">
-<rect x="2" y="10" width="27" height="34" rx="5" fill="#311B28" stroke="#713145" transform="rotate(-8 15 27)"/>
-<path d="m10 22 9 9m0-9-9 9" stroke="#FB7185" stroke-width="2"/>
-<path d="M33 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
-<rect x="54" y="10" width="27" height="34" rx="5" fill="#4C1D31" stroke="#FB7185"/>
-<path d="M62 23c6-6 13-1 10 6m-4-1 4 2 3-4" fill="none" stroke="#FECDD3" stroke-width="2"/>
-<path d="M85 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
-<rect x="106" y="10" width="27" height="34" rx="5" fill="#E11D48"/>
-<path d="m113 27 5 5 9-11" fill="none" stroke="#FFFFFF" stroke-width="3"/>
-<path d="M113 49c-28 15-61 13-86 1m5-3-6 3 3 5" fill="none" stroke="#FB7185" stroke-width="1.5" opacity="0.55"/>
+<g transform="translate(720 335) scale(3.25)"><g stroke-linecap="round" stroke-linejoin="round">
+<g transform="rotate(-6 18 25)">
+<rect x="5" y="8" width="26" height="32" rx="4" fill="#311B28" stroke="#A65B70" stroke-width="1.5"/>
+<path d="M12 18h12M12 24h12M12 30h7" stroke="#FECDD3" stroke-width="2"/>
+</g>
+<path d="M37 24h16m-5-4 5 4-5 4" fill="none" stroke="#C58797" stroke-width="1.8"/>
+<rect x="61" y="8" width="26" height="32" rx="4" fill="#4C1D31" stroke="#FB7185" stroke-width="1.5"/>
+<path d="M68 25a7 7 0 1 1 11 4m-1-5 1 6 5-2" fill="none" stroke="#FECDD3" stroke-width="2"/>
+<path d="M93 24h16m-5-4 5 4-5 4" fill="none" stroke="#C58797" stroke-width="1.8"/>
+<g transform="rotate(3 130 24)">
+<rect x="117" y="8" width="26" height="32" rx="4" fill="#E11D48"/>
+<path d="m123 24 5 5 9-11" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+</g>
+<g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9.5" font-weight="600" text-anchor="middle">
+<text x="18" y="55" fill="#C9A3AE">owed</text>
+<text x="74" y="55" fill="#FDA4AF">retry</text>
+<text x="130" y="55" fill="#FDA4AF">done</text>
+</g>
 </g></g>
 <text x="80" y="600" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="22" fill="#8B949E">github.com/gigaverse-app/due</text>
 </svg>
