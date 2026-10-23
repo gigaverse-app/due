@@ -184,6 +184,24 @@ cost is separate from the successful attempt-1 comparison above; it is not a
 second completed full-suite result.
 # Measured parallel conformance
 
+The standalone package-export check now runs beside the locked/minimum Django
+lanes with its own PostgreSQL and Redis services. Both required test gates depend
+on it whenever the library lane is selected, even if a Django receipt is reused.
+Its workflow input is `.github/workflows/ci.yml#package-export`; keep that input
+and the real-Git routing regression when editing the job.
+
+On 2026-10-23, the fresh serial-export control
+[39927047157 / 1](https://github.com/gigaverse-app/due/actions/runs/39927047157/attempts/1)
+and parallel-export run
+[39927107915 / 1](https://github.com/gigaverse-app/due/actions/runs/39927107915/attempts/1)
+measured 386 to 320 seconds to the validation gate, and 289 to 235 seconds on
+the execution critical path. Both used 548 total runner seconds. This trades
+parallel service startup for shorter dependency depth; it does not claim a
+runner-cost reduction. Both Django variants, package independence, every
+conformance validator and all existing required check names remain intact.
+An earlier pair improved execution time but lost elapsed time to admission
+delays, so one run is not a general turnaround guarantee.
+
 The full validation gate improved from 538 to 282 seconds in the controlled
 serial/four-worker pair, with identical 982 integration test identities and
 outcomes per Django variant. Every conformance validator remained enabled.
