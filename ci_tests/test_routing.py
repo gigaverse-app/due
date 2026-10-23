@@ -88,6 +88,7 @@ class RoutingTests(unittest.TestCase):
                 "select-tests": set(),
                 "lint": set(),
                 "tests": {"library", "integration"},
+                "package-export": {"library"},
                 "typecheck": {"typecheck"},
                 "test-gates": set(),
                 "build": set(),

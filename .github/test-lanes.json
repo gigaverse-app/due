@@ -25,7 +25,8 @@
         "package/src/**",
         "package/shims/**",
         "package/tests/**",
-        ".github/workflows/ci.yml#tests"
+        ".github/workflows/ci.yml#tests",
+        ".github/workflows/ci.yml#package-export"
       ]
     },
     "integration": {
