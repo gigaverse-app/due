@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   ci-contracts:
+    needs: select-tests
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -24,6 +26,7 @@ jobs:
           enable-cache: true
           python-version: '3.14'
       - name: Check real Git routing against the workflow's selector revision
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).contracts }}
         run: >-
           uv run --no-project --python 3.14
           --with "$(python scripts/ci/selector_requirement.py)"
@@ -310,6 +313,8 @@ jobs:
                 toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true')) }}}
 
   build:
+    needs: select-tests
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -322,6 +327,7 @@ jobs:
       - run: uvx --from twine==7.0.0 twine check --strict dist/*
       - run: python scripts/ci/check_metadata.py
       - name: Install the wheel without development dependencies
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).wheel }}
         run: |
           uv venv /tmp/due-wheel
           uv pip install --python /tmp/due-wheel dist/*.whl

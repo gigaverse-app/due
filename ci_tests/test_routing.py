@@ -73,6 +73,9 @@ class RoutingTests(unittest.TestCase):
             "README.md",
             "package/README.md",
             "package/docs/conformance.md",
+            "docs/guide.rst",
+            "md/guide.md",
+            ".github/ISSUE_TEMPLATE/bug.md",
             ".github/dependabot.yml",
             ".github/pull_request_template.md",
             ".github/workflows/observe-ci.yml",
@@ -84,20 +87,20 @@ class RoutingTests(unittest.TestCase):
         # Every job is listed, so a new job must be classified here before it merges.
         executes = {
             ".github/workflows/ci.yml": {
-                "ci-contracts": set(),
-                "select-tests": set(),
+                "ci-contracts": {"contracts"},
+                "select-tests": {"contracts"},
                 "lint": set(),
                 "tests": {"library", "integration"},
                 "package-export": {"library"},
                 "typecheck": {"typecheck"},
-                "test-gates": set(),
-                "build": set(),
-                "validation-gate": set(),
+                "test-gates": {"contracts"},
+                "build": {"wheel"},
+                "validation-gate": {"contracts"},
             },
             ".github/workflows/widget-store.yml": {
-                "select-tests": set(),
+                "select-tests": {"contracts"},
                 "compare": {"widget_comparison"},
-                "comparison-gate": set(),
+                "comparison-gate": {"contracts"},
             },
         }
         for path, lanes_by_job in executes.items():
@@ -110,20 +113,20 @@ class RoutingTests(unittest.TestCase):
 
     def test_settings_every_job_inherits_run_the_workflow_lanes(self):
         for path, lanes in (
-            (".github/workflows/ci.yml", {"library", "integration", "typecheck"}),
-            (".github/workflows/widget-store.yml", {"widget_comparison"}),
+            (".github/workflows/ci.yml", {"library", "integration", "typecheck", "contracts", "wheel"}),
+            (".github/workflows/widget-store.yml", {"widget_comparison", "contracts"}),
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path, edit=self.with_scenario_env()), lanes)
 
-    def test_selector_release_bumps_and_comments_run_no_lanes(self):
+    def test_selector_release_bumps_run_contracts_but_comments_run_no_lanes(self):
         def bump(text):
             return re.sub(r"(plan-lanes@)v[0-9]+(?:\.[0-9]+)*", r"\g<1>v99", text)
 
         for path in (".github/workflows/ci.yml", ".github/workflows/widget-store.yml"):
             with self.subTest(path=path, change="pin"):
                 self.assertNotEqual(bump((ROOT / path).read_text()), (ROOT / path).read_text())
-                self.assertEqual(self.selection(path, edit=bump), set())
+                self.assertEqual(self.selection(path, edit=bump), {"contracts"})
             with self.subTest(path=path, change="comment"):
                 self.assertEqual(self.selection(path), set())
 
@@ -183,6 +186,24 @@ class RoutingTests(unittest.TestCase):
             plan(self.repo, self.config, self.base, self.base, full=True),
         ):
             self.assertTrue(all(result.lanes.values()), result.model_dump_json())
+
+    def test_documentation_dependency_selects_its_declared_reader(self):
+        self.git("reset", "--hard", self.base)
+        reader = self.repo / "package/tests/test_declared_doc.py"
+        reader.parent.mkdir(parents=True, exist_ok=True)
+        reader.write_text("# gv:test-dependency: md/declared.md\ndef test_document(): pass\n")
+        doc = self.repo / "md/declared.md"
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text("before\n")
+        base = self.commit()
+        doc.write_text("after\n")
+        result = plan(self.repo, self.config, base, self.commit())
+        self.assertTrue(result.lanes["library"], result.model_dump_json())
+        self.assertNotIn("fallback", result.reason)
+
+    def test_execution_helpers_select_contracts_and_wheel(self):
+        self.assertIn("contracts", self.selection("ci_tests/test_routing.py"))
+        self.assertIn("wheel", self.selection("scripts/check_wheel.py"))
 
 
 if __name__ == "__main__":

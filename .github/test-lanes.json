@@ -68,6 +68,31 @@
         "**/pyrefly.toml",
         ".github/workflows/ci.yml#typecheck"
       ]
+    },
+    "contracts": {
+      "inputs": [
+        "ci_tests/**",
+        "scripts/ci/**",
+        "**/*.py",
+        "**/*.pyi",
+        ".github/workflows/ci.yml#ci-contracts",
+        ".github/workflows/ci.yml#select-tests",
+        ".github/workflows/ci.yml#validation-gate",
+        ".github/workflows/widget-store.yml#select-tests",
+        ".github/workflows/widget-store.yml#comparison-gate",
+        ".github/workflows/ci.yml#test-gates"
+      ]
+    },
+    "wheel": {
+      "inputs": [
+        "package/src/**",
+        "package/shims/**",
+        "scripts/check_wheel.py",
+        "scripts/check_core_is_framework_free.py",
+        "package/tests/core/test_compatibility.py",
+        "package/tests/core/test_package_identity.py",
+        ".github/workflows/ci.yml#build"
+      ]
     }
   },
   "global_inputs": [
