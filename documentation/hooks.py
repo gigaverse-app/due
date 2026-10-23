@@ -2,6 +2,7 @@
 
 import posixpath
 import re
+from hashlib import sha256
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -9,10 +10,12 @@ from mkdocs.structure.files import File
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_URIS: dict[str, str] = {}
+ASSET_VERSIONS: dict[str, str] = {}
 
 
 def on_files(files, config):
     SOURCE_URIS.clear()
+    ASSET_VERSIONS.clear()
     for file in files:
         if file.abs_src_path and Path(file.abs_src_path).is_relative_to(ROOT):
             SOURCE_URIS[Path(file.abs_src_path).relative_to(ROOT).as_posix()] = file.src_uri
@@ -25,6 +28,12 @@ def on_files(files, config):
     for name in ("logo.svg", "icon.png", "banner.svg", "social-preview.png"):
         files.append(File.generated(config, f"assets/{name}", abs_src_path=str(ROOT / "docs/assets" / name)))
         SOURCE_URIS[f"docs/assets/{name}"] = f"assets/{name}"
+        ASSET_VERSIONS[f"docs/assets/{name}"] = sha256((ROOT / "docs/assets" / name).read_bytes()).hexdigest()[:12]
+    config.theme["logo"] = f"assets/logo.svg?v={ASSET_VERSIONS['docs/assets/logo.svg']}"
+    config.theme["favicon"] = f"assets/icon.png?v={ASSET_VERSIONS['docs/assets/icon.png']}"
+    config.extra["brand_social_image"] = (
+        config.site_url + f"assets/social-preview.png?v={ASSET_VERSIONS['docs/assets/social-preview.png']}"
+    )
     return files
 
 
@@ -49,7 +58,10 @@ def on_page_markdown(markdown, page, config, files):
         path = ROOT / resolved
         if not path.exists() or not path.resolve().is_relative_to(ROOT):
             raise ValueError(f"{source}: broken local link {target}")
-        suffix = ("?" + url.query if url.query else "") + ("#" + url.fragment if url.fragment else "")
+        query = url.query
+        if resolved in ASSET_VERSIONS:
+            query = (query + "&" if query else "") + "v=" + ASSET_VERSIONS[resolved]
+        suffix = ("?" + query if query else "") + ("#" + url.fragment if url.fragment else "")
         if resolved in SOURCE_URIS:
             return posixpath.relpath(SOURCE_URIS[resolved], posixpath.dirname(page.file.src_uri) or ".") + suffix
         # Source, downloads and internal audit records stay at their existing repository URL.
