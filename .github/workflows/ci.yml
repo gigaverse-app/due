@@ -51,7 +51,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@4acd29e638b1f52c8101c9f4ed4e1a17c8080abd
+        uses: gigaverse-app/pytest-selective/.github/actions/plan-lanes@6c65e923adf9e4283ba64c0db994304b3d426031
         with:
           config: .github/test-lanes.json
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
