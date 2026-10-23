@@ -68,6 +68,7 @@ extra:
   - package/docs/conformance-api.md
   - package/docs/conformance.md
   - package/docs/integration.md
+  - package/docs/django-tasks.md
   - package/docs/migrations.md
   - package/docs/migrations/arq.md
   - package/docs/migrations/celery.md
@@ -94,6 +95,7 @@ nav:
 - Home: index.md
 - Getting started:
   - Quickstart: package/docs/integration.md
+  - Django Tasks backend: package/docs/django-tasks.md
   - Why Due: docs/why-due.md
   - Recovery walkthrough: docs/recovery-walkthrough.md
   - Compare alternatives: docs/alternatives.md

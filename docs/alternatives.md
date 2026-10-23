@@ -18,7 +18,8 @@ infrastructure components.
 This source/documentation assessment was reviewed on **2026-10-11**, against Due
 [`65e0bcf`](https://github.com/gigaverse-app/due/tree/65e0bcfe426c9e663aec4ae5c71398965dde3269).
 Recommendations are engineering judgments, not comparative benchmarks. No
-compatibility adapter or Django Tasks backend ships at this revision.
+general compatibility adapter ships at this revision. Due now provides an optional
+[Django Tasks backend](../package/docs/django-tasks.md) for replay-safe invocations.
 
 ## Find your migration guide
 
@@ -73,9 +74,10 @@ lower cost, greater scale, or universally stronger durability.
 ## Which integration work is worth pursuing?
 
 Begin with native adoption in existing Django/Celery applications: infrastructure
-already fits, and one recovered product failure can establish value. A constrained
-Django Tasks backend is the most natural standard-API experiment; its full proposed
-contract lives in the [Django Tasks guide](../package/docs/migrations/django-tasks.md#could-you-keep-the-standard-task-interface).
+already fits, and one recovered product failure can establish value. The
+implemented [Django Tasks backend](../package/docs/django-tasks.md) preserves the
+standard frontend for replay-safe work. Native capabilities expose Due's richer
+domain contracts.
 Other producer facades should follow demonstrated application demand.
 
 Familiar syntax, preserved semantics and unchanged operations are separate
