@@ -87,7 +87,7 @@ Workflow inputs name execution jobs, such as `.github/workflows/ci.yml#tests`.
 An edit to that job runs its library and integration lanes; a type-check job edit
 runs type checking. Workflow-level settings still affect every lane in that
 workflow. Selector pin changes, reporting, comments and unrelated jobs do not
-start test services. Selector pin changes select the CI contract tests, which
+start test services. Every execution-workflow edit selects the CI contract tests, which
 check the pinned selector and classify every job. If tests consume another job's output,
 declare that job as an additional input: job dependencies are not inferred.
 

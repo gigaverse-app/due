@@ -109,7 +109,7 @@ class RoutingTests(unittest.TestCase):
             for job in jobs:
                 with self.subTest(path=path, job=job):
                     selected = self.selection(path, edit=self.with_scenario_env("jobs", job))
-                    self.assertEqual(selected, lanes_by_job[job])
+                    self.assertEqual(selected, lanes_by_job[job] | {"contracts"})
 
     def test_settings_every_job_inherits_run_the_workflow_lanes(self):
         for path, lanes in (
@@ -119,7 +119,7 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path, edit=self.with_scenario_env()), lanes)
 
-    def test_selector_release_bumps_run_contracts_but_comments_run_no_lanes(self):
+    def test_workflow_edits_always_validate_the_complete_execution_contract(self):
         def bump(text):
             return re.sub(r"(plan-lanes@)v[0-9]+(?:\.[0-9]+)*", r"\g<1>v99", text)
 
@@ -128,7 +128,7 @@ class RoutingTests(unittest.TestCase):
                 self.assertNotEqual(bump((ROOT / path).read_text()), (ROOT / path).read_text())
                 self.assertEqual(self.selection(path, edit=bump), {"contracts"})
             with self.subTest(path=path, change="comment"):
-                self.assertEqual(self.selection(path), set())
+                self.assertEqual(self.selection(path), {"contracts"})
 
     def test_nested_or_new_pytest_collection_policy_forces_every_lane(self):
         for path in ("package/pyproject.toml", "package/.pytest.ini"):
