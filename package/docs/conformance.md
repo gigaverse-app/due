@@ -334,17 +334,6 @@ scenario creates no application coverage. `conformance.interleavings` supplies
 broker capture/drop/redelivery and the real background driver; it does not supply
 the application's provider semantics or observations.
 
-## Dependency status
-
-This branch pins an exact pytest-obligation commit that includes recovery
-isolation/owed-row proofs, scoped handoff arrangements, independent outcomes and
-downstream recovery declarations. See
-[pytest-obligation #49](https://github.com/gigaverse-app/pytest-obligation/pull/49)
-and [#50](https://github.com/gigaverse-app/pytest-obligation/pull/50).
-Published metadata depends on a released pytest-obligation range. The package's
-development source override pins the reviewed implementation used by self-tests;
-it is not emitted into wheel metadata.
-
 ## Walk through the executable example
 
 From a checkout of this repository, with PostgreSQL and Redis running as in the
@@ -433,7 +422,7 @@ Each round advances the clock, drains messages, runs primary recovery, runs the
 declared downstream ticks and drains again. The default is three rounds; queued
 work remaining at the end fails. A delivery adapter that lacks `recover_with`
 rejects `recovery_ticks` explicitly. See the shared
-[handoff API](https://github.com/gigaverse-app/pytest-obligation/blob/main/src/pytest_obligation/crash_histories.py).
+[handoff API](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/src/pytest_obligation/crash_histories.py).
 
 ### Diagnose failures without weakening the proof
 

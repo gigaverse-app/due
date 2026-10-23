@@ -116,6 +116,4 @@ not just the first successful step. Use an independent `HandoffHistory.expected`
 value so every history agreeing on a wrong result still fails.
 
 Next: [bind a capability](../package/docs/conformance.md), [install application hooks](../package/docs/integration.md),
-or [inspect stopped and uncertain work](../package/docs/operations.md). The
-[backend migration status](../package/docs/backend-adoption.md) keeps package guarantees separate
-from the originating application's unexecuted migration gates.
+or [inspect stopped and uncertain work](../package/docs/operations.md).
