@@ -1,8 +1,13 @@
 {
   "name": "Due",
   "tagline": "An attempt can end. The obligation remains.",
-  "color": "#A78BFA",
+  "color": "#FB7185",
   "repository": "due",
   "logo_aliases": [],
-  "sticky": false
+  "sticky": false,
+  "accent": "#FDA4AF",
+  "banner_lines": [
+    "An attempt can end.",
+    "The obligation remains."
+  ]
 }

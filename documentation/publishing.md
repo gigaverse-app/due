@@ -100,3 +100,8 @@ GitHub repositories use their owner's avatar; there is no independent repository
 avatar to set. The social card supplies the project's identity when sharing links.
 See [GitHub's social preview instructions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)
 and [PyPI project metadata](https://docs.pypi.org/project_metadata/).
+
+The renderer also updates the README banner URL with the PNG content hash, so
+GitHub and package-index image caches pick up an artwork change. Keep the banner
+layout specific to the project when editing `scripts/render_brand.py`; canonical
+assets do not require a shared visual template.
