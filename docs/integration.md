@@ -14,7 +14,8 @@ transaction connection; cross-database atomic admission is not supported.
 5. Run workers for the registered queues and a recurring scheduler. Alert on
    outstanding work and stale recovery heartbeats.
 
-The complete registration pattern is in `examples/apps.py`:
+The [complete registration pattern](../../examples/apps.py) runs after Django
+loads application models:
 
 ```python
 from due.django.runtime.registry import configure_durable_work
@@ -203,13 +204,6 @@ the real registered cadence, optionally losing every transient hint. The books
 example checks searchable publication across both stages; Widget Store checks
 paid and refunded outcomes with full one-second waits. These are additional
 proofs, not replacements for crash, concurrency or external-effect contracts.
-
-The originating backend still has its vendored engine. These APIs become usable
-there through the package migration described above, preserving its existing
-tables and message names. Copying a second implementation into that engine would
-create drift. Its provider-backed capabilities should retain their current modes;
-the reusable terminal-outcome bindings can strengthen their application proofs
-without moving provider I/O under database locks.
 
 The standalone storefront uses Django's supported psycopg connection pool
 (`psycopg-pool` in the demo environment) to avoid reconnecting after each task and
