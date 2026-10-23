@@ -1,0 +1,18 @@
+# Codex reads the root AGENTS.md directly; Claude gets a link to that same file.
+source_dir = "."
+default_agents = ["claude"]
+
+# Commit the relative link so fresh clones share instructions immediately.
+[gitignore]
+enabled = false
+
+[mcp]
+enabled = false
+
+[agents.claude]
+enabled = true
+
+[agents.claude.targets.instructions]
+source = "AGENTS.md"
+destination = "CLAUDE.md"
+type = "symlink"

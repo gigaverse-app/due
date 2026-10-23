@@ -1,10 +1,9 @@
 name: PR title
 
-# Conventional titles keep the public change history readable.
-
+# Squash merges use this checked title as the Conventional Commit header.
 on:
   pull_request_target:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
   pull-requests: read
@@ -12,11 +11,10 @@ permissions:
 jobs:
   conventional-commit:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      # Reads only the title through the API; it never checks out the pull request's code.
-      - uses: amannn/action-semantic-pull-request@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Only reads PR metadata. Never check out or execute PR code in this workflow.
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         with:
           types: |
             feat
@@ -24,9 +22,24 @@ jobs:
             perf
             revert
             docs
+            style
             refactor
             test
             build
             ci
             chore
           requireScope: false
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Explain how to repair the title
+        if: failure()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          Rename the PR to `type(optional-scope): description`, for example
+          `fix(parser): handle empty input` or `docs: clarify installation`.
+          Use `!` before the colon for a breaking change, for example
+          `feat(api)!: remove the deprecated argument`.
+          Choose the type that describes the change; do not hide features or fixes under `chore:`.
+          Editing the PR title reruns this check. No commit rewrite or replacement PR is needed.
+          If the title is already valid, inspect the action log for an API or runner failure.
+          EOF
