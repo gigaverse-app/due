@@ -10,14 +10,12 @@ alongside it. Requirements are the same as Due: Python 3.14, Django 6.0.8 or
 later in the 6.x series, PostgreSQL, Celery, and a supported Celery broker.
 The older `django_tasks` backport is not supported.
 
-**Release status:** new in the next Due release. To evaluate this feature from
-its source checkout before publication, run `pip install './package[redis]'`
-from the repository root.
+This integration is available starting with **Due 0.8.0**.
 
 ## Install and configure
 
 ```bash
-pip install 'django-due[redis]'
+pip install 'django-due[redis]>=0.8.0'
 ```
 
 Add both apps and your task configuration to `settings.py`:

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/gigaverse-app/due/compare/v0.7.5...v0.8.0) (2026-10-23)
+
+
+### Features
+
+* **django:** add a durable Django Tasks backend ([#107](https://github.com/gigaverse-app/due/issues/107)) ([e0562f7](https://github.com/gigaverse-app/due/commit/e0562f7ddab0c1919a897bad18bffeb7f2bcd0c7))
+
 ## [0.7.5](https://github.com/gigaverse-app/due/compare/v0.7.4...v0.7.5) (2026-10-23)
 
 
