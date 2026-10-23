@@ -1,11 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="96" viewBox="0 0 720 96" role="img" aria-label="Due: An attempt can end. The obligation remains.">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="64" viewBox="0 0 640 64" role="img" aria-label="Due: An attempt can end. The obligation remains.">
 <title>Due: An attempt can end. The obligation remains.</title>
-<rect x="1" y="1" width="718" height="94" rx="14" fill="#0D1117" stroke="#30363D"/>
-<g transform="translate(16 16)"><svg x="0" y="0" width="64" height="64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Due logo"><title>Due</title><rect x="1" y="1" width="62" height="62" rx="15" fill="#151D2C"/><g fill="none" stroke="#A78BFA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 24a20 20 0 1 1-2 17"/><path d="M16 11v13H3"/><path d="M32 20v13l9 6"/></g></svg>
+<defs><linearGradient id="brand-glow" x1="0" y1="0" x2="1" y2="0">
+<stop stop-color="#FB7185" stop-opacity="0.21"/><stop offset="0.55" stop-color="#FB7185" stop-opacity="0"/>
+</linearGradient><radialGradient id="brand-aura" cx="0.1" cy="0.2" r="0.85">
+<stop stop-color="#FB7185" stop-opacity="0.23"/><stop offset="0.75" stop-color="#FB7185" stop-opacity="0"/>
+</radialGradient></defs>
+<rect x="0.5" y="0.5" width="639" height="63" rx="10" fill="#0D1117" stroke="#30363D"/>
+<rect x="0.5" y="0.5" width="639" height="63" rx="10" fill="url(#brand-glow)"/>
+<g transform="translate(10 12) scale(0.625)"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due logo">
+<title>Due: the returning check</title>
+<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset="0.5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
+<rect width="64" height="64" rx="15" fill="url(#brand-tile)"/>
+<path d="m14 28 10 10 18-20" fill="none" stroke="#FFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M49 26c7 15-5 29-21 25-5-1-8-4-10-7" fill="none" stroke="#FFE4E6" stroke-width="4" stroke-linecap="round"/>
+<path d="m14 49 2-10 10 2" fill="none" stroke="#FFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
 </g>
-<text x="98" y="43" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="29" font-weight="700" fill="#F0F6FC">Due</text>
-<text x="98" y="69" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#B6C2CF">An attempt can end. The obligation remains.</text>
-<path d="M613 48h72" stroke="#30363D" stroke-width="2"/>
-<g fill="#0D1117" stroke="#A78BFA" stroke-width="2"><circle cx="613" cy="48" r="11"/><circle cx="649" cy="48" r="11"/><circle cx="685" cy="48" r="11"/></g>
-<path d="m608 48 4 4 7-8" fill="none" stroke="#A78BFA" stroke-width="2"/>
+<text x="62" y="41" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="27" font-weight="800" letter-spacing="-0.5" fill="#F0F6FC">D<tspan fill="#FB7185">ue</tspan></text>
+<text x="152" y="27" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#C9D1D9">An attempt can end.</text>
+<text x="152" y="45" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#9CA8B7">The obligation remains.</text>
+<g transform="translate(490 1)"><g stroke-linecap="round" stroke-linejoin="round">
+<rect x="2" y="10" width="27" height="34" rx="5" fill="#311B28" stroke="#713145" transform="rotate(-8 15 27)"/>
+<path d="m10 22 9 9m0-9-9 9" stroke="#FB7185" stroke-width="2"/>
+<path d="M33 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
+<rect x="54" y="10" width="27" height="34" rx="5" fill="#4C1D31" stroke="#FB7185"/>
+<path d="M62 23c6-6 13-1 10 6m-4-1 4 2 3-4" fill="none" stroke="#FECDD3" stroke-width="2"/>
+<path d="M85 27h15m-5-5 5 5-5 5" fill="none" stroke="#966172" stroke-width="2"/>
+<rect x="106" y="10" width="27" height="34" rx="5" fill="#E11D48"/>
+<path d="m113 27 5 5 9-11" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+<path d="M113 49c-28 15-61 13-86 1m5-3-6 3 3 5" fill="none" stroke="#FB7185" stroke-width="1.5" opacity="0.55"/>
+</g></g>
 </svg>

@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Due logo"><title>Due</title><rect x="1" y="1" width="62" height="62" rx="15" fill="#151D2C"/><g fill="none" stroke="#A78BFA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 24a20 20 0 1 1-2 17"/><path d="M16 11v13H3"/><path d="M32 20v13l9 6"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Due logo">
+<title>Due: the returning check</title>
+<defs><linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB7185"/><stop offset="0.5" stop-color="#E11D48"/><stop offset="1" stop-color="#9F1239"/></linearGradient></defs>
+<rect width="64" height="64" rx="15" fill="url(#brand-tile)"/>
+<path d="m14 28 10 10 18-20" fill="none" stroke="#FFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M49 26c7 15-5 29-21 25-5-1-8-4-10-7" fill="none" stroke="#FFE4E6" stroke-width="4" stroke-linecap="round"/>
+<path d="m14 49 2-10 10 2" fill="none" stroke="#FFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
