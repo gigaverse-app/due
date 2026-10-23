@@ -10,12 +10,18 @@ Recover Django background work after crashes with durable work tables and explic
 [Get started](../package/docs/integration.md){ .md-button .md-button--primary }
 [Source on GitHub](https://github.com/gigaverse-app/due){ .md-button }
 
-## Apply it to your project
+## Recover work across process failures
 
-Start with the quickstart, then use the guides to adapt the examples to your
-own dependencies and failure modes. Keep the documented safety checks enabled.
-The navigation includes configuration, practical examples, and the limits of
-what a successful result proves.
+Use Due when a Django application must recover outstanding work after a worker
+crash or a lost notification. Start with the runtime integration, then define
+what counts as successful completion for your application.
+
+- [Wire Django and Celery](../package/docs/integration.md): configure the runtime and stable work identities.
+- [Follow a recovery history](../docs/recovery-walkthrough.md): see what survives message loss and process death.
+- [Understand guarantees and limits](../package/docs/architecture.md): distinguish a completed attempt from a settled obligation.
+- [Test your application](../package/docs/conformance.md): declare and verify the guarantees your integration actually supports.
+- [Operate the system](../package/docs/operations.md): inspect failures, recover work, and monitor progress.
+- [Compare alternatives](../docs/alternatives.md): decide whether this work-table model fits your workload.
 
 ## Use the tools together
 

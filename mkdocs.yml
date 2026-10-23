@@ -94,7 +94,7 @@ nav:
 - Quickstart: package/docs/integration.md
 - Guides:
   - Alternatives: docs/alternatives.md
-  - Ci toolkit: docs/ci-toolkit.md
+  - CI toolkit: docs/ci-toolkit.md
   - Recovery walkthrough: docs/recovery-walkthrough.md
   - Why due: docs/why-due.md
   - Architecture: package/docs/architecture.md
