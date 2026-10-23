@@ -2,6 +2,7 @@
 
 import json
 import struct
+from hashlib import sha256
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -52,8 +53,12 @@ def main():
         image_url = urlsplit(metadata.social_images[0])
         assert image_url.scheme == "https" and image_url.netloc == parsed.netloc
         assert image_url.path.endswith("/assets/social-preview.png")
+        expected_social_version = sha256((site / "assets/social-preview.png").read_bytes()).hexdigest()[:12]
+        assert image_url.query == f"v={expected_social_version}", f"{page}: stale social card"
         assert len(metadata.icons) == 1, f"{page}: missing favicon"
-        assert (page.parent / metadata.icons[0]).resolve() == (site / "assets/icon.png").resolve()
+        expected_icon_version = sha256((site / "assets/icon.png").read_bytes()).hexdigest()[:12]
+        assert urlsplit(metadata.icons[0]).query == f"v={expected_icon_version}", f"{page}: stale favicon"
+        assert (page.parent / urlsplit(metadata.icons[0]).path).resolve() == (site / "assets/icon.png").resolve()
     for name, size in (("icon.png", (256, 256)), ("social-preview.png", (1280, 640))):
         image = (site / "assets" / name).read_bytes()
         assert image[:8] == b"\x89PNG\r\n\x1a\n", f"{name}: invalid PNG"

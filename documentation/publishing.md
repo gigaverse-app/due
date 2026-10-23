@@ -89,7 +89,8 @@ Commit the rendered assets with their sources. The renderer also refreshes any
 legacy plugin icons and sticky-report artwork, so existing public URLs keep working.
 MkDocs reads the canonical assets directly at build time; do not keep another logo
 in `documentation/assets`. Its header, favicon, homepage and social previews use
-these files. The README and package README use an absolute PNG URL, which also
+these files. Content hashes in image URLs refresh cached artwork after an update.
+The README and package README use an absolute PNG URL, which also
 renders on PyPI. PyPI updates that description on the next package release;
 `pyproject.toml` has no standard logo or icon field.
 
