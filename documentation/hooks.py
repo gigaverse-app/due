@@ -22,6 +22,9 @@ def on_files(files, config):
             raise ValueError(f"Missing published source: {source}")
         files.append(File.generated(config, source, abs_src_path=str(path)))
         SOURCE_URIS[source] = source
+    for name in ("logo.svg", "icon.png", "banner.svg", "social-preview.png"):
+        files.append(File.generated(config, f"assets/{name}", abs_src_path=str(ROOT / "docs/assets" / name)))
+        SOURCE_URIS[f"docs/assets/{name}"] = f"assets/{name}"
     return files
 
 

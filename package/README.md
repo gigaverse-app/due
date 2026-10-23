@@ -1,3 +1,5 @@
+![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png)
+
 # Due library
 
 Durable obligations for Django and PostgreSQL. This directory is a standalone installable package and the editable subtree used by adopting applications.

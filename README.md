@@ -1,3 +1,5 @@
+![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png)
+
 # Due
 
 [![Documentation](https://readthedocs.org/projects/due/badge/?version=latest)](https://due.readthedocs.io/en/latest/)

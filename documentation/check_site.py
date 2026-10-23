@@ -1,6 +1,7 @@
 """Check the rendered publication contract, including canonical URLs and search."""
 
 import json
+import struct
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -13,6 +14,8 @@ class Metadata(HTMLParser):
         self.canonical = []
         self.description = []
         self.social = []
+        self.social_images = []
+        self.icons = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
@@ -20,6 +23,10 @@ class Metadata(HTMLParser):
             self.canonical.append(values.get("href", ""))
         if tag == "meta" and values.get("name") == "description":
             self.description.append(values.get("content", ""))
+        if tag == "link" and values.get("rel") == "icon":
+            self.icons.append(values.get("href", ""))
+        if tag == "meta" and values.get("property") == "og:image":
+            self.social_images.append(values.get("content", ""))
         if tag == "meta" and values.get("property") == "og:url":
             self.social.append(values.get("content", ""))
 
@@ -41,6 +48,17 @@ def main():
         canonical_urls.add(canonical)
         assert metadata.description and metadata.description[0].strip(), f"{page}: missing description"
         assert metadata.social == [canonical], f"{page}: inconsistent social URL"
+        assert len(metadata.social_images) == 1, f"{page}: missing social image"
+        image_url = urlsplit(metadata.social_images[0])
+        assert image_url.scheme == "https" and image_url.netloc == parsed.netloc
+        assert image_url.path.endswith("/assets/social-preview.png")
+        assert len(metadata.icons) == 1, f"{page}: missing favicon"
+        assert (page.parent / metadata.icons[0]).resolve() == (site / "assets/icon.png").resolve()
+    for name, size in (("icon.png", (256, 256)), ("social-preview.png", (1280, 640))):
+        image = (site / "assets" / name).read_bytes()
+        assert image[:8] == b"\x89PNG\r\n\x1a\n", f"{name}: invalid PNG"
+        assert struct.unpack(">II", image[16:24]) == size, f"{name}: wrong dimensions"
+        assert len(image) < 1_000_000, f"{name}: exceeds GitHub social image limit"
     sitemap = ElementTree.parse(site / "sitemap.xml")
     locations = {node.text for node in sitemap.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")}
     assert canonical_urls <= locations, "Published pages missing from sitemap"

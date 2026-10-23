@@ -74,3 +74,28 @@ linked example or reporter, capture its real output, and keep the caption clear
 about local rendering and simulated data. Do not manufacture passing results or
 turn a sample screenshot into a current coverage/performance claim. Keep raw run
 logs and JSON outside the source tree; PR validation records own that evidence.
+
+## Canonical branding
+
+Edit `docs/assets/logo.svg` for the project mark and `docs/assets/brand.json` for
+its name, color and tagline. Render the banner, square icon and social card:
+
+```bash
+uv run --no-project --with resvg-py==0.2.6 python scripts/render_brand.py --png
+python scripts/render_brand.py --check
+```
+
+Commit the rendered assets with their sources. The renderer also refreshes any
+legacy plugin icons and sticky-report artwork, so existing public URLs keep working.
+MkDocs reads the canonical assets directly at build time; do not keep another logo
+in `documentation/assets`. Its header, favicon, homepage and social previews use
+these files. The README and package README use an absolute PNG URL, which also
+renders on PyPI. PyPI updates that description on the next package release;
+`pyproject.toml` has no standard logo or icon field.
+
+For GitHub, upload `docs/assets/social-preview.png` in repository **Settings >
+General > Social preview**. It is 1280 × 640 pixels with an opaque background.
+GitHub repositories use their owner's avatar; there is no independent repository
+avatar to set. The social card supplies the project's identity when sharing links.
+See [GitHub's social preview instructions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)
+and [PyPI project metadata](https://docs.pypi.org/project_metadata/).
