@@ -20,6 +20,7 @@ jobs:
           cache: pip
           cache-dependency-path: documentation/requirements.txt
       - run: python -m pip install -r documentation/requirements.txt
+      - run: python scripts/render_brand.py --check
       - run: python -m mkdocs build --strict
       - run: python documentation/check_site.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -3,7 +3,7 @@ title: Due documentation
 description: Keep background work owed until your application finishes it.
 ---
 
-![Due](assets/banner.svg)
+![Due](../docs/assets/banner.svg)
 
 # Keep background work owed until your application finishes it.
 

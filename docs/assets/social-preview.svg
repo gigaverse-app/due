@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="Due: An attempt can end. The obligation remains.">
+<title>Due: An attempt can end. The obligation remains.</title>
+<rect width="1280" height="640" fill="#0D1117"/>
+<rect x="40" y="40" width="1200" height="560" rx="28" fill="#111827" stroke="#30363D" stroke-width="2"/>
+<g transform="translate(90 100) scale(2.5)"><svg x="0" y="0" width="64" height="64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Due logo"><title>Due</title><rect x="1" y="1" width="62" height="62" rx="15" fill="#151D2C"/><g fill="none" stroke="#A78BFA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 24a20 20 0 1 1-2 17"/><path d="M16 11v13H3"/><path d="M32 20v13l9 6"/></g></svg>
+</g>
+<text x="90" y="370" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="76" font-weight="700" fill="#A78BFA">Due</text>
+<text x="90" y="435" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="30" fill="#E5E7EB">An attempt can end. The obligation remains.</text>
+<text x="90" y="548" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="23" fill="#9CA3AF">github.com/gigaverse-app/due</text>
+</svg>
