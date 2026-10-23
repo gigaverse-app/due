@@ -19,6 +19,8 @@ exclude_docs: '*.py
   '
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   custom_dir: documentation/overrides
   language: en
   font: false

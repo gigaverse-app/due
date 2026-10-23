@@ -30,7 +30,7 @@ worker, sends recovery through Redis, then reads both the file and the product
 pointer from PostgreSQL:
 
 ```bash
-uv run pytest tests/integration/test_celery_worker.py -v
+uv run pytest integration_tests/integration/test_celery_worker.py -v
 ```
 
 Its assertions distinguish three facts: a worker attempted the effect, the file
@@ -60,7 +60,7 @@ when the external operation cannot safely be repeated.
 Run the full generated application contract and emit its actual evidence:
 
 ```bash
-uv run pytest tests/conformance/test_document_contract.py \
+uv run pytest integration_tests/conformance/test_document_contract.py \
   -p due.django.conformance.reporting \
   --due-work-require-assessed \
   --due-work-profile-report=profiles.json \
@@ -85,7 +85,7 @@ to reject the resulting unfinished publication. The test itself passes only when
 the broken behavior is detected:
 
 ```bash
-uv run pytest tests/conformance/test_document_process_control.py -v
+uv run pytest integration_tests/conformance/test_document_process_control.py -v
 ```
 
 The same pattern guards [gates, dependent wakes, receipt repair, rejection policy
