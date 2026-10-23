@@ -6,6 +6,7 @@ Durable obligations for Django and PostgreSQL. This directory is a standalone in
 
 - [Capabilities and guarantees](docs/capabilities.md)
 - [Application integration](docs/integration.md)
+- [Django Tasks backend](docs/django-tasks.md): keep `@task`, `.enqueue()` and `TaskResult` with durable recovery
 - [Architecture](docs/architecture.md)
 - [Conformance API](docs/conformance-api.md)
 - [Operations and recovery](docs/operations.md)

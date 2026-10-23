@@ -9,7 +9,7 @@ setup and native Due implementation below are maintained once for all guides.
 | [Procrastinate](migrations/procrastinate.md) | Transactional deferral, execution/queueing locks and stalled jobs |
 | [DBOS](migrations/dbos.md) | Bounded operations, checkpointed workflows and durable waits |
 | [RQ](migrations/rq.md) | Job identities, results, dependencies and Redis cutover |
-| [Django Tasks / django-tasks](migrations/django-tasks.md) | Native migration today and the proposed standard backend |
+| [Django Tasks / django-tasks](migrations/django-tasks.md) | Standard Due backend and native capability migration |
 | [django-tasks-db](migrations/django-tasks-db.md) | ORM task rows, db_worker and result retention |
 | [django-tasks-rq](migrations/django-tasks-rq.md) | TaskResult plus RQ delivery and backend-aware lookup |
 | [django-rq](migrations/django-rq.md) | Django producer paths, queue settings and admin continuity |

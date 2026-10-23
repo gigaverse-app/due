@@ -91,6 +91,10 @@ composition is excluded. [Verification scope and limits →](package/docs/verifi
 
 ## Coming from another library?
 
+**Using Django Tasks?** Due includes an optional backend for `django.tasks`.
+Keep `@task`, `.enqueue()` and `TaskResult` while adding transactional admission,
+crash recovery, delayed tasks and named queues. [Setup and guarantees →](package/docs/django-tasks.md)
+
 Start with [your library's migration guide](package/docs/migrations.md). Each guide
 covers the benefits of adopting Due, a concrete migration, behavior to preserve,
 cutover and rollback, and whether a compatibility layer would help. Guides cover

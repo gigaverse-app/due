@@ -4,7 +4,7 @@ import os
 from urllib.parse import unquote, urlparse
 
 SECRET_KEY = "due-library-tests"
-INSTALLED_APPS = ["due.django", "django_celery_beat"]
+INSTALLED_APPS = ["due.django", "due.django.tasks", "django_celery_beat"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 TIME_ZONE = "UTC"

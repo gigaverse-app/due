@@ -1,16 +1,19 @@
 # Coming from Django Tasks and the django-tasks backport
 
-Keep the distinction between your task API and its execution backend visible.
-Django Tasks defines how code submits and inspects work; the configured backend
-provides execution. Due could become a backend, but it is not one today. You can
-migrate selected operations now through Due's native API, or evaluate the bounded
-backend design in this guide.
+Due now implements Django's built-in Tasks API through the optional
+`due.django.tasks` app. Start with the [backend setup guide](../django-tasks.md)
+to keep `@task`, `.enqueue()` and refreshable `TaskResult` objects. The guide
+below also describes migration into a native domain capability.
+
+The backend supports replay-safe sync and coroutine task bodies, context,
+delays, named queues and retained results. The older `django_tasks` backport
+is unsupported. Nonzero priority is rejected explicitly.
 
 [All migration guides](../migrations.md) · [How Due fits](https://github.com/gigaverse-app/due/blob/main/docs/alternatives.md)
 
-Reviewed **2026-10-11** against Due `65e0bcf`; upstream versions and source
+Updated **2026-10-24** for the implemented backend; earlier upstream versions and source
 snapshots are recorded in the [source register](https://github.com/gigaverse-app/due/blob/main/docs/alternatives.md#source-register).
-This is a migration guide, not an implemented compatibility integration.
+The native examples below remain an alternative to the standard task backend.
 
 ## Why consider Due?
 
@@ -37,7 +40,7 @@ belongs to this repository; your application owns its models and producer.
 
 | Familiar primitive | Its strength | Due counterpart and semantic change |
 | --- | --- | --- |
-| `Task` / `@task`, `.enqueue()` | A standard task frontend independent of backend choice | A domain capability; Due does not yet implement `BaseTaskBackend` |
+| `Task` / `@task`, `.enqueue()` | A standard task frontend independent of backend choice | `due.django.tasks.backend.DueBackend`, or a native domain capability |
 | `TaskResult`, `.refresh()`, `.return_value` | Typed task identity, status and result lookup | `PublicationWork` tracks obligation state; `Document` owns the business result |
 | `.using(run_after=..., priority=...)` | Per-enqueue options where the backend supports them | `not_before` for new work; priority and arbitrary routing are not equivalent supported options |
 
@@ -149,16 +152,17 @@ Their storage/migration history cannot be replaced by changing one setting.
 [Backport](https://github.com/RealOrangeOne/django-tasks),
 [DB backend](https://github.com/RealOrangeOne/django-tasks-db).
 
-**Available path today:** replace selected `.enqueue()` producers with explicit
+**Native migration path:** replace selected `.enqueue()` producers with explicit
 Due admission and migrate their task bodies as described above. Keep other
 backend aliases intact. The source function's return value, error list, attempts,
 worker IDs and refreshable result are consumer contracts to preserve or explicitly
 change. The example Due publication returns a work row, so it is not a drop-in
 replacement for a caller expecting `.return_value`.
 
-**Possible future path:** implement the [backend proposal below](#could-you-keep-the-standard-task-interface)
-and retain `@task`/`.enqueue()` for its supported subset. No `TASKS` configuration
-for Due is provided here because no such backend is implemented.
+**Standard API path:** configure [DueBackend](../django-tasks.md), declare
+replay-safe functions, run its migrations, and include its registration beside
+your native Due capabilities. This preserves the task/result API for the
+supported features.
 
 When migrating from an enqueue performed in `transaction.on_commit`, move durable
 admission **inside** the product transaction. Leaving it in the callback still
@@ -189,109 +193,23 @@ inventory; the native migration above does not depend on an adapter shipping.
 
 ## Could you keep the standard task interface?
 
-**The following is an unimplemented design**, included here so you can judge
-whether it is a useful migration path. It is not an installation recipe.
+Yes. The [implemented backend](../django-tasks.md) uses one concrete task work
+table and the shared Due runtime. Each enqueue creates a new invocation;
+identical inputs do not coalesce. Arguments and return values round-trip through
+JSON. Admission joins the default Django transaction; notification follows commit.
 
+Results expose actual worker starts, first/last start times, completion, errors,
+and process identities. Retryable work projects to READY, claimed work to RUNNING,
+success to SUCCESSFUL, and stopped failures to FAILED. Result storage and failure
+history share Due's settlement fence. UNKNOWN is excluded by the replay-safe
+execution contract; use native evidence-aware capabilities for uncertain effects.
 
-Django's [backend contract](https://docs.djangoproject.com/en/6.0/ref/tasks/)
-is the intended extension point. Preserve `Task`/`TaskResult` from Django rather
-than inventing lookalikes. Check the installed minor version; the audited
-[source](https://github.com/django/django/tree/52e5ba169694cbd70c538ce62275cd2abd7647fd/django/tasks)
-and live docs can evolve independently.
-
-### Admission and identity
-
-Begin with an allowlist of replay-safe, synchronous module-level functions.
-Record the function identity, normalized JSON arguments and an immutable
-invocation identifier in a concrete invocation owner. Use one concrete Due work
-model for that invocation family and one registered capability. Each enqueue
-creates a new invocation, even when arguments match. Desired-state coalescing is
-a separate native binding, not a hidden optimization.
-
-Persist the invocation and work inside the caller's default Django transaction;
-register the wake for after commit. Return an admission result without running
-the function. A later rollback must remove both rows and the wake. Do not keep
-only an in-memory callback until commit. A returned ID inside an uncommitted
-transaction is provisional; after rollback lookup must report it missing.
-
-These invocation/result models do not exist in Due today. They add migrations,
-retention and API compatibility responsibilities even though the coordination
-engine is reused. Do not create dynamic Django model classes per decorated
-function at import time.
-
-### Execution and results
-
-Delegate claim, lease, execution, retry, recovery and finalization to Due. Store
-the normalized return value in the same fenced transaction as successful
-settlement. Store required task metadata where the corresponding transition is
-owned; if Due lacks a public hook for required information, extend the shared
-owner or exclude that feature rather than maintaining a second state machine.
-
-The result model must account for errors, first start, last attempt, completion,
-worker identities and attempt counts where the selected Django contract requires
-them. Due's `attempt_count` and failure-code fields are not automatically an
-accurate substitute for Django's result history. A crash between function return
-and settlement can rerun a replay-safe function; this profile does not promise a
-durable checkpoint of arbitrary return values.
-
-Implement `enqueue`, `get_result`, their async surfaces, task validation and
-correct Django exceptions. The standard base provides async wrappers, but that
-does not imply arbitrary coroutine task execution or transaction propagation
-across independently scheduled calls. Initially reject coroutine bodies,
-non-default priority and unsupported options using validation/feature flags.
-Reject `takes_context=True` until its attempt/result metadata is correctly
-populated; later support it with Django's real `TaskContext`.
-
-Use one supported queue initially. Due registers a work model once with a fixed
-route; arbitrary per-invocation `.using(queue_name=...)` cannot simply override
-that registration. Multiple queues require deliberately supported routing, not
-ignored user options. Likewise, do not set `supports_priority=True` just because
-a Celery broker accepts a priority argument: Due's recovery selection must
-preserve the promised ordering too.
-
-A later fixed-delay profile can map `run_after` to persisted `not_before` and
-set `supports_defer` only once recovery respects it. This is distinct from
-business cancellation and movable deadlines.
-
-### Status projection
-
-For a replay-safe invocation profile, a candidate projection is:
-
-| Due state | Django task status | Required detail |
-| --- | --- | --- |
-| READY, QUEUED, RETRYABLE | READY | A retry remains unfinished; preserve attempt/error metadata |
-| CLAIMED | RUNNING | Expose the actual lifecycle; don't infer liveness from an old result object |
-| SUCCEEDED | SUCCESSFUL | Result was persisted with fenced completion |
-| EXHAUSTED, TERMINAL_FAILED | FAILED | Preserve the stopped reason and result-access errors |
-| UNKNOWN | **Not representable faithfully** | Standard API has no uncertainty state; exclude evidence-required tasks from this profile |
-
-Do not translate UNKNOWN to FAILED and invite ordinary retries, or call it
-RUNNING indefinitely while hiding the need for evidence. Evidence-required native
-bindings need a separate obligation view/API that exposes uncertainty. A
-Django TaskResult may describe an admission helper completing, but must then be
-clearly distinguished from the underlying business operation completing.
-
-### Native upgrade path
-
-A future integration should allow registration-time binding from a frontend task
-to an application admission function and capability, with explicit input and
-result projection. **This is a design requirement, not a proposed shipped API
-name.** It must expose the native work identity and supported capability to
-operators and application code without requiring import from Due's private
-runtime. Native functions can coexist beside standard tasks in the same app.
-
-For existing invocation work, keep those occurrences under their old capability.
-Move new admissions to the richer domain model only when identity and result
-contracts are mapped. Switching the implementation of a task must not reinterpret
-already-persisted payloads. Use versioned bindings and retain old handlers until
-all their work and required result lookups drain.
-
-A useful exit is: standard replay-safe task → explicit external/local split →
-selected native projection/operation/schedule, while callers either retain a
-truthful result contract or migrate to a richer one. If the adapter insists that
-all obligations remain arbitrary functions with four task statuses, stop there;
-it cannot expose Due's evidence model honestly.
-
+Move selected tasks to native capabilities when you need desired-state
+coalescing, fenced product updates, independent compensation, movable deadlines,
+or durable evidence about non-repeatable effects. Both modes can share a
+registration manifest. Migrating an existing invocation to a different capability
+is not automatic: drain old occurrences and keep their handlers and result lookup
+available while directing new admissions to the richer model.
 
 ## Prove the migration before switching traffic
 

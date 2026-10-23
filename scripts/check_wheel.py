@@ -22,7 +22,12 @@ assert importlib.metadata.version("django-due")
 import django  # noqa: E402
 from django.conf import settings  # noqa: E402
 
-settings.configure(INSTALLED_APPS=["due.django"], SECRET_KEY="wheel-smoke", USE_TZ=True)
+settings.configure(
+    INSTALLED_APPS=["due.django", "due.django.tasks"],
+    SECRET_KEY="wheel-smoke",
+    USE_TZ=True,
+    DATABASES={"default": {"ENGINE": "django.db.backends.postgresql", "NAME": "wheel_smoke"}},
+)
 django.setup()
 from django.core.checks import run_checks  # noqa: E402
 from django.core.management import get_commands  # noqa: E402
@@ -31,6 +36,7 @@ from django.db.migrations.loader import MigrationLoader  # noqa: E402
 assert not run_checks()
 loader = MigrationLoader(None)
 assert ("due", "0001_initial") in loader.disk_migrations
+assert ("due_tasks", "0001_initial") in loader.disk_migrations
 assert get_commands()["due_status"] == "due.django"
 # The optional conformance adapter requires django-due[testing]; runtime imports must not.
 for source in root.rglob("*.py"):

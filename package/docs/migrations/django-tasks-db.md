@@ -176,14 +176,15 @@ resolves its accepted cohort. Retain evidence and both lookup paths as required.
 
 ## Can a thin adapter help?
 
-Django's backend extension point is promising, but a faithful adapter must
-persist invocation identity and result metadata, validate options and accurately
-project statuses. It is more than changing `BACKEND`. No Due backend ships.
+Django's backend extension point is supported by Due's optional task app. It
+persists invocation identity and result metadata, validates supported options,
+and projects Due state to Django results. Deploy its migrations, registration,
+worker and recovery schedule before routing new tasks to it.
 
-An adapter is a useful path if native capabilities and richer obligation state
-remain accessible. A generic four-status result that hides uncertainty would
-limit the very advantage this migration seeks. The frontend guide contains the
-optional [backend design](django-tasks.md#could-you-keep-the-standard-task-interface).
+Native capabilities and richer obligation state remain accessible alongside the
+adapter. A generic four-status result cannot represent uncertain effects; those
+belong in native evidence-aware capabilities. See the
+[backend setup guide](../django-tasks.md).
 
 ## Prove the migration before switching traffic
 
