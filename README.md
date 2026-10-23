@@ -87,7 +87,7 @@ inputs. [Capability guide and executable examples →](package/docs/capabilities
 
 **Alpha, Django-backed.** Extracted from Gigaverse's work-table primitive; the API
 may change before 1.0. Only work-table composition is public. Native-table
-composition is excluded. [Extraction scope →](docs/extraction.md) · [Cutover audit and regression controls →](package/docs/cutover-audit.md)
+composition is excluded. [Verification scope and limits →](package/docs/verification.md)
 
 ## Coming from another library?
 
@@ -103,11 +103,14 @@ Requires Python 3.14, PostgreSQL and a Django 6 application. Celery needs a brok
 and a running worker plus a recurring recovery scheduler (normally Celery Beat).
 The integration suite uses PostgreSQL 17 and Redis 7.
 
-Until a PyPI release is published, install from GitHub:
+Install the published package and commit the resolved version in your lockfile:
 
 ```bash
-uv add 'django-due[redis] @ git+https://github.com/gigaverse-app/due.git#subdirectory=package'
+uv add 'django-due[redis]'
 ```
+
+The documentation under `latest` follows main. Check your installed version
+against the release notes before using an API added after that release.
 
 Add `"due.django"` to `INSTALLED_APPS`, then run your application's migrations.
 Your own work models subclass `UniverseDurableWork`, declare captured inputs,

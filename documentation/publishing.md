@@ -61,3 +61,16 @@ Benchmark case studies may retain methods, immutable source identities and
 limitations; link the raw evidence instead of giving each artifact a sidebar
 entry. Keep the explicit `published_sources` list curated, and check incoming
 links when removing a page.
+
+## Maintain the visual examples
+
+`documentation/assets/` contains the site's SVG identity and teaching images.
+Keep logos vector-based and provide meaningful alternative text for every image.
+Diagrams describe behavior; charts must link the source case study, name units,
+start quantitative bars at zero and preserve measurement limitations.
+
+Refresh product screenshots when the demonstrated interface changes. Run the
+linked example or reporter, capture its real output, and keep the caption clear
+about local rendering and simulated data. Do not manufacture passing results or
+turn a sample screenshot into a current coverage/performance claim. Keep raw run
+logs and JSON outside the source tree; PR validation records own that evidence.
