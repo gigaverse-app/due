@@ -133,6 +133,50 @@ jobs:
           sync-args: --all-packages
       - run: uv run --no-sync pyrefly check
 
+  package-export:
+    name: Standalone package export
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          needs.select-tests.outputs.library != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: due
+          POSTGRES_PASSWORD: due
+          POSTGRES_DB: due
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U due"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DUE_DATABASE_URL: postgresql://due:due@localhost:5432/due
+      DUE_BROKER_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.14'
+          enable-cache: true
+      - name: Prove the package export has no dependency on this repository
+        run: |
+          package_dir=$(mktemp -d)
+          git archive HEAD:package | tar -x -C "$package_dir"
+          uv run --directory "$package_dir" --extra selftest python -m pytest -n 4 --dist worksteal --due-work-check-fixtures
+
   tests:
     name: Execute tests (${{ matrix.django }})
     needs: select-tests
@@ -180,12 +224,6 @@ jobs:
       - name: Exercise the declared Django lower bound
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
-      - name: Prove the package export has no dependency on this repository
-        if: ${{ (needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false') && matrix.django == 'locked' }}
-        run: |
-          package_dir=$(mktemp -d)
-          git archive HEAD:package | tar -x -C "$package_dir"
-          uv run --directory "$package_dir" --extra selftest python -m pytest -n 4 --dist worksteal --due-work-check-fixtures
       - name: Run library controls without demo applications
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false' }}
         working-directory: package
@@ -252,7 +290,7 @@ jobs:
 
   test-gates:
     name: tests (${{ matrix.django }})
-    needs: [select-tests, tests]
+    needs: [select-tests, tests, package-export]
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     strategy:
@@ -266,7 +304,7 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           required: >-
-            {"select-tests":true,"tests":${{ needs.select-tests.result != 'success' ||
+            {"select-tests":true,"package-export":${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false' }},"tests":${{ needs.select-tests.result != 'success' ||
               ((needs.select-tests.outputs.library != 'false' || needs.select-tests.outputs.integration != 'false') &&
                (toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').locked) != 'true' ||
                 toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true')) }}}
