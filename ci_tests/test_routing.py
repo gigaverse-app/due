@@ -115,9 +115,9 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path, edit=self.with_scenario_env()), lanes)
 
-    def test_selector_pin_bumps_and_comments_run_no_lanes(self):
+    def test_selector_release_bumps_and_comments_run_no_lanes(self):
         def bump(text):
-            return re.sub(r"(plan-lanes@)[0-9a-f]{40}", r"\g<1>" + "0" * 40, text)
+            return re.sub(r"(plan-lanes@)v[0-9]+\.[0-9]+", r"\g<1>v0.2", text)
 
         for path in (".github/workflows/ci.yml", ".github/workflows/widget-store.yml"):
             with self.subTest(path=path, change="pin"):
