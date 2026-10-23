@@ -174,14 +174,13 @@ Do not remove the RQ backend or result storage until its callers have drained.
 
 ## Can a thin adapter help?
 
-The strongest future route is a Django Tasks backend, rather than emulating
-RQ internals behind it. That backend still needs real TaskResult fidelity,
-invocation identity and unsupported-option validation; it is unimplemented.
-A minimal named producer facade can help now only if callers deliberately accept
-native results.
+The standard API route is the optional Due Django Tasks backend. It supplies
+TaskResult metadata, distinct invocation identity and unsupported-option
+validation. This changes the queue store and worker infrastructure, so drain RQ
+and retain old result lookups during cutover.
 
 Keep access to native evidence, scheduling and fenced completion. The optional
-[frontend backend design](django-tasks.md#could-you-keep-the-standard-task-interface)
+[implemented backend](../django-tasks.md)
 explains why generic four-status tasks must not conceal uncertain operations.
 
 ## Prove the migration before switching traffic
