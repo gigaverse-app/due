@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.5](https://github.com/gigaverse-app/due/compare/v0.7.4...v0.7.5) (2026-10-23)
+
+
+### Bug fixes
+
+* **ci:** select all runtime tests by declared dependencies ([c6ffc56](https://github.com/gigaverse-app/due/commit/c6ffc569c534e08cef9a73e851f61a225a52aca6))
+* **docs:** refresh cached artwork when branding changes ([cb661a3](https://github.com/gigaverse-app/due/commit/cb661a3ba3a35e0d92e128f306d9cf4e64557a72))
+
+
+### Performance
+
+* **ci:** run package export alongside full conformance ([#91](https://github.com/gigaverse-app/due/issues/91)) ([358d7fd](https://github.com/gigaverse-app/due/commit/358d7fdc8c5eb9282b30ccc48d27b83738d71194))
+
 ## [0.7.4](https://github.com/gigaverse-app/due/compare/v0.7.3...v0.7.4) (2026-10-23)
 
 
