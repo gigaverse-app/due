@@ -77,8 +77,9 @@ See [package ownership and subtree development](package/docs/development.md) for
 ## Selective CI inputs
 
 `.github/test-lanes.json` uses pytest-selective to select complete library,
-integration, widget comparison and type-check lanes. Build, lint and CI contract
-checks always run. Main, manual dispatch and `test:full` run complete suites.
+integration, widget comparison, type-check, CI contract and wheel runtime lanes.
+Build/metadata and lint checks remain available without starting tests.
+Manual dispatch and `test:full` run complete suites; ordinary main pushes use selection.
 A failed planner executes the affected workflow in full, but the regular test
 gates require successful planning before merge.
 
@@ -86,8 +87,8 @@ Workflow inputs name execution jobs, such as `.github/workflows/ci.yml#tests`.
 An edit to that job runs its library and integration lanes; a type-check job edit
 runs type checking. Workflow-level settings still affect every lane in that
 workflow. Selector pin changes, reporting, comments and unrelated jobs do not
-start test services. The always-running CI contract tests check the pinned
-selector and classify every job. If tests start consuming another job's output,
+start test services. Every execution-workflow edit selects the CI contract tests, which
+check the pinned selector and classify every job. If tests consume another job's output,
 declare that job as an additional input: job dependencies are not inferred.
 
 For automatic PR events, CI-esta can reuse each Django variant independently
@@ -130,7 +131,7 @@ roots runs every configured lane and names the missing mapping; add that directo
 to a lane whose pytest command actually executes it.
 # CI routing checks
 
-The always-running `ci-contracts` job checks this repository's actual lane
+The selected `contracts` lane checks this repository's actual lane
 configuration against real Git snapshots. README/prose and repository metadata
 must not launch library, application, or widget benchmarks. Workflow inputs are
 owned by their execution lanes: `ci.yml` affects library/integration/type checks;
@@ -272,3 +273,14 @@ the Linux filesystem. See the
 [Windows setup guide](https://dallay.github.io/agentsync/guides/windows-symlink-setup/).
 If AgentSync backs up an existing `CLAUDE.md`, review and preserve any unique
 guidance in `AGENTS.md`; do not commit the backup as another instruction source.
+
+## Documentation-only CI
+
+Documentation-only PRs execute zero tests unless a test or lane explicitly
+declares that documentation as an input. This includes CI contract tests,
+installed-wheel smoke and public-action smoke. Metadata/link/build checks may
+still validate documentation without running runtime tests. Declare execution
+workflows, selector configuration, helpers, locks and non-import inputs; missing
+history or failed planning must execute the full affected lanes and fail the
+required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
+remain complete checkpoints.
