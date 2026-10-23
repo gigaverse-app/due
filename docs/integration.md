@@ -144,38 +144,17 @@ backoff, while an ordinary error lets that identity progress. The
 [reporting test](../tests/runtime/test_recovery_pass.py) also checks aborted
 outcomes and the absence of a clean heartbeat.
 
-## Adopting the extraction in an existing backend
-
-This repository does not migrate the originating backend automatically. Preserve
-its product/work tables, captured fields, migration history, registered task names
-and unresolved provider evidence during a separate consumer cutover.
-
-- Change library imports to `due.django`, with pure contracts in `due.errors`,
-  `due.observations` and `due.retry_delays`.
-- Retain concrete model/table identities. Historical migrations must keep their
-  frozen schema definitions; never rewrite migration history to import live code.
-- Due's concrete tables are `due_effectattempt` and `due_recoverydeferral`.
-  Move existing evidence with an explicit, reviewed data/state migration and
-  repoint receipt foreign keys. Do not initialize empty evidence tables beside
-  existing uncertain operations or copy only the work rows.
-- Drain or route old task names before removing their worker entry points. Only
-  after the data/route cutover should all processes use Due's registrations.
-- Configure existing tenant/routing/fatal-error hooks and preserve or explicitly migrate the configured metric namespace.
-- Run the existing application lifecycle tests and generated contracts through
-  the new imports before removing the original implementation.
-
-The retained class/method names reduce source changes. Migration and queued-message
-compatibility still require deliberate handling; this is not a zero-migration swap.
-All 17 registrations in the originating backend are work tables; there are no
-direct production adopters of its native lifecycle APIs. Two production modules
-use a counter helper located in the old `native` package; that arithmetic import
-can import the existing `due.django.runtime.counters` arithmetic helper. Older application workflows
-and their tests do not need to adopt a native API to survive the work-table port.
-
-Use the [backend audit](backend-adoption.md) for application migration gates and
-the [conformance guide](conformance.md) to bind the existing domain suites.
-
 ## Migrating an existing application
+
+Preserve existing product/work rows, unresolved provider evidence, migration
+history and registered task names during a cutover. Move evidence and receipt
+foreign keys with a reviewed data migration; creating empty evidence tables
+beside uncertain operations loses the information recovery needs. Keep frozen
+historical migrations independent of live library imports.
+
+Drain or route old task names before removing worker entry points, and run the
+existing application lifecycle tests and [conformance contracts](conformance.md)
+through the new wiring before retiring the old implementation.
 
 Configure these settings before Django imports Due:
 
