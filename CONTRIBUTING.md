@@ -79,7 +79,7 @@ See [package ownership and subtree development](package/docs/development.md) for
 `.github/test-lanes.json` uses pytest-selective to select complete library,
 integration, widget comparison, type-check, CI contract and wheel runtime lanes.
 Build/metadata and lint checks remain available without starting tests.
-Main, manual dispatch and `test:full` run complete suites.
+Manual dispatch and `test:full` run complete suites; ordinary main pushes use selection.
 A failed planner executes the affected workflow in full, but the regular test
 gates require successful planning before merge.
 
@@ -282,4 +282,5 @@ installed-wheel smoke and public-action smoke. Metadata/link/build checks may
 still validate documentation without running runtime tests. Declare execution
 workflows, selector configuration, helpers, locks and non-import inputs; missing
 history or failed planning must execute the full affected lanes and fail the
-required planning gate. Main/manual/full checkpoints remain complete runs.
+required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
+remain complete checkpoints.

@@ -52,3 +52,13 @@ class ExecutionAdmissionTests(unittest.TestCase):
             "exit 1" in step.get("run", "") and "needs.select-tests.result" in step.get("if", "")
             for step in smoke["steps"]
         )
+
+    def test_ordinary_pushes_do_not_force_full_tests(self):
+        for path in (ROOT / ".github/workflows").glob("*.y*ml"):
+            jobs = yaml.safe_load(path.read_text()).get("jobs", {})
+            for job in jobs.values():
+                for step in job.get("steps", []):
+                    if "plan-lanes" in step.get("uses", "") or step.get("id") == "files":
+                        full = step.get("with", {}).get("full", "")
+                        assert "github.event_name != 'pull_request'" not in str(full), path
+                        assert "workflow_dispatch" in str(full), path
