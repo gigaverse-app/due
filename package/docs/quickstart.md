@@ -4,7 +4,10 @@ You have a slow function to run in the background. You want to submit it now,
 let a worker do it, and retrieve its result later. If that worker dies, the job
 should still get done.
 
-We will use this function:
+## 1. Define the task
+
+Here is the complete definition of `greet`, in
+[`examples/hello_due/tasks.py`](../../examples/hello_due/tasks.py):
 
 ```python
 import os
@@ -27,11 +30,16 @@ def greet(name: str, seconds: int = 1) -> str:
 in for slow work. The prints let you see when it runs. Its return value lets you
 check what finished. You do not need an application model or an external account.
 
-The function is already in [tasks.py](../../examples/hello_due/tasks.py). Django's
-`@task`, `.enqueue()` and `.get_result()` are the application API; Due is the
-backend that persists jobs and recovers unfinished work.
+`@task` makes this function available for background execution. Its arguments
+are the inputs you will pass to `.enqueue()`, and its return value becomes the
+job's saved result. `queue_name` tells Due which worker queue should receive it.
 
-## 1. Use the prepared project
+The prepared project below already contains this file. Open it as you follow
+along; this is the function you can change to experiment with your own work.
+Django's `@task`, `.enqueue()` and `.get_result()` are the application API;
+Due is the backend that persists jobs and recovers unfinished work.
+
+## 2. Use the prepared project
 
 Use Python 3.14, [uv](https://docs.astral.sh/uv/getting-started/installation/) and
 Docker Compose. Run the shell commands with Bash, using WSL on Windows:
@@ -55,7 +63,7 @@ services, set `DUE_DATABASE_URL` and `DUE_BROKER_URL` in every terminal instead.
 We will use three terminals in this directory: a Python shell, a worker, and a
 recovery scheduler. Leave the worker and scheduler stopped for now.
 
-## 2. Submit a job before starting a worker
+## 3. Submit a job before starting a worker
 
 In terminal 1:
 
@@ -79,7 +87,7 @@ the function's import path and arguments in PostgreSQL.
 
 Keep the ID if you close this shell. The job survives the submitting process.
 
-## 3. Start a worker and read the result
+## 4. Start a worker and read the result
 
 In terminal 2:
 
@@ -122,7 +130,7 @@ The worker runs them one at a time. Each `.enqueue()` creates a separate job,
 even when its arguments match another job. After the greetings appear, call
 `.refresh()` on each handle to read its status and result.
 
-## 4. Kill the worker while it is busy
+## 5. Kill the worker while it is busy
 
 Wait for those jobs to finish. Then submit a slower greeting in terminal 1:
 
@@ -189,7 +197,7 @@ before enabling recovery for it. For example, a task that charges a card needs
 an operation-specific idempotency or evidence strategy; declaring it replay-safe
 does not supply one.
 
-## 5. Submit a task as part of a transaction
+## 6. Submit a task as part of a transaction
 
 A common next step is saving a product change and scheduling its background work
 together. Put `.enqueue()` inside the same database transaction. You can see the

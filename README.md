@@ -46,6 +46,27 @@ The message gets work started sooner. The database remembers what remains owed.
 The [first tutorial](package/docs/quickstart.md) uses one deliberately trivial
 function: sleep, print a greeting, return it. A prepared project supplies setup.
 
+Define the task in `examples/hello_due/tasks.py`:
+
+```python
+import os
+from time import sleep
+
+from django.conf import settings
+from django.tasks import task
+
+
+@task(queue_name=settings.CELERY_TASK_DEFAULT_QUEUE)
+def greet(name: str, seconds: int = 1) -> str:
+    print(f"Starting greeting for {name} in process {os.getpid()}", flush=True)
+    sleep(seconds)
+    message = f"Hello, {name}!"
+    print(message, flush=True)
+    return message
+```
+
+Then submit it from application code or a Django shell:
+
 ```python
 from examples.hello_due.tasks import greet
 
