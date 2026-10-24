@@ -3,6 +3,16 @@
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and validation.
 Use [RELEASING.md](RELEASING.md) for the release process.
 
+## Application contracts are part of implementation
+
+Always build the pytest-obligation application contract alongside each Due
+integration or capability change. Use the repository
+[Due integration skill](.agents/skills/due-integration/SKILL.md) and
+[conformance guide](package/docs/conformance.md). Generated failure tests,
+independent enrollment checks, and executed reports are required integration
+deliverables. Include them in examples and tutorials from the first native
+capability; a happy-path demo alone does not establish reliability.
+
 ## Commits and pull requests
 
 - Use Conventional Commits for commits you create and PR titles:

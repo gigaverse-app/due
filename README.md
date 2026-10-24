@@ -41,6 +41,16 @@ The message gets work started sooner. The database remembers what remains owed.
 
 [When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
 
+## Start simple, keep the reliability tests
+
+Follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django word-count
+task to proof publication, portal repair, print ordering and durable cleanup.
+The [runnable app](examples/acme_printworks/README.md) includes workflow charts and
+pytest-obligation contracts that generate 270 native reliability checks.
+**Always build the application contract** as you integrate Due: bind the real
+commands, provider faults and customer-visible outcome, then run the shared tests
+and enrollment/report gates. See the [conformance guide](package/docs/conformance.md).
+
 ## What happens when things go wrong?
 
 | Failure | Due's response |

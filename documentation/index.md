@@ -35,6 +35,11 @@ flowchart LR
   E --> F[Fenced product completion]
 ```
 
+Follow the [Acme Printworks tutorial](../docs/acme-printworks-tutorial.md) for a
+runnable Django Tasks application that grows into native Due capabilities. Always
+build its application contract alongside the feature: the shared pytest-obligation
+tests make recovery promises executable from the first native capability.
+
 ## Start with one operation
 
 1. [Run a lost-message recovery](../docs/recovery-walkthrough.md). See the product

@@ -262,6 +262,9 @@ jobs:
       - name: Require widget checkout guarantees and crash histories
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract checkout_order --verified A B G I J --effect-report effects.json --effect checkout_order --required-effect-case "test_due_work_contract[delivery-replay-reconnected dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[completion-paid hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-paid sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[delivery-replay-final dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[process-widget paid process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget paid process death without hints-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death without hints-assert_process_deaths_converge]"
+      - name: Prove Acme contracts and the live tutorial journey
+        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        run: uv run --no-sync python scripts/check_acme_printworks.py
       - name: Validate application setup
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
         run: uv run --no-sync python -m django due_check
@@ -279,6 +282,7 @@ jobs:
             profiles.json
             effects.json
             observations.json
+            acme-reports/*.json
             library-timings.xml
             test-results/**/*.log
           if-no-files-found: error

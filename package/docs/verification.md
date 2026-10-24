@@ -1,7 +1,8 @@
 # What Due's tests establish
 
-Use the [conformance guide](conformance.md) to test your application's work
-tables. A passing Due library suite checks Due's implementation against its
+Always build the application contract using the [conformance guide](conformance.md).
+Do it alongside the first capability so its generated failure tests become part
+of normal development. A passing Due library suite checks Due's implementation against its
 fixtures and examples; your provider, transaction boundaries and recovery paths
 still need application-owned contracts.
 

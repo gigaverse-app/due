@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1210" viewBox="0 0 1200 1210">
+<style>text{font-family:DejaVu Sans,Arial,sans-serif}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#62778a"/></marker></defs>
+<rect width="1200" height="1210" fill="#f3f6fa"/>
+<text x="32" y="46" fill="#137b80" font-size="19" font-weight="700">ACME PRINTWORKS  /  WILLOW CAFE  /  JOB 418</text>
+<text x="32" y="100" fill="#163449" font-size="37" font-weight="700">2. Approve the right proof</text>
+<rect x="32" y="130" width="1136" height="145" rx="16" fill="#eaf2ff" stroke="#345986" stroke-width="2"/><text x="56" y="165" fill="#345986" font-size="20" font-weight="700">CUSTOMER GOAL</text><text x="56" y="207" fill="#163449" font-size="28" font-weight="400">Willow Cafe changes its opening date from June 12 to June 19.</text>
+<rect x="32" y="325" width="548" height="245" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="360" fill="#24734d" font-size="20" font-weight="700">HAPPY PATH</text><text x="56" y="402" fill="#163449" font-size="28" font-weight="400">Render revision 18 and publish</text>
+<text x="56" y="439" fill="#163449" font-size="28" font-weight="400">its immutable proof.</text>
+<rect x="620" y="325" width="548" height="245" rx="16" fill="#fff5df" stroke="#946321" stroke-width="2"/><text x="644" y="360" fill="#946321" font-size="20" font-weight="700">EXTERNAL DISRUPTION</text><text x="644" y="402" fill="#163449" font-size="28" font-weight="400">A badly encoded font makes</text>
+<text x="644" y="439" fill="#163449" font-size="28" font-weight="400">revision 17&#x27;s PDF renderer</text>
+<text x="644" y="476" fill="#163449" font-size="28" font-weight="400">stall. It returns after</text>
+<text x="644" y="513" fill="#163449" font-size="28" font-weight="400">revision 18.</text>
+<rect x="32" y="620" width="548" height="260" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="655" fill="#24734d" font-size="20" font-weight="700">GOOD OUTCOME</text><text x="56" y="697" fill="#163449" font-size="28" font-weight="400">The customer reviews June 19,</text>
+<text x="56" y="734" fill="#163449" font-size="28" font-weight="400">the date they actually</text>
+<text x="56" y="771" fill="#163449" font-size="28" font-weight="400">requested.</text>
+<rect x="620" y="620" width="548" height="260" rx="16" fill="#fff0ee" stroke="#aa4439" stroke-width="2"/><text x="644" y="655" fill="#aa4439" font-size="20" font-weight="700">BAD OUTCOME WITHOUT PROTECTION</text><text x="644" y="697" fill="#163449" font-size="28" font-weight="400">An old worker publishes June 12</text>
+<text x="644" y="734" fill="#163449" font-size="28" font-weight="400">over the corrected proof.</text>
+<rect x="32" y="925" width="1136" height="255" rx="16" fill="#e9f5f6" stroke="#137b80" stroke-width="2"/><text x="56" y="960" fill="#137b80" font-size="20" font-weight="700">DUE RESPONSE AND ITS LIMIT</text><text x="56" y="1002" fill="#163449" font-size="28" font-weight="400">Separate output keys preserve both versions. Due&#x27;s settlement fence</text>
+<text x="56" y="1039" fill="#163449" font-size="28" font-weight="400">lets only the current request publish the pointer.</text>
+<path d="M306 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M306 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 880V915" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+</svg>

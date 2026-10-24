@@ -1,0 +1,5 @@
+django-due[redis,testing]==0.8.0
+Django==6.0.9
+pytest-obligation==0.15.0
+pytest-django==4.11.1
+time-machine==3.5.1

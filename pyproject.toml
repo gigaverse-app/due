@@ -20,7 +20,7 @@ src = ["package/src", "package/shims", "package", "."]
 [tool.pyrefly]
 project-includes = ["package/src", "package/tests", "integration_tests", "examples", "scripts"]
 python-version = "3.14"
-search-path = ["package/src", "package", "."]
+search-path = ["package/src", "package", ".", "examples/acme_printworks"]
 
 [tool.pytest.ini_options]
 testpaths = ["integration_tests"]
