@@ -170,7 +170,13 @@ class RoutingTests(unittest.TestCase):
                 self.assertIn("widget_comparison", self.selection(path))
 
     def test_unrelated_application_and_validator_skip_widget_benchmarks(self):
-        for path in ("examples/books/models.py", "scripts/check_adoption_report.py"):
+        for path in (
+            "examples/books/models.py",
+            "scripts/check_adoption_report.py",
+            "examples/acme_printworks/acme/effects.py",
+            "examples/acme_printworks/tests/test_contracts.py",
+            "scripts/check_acme_printworks.py",
+        ):
             with self.subTest(path=path):
                 selected = self.selection(path)
                 self.assertIn("integration", selected)
