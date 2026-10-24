@@ -1,7 +1,8 @@
 # CI selection, caching and critical paths
 
 This repository uses pytest-selective to decide which complete validation lanes
-are affected. Routing regressions and metadata checks always run. An aggregate
+are affected. Routing regressions follow their declared execution inputs;
+metadata checks always run. An aggregate
 `Validation gate` checks every prerequisite and accepts a skipped runtime lane
 only when the planner explicitly returned boolean `false` for its inputs.
 
@@ -18,8 +19,10 @@ Specialized upstream application setup remains in its owning lane. Cache and
 selection results are separate measurements, not interchangeable savings.
 
 First-attempt PR pushes supersede earlier work on that PR. Main, manual runs and
-explicit reruns retain independent concurrency groups. Full main/manual and
-`test:full` validation remain available. Required conformance validators and
+explicit reruns retain independent concurrency groups. The selector owns the
+`full: auto` policy: ordinary PRs and main pushes are selective; manual runs,
+reruns and `test:full` run complete lanes. Set `full: 'true'` to force a checkpoint
+or `full: 'false'` for a deliberate selective experiment. Required conformance validators and
 package-only compatibility checks remain attached to their lanes.
 
 The unconditional CI job runs `ci-esta check-workflow` against this workflow and
@@ -27,6 +30,7 @@ lane configuration, so renamed lanes or omitted metadata prerequisites cannot
 silently change what the aggregate gate means.
 
 For adoption in another repository, follow CI-esta's
+[staged checklist](https://github.com/gigaverse-app/ci-esta/blob/main/docs/tutorials/adoption-checklist.md),
 [optimization guide](https://github.com/gigaverse-app/ci-esta/blob/main/docs/ci-optimization.md),
 [cache tutorial](https://github.com/gigaverse-app/ci-esta/blob/main/docs/environment-cache.md),
 [selected-gate contract](https://github.com/gigaverse-app/ci-esta/blob/main/docs/selected-gates.md)
