@@ -13,6 +13,7 @@ and fences which worker can publish completion. Your application owns the
 meaning of success and whether an external operation is safe to repeat.
 
 [Run and recover your first task](../package/docs/quickstart.md){ .md-button .md-button--primary }
+[All eight chapters](../package/docs/tutorial.md){ .md-button }
 [Choose an API](../package/docs/api-guide.md){ .md-button }
 
 ## Start with a background function
@@ -29,8 +30,10 @@ Production imports live in `due.django.public`; common testing imports live in
 `due.django.conformance`. [Choose the API and find its imports](../package/docs/api-guide.md).
 
 Next, use the [setup guide](../package/docs/django-tasks-quickstart.md) for your
-own project, or the [native work lesson](../package/docs/native-work-tutorial.md)
-for application-owned work and guarded completion.
+own project, or continue through the [eight-chapter tutorial](../package/docs/tutorial.md).
+It introduces guarded completion, projections, scheduling, uncertain outcomes,
+observation, independent cleanup, composition and application contracts. Each
+chapter shows the hooks and a runnable exercise with observable results.
 
 ## Install in a Django application
 
@@ -61,8 +64,8 @@ tests make recovery promises executable from the first native capability.
 
 1. [Run the task tutorial](../package/docs/quickstart.md) to submit work, read its
    result, and recover it after stopping the worker.
-2. [Follow Printworks](../docs/acme-printworks-tutorial.md) to apply the ideas
-   to publication, projections and uncertain provider operations.
+2. [Continue through the chapters](../package/docs/tutorial.md) to introduce each
+   native capability with small operations.
 3. Use the [integration](../package/docs/integration.md),
    [capability](../package/docs/capabilities.md) and [testing](../package/docs/conformance.md)
    references while building your application.

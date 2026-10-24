@@ -1,4 +1,6 @@
-# Native work: admission, execution and completion
+# 2. Own the result
+
+[Previous: run and recover a task](quickstart.md) · [All chapters](tutorial.md)
 
 Start with [running and recovering a background task](quickstart.md). This lesson
 adds application-owned work and separate hooks for doing an operation and saving
@@ -296,6 +298,7 @@ these checks and the live worker journey. See [conformance](conformance.md) to
 adapt the contract to your operation's actual guarantees.
 
 For ordinary task functions that do not need this owner/revision split, use the
-[Django Tasks greeting walkthrough](django-tasks-quickstart.md). The
-[API guide](api-guide.md) helps choose; [Printworks](../../docs/acme-printworks-tutorial.md)
-builds on these ideas for a larger application.
+[Django Tasks greeting walkthrough](quickstart.md). Next, keep the same admission
+and completion pattern while adding repair for a mutable external view.
+
+[Next: keep an external view current](projection-tutorial.md)

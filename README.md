@@ -10,7 +10,7 @@
 
 **An attempt can end. The obligation remains.**
 
-[Start the tutorial](package/docs/quickstart.md) · [Choose an API](package/docs/api-guide.md) · [Documentation](https://due.readthedocs.io/en/latest/)
+[Start the tutorial](package/docs/quickstart.md) · [All eight chapters](package/docs/tutorial.md) · [Choose an API](package/docs/api-guide.md) · [Documentation](https://due.readthedocs.io/en/latest/)
 
 The PyPI distribution name is **`django-due`** (`pip install django-due`).
 Python imports remain **`due`**. See [releasing](RELEASING.md) for the manual release process.
@@ -87,9 +87,17 @@ Import production types and startup helpers from `due.django.public`; common con
 helpers live in `due.django.conformance`. [API choices, imports and file map →](package/docs/api-guide.md)
 
 The [setup guide](package/docs/django-tasks-quickstart.md) explains how to add Due
-to your Django project. The [native work lesson](package/docs/native-work-tutorial.md)
-introduces separate execution and completion hooks when work belongs to an
-editable product.
+to your Django project. The [eight-chapter tutorial](package/docs/tutorial.md)
+then introduces each capability with small operations and observable results:
+
+1. Run a task and recover it after worker death.
+2. Capture input and guard completion with `ReplaySafeEffect`.
+3. Keep a mutable external view current with `Projection`.
+4. Move or cancel a deadline with `ScheduledAction`.
+5. Preserve an uncertain outcome with `DurableExternalOperation`.
+6. Resolve it by reading a receipt with `ObservedExternalOperation`.
+7. Recover cleanup with `IndependentCompensation` and coordinate calls with `OwnedDurableWorkCapability`.
+8. Compose stages, try completion inline and bind application contract tests.
 
 Then follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django task
 to proof publication, portal repair, print ordering and cleanup. Its
@@ -258,6 +266,7 @@ replay. [Operations and monitoring →](package/docs/operations.md)
 | You want to… | Read |
 | --- | --- |
 | Run a task and recover it after worker failure | [First task tutorial](package/docs/quickstart.md) |
+| Learn each capability step by step | [All eight tutorial chapters](package/docs/tutorial.md) |
 | Configure Due in a Django project | [Setup guide](package/docs/django-tasks-quickstart.md) |
 | Learn native admission and completion hooks | [Native work lesson](package/docs/native-work-tutorial.md) |
 | Find the high-level API and imports | [API guide and file map](package/docs/api-guide.md) |

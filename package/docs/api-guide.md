@@ -129,11 +129,13 @@ backend alias, queue, cadence or worker limits. Both forms use the same checks.
 | --- | --- | --- |
 | Repeatable background function and stored return value | `django.tasks.task` with `DueBackend` | [Run and recover a task](quickstart.md) |
 | Repeatable effect with guarded local publication | `ReplaySafeEffect` | [Native work and completion hooks](native-work-tutorial.md) |
-| Repair an external view after an old write lands late | `Projection` | [Approval portal](../../docs/acme-printworks-tutorial.md#3-the-approval-portal-can-be-overwritten-remotely) |
-| Move or cancel a deadline | `ScheduledAction` | [Scheduled publication](../../examples/scheduled/README.md) |
-| Preserve an uncertain, non-repeatable occurrence | `DurableExternalOperation` | [Evidence and replay rules](capabilities.md#uncertainty-and-evidence) |
-| Ask a provider whether an uncertain occurrence happened | `ObservedExternalOperation` | [Print orders](../../examples/orders/README.md) |
-| Recover cleanup independently of the original worker | `IndependentCompensation` | [Printworks](../../docs/acme-printworks-tutorial.md) |
+| Repair an external view after an old write lands late | `Projection` | [Chapter 3: projections](projection-tutorial.md) |
+| Move or cancel a deadline | `ScheduledAction` | [Chapter 4: scheduling](scheduling-tutorial.md) |
+| Preserve an uncertain, non-repeatable occurrence | `DurableExternalOperation` | [Chapter 5: uncertain outcomes](external-operation-tutorial.md) |
+| Ask a provider whether an uncertain occurrence happened | `ObservedExternalOperation` | [Chapter 6: observation](observation-tutorial.md) |
+| Recover cleanup independently of the original worker | `IndependentCompensation` | [Chapter 7: cleanup](compensation-tutorial.md) |
+| Coordinate several calls with an execution context | `OwnedDurableWorkCapability` | [Chapter 7: protect the provider call](compensation-tutorial.md#3-protect-the-call-that-creates-output) |
+| Hand off stages, complete inline and test failure histories | Completion and conformance helpers | [Chapter 8: composition](composition-tutorial.md) |
 
 A provider timeout does not establish failure. For a non-repeatable operation,
 retain uncertainty and seek correlated evidence before permitting another attempt.

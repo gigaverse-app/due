@@ -1,7 +1,7 @@
 # Work-table capabilities
 
 For the recommended entry points and consolidated imports, read
-[which API to use](api-guide.md). Start with the [trivial tutorial](quickstart.md)
+[which API to use](api-guide.md). Start with the [tutorial chapters](tutorial.md)
 if you have not run Due yet.
 
 Start with a product owner, a concrete work table and one capability. Commit the

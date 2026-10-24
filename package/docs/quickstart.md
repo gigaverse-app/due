@@ -1,4 +1,6 @@
-# Tutorial: run a task, stop its worker, get the result
+# 1. Run a task, stop its worker, get the result
+
+[All chapters](tutorial.md)
 
 You have a slow function to run in the background. You want to submit it now,
 let a worker do it, and retrieve its result later. If that worker dies, the job
@@ -256,12 +258,12 @@ file when you are ready to wire your own project. The
 with real worker death, restart and Beat recovery, plus a deliberately dropped
 notification. They check the actual task output and saved return values.
 
-When the application needs to publish only the current document revision, repair
-remote state, or track an uncertain provider outcome, use the
-[API guide](api-guide.md) to choose a native capability. The
-[native work lesson](native-work-tutorial.md) then explains the admission and
-completion hooks; [Printworks](../../docs/acme-printworks-tutorial.md) applies them
-to documents and print orders.
+Continue through the [tutorial chapters](tutorial.md) to learn captured input and
+guarded completion, projections, deadlines, uncertain operations, observation,
+independent cleanup and composition. Each adds one concrete requirement with
+small application operations.
 
 When finished, stop the worker and Beat with Ctrl+C, exit the shell, and stop the
 local services with `docker compose down`.
+
+[Next: own the result](native-work-tutorial.md)
