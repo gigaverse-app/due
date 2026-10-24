@@ -1,6 +1,6 @@
 # Django Tasks with Due: start simple, grow with Acme Printworks
 
-![Due: An attempt can end. The obligation remains.](assets/banner.png)
+![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png?v=e6e1fea2a5af)
 
 First published on [DEV](https://dev.to/aviadr1/django-tasks-with-due-commit-the-work-recover-after-a-crash-n5k). This edition preserves the author’s edits and includes the runnable application and contracts.
 
