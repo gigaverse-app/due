@@ -1,7 +1,7 @@
 # Use Due with Django Tasks
 
 For a first working example with every file and command, start with the
-[trivial greeting tutorial](quickstart.md). This page is the backend reference.
+[trivial greeting tutorial](django-tasks-quickstart.md). This page is the backend reference.
 
 Keep Django's `@task`, `.enqueue()`, and `TaskResult` APIs while Due stores each
 invocation in PostgreSQL and uses Celery workers to execute it. A committed

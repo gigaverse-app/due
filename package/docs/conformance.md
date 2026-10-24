@@ -3,13 +3,21 @@
 Common application bindings and fault controls are available from
 `due.django.conformance`: `EffectExamples`, `effect_contract_suite`,
 `work_table_host`, `ProviderSeam`, `seam_examples`, `WorkTableDelivery`,
-`hold_nudges`, and `expire_lease`. Specialized declarations remain in the
+`hold_nudges`, `expire_lease`, `die_after`, and `WorkerDied`. Routine producer,
+admission, supersession and terminal bindings, plus enrollment helpers, are
+also exported there. Specialized declarations remain in the
 modules listed below. See the [API map](api-guide.md#imports-you-actually-need).
 
 **Always build this contract as you integrate Due.** The generated
 pytest-obligation tests are a central reliability benefit and part of a complete
 integration. Do not wait for an outage or a separate hardening project. Start with
 the first native capability and extend its bindings as the product grows.
+
+The deliberately trivial [arithmetic tutorial](quickstart.md) includes a complete
+[binding](../../integration_tests/conformance/number_examples.py) and
+[generated suite](../../integration_tests/conformance/test_number_contract.py).
+Its hooks only sleep, multiply, print and save a result. Start there to see what
+the contract asks of your application without a business workflow in the way.
 
 The [Acme Printworks tutorial](../../docs/acme-printworks-tutorial.md) shows a small
 application growing from Django Tasks to four native contracts. Its runnable

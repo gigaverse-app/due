@@ -59,6 +59,7 @@ validation:
 extra:
   published_sources:
   - package/docs/quickstart.md
+  - package/docs/django-tasks-quickstart.md
   - package/docs/api-guide.md
   - docs/acme-printworks-tutorial.md
   - docs/alternatives.md
@@ -97,7 +98,8 @@ extra:
 nav:
 - Home: index.md
 - Getting started:
-  - First task tutorial: package/docs/quickstart.md
+  - Learn Due through four failures: package/docs/quickstart.md
+  - Django Tasks walkthrough: package/docs/django-tasks-quickstart.md
   - Which API should I use?: package/docs/api-guide.md
   - Grow with Printworks: docs/acme-printworks-tutorial.md
   - Why Due: docs/why-due.md

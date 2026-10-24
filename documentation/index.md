@@ -12,33 +12,29 @@ stores a work row alongside the product change, retries delivery through Celery,
 and fences which worker can publish completion. Your application owns the
 meaning of success and whether an external operation is safe to repeat.
 
-[Start the greeting tutorial](../package/docs/quickstart.md){ .md-button .md-button--primary }
+[Learn Due through four failures](../package/docs/quickstart.md){ .md-button .md-button--primary }
 [Choose an API](../package/docs/api-guide.md){ .md-button }
 
-## Start with one function
+## Start with one calculation
 
-Use **Django's `@task` and `.enqueue()` with Due as the backend** for ordinary
-repeatable work. The first tutorial deliberately uses a trivial app: sleep,
-print a greeting, return a string.
+Use **`ReplaySafeEffect` and `capability.atomic()`** when repeatable work must
+publish only the current requested result. The first tutorial deliberately uses
+trivial arithmetic so the interesting behavior belongs to Due:
 
-```python
-from time import sleep
-from django.tasks import task
-
-
-@task
-def greet(name: str) -> str:
-    sleep(1)
-    message = f"Hello, {name}!"
-    print(message, flush=True)
-    return message
+```text
+Request 21 -> calculate 42 -> pause before settlement
+Request  7 -> old attempt returns 42 -> Due rejects its stale result
+Recovery -> calculate 14 -> publish the current result
 ```
 
-The [tutorial](../package/docs/quickstart.md) provides every file and command,
-then drops a notification so you can see recovery happen. For richer product
-coordination, start with `ReplaySafeEffect.for_owner()` and `capability.atomic()`.
+The [tutorial](../package/docs/quickstart.md) teaches atomic admission, lost
+notifications, interrupted attempts and stale completion. A prepared application
+supplies setup; runnable histories and application contracts check the claims.
 Production imports live in `due.django.public`; common testing imports live in
 `due.django.conformance`. [Choose the API and find its imports](../package/docs/api-guide.md).
+
+For ordinary background functions, use the separate
+[Django Tasks walkthrough](../package/docs/django-tasks-quickstart.md).
 
 ## Install in a Django application
 
@@ -67,10 +63,10 @@ tests make recovery promises executable from the first native capability.
 
 ## Your next step
 
-1. [Run the trivial tutorial](../package/docs/quickstart.md) to learn enqueueing,
-   execution, stored results and recovery.
-2. [Follow Printworks](../docs/acme-printworks-tutorial.md) when you need native
-   capabilities and their application contracts.
+1. [Run the trivial tutorial](../package/docs/quickstart.md) to learn Due's native
+   API and see its guarantees at each failure boundary.
+2. [Follow Printworks](../docs/acme-printworks-tutorial.md) to apply the ideas
+   to publication, projections and uncertain provider operations.
 3. Use the [integration](../package/docs/integration.md),
    [capability](../package/docs/capabilities.md) and [testing](../package/docs/conformance.md)
    references while building your application.

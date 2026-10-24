@@ -1,6 +1,6 @@
 # Django Tasks with Due: start simple, grow with Acme Printworks
 
-New to Due? Start with the [deliberately trivial greeting tutorial](../package/docs/quickstart.md)
+New to Due? Start with the [deliberately trivial arithmetic tutorial](../package/docs/quickstart.md)
 to learn the runtime without a business application. Come back here to add product
 guarantees. The [API guide](../package/docs/api-guide.md) maps the consolidated
 imports to the capabilities used throughout this story.

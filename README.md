@@ -41,36 +41,40 @@ The message gets work started sooner. The database remembers what remains owed.
 
 [When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
 
-## Start here: one durable function
+## Start here: learn Due with one calculation
 
-For a repeatable background function, use **Django's `@task` and `.enqueue()` with
-Due as the backend**. The first tutorial's entire app sleeps, prints, and returns
-a greeting. It is deliberately trivial so you can focus on Due:
+The [first tutorial](package/docs/quickstart.md) deliberately uses trivial
+arithmetic: sleep, double a number, print, save the answer. It teaches
+**`ReplaySafeEffect`, `capability.atomic()` and guarded completion** through
+four failures, with Django setup supplied separately:
 
 ```python
-# hello/tasks.py
-from time import sleep
-from django.tasks import task
+# Core hooks from the prepared arithmetic example:
+from due.django.public import ReplaySafeEffect
+from examples.numbers.effects import double
+from examples.numbers.models import Calculation, CalculationWork
 
 
-@task
-def greet(name: str) -> str:
-    sleep(1)
-    message = f"Hello, {name}!"
-    print(message, flush=True)
-    return message
+class DoubleNumber(ReplaySafeEffect[Calculation, CalculationWork, int]):
+    def perform_effect(self, work: CalculationWork) -> int:
+        return double(work.number)
+
+    def finalize_success(self, work: CalculationWork, result: int) -> None:
+        Calculation.objects.filter(pk=work.owner_id).update(result=result, failed=False)
 ```
 
-After configuring the backend, call `result = greet.enqueue("Ada")` and retrieve the saved
-result with `greet.get_result(result.id)`. Follow the
-**[complete greeting tutorial](package/docs/quickstart.md)** for every file,
-installation, worker and scheduler commands, expected output, a deliberately lost
-notification, and application tests.
+Roll back a request, drop its notification, interrupt an attempt after it prints,
+then let an old answer finish after the input changes. Each lesson shows the
+product state and explains what Due enforces. The
+[runnable example](examples/numbers/README.md) includes the full capability,
+producer command, application contracts and a real worker/Beat walkthrough.
 
-When your product needs guarded completion, **`ReplaySafeEffect.for_owner()` and
-`capability.atomic()` are the main native authoring APIs**. Import the production
-types and startup helpers from `due.django.public`; common contract and fault
+Import production types and startup helpers from `due.django.public`; common contract and fault
 helpers live in `due.django.conformance`. [API choices, imports and file map →](package/docs/api-guide.md)
+
+For an ordinary background function, the separate
+[Django Tasks walkthrough](package/docs/django-tasks-quickstart.md) uses `@task`
+and `.enqueue()` with Due as the backend.
 
 Then follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django task
 to proof publication, portal repair, print ordering and cleanup. Its
@@ -153,8 +157,8 @@ uv add 'django-due[redis]'
 The documentation under `latest` follows main. Check your installed version
 against the release notes before using an API added after that release.
 
-Use the [greeting tutorial](package/docs/quickstart.md) for a complete first setup.
-It currently installs from source to use the consolidated imports added after
+Use the [native tutorial](package/docs/quickstart.md) and its prepared example.
+They use source to include the consolidated imports added after
 0.10.0. For an existing application, follow the [Django Tasks reference](package/docs/django-tasks.md)
 or [native integration reference](package/docs/integration.md). Both need registration
 in every process, workers and recurring recovery.
@@ -238,7 +242,8 @@ replay. [Operations and monitoring →](package/docs/operations.md)
 
 | You want to… | Read |
 | --- | --- |
-| Get a first task running | [Trivial greeting tutorial](package/docs/quickstart.md) |
+| Learn Due's native API and failure behavior | [Trivial arithmetic tutorial](package/docs/quickstart.md) |
+| Get a Django task running | [Greeting walkthrough](package/docs/django-tasks-quickstart.md) |
 | Find the high-level API and imports | [API guide and file map](package/docs/api-guide.md) |
 | Add richer product guarantees | [Printworks tutorial](docs/acme-printworks-tutorial.md) |
 | Decide whether Due fits your application | [Strengths and tradeoffs](docs/why-due.md), [alternatives](docs/alternatives.md) |

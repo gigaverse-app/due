@@ -108,12 +108,22 @@ def test_conformance_entry_point_is_safe_before_django_setup():
         from due.django.conformance import (
             DurableWorkBindings, EffectExamples, effect_contract_suite, work_table_host,
             ProviderSeam, ProviderProbe, seam_examples, WorkTableDelivery, WorkTableRecovery,
-            hold_nudges, expire_lease,
+            hold_nudges, expire_lease, WorkerDied, die_after, applied_snapshot,
+            ProducerExample, AdmissionFailureExample, SupersessionExample, TerminalExample,
+            discover_enrollment, assert_complete_enrollment,
         )
         from due.django.conformance.suite import effect_contract_suite as original_suite
         from due.django.testing import hold_nudges as original_hold
         assert effect_contract_suite is original_suite
         assert hold_nudges is original_hold
+        stopped = die_after(lambda: 42)
+        try:
+            stopped()
+        except WorkerDied:
+            pass
+        else:
+            raise AssertionError("The public exception must catch the public fault control")
+        assert stopped() == 42
         assert len(conformance.__all__) == len(set(conformance.__all__))
         for name in conformance.__all__:
             assert getattr(conformance, name) is not None

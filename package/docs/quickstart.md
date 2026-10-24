@@ -1,369 +1,305 @@
-# Tutorial: run your first durable task
+# Tutorial: what Due does when work goes wrong
 
-**The app is deliberately trivial so you can focus on Due.** It sleeps for a
-second, prints a greeting, and returns a string. There are no application models,
-provider accounts or business workflows to understand.
+**Use `ReplaySafeEffect` to separate repeatable work from the result your app is
+allowed to publish.** Record the request with `capability.atomic()`; Due remembers
+the work, recovers interrupted attempts, and checks ownership before saving the
+answer.
 
-You will enqueue a function, read its saved result, then deliberately lose a
-notification and watch Due recover the work. The application API is **Django's
-`@task` and `.enqueue()` with Due as the backend**. Due's setup comes through
-`due.django.public`; test helpers come through `due.django.conformance`.
+The app here is deliberately trivial so you can focus on Due: **sleep, double a
+number, print, save the answer**. There is no provider account or business domain.
+We will request `21`, then change our mind to `7` while the old attempt is running.
+The answer must end up as `14`, even if the old attempt returns `42` later.
 
-## 1. Create the tiny app
+| Experiment | What you observe | Due concept |
+| --- | --- | --- |
+| Roll back the request | Neither the input change nor its work survives | Atomic admission |
+| Drop its notification | Recovery still produces `42` | Durable intent and recurring recovery |
+| Stop after the calculation returns | It prints twice, but eventually saves `42` | Leases and replay safety |
+| Change input before the old attempt settles | Old `42` is ignored; current `14` wins | Captured revisions and guarded settlement |
 
-Use Python 3.14, [uv](https://docs.astral.sh/uv/getting-started/installation/), and
-Docker Compose on Linux, macOS, or Windows with WSL. Run the shell commands in the
-same directory. These instructions install the source version because the new
-consolidated imports are not in the 0.10.0 PyPI release. Keep the generated
-`uv.lock`, which records the resolved commit.
+The [prepared example](../../examples/numbers/README.md) supplies the Django,
+PostgreSQL and Celery setup. Prepare it once, then return here. All application
+code is in [models.py](../../examples/numbers/models.py) and
+[effects.py](../../examples/numbers/effects.py). You can read the lesson before
+running anything.
 
-```bash
-mkdir hello-due
-cd hello-due
-uv init --bare --python 3.14
-uv add 'django-due[redis] @ git+https://github.com/gigaverse-app/due.git@main#subdirectory=package'
-mkdir hello
-touch hello/__init__.py
-```
+## 1. Separate doing the work from publishing its answer
 
-Create `hello/tasks.py`. This is the entire application behavior:
+Here is the race we want to avoid:
 
 ```python
-# hello/tasks.py
+number = calculation.number
+answer = double(number)  # Meanwhile, another request might change the number.
+calculation.result = answer
+calculation.save()  # The old answer can overwrite what the user now wants.
+```
+
+Due's native API gives those steps separate hooks:
+
+```python
 from time import sleep
+from due.django.public import ReplaySafeEffect
+from examples.numbers.models import Calculation, CalculationWork
 
-from django.tasks import task
+
+def double(number: int) -> int:
+    sleep(0.05)
+    answer = number * 2
+    print(f"double({number}) = {answer}", flush=True)
+    return answer
 
 
-@task
-def greet(name: str) -> str:
-    sleep(1)  # Stand in for some slow work.
-    message = f"Hello, {name}!"
-    print(message, flush=True)
-    return message
+class DoubleNumber(ReplaySafeEffect[Calculation, CalculationWork, int]):
+    def perform_effect(self, work: CalculationWork) -> int:
+        return double(work.number)
+
+    def finalize_success(self, work: CalculationWork, result: int) -> None:
+        Calculation.objects.filter(pk=work.owner_id).update(result=result, failed=False)
+
+
+calculate = DoubleNumber.for_owner(work=CalculationWork)
 ```
 
-If a worker dies, Due may run the function again from the beginning, including
-printing again. That is acceptable for this example. A real operation such as
-placing an order needs a stronger replay contract.
+This is the core of [effects.py](../../examples/numbers/effects.py). Its additional
+`finalize_retry()` hook marks the product as failed when the retry budget is
+exhausted.
 
-## 2. Start PostgreSQL and Redis
+`perform_effect()` runs outside the settlement transaction. It may run again.
+`finalize_success()` runs with owner/work locks, after Due checks the attempt's
+ownership and requested revision. Put only local transactional writes there.
+**Never publish the product result from `perform_effect()`**; that would bypass
+the protection we are about to demonstrate.
 
-PostgreSQL stores invocations and results. Redis carries Celery's notifications.
-Create `compose.yaml` in `hello-due`:
+`for_owner(work=...)` takes the owner from the work model's one-to-one relation
+and uses the standard policy. You do not repeat the model relationship in a
+second declaration. [Policy defaults and overrides](api-guide.md#a-product-outcome-that-needs-guarded-completion)
+remain available.
 
-```yaml
-# compose.yaml
-services:
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: tutorial
-      POSTGRES_PASSWORD: tutorial
-      POSTGRES_DB: tutorial
-    ports:
-      - "127.0.0.1:55462:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tutorial"]
-      interval: 2s
-      timeout: 5s
-      retries: 20
-  redis:
-    image: redis:7
-    ports:
-      - "127.0.0.1:56412:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 2s
-      timeout: 5s
-      retries: 20
-```
+## 2. Commit the request and its work together
 
-```bash
-docker compose up -d --wait
-```
-
-These credentials and loopback ports are for this local tutorial. If you already
-have dedicated development services, set the `PG*` and `CELERY_BROKER_URL`
-environment variables used below instead. Tests need permission to create a test
-database.
-
-## 3. Configure Due once
-
-Create `settings.py` in `hello-due`:
+The product row records what the user wants and sees. The work row records the
+input this attempt owes, plus Due's revision, claim and recovery state:
 
 ```python
-# settings.py
-import os
+from typing import ClassVar
+from django.db import models
+from due.django.public import UniverseDurableWork, durable_work_schema
 
-SECRET_KEY = "local-due-tutorial-only"
-USE_TZ = True
-INSTALLED_APPS = ["due.django", "due.django.tasks", "hello.apps.HelloConfig"]
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("PGDATABASE", "tutorial"),
-        "USER": os.getenv("PGUSER", "tutorial"),
-        "PASSWORD": os.getenv("PGPASSWORD", "tutorial"),
-        "HOST": os.getenv("PGHOST", "127.0.0.1"),
-        "PORT": os.getenv("PGPORT", "55462"),
-    }
-}
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:56412/0")
-TASKS = {
-    "default": {
-        "BACKEND": "due.django.tasks.backend.DueBackend",
-        "OPTIONS": {"replay_safe_tasks": ["hello.tasks.greet"]},
-    }
-}
+
+class Calculation(models.Model):
+    number = models.IntegerField(default=0)
+    result = models.IntegerField(null=True)
+    failed = models.BooleanField(default=False)
+
+
+class CalculationWork(UniverseDurableWork):
+    work_owner_field: ClassVar[str] = "owner"
+    owner = models.OneToOneField(Calculation, on_delete=models.SET_NULL, null=True)
+    number = models.IntegerField()
+
+    class Meta:
+        indexes, constraints = durable_work_schema("number_calculation")
 ```
 
-`replay_safe_tasks` declares which functions you have checked can safely run again.
-It does not change their behavior or make an unsafe effect safe.
-
-Create `hello/apps.py`. Django calls `ready()` in each process:
+Use one application command to change the number and request its calculation:
 
 ```python
-# hello/apps.py
-from django.apps import AppConfig
-
-
-class HelloConfig(AppConfig):
-    name = "hello"
-
-    def ready(self):
-        from celery_app import app
-        from due.django.public import configure_durable_work
-
-        configure_durable_work(django_tasks=True, celery_app=app)
+def request_number(calculation_id: int, number: int) -> CalculationWork:
+    with calculate.atomic(calculation_id) as pending:
+        sample = pending.locked_owner
+        if sample.number != number:
+            sample.number = number
+            sample.result = None
+            sample.failed = False
+            sample.save(update_fields=["number", "result", "failed"])
+        return pending.request_work(CalculationWork(number=number))
 ```
 
-`configure_durable_work()` installs the task imports and recurring recovery
-schedule. `django_tasks=True` uses the default backend and queue, with recovery
-every 30 seconds. Call it once; native registrations can share this call later.
-Use `django_tasks_registration(...)` from the same module when you need custom
-queues, recovery cadence or execution limits.
+`atomic()` locks the product owner. `request_work()` records the captured input
+in the same PostgreSQL transaction and arranges a notification **after the
+outermost commit**. A changed input advances the desired revision on the same
+work row. The default empty `universe` is sufficient for this single-tenant app.
 
-Create `celery_app.py` in `hello-due`:
+Repeating the same captured input reuses that work, including an already completed
+result. That is why the command clears the answer only when the number changes.
+An exhausted request needs an explicit retry decision; the example's
+`retry_number()` uses `pending.retry_failed()` to grant a new budget. Django Tasks
+has different semantics: each `.enqueue()` creates a separate invocation.
+
+Try rolling back the outer request:
 
 ```python
-# celery_app.py
-import os
-
-from celery import Celery
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
-app = Celery("hello_due")
-app.config_from_object("django.conf:settings", namespace="CELERY")
-app.autodiscover_tasks()
-```
-
-The file layout is:
-
-```text
-hello-due/
-├── pyproject.toml
-├── uv.lock
-├── compose.yaml
-├── settings.py
-├── celery_app.py
-└── hello/
-    ├── __init__.py
-    ├── apps.py
-    └── tasks.py
-```
-
-Create Due's tables and check the wiring:
-
-```bash
-uv run python -m django migrate --settings=settings
-uv run python -m django due_check --settings=settings
-```
-
-`due_check` should report no configuration errors. It checks registration and
-routes; it does not establish that Redis or a worker is reachable.
-
-## 4. Enqueue, execute, read the result
-
-Open a second terminal in `hello-due` and start a worker:
-
-```bash
-uv run celery -A celery_app:app worker -Q default --concurrency=1 --loglevel=INFO
-```
-
-In a third terminal, also in `hello-due`, start the Beat scheduler:
-
-```bash
-uv run celery -A celery_app:app beat --loglevel=INFO
-```
-
-The worker runs functions. Beat periodically asks Due to recover outstanding
-work, including invocations whose notifications disappeared. Keep both running.
-
-In the first terminal, open a Django shell:
-
-```bash
-uv run python -m django shell --settings=settings
-```
-
-Paste this Python. Importing the Celery app configures the producer's broker:
-
-```python
-from celery_app import app
-from django.tasks import TaskResultStatus
-from hello.tasks import greet
-
-result = greet.enqueue("Ada")
-print(result.id)
-```
-
-`.enqueue()` returns a result handle after persisting the invocation. The worker
-runs `greet()` and prints `Hello, Ada!` in **its** terminal. In the shell, read the
-saved result:
-
-```python
-result = greet.get_result(result.id)
-print(result.status)
-if result.status == TaskResultStatus.SUCCESSFUL:
-    print(result.return_value)
-```
-
-Expected: `SUCCESSFUL` and `Hello, Ada!`. If the status is still `READY` or
-`RUNNING`, repeat the lookup after the worker finishes. Save the result ID to
-retrieve it from another request. Results live in PostgreSQL; no Celery result
-backend is needed. Arguments and return values must be JSON serializable.
-
-## 5. Lose a notification
-
-Stop **Beat only** with Ctrl+C. Leave the worker and shell running. Use Due's
-public fault control to drop the immediate notification:
-
-```python
+from django.db import transaction
 from due.django.conformance import hold_nudges
 
-with hold_nudges() as dropped:
-    recovered = greet.enqueue("Grace")
+sample = Calculation.objects.create()
+with hold_nudges() as sent:
+    try:
+        with transaction.atomic():
+            request_number(sample.pk, 21)
+            raise ValueError("the rest of the request failed")
+    except ValueError:
+        pass
 
-print(len(dropped))
-recovered.refresh()
-print(recovered.status)
+sample.refresh_from_db()
+assert sample.number == 0
+assert not CalculationWork.objects.filter(owner=sample).exists()
+assert not sent
 ```
 
-Expected: `1` and `READY`. The task was committed, but the worker was not notified.
-Restart Beat. After a recovery tick and the one-second task, the worker should
-print `Hello, Grace!`. Inspect its saved result:
+There is no committed product change without its work, and no work from a rolled
+back request. Keep your own related product writes inside the same transaction.
+
+## 3. Lose the notification, keep the obligation
+
+The remaining snippets import the configured production instance and use local
+fault controls. Run them without independent workers on this database:
 
 ```python
-recovered.refresh()
-print(recovered.status)
-if recovered.status == TaskResultStatus.SUCCESSFUL:
-    print(recovered.return_value)
-```
-
-Expected: `SUCCESSFUL` and `Hello, Grace!`. You did not enqueue it again. Recovery
-found the committed invocation in PostgreSQL and notified the worker. The
-30-second cadence is a polling interval, not a completion deadline; allow about
-a minute for this demonstration.
-`hold_nudges()` is for demonstrations and tests only.
-
-## 6. Keep a small application test
-
-Exit the shell and stop the worker and Beat. These tests use a separate PostgreSQL
-test database and Due's controlled delivery harness. Step 5 exercises the real
-worker/scheduler path; the harness makes the failure history repeatable without
-running separate processes.
-
-```bash
-uv add --dev 'django-due[testing]' pytest-django
-```
-
-Create `pytest.ini`:
-
-```ini
-# pytest.ini
-[pytest]
-DJANGO_SETTINGS_MODULE = settings
-pythonpath = .
-```
-
-Create `test_greeting.py`:
-
-```python
-# test_greeting.py
-import pytest
-from django.db import transaction
-from django.tasks import TaskResultStatus
-from django.tasks.exceptions import TaskResultDoesNotExist
 from due.django.conformance import WorkTableDelivery, hold_nudges
-from due.django.runtime.registry import registration_for
-from due.django.tasks.models import TaskWork
+from examples.numbers.effects import calculate, request_number
+from examples.numbers.models import Calculation, CalculationWork
 
-from hello.tasks import greet
+sample = Calculation.objects.create()
+with hold_nudges() as dropped:
+    work = request_number(sample.pk, 21)
 
+assert len(dropped) == 1
+assert CalculationWork.objects.get(pk=work.pk).state == "ready"
+assert Calculation.objects.get(pk=sample.pk).result is None
 
-def test_greeting_can_repeat(capsys):
-    assert greet.func("Ada") == "Hello, Ada!"
-    assert greet.func("Ada") == "Hello, Ada!"
-    assert capsys.readouterr().out == "Hello, Ada!\nHello, Ada!\n"
+with WorkTableDelivery(calculate).session() as delivery:
+    delivery.recover()
 
-
-@pytest.mark.django_db(transaction=True)
-def test_rollback_removes_the_invocation():
-    with pytest.raises(ValueError), hold_nudges(), transaction.atomic():
-        result = greet.enqueue("Ada")
-        raise ValueError("reject the request")
-    with pytest.raises(TaskResultDoesNotExist):
-        greet.get_result(result.id)
-
-
-@pytest.mark.django_db(transaction=True)
-def test_lost_notification_recovers_the_greeting(capsys):
-    with hold_nudges() as dropped:
-        result = greet.enqueue("Grace")
-    assert len(dropped) == 1
-    result.refresh()
-    assert result.status == TaskResultStatus.READY
-    assert capsys.readouterr().out == ""
-    with WorkTableDelivery(registration_for(TaskWork).capability).session() as delivery:
-        delivery.recover()
-    result.refresh()
-    assert result.status == TaskResultStatus.SUCCESSFUL
-    assert result.return_value == "Hello, Grace!"
-    assert "Hello, Grace!" in capsys.readouterr().out
+assert Calculation.objects.get(pk=sample.pk).result == 42
 ```
+
+`hold_nudges()` drops the immediate post-commit notification. It does not delete
+the work row. Recovery discovers the outstanding work and delivers it again.
+**The notification is a prompt to work; PostgreSQL remembers the obligation.**
+
+`WorkTableDelivery` is a test driver: it advances time and drives the registered
+recovery task and actual worker task body against PostgreSQL, using controlled
+transport. It does not implement a second recovery algorithm. In a running app,
+Beat triggers recovery and Celery workers execute the work.
+
+## 4. Stop after the effect, before settlement
+
+Start a fresh request, then wrap only the arithmetic function with a fault:
+
+```python
+from unittest.mock import patch
+from due.django.conformance import WorkerDied, die_after
+from examples.numbers import effects
+
+sample = Calculation.objects.create()
+with hold_nudges():
+    work = request_number(sample.pk, 21)
+
+with patch.object(effects, "double", die_after(effects.double)):
+    try:
+        calculate.attempt_execution(work.pk)
+    except WorkerDied:
+        pass
+
+assert Calculation.objects.get(pk=sample.pk).result is None
+with WorkTableDelivery(calculate).session() as delivery:
+    delivery.recover()
+assert Calculation.objects.get(pk=sample.pk).result == 42
+```
+
+The first call prints `double(21) = 42`, then the injected worker-stop exception interrupts it
+before settlement. The saved result is still `None` and its claim remains held.
+After the lease expires, ordinary recovery tries it again:
+
+```text
+double(21) = 42
+Attempt stopped after double returned: result=None, claim is still held
+double(21) = 42
+Expired claim recovered: double ran again, result=42
+```
+
+This proves why `ReplaySafeEffect` requires safe repetition. Our arithmetic and
+duplicate printing are harmless. Sending money twice would not be. A claim
+protects local settlement; it cannot undo an external call that already happened.
+Use an [evidence-aware operation](capabilities.md#uncertainty-and-evidence) for
+non-repeatable effects. The fault here simulates interruption at a precise
+boundary; it does not kill an OS process.
+
+## 5. Let the old attempt finish late
+
+The last lesson uses `applied_snapshot()` to pause a real worker on a separate
+database connection after its effect has returned, before it can settle:
+
+```text
+Worker A captures number=21, calculates 42, then pauses.
+The application calls request_number(sample.pk, 7).
+Worker A resumes with its old answer, 42.
+Due rejects its stale settlement: the product result stays None.
+Recovery runs the current revision and publishes 14.
+```
+
+The decisive part of the runnable lesson is:
+
+```python
+from due.django.conformance import applied_snapshot
+
+sample = Calculation.objects.create()
+with hold_nudges():
+    work = request_number(sample.pk, 21)
+
+with (
+    hold_nudges(),
+    applied_snapshot(
+        calculate,
+        work,
+        change=lambda: request_number(sample.pk, 7),
+        observe=lambda: Calculation.objects.get(pk=sample.pk).result,
+    ) as race,
+):
+    old_attempt = race.take_snapshot()
+    race.supersede()
+    race.run_with_snapshot(old_attempt)
+
+assert Calculation.objects.get(pk=sample.pk).result is None
+
+with WorkTableDelivery(calculate).session() as delivery:
+    delivery.recover()
+assert Calculation.objects.get(pk=sample.pk).result == 14
+```
+
+The first assertion runs **before** the
+new result is computed, so a temporary stale write cannot hide behind the later
+correct answer. The application does not compare revisions in its callback;
+Due checks the captured revision and claim while holding the settlement locks.
+
+## Run it and carry the pattern into your app
+
+After the [one-time setup](../../examples/numbers/README.md#prepare-once):
 
 ```bash
-uv run pytest -q
+uv run python -m django shell --settings=examples.settings -c "from examples.numbers.lesson import run; run()"
 ```
 
-Expect **3 passing tests**: repeated execution, transactional rollback, and
-lost-notification recovery. The recovery test checks that the function really
-printed and returned the greeting. These establish this trivial app's promises;
-they say nothing about a real provider's replay safety.
+Every step asserts its observations. Then follow the
+[real worker and Beat walkthrough](../../examples/numbers/README.md#use-real-workers)
+to repeat notification loss with independent processes.
 
-## Bring this into your application
+Replace `double()` with your own replay-safe operation, define the captured input
+fields, and publish only local product state in `finalize_success()`. Register the
+capability in every process using `DurableWorkRegistration` and
+`configure_durable_work` from `due.django.public`. Keep recovery running.
 
-Keep `.enqueue()` inside the transaction that saves the product change it serves,
-using the same default database. Due commits both together and notifies after
-commit. Wrapping enqueue in `transaction.on_commit()` would separate durable
-admission from the product transaction. [Transactional example](django-tasks.md#commit-the-task-with-the-product-change).
+Build the application contract alongside those hooks. The example's
+[contract bindings](../../integration_tests/conformance/number_examples.py) supply
+real producer commands, arithmetic, printed output and product observations.
+`effect_contract_suite` generates failure histories; independent enrollment and
+executed-report checks prevent a missing suite from looking successful. The
+[test commands](../../examples/numbers/README.md#run-the-application-checks) run
+these checks and the live worker journey. See [conformance](conformance.md) to
+adapt the contract to your operation's actual guarantees.
 
-For a task that can safely repeat, this is the full authoring API. For richer
-requirements, build on the existing applications:
-
-- [Which API should I use?](api-guide.md) explains `ReplaySafeEffect.for_owner()`,
-  `capability.atomic()`, consolidated imports and the file layout.
-- [Acme Printworks](../../docs/acme-printworks-tutorial.md) grows from a Django task
-  to guarded publication, remote-state repair, uncertain print orders and cleanup.
-  Build its application contract alongside your first native capability; its
-  [runnable tests](../../examples/acme_printworks/tests) show enrollment and evidence.
-- [Django Tasks reference](django-tasks.md) covers delays, queues, async calls,
-  retry budgets, retention and worker time limits.
-
-If a task stays `READY`, check that the worker consumes `default`, all terminals
-use the same database/broker settings, and Beat is running. Inspect the worker
-log and `uv run python -m django due_status django_tasks --settings=settings`.
-
-When finished, stop the worker and Beat with Ctrl+C, then run `docker compose down`
-from `hello-due`. These services are disposable and have no persistent volumes;
-keep any data you need before removing them.
+For ordinary task functions that do not need this owner/revision split, use the
+[Django Tasks greeting walkthrough](django-tasks-quickstart.md). The
+[API guide](api-guide.md) helps choose; [Printworks](../../docs/acme-printworks-tutorial.md)
+builds on these ideas for a larger application.

@@ -1,7 +1,8 @@
 # Runnable applications
 
-Start with the [trivial greeting tutorial](../package/docs/quickstart.md) to learn
-Due with a function that sleeps, prints and returns. Then choose an application
+Start with the [trivial arithmetic tutorial](../package/docs/quickstart.md) to learn
+Due's native API through rollback, lost notifications, replay and stale results.
+The [prepared numbers app](numbers/README.md) supplies setup. Then choose an application
 below when you need the corresponding product behavior.
 
 Examples live alongside Due so API changes and the applications that exercise
