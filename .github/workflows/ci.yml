@@ -5,6 +5,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Legacy admission or a fresh complete checkpoint
+        type: choice
+        options: [legacy, thorough, exhaustive, performance]
+        default: legacy
 permissions:
   contents: read
   actions: read
@@ -59,9 +65,10 @@ jobs:
           config: .github/test-lanes.json
       - id: policy
         name: Admit selected suites before provisioning
-        uses: gigaverse-app/ci-esta/actions/plan-test-policy@103d686561b4a98408ee1727a452e8b3b6fcb1f7
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@7d3c74c5428208a86f4187090eda5beca1f4376d
         with:
           policy: .github/test-policy.json
+          profile: ${{ inputs.profile || 'legacy' }}
           occasion: ${{ github.event_name == 'pull_request' && 'pr' || github.event_name == 'workflow_dispatch' && 'manual' || github.event_name }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: scope
@@ -93,7 +100,7 @@ jobs:
       - id: evidence
         name: Find completed Django suites for these exact inputs
         if: >-
-          ${{ steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
+          ${{ (inputs.profile == '' || inputs.profile == 'legacy') && steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               (steps.scope.outputs.library != 'false' || steps.scope.outputs.integration != 'false') }}
         uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1

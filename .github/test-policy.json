@@ -11,6 +11,45 @@
       "include": [
         "*"
       ]
+    },
+    "thorough": {
+      "occasions": [
+        "pr",
+        "manual",
+        "schedule"
+      ],
+      "include": [
+        "library",
+        "integration",
+        "typecheck",
+        "contracts",
+        "wheel"
+      ],
+      "scope": "all",
+      "fresh": true
+    },
+    "exhaustive": {
+      "occasions": [
+        "pr",
+        "manual",
+        "schedule"
+      ],
+      "include": [
+        "*"
+      ],
+      "scope": "all",
+      "fresh": true
+    },
+    "performance": {
+      "occasions": [
+        "manual",
+        "schedule"
+      ],
+      "include": [
+        "widget_comparison"
+      ],
+      "scope": "all",
+      "fresh": true
     }
   },
   "work": [
