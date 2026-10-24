@@ -4,6 +4,8 @@
 
 Durable obligations for Django and PostgreSQL. This directory is a standalone installable package and the editable subtree used by adopting applications.
 
+- **[Start here: a deliberately trivial greeting tutorial](docs/quickstart.md)**
+- **[Choose an API and find the imports](docs/api-guide.md)**
 - [Capabilities and guarantees](docs/capabilities.md)
 - [Application integration](docs/integration.md)
 - [Django Tasks backend](docs/django-tasks.md): keep `@task`, `.enqueue()` and `TaskResult` with durable recovery

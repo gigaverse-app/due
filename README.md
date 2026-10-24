@@ -10,7 +10,7 @@
 
 **An attempt can end. The obligation remains.**
 
-[Read the documentation](https://due.readthedocs.io/en/latest/) · [Related tools](https://due.readthedocs.io/en/latest/ecosystem/)
+[Start the tutorial](package/docs/quickstart.md) · [Choose an API](package/docs/api-guide.md) · [Documentation](https://due.readthedocs.io/en/latest/)
 
 The PyPI distribution name is **`django-due`** (`pip install django-due`).
 Python imports remain **`due`**. See [releasing](RELEASING.md) for the manual release process.
@@ -41,15 +41,42 @@ The message gets work started sooner. The database remembers what remains owed.
 
 [When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
 
-## Start simple, keep the reliability tests
+## Start here: one durable function
 
-Follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django word-count
-task to proof publication, portal repair, print ordering and durable cleanup.
-The [runnable app](examples/acme_printworks/README.md) includes workflow charts and
-pytest-obligation contracts that generate 270 native reliability checks.
-**Always build the application contract** as you integrate Due: bind the real
-commands, provider faults and customer-visible outcome, then run the shared tests
-and enrollment/report gates. See the [conformance guide](package/docs/conformance.md).
+For a repeatable background function, use **Django's `@task` and `.enqueue()` with
+Due as the backend**. The first tutorial's entire app sleeps, prints, and returns
+a greeting. It is deliberately trivial so you can focus on Due:
+
+```python
+# hello/tasks.py
+from time import sleep
+from django.tasks import task
+
+
+@task
+def greet(name: str) -> str:
+    sleep(1)
+    message = f"Hello, {name}!"
+    print(message, flush=True)
+    return message
+```
+
+After configuring the backend, call `result = greet.enqueue("Ada")` and retrieve the saved
+result with `greet.get_result(result.id)`. Follow the
+**[complete greeting tutorial](package/docs/quickstart.md)** for every file,
+installation, worker and scheduler commands, expected output, a deliberately lost
+notification, and application tests.
+
+When your product needs guarded completion, **`ReplaySafeEffect.for_owner()` and
+`capability.atomic()` are the main native authoring APIs**. Import the production
+types and startup helpers from `due.django.public`; common contract and fault
+helpers live in `due.django.conformance`. [API choices, imports and file map →](package/docs/api-guide.md)
+
+Then follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django task
+to proof publication, portal repair, print ordering and cleanup. Its
+[runnable app](examples/acme_printworks/README.md) includes application contracts.
+Build those contracts alongside your first native capability: the real commands,
+provider faults and customer-visible observations make recovery promises testable.
 
 ## What happens when things go wrong?
 
@@ -126,46 +153,11 @@ uv add 'django-due[redis]'
 The documentation under `latest` follows main. Check your installed version
 against the release notes before using an API added after that release.
 
-Add `"due.django"` to `INSTALLED_APPS`, then run your application's migrations.
-Your own work models subclass `UniverseDurableWork`, declare captured inputs,
-and include `durable_work_schema(...)` in their indexes and constraints.
-`universe` is an unrestricted tenant key retained for extraction compatibility;
-use an empty string for a single-tenant application.
-
-A capability puts external I/O and local settlement in different methods:
-
-```python
-from due.django.public import DurableWorkPolicy, ReplaySafeEffect
-
-
-class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
-    def perform_effect(self, work: PublicationWork) -> str:
-        return storage.put(
-            key=work.provider_idempotency_key(),
-            text=work.text,
-        )
-
-    def finalize_success(self, work: PublicationWork, result: str) -> None:
-        Document.objects.filter(pk=work.owner_id).update(published_key=result)
-
-
-publication = PublishDocument.for_owner(
-    owner=Document,
-    work=PublicationWork,
-    policy=DurableWorkPolicy(),
-)
-
-with publication.atomic(document_id) as pending:
-    pending.locked_owner.text = text
-    pending.locked_owner.save(update_fields=["text"])
-    pending.request_work(PublicationWork(text=text, universe="tenant-42"))
-```
-
-This sketch assumes your `Document`, `PublicationWork` and idempotent `storage`
-implementation. The [complete runnable example](examples/documents) includes
-models, migrations, an actual filesystem effect, registration and Celery wiring.
-Register every capability in **each process**; register once to generate the Beat
-schedule and route both execution and recovery. See [integration](package/docs/integration.md).
+Use the [greeting tutorial](package/docs/quickstart.md) for a complete first setup.
+It currently installs from source to use the consolidated imports added after
+0.10.0. For an existing application, follow the [Django Tasks reference](package/docs/django-tasks.md)
+or [native integration reference](package/docs/integration.md). Both need registration
+in every process, workers and recurring recovery.
 
 ## Run the example
 
@@ -246,6 +238,9 @@ replay. [Operations and monitoring →](package/docs/operations.md)
 
 | You want to… | Read |
 | --- | --- |
+| Get a first task running | [Trivial greeting tutorial](package/docs/quickstart.md) |
+| Find the high-level API and imports | [API guide and file map](package/docs/api-guide.md) |
+| Add richer product guarantees | [Printworks tutorial](docs/acme-printworks-tutorial.md) |
 | Decide whether Due fits your application | [Strengths and tradeoffs](docs/why-due.md), [alternatives](docs/alternatives.md) |
 | Integrate the runtime | [Django and Celery wiring](package/docs/integration.md), [capabilities](package/docs/capabilities.md) |
 | Move an existing application onto Due | [Migration settings and stable wire names](package/docs/integration.md#migrating-an-existing-application), [library migration guides](package/docs/migrations.md) |

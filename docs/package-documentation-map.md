@@ -2,6 +2,11 @@
 
 The package subtree includes the docs needed to change and operate the library. Repository guides and application showcases stay with their full checkout. Each document has one owner.
 
+Readers start with [the greeting tutorial](../package/docs/quickstart.md), then
+[the API and file map](../package/docs/api-guide.md). These live in `package/docs/`
+so the entry points travel with the library. The longer
+[Printworks story](acme-printworks-tutorial.md) stays with its repository example.
+
 | Previous path | Canonical path | Owner |
 | --- | --- | --- |
 | `docs/architecture.md` | `package/docs/architecture.md` | Library API, guarantees, adoption or maintenance |

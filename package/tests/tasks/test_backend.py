@@ -299,7 +299,8 @@ def test_database_router_cannot_split_admission_from_recovery(task_runtime):
     assert not TaskWork.objects.exists()
 
 
-def test_tasks_and_native_capabilities_share_manifest(task_runtime):
+@pytest.mark.parametrize("short_setup", [False, True])
+def test_tasks_and_native_capabilities_share_manifest(task_runtime, short_setup):
     from django.test import override_settings
 
     from due.django.runtime.registry import DurableWorkRegistration, configure_durable_work, installed
@@ -311,8 +312,9 @@ def test_tasks_and_native_capabilities_share_manifest(task_runtime):
         configure_durable_work(
             [
                 DurableWorkRegistration(name="native", capability=primitive),
-                django_tasks_registration(),
-            ]
+                *([] if short_setup else [django_tasks_registration()]),
+            ],
+            django_tasks=short_setup,
         )
         owner = PrimitiveOwner.objects.create()
         with primitive.atomic(owner.pk) as pending:

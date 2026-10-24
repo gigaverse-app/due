@@ -1,5 +1,11 @@
 # Prove your application's work tables
 
+Common application bindings and fault controls are available from
+`due.django.conformance`: `EffectExamples`, `effect_contract_suite`,
+`work_table_host`, `ProviderSeam`, `seam_examples`, `WorkTableDelivery`,
+`hold_nudges`, and `expire_lease`. Specialized declarations remain in the
+modules listed below. See the [API map](api-guide.md#imports-you-actually-need).
+
 **Always build this contract as you integrate Due.** The generated
 pytest-obligation tests are a central reliability benefit and part of a complete
 integration. Do not wait for an outage or a separate hardening project. Start with

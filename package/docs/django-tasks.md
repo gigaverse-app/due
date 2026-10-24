@@ -1,5 +1,8 @@
 # Use Due with Django Tasks
 
+For a first working example with every file and command, start with the
+[trivial greeting tutorial](quickstart.md). This page is the backend reference.
+
 Keep Django's `@task`, `.enqueue()`, and `TaskResult` APIs while Due stores each
 invocation in PostgreSQL and uses Celery workers to execute it. A committed
 invocation survives a lost broker notification or a worker dying mid-task.
@@ -69,8 +72,7 @@ class MyAppConfig(AppConfig):
     name = "myapp"
 
     def ready(self):
-        from due.django.runtime.registry import configure_durable_work
-        from due.django.tasks.runtime import django_tasks_registration
+        from due.django.public import configure_durable_work, django_tasks_registration
 
         configure_durable_work(
             [
@@ -79,6 +81,11 @@ class MyAppConfig(AppConfig):
             ]
         )
 ```
+
+With the current source version, the standard task-only setup can be written as
+`configure_durable_work(django_tasks=True)`. Native registrations can be supplied
+as its first argument. Use the explicit registration above when customizing
+queues, cadence or worker limits; omit the flag when registering tasks explicitly.
 
 Call `configure_durable_work()` once with the complete manifest. The helper
 adds Due's Celery task imports and periodic recovery schedule to Django's Celery

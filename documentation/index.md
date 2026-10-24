@@ -12,8 +12,33 @@ stores a work row alongside the product change, retries delivery through Celery,
 and fences which worker can publish completion. Your application owns the
 meaning of success and whether an external operation is safe to repeat.
 
-[Run the recovery example](../docs/recovery-walkthrough.md){ .md-button .md-button--primary }
-[Integrate your application](../package/docs/integration.md){ .md-button }
+[Start the greeting tutorial](../package/docs/quickstart.md){ .md-button .md-button--primary }
+[Choose an API](../package/docs/api-guide.md){ .md-button }
+
+## Start with one function
+
+Use **Django's `@task` and `.enqueue()` with Due as the backend** for ordinary
+repeatable work. The first tutorial deliberately uses a trivial app: sleep,
+print a greeting, return a string.
+
+```python
+from time import sleep
+from django.tasks import task
+
+
+@task
+def greet(name: str) -> str:
+    sleep(1)
+    message = f"Hello, {name}!"
+    print(message, flush=True)
+    return message
+```
+
+The [tutorial](../package/docs/quickstart.md) provides every file and command,
+then drops a notification so you can see recovery happen. For richer product
+coordination, start with `ReplaySafeEffect.for_owner()` and `capability.atomic()`.
+Production imports live in `due.django.public`; common testing imports live in
+`due.django.conformance`. [Choose the API and find its imports](../package/docs/api-guide.md).
 
 ## Install in a Django application
 
@@ -40,14 +65,15 @@ runnable Django Tasks application that grows into native Due capabilities. Alway
 build its application contract alongside the feature: the shared pytest-obligation
 tests make recovery promises executable from the first native capability.
 
-## Start with one operation
+## Your next step
 
-1. [Run a lost-message recovery](../docs/recovery-walkthrough.md). See the product
-   state and file output survive a missing notification and process death.
-2. [Choose a capability](../package/docs/capabilities.md). A repeatable file write
-   and an uncertain payment need different replay and evidence rules.
-3. [Wire models, registration and recovery](../package/docs/integration.md), then
-   [bind conformance checks](../package/docs/conformance.md) to your own outcome.
+1. [Run the trivial tutorial](../package/docs/quickstart.md) to learn enqueueing,
+   execution, stored results and recovery.
+2. [Follow Printworks](../docs/acme-printworks-tutorial.md) when you need native
+   capabilities and their application contracts.
+3. Use the [integration](../package/docs/integration.md),
+   [capability](../package/docs/capabilities.md) and [testing](../package/docs/conformance.md)
+   references while building your application.
 
 Due does not provide exactly-once external execution or replace a workflow
 engine's history. A stale worker can still reach an external provider; fencing

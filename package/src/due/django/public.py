@@ -1,9 +1,17 @@
-"""The durable-work library's public authoring imports and low-level coordination exports.
+"""Application authoring and startup imports, plus existing coordination exports.
 
-See docs/architecture.md for Due's guarantees and integration boundaries.
+Use this facade for models, capabilities, evidence and registration. Import after
+Django has loaded applications (models.py or AppConfig.ready, as appropriate).
+Testing integrations live in due.django.conformance and remain optional.
 """
 
-from due.errors import CompletionStatus, EffectNotAppliedError, EffectRejection, WorkIncomplete
+from due.errors import (
+    CompletionStatus,
+    EffectNotAppliedError,
+    EffectOutcomeUnknownError,
+    EffectRejection,
+    WorkIncomplete,
+)
 from due.observations import AppliedEffectEvidence
 from due.retry_delays import ExponentialDelay
 
@@ -22,12 +30,34 @@ from .capabilities.authoring import (
     WorkOwnerBusy,
     registered_nudge,
 )
-from .capabilities.projection import projections_with_stale_writes
+from .capabilities.compensation import IndependentCompensation, ProtectedOutput
+from .capabilities.observed_operations import (
+    ObservedExternalOperation,
+    ObservedExternalOperationWork,
+    observation_index,
+)
+from .capabilities.operations import DurableExternalOperation, ExternalOperationWork
+from .capabilities.projection import DurableProjection, Projection, projections_with_stale_writes
+from .capabilities.scheduled import (
+    ActionOutcome,
+    CancellationResult,
+    DurableScheduledAction,
+    ScheduledAction,
+    ScheduledWork,
+    ScheduleResult,
+)
 from .declarations.capture import Capture
 from .declarations.dependents import Dependent
 from .declarations.eligibility import ExecutionEligibility
 from .declarations.external_services import ExternalService
 from .declarations.mirrors import Outcome, StatusMirror
+from .evidence.effect_evidence import (
+    AppliedEffectEvidenceStore,
+    JsonAppliedEffectEvidenceStore,
+    StoredAppliedEffectEvidence,
+)
+from .integration import ApplicationHooks
+from .integration import configure as configure_application
 from .models import (
     DurableWork,
     DurableWorkState,
@@ -58,9 +88,34 @@ from .runtime.coordination import (
     supersede_work,
     terminal_work,
 )
+from .runtime.registry import DurableWorkRegistration, configure_durable_work, django_tasks_registration
 from .runtime.transport import run_effect_coroutine
 
 __all__ = [
+    "ActionOutcome",
+    "ApplicationHooks",
+    "AppliedEffectEvidenceStore",
+    "CancellationResult",
+    "DurableExternalOperation",
+    "DurableProjection",
+    "DurableScheduledAction",
+    "DurableWorkRegistration",
+    "EffectOutcomeUnknownError",
+    "ExternalOperationWork",
+    "IndependentCompensation",
+    "JsonAppliedEffectEvidenceStore",
+    "ObservedExternalOperation",
+    "ObservedExternalOperationWork",
+    "Projection",
+    "ProtectedOutput",
+    "ScheduledAction",
+    "ScheduledWork",
+    "ScheduleResult",
+    "StoredAppliedEffectEvidence",
+    "configure_application",
+    "configure_durable_work",
+    "django_tasks_registration",
+    "observation_index",
     "AppliedEffectEvidence",
     "EffectNotAppliedError",
     "EffectRejection",

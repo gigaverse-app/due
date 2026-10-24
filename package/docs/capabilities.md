@@ -1,9 +1,19 @@
 # Work-table capabilities
 
+For the recommended entry points and consolidated imports, read
+[which API to use](api-guide.md). Start with the [trivial tutorial](quickstart.md)
+if you have not run Due yet.
+
 Start with a product owner, a concrete work table and one capability. Commit the
 product change and captured work through `capability.atomic(owner_id)`. Register
 the capability in every process; recovery must run periodically even when all
 post-commit notifications appear to succeed. [Complete setup](integration.md).
+
+`MyEffect.for_owner(work=MyWork)` infers the owner model from the work table's
+declared one-to-one relation and supplies `DurableWorkPolicy()`. Pass `policy=` for
+different timing or retention, and optionally `owner=` for an explicit checked
+binding. Provider operations that require retained history still need
+`DurableWorkPolicy(retention=None)`.
 
 ## Pick the external contract first
 
@@ -11,11 +21,11 @@ post-commit notifications appear to succeed. [Complete setup](integration.md).
 | --- | --- | --- |
 | Repeating captured input is safe | `due.django.public.ReplaySafeEffect` | [Document publication](https://github.com/gigaverse-app/due/blob/main/examples/documents/effects.py) |
 | Several calls need explicit ownership checks | `due.django.public.OwnedDurableWorkCapability` | [Guarded provider calls](../tests/capabilities/test_provider_calls.py) |
-| Current desired state must reach an external view | `due.django.capabilities.projection.Projection` | [Projection callbacks](../tests/declarations/test_simple_callbacks.py) |
-| A deadline moves or becomes unnecessary | `due.django.capabilities.scheduled.ScheduledAction` | [Scheduled publication demo](https://github.com/gigaverse-app/due/blob/main/examples/scheduled/README.md) |
-| An occurrence must not be repeated without evidence | `due.django.capabilities.operations.DurableExternalOperation` | [Operation and receipt models](../tests/harness/operation.py) |
-| A provider can report the outcome of an uncertain occurrence | `due.django.capabilities.observed_operations.ObservedExternalOperation` | [Observed operation](../tests/harness/observation.py) |
-| An output needs independently recoverable cleanup | `due.django.capabilities.compensation.IndependentCompensation` | [Compensation histories](../tests/capabilities/test_compensation.py) |
+| Current desired state must reach an external view | `due.django.public.Projection` | [Projection callbacks](../tests/declarations/test_simple_callbacks.py) |
+| A deadline moves or becomes unnecessary | `due.django.public.ScheduledAction` | [Scheduled publication demo](https://github.com/gigaverse-app/due/blob/main/examples/scheduled/README.md) |
+| An occurrence must not be repeated without evidence | `due.django.public.DurableExternalOperation` | [Operation and receipt models](../tests/harness/operation.py) |
+| A provider can report the outcome of an uncertain occurrence | `due.django.public.ObservedExternalOperation` | [Observed operation](../tests/harness/observation.py) |
+| An output needs independently recoverable cleanup | `due.django.public.IndependentCompensation` | [Compensation histories](../tests/capabilities/test_compensation.py) |
 
 These are work-table capabilities, including observation and compensation. Due
 does not expose a native-row recovery/completion API. The private delivery

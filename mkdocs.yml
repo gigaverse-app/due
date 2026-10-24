@@ -58,6 +58,8 @@ validation:
     anchors: warn
 extra:
   published_sources:
+  - package/docs/quickstart.md
+  - package/docs/api-guide.md
   - docs/acme-printworks-tutorial.md
   - docs/alternatives.md
   - docs/ci-toolkit.md
@@ -95,9 +97,9 @@ extra:
 nav:
 - Home: index.md
 - Getting started:
-  - Quickstart: package/docs/integration.md
-  - Django Tasks backend: package/docs/django-tasks.md
-  - Acme Printworks tutorial: docs/acme-printworks-tutorial.md
+  - First task tutorial: package/docs/quickstart.md
+  - Which API should I use?: package/docs/api-guide.md
+  - Grow with Printworks: docs/acme-printworks-tutorial.md
   - Why Due: docs/why-due.md
   - Recovery walkthrough: docs/recovery-walkthrough.md
   - Compare alternatives: docs/alternatives.md
@@ -105,6 +107,9 @@ nav:
   - Architecture: package/docs/architecture.md
   - Capabilities: package/docs/capabilities.md
   - Completion leases: package/docs/completion-leases.md
+- API and integration:
+  - Django Tasks reference: package/docs/django-tasks.md
+  - Native integration: package/docs/integration.md
 - Migration guides:
   - Choose your migration: package/docs/migrations.md
   - arq: package/docs/migrations/arq.md
