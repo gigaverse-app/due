@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/actions/check-test-policy@f529ac3a0621870d836ec0c7ec7f3b13d46f4df4
+      - uses: gigaverse-app/ci-esta/actions/check-test-policy@aacff9d4e367c5944a0af84f3892cb208b7eaea0
         with:
           policy: .github/test-policy.json
           lanes: .github/test-lanes.json
