@@ -18,6 +18,7 @@ the intended public imports, not a promise of API stability before 1.0.
 | [`delivery`](../src/due/django/conformance/delivery.py) | `WorkTableDelivery` drives bounded recovery for shared handoff histories. |
 | [`scenarios`](../src/due/django/conformance/scenarios.py) | `ProducerExample`, `AdmissionFailureExample`, `SynchronousCallerExample`, `WakeExample`: product command boundaries. |
 | [`composition`](../src/due/django/conformance/composition.py) | `SupersessionExample`, `ProjectionExample`, `CancellationExample`, `CompensationExample`: changing intent and independent cleanup. |
+| [`observation_confluence`](../src/due/django/conformance/observation_confluence.py) | `observation_confluence`: reuse an observer example for generated receipt/inventory ordering, duplication and recovery histories. |
 | [`observations`](../src/due/django/conformance/observations.py) | `ObservationExample`, `observation_handoff`: read-only evidence resolves uncertain operations without resending. |
 | [`enrollment`](../src/due/django/conformance/enrollment.py) | `assert_complete_enrollment`: compare collected suites with an independent production capability manifest. |
 | [`reporting`](../src/due/django/conformance/reporting.py) | Optional pytest plugin producing effect and observation reports. |
@@ -403,3 +404,31 @@ silently turn terminal correctness into a first-stage-only proof.
 These new families require pytest-obligation 0.12 or later. During review, the
 workspace pins the companion implementation; release that version before
 publishing a Due distribution that includes these testing APIs.
+
+### Receipt and inventory evidence
+
+When a receipt and a provider inventory observation each identify the complete
+immutable operation, reuse its existing `ObservationExample`:
+
+```python
+from due.django.conformance.observation_confluence import observation_confluence
+
+receipts = observation_confluence("publication-receipts", publication, observation_example)
+examples = EffectExamples(
+    # Existing admission, delivery, retry and other application bindings ...
+    observation=observation_example,
+    evidence_confluence={receipts.name: receipts},
+)
+```
+
+The shared adapter creates uncertainty through the registered worker, exposes the
+provider occurrence once, and calls public evidence ingestion or registered
+observation recovery. Pytest-obligation generates arrival orders, duplicates,
+recovery gaps and separate ordered connections. Every step checks the application's
+product observation and exact create-call count. Optional Hypothesis exploration
+uses the same binding; its example context must clean up resources on exit.
+
+This binding covers two complete evidence sources for one occurrence. Partial
+receipts, conflicting resource identities and retry turnover need application
+`EvidenceConfluence` bindings with their own reviewed outcomes. It adds no runtime
+batching behavior and does not claim the other profile E families automatically.
