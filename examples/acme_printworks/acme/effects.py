@@ -23,6 +23,7 @@ from .models import (
     PrintWork,
     ProofWork,
 )
+from .rendering import RENDER_POLICY
 
 POLICY = DurableWorkPolicy(retention=None)
 
@@ -91,7 +92,7 @@ publish_proof = PublishProof.for_owner(
     owner=Job,
     work=ProofWork,
     input_fields=("universe", "revision_id", "text"),
-    policy=POLICY,
+    policy=RENDER_POLICY,
 )
 
 mirror = StatusMirror(lambda work: PrintOrder.objects.filter(pk=work.owner_id))

@@ -1,25 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1210" viewBox="0 0 1200 1210">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1620" viewBox="0 0 1200 1620">
 <style>text{font-family:DejaVu Sans,Arial,sans-serif}</style>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#62778a"/></marker></defs>
-<rect width="1200" height="1210" fill="#f3f6fa"/>
+<rect width="1200" height="1620" fill="#f3f6fa"/>
 <text x="32" y="46" fill="#137b80" font-size="19" font-weight="700">ACME PRINTWORKS  /  WILLOW CAFE  /  JOB 418</text>
 <text x="32" y="100" fill="#163449" font-size="37" font-weight="700">1. Get an estimate</text>
 <rect x="32" y="130" width="1136" height="145" rx="16" fill="#eaf2ff" stroke="#345986" stroke-width="2"/><text x="56" y="165" fill="#345986" font-size="20" font-weight="700">CUSTOMER GOAL</text><text x="56" y="207" fill="#163449" font-size="28" font-weight="400">Willow Cafe wants a quote for 500 brochures.</text>
-<rect x="32" y="325" width="548" height="245" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="360" fill="#24734d" font-size="20" font-weight="700">HAPPY PATH</text><text x="56" y="402" fill="#163449" font-size="28" font-weight="400">Upload revision 17; commit its</text>
-<text x="56" y="439" fill="#163449" font-size="28" font-weight="400">copy and word-count task.</text>
-<rect x="620" y="325" width="548" height="245" rx="16" fill="#fff5df" stroke="#946321" stroke-width="2"/><text x="644" y="360" fill="#946321" font-size="20" font-weight="700">EXTERNAL DISRUPTION</text><text x="644" y="402" fill="#163449" font-size="28" font-weight="400">A brief power outage stops the</text>
-<text x="644" y="439" fill="#163449" font-size="28" font-weight="400">app after commit, before the</text>
-<text x="644" y="476" fill="#163449" font-size="28" font-weight="400">worker notification.</text>
-<rect x="32" y="620" width="548" height="260" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="655" fill="#24734d" font-size="20" font-weight="700">GOOD OUTCOME</text><text x="56" y="697" fill="#163449" font-size="28" font-weight="400">Worker counts four words. Acme</text>
-<text x="56" y="734" fill="#163449" font-size="28" font-weight="400">can prepare the estimate.</text>
-<rect x="620" y="620" width="548" height="260" rx="16" fill="#fff0ee" stroke="#aa4439" stroke-width="2"/><text x="644" y="655" fill="#aa4439" font-size="20" font-weight="700">BAD OUTCOME WITHOUT PROTECTION</text><text x="644" y="697" fill="#163449" font-size="28" font-weight="400">The upload exists, but the</text>
-<text x="644" y="734" fill="#163449" font-size="28" font-weight="400">customer keeps waiting for an</text>
-<text x="644" y="771" fill="#163449" font-size="28" font-weight="400">estimate.</text>
-<rect x="32" y="925" width="1136" height="255" rx="16" fill="#e9f5f6" stroke="#137b80" stroke-width="2"/><text x="56" y="960" fill="#137b80" font-size="20" font-weight="700">DUE RESPONSE AND ITS LIMIT</text><text x="56" y="1002" fill="#163449" font-size="28" font-weight="400">Due keeps the committed task in PostgreSQL. After service returns,</text>
-<text x="56" y="1039" fill="#163449" font-size="28" font-weight="400">Beat finds it and a worker finishes it.</text>
-<path d="M306 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
-<path d="M894 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
-<path d="M306 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
-<path d="M894 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
-<path d="M894 880V915" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="32" y="300" width="1136" height="380" rx="16" fill="#ffffff" stroke="#94a8bc" stroke-width="2"/>
+<text x="56" y="338" fill="#163449" font-size="20" font-weight="700">THE SAME TEN-MINUTE WINDOW  /  EVENT ORDER, NOT TO SCALE</text>
+<path d="M90 390H1090" stroke="#62778a" stroke-width="4"/>
+<text x="56" y="588" fill="#163449" font-size="23" font-weight="700">Restart branch: the killed render never returns at minute 10.</text>
+<text x="56" y="627" fill="#163449" font-size="23" font-weight="400">Due keeps r18 current; recovery picks up owed work after lease expiry. A new attempt</text>
+<text x="56" y="659" fill="#163449" font-size="23" font-weight="400">reruns captured inputs; it does not resume a PDF at page 7.</text>
+<rect x="32" y="720" width="548" height="245" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="755" fill="#24734d" font-size="20" font-weight="700">HAPPY PATH</text><text x="56" y="797" fill="#163449" font-size="28" font-weight="400">Upload revision 17; commit its</text>
+<text x="56" y="834" fill="#163449" font-size="28" font-weight="400">copy and word-count task.</text>
+<rect x="620" y="720" width="548" height="245" rx="16" fill="#fff5df" stroke="#946321" stroke-width="2"/><text x="644" y="755" fill="#946321" font-size="20" font-weight="700">EXTERNAL DISRUPTION</text><text x="644" y="797" fill="#163449" font-size="28" font-weight="400">A notification can be lost</text>
+<text x="644" y="834" fill="#163449" font-size="28" font-weight="400">before rendering starts. At</text>
+<text x="644" y="871" fill="#163449" font-size="28" font-weight="400">minute 7, a restart can also</text>
+<text x="644" y="908" fill="#163449" font-size="28" font-weight="400">interrupt unfinished work.</text>
+<rect x="32" y="1015" width="548" height="260" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="1050" fill="#24734d" font-size="20" font-weight="700">GOOD OUTCOME</text><text x="56" y="1092" fill="#163449" font-size="28" font-weight="400">Worker counts four words. Acme</text>
+<text x="56" y="1129" fill="#163449" font-size="28" font-weight="400">can prepare the estimate.</text>
+<rect x="620" y="1015" width="548" height="260" rx="16" fill="#fff0ee" stroke="#aa4439" stroke-width="2"/><text x="644" y="1050" fill="#aa4439" font-size="20" font-weight="700">BAD OUTCOME WITHOUT PROTECTION</text><text x="644" y="1092" fill="#163449" font-size="28" font-weight="400">The upload exists, but the</text>
+<text x="644" y="1129" fill="#163449" font-size="28" font-weight="400">customer keeps waiting for an</text>
+<text x="644" y="1166" fill="#163449" font-size="28" font-weight="400">estimate.</text>
+<rect x="32" y="1320" width="1136" height="270" rx="16" fill="#e9f5f6" stroke="#137b80" stroke-width="2"/><text x="56" y="1355" fill="#137b80" font-size="20" font-weight="700">DUE RESPONSE AND ITS LIMIT</text><text x="56" y="1397" fill="#163449" font-size="28" font-weight="400">Due keeps the committed task in PostgreSQL. After service returns,</text>
+<text x="56" y="1434" fill="#163449" font-size="28" font-weight="400">Beat finds it and a worker finishes it.</text>
+<circle cx="90" cy="390" r="9" fill="#137b80"/>
+<text x="56" y="430" fill="#163449" font-size="23" font-weight="700">0 MIN</text>
+<text x="56" y="465" fill="#163449" font-size="22" font-weight="400">r17 starts its</text>
+<text x="56" y="496" fill="#163449" font-size="22" font-weight="400">slow render</text>
+<circle cx="310" cy="390" r="9" fill="#137b80"/>
+<text x="276" y="430" fill="#163449" font-size="23" font-weight="700">2 MIN</text>
+<text x="276" y="465" fill="#163449" font-size="22" font-weight="400">Customer corrects</text>
+<text x="276" y="496" fill="#163449" font-size="22" font-weight="400">date + font: r18</text>
+<circle cx="530" cy="390" r="9" fill="#137b80"/>
+<text x="496" y="430" fill="#163449" font-size="23" font-weight="700">3 MIN</text>
+<text x="496" y="465" fill="#163449" font-size="22" font-weight="400">Fast r18</text>
+<text x="496" y="496" fill="#163449" font-size="22" font-weight="400">finishes; publish</text>
+<text x="496" y="527" fill="#163449" font-size="22" font-weight="400">June 19</text>
+<circle cx="750" cy="390" r="9" fill="#137b80"/>
+<text x="716" y="430" fill="#163449" font-size="23" font-weight="700">7 MIN</text>
+<text x="716" y="465" fill="#163449" font-size="22" font-weight="400">Restart branch:</text>
+<text x="716" y="496" fill="#163449" font-size="22" font-weight="400">old worker dies</text>
+<circle cx="970" cy="390" r="9" fill="#137b80"/>
+<text x="936" y="430" fill="#163449" font-size="23" font-weight="700">10 MIN</text>
+<text x="936" y="465" fill="#163449" font-size="22" font-weight="400">No-restart</text>
+<text x="936" y="496" fill="#163449" font-size="22" font-weight="400">branch: r17</text>
+<text x="936" y="527" fill="#163449" font-size="22" font-weight="400">returns late</text>
+<path d="M306 965V1005" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 965V1005" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 1275V1310" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
 </svg>

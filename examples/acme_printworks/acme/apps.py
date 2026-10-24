@@ -18,10 +18,19 @@ class AcmeConfig(AppConfig):
             project_portal,
             publish_proof,
         )
+        from .rendering import RENDER_HARD_LIMIT, RENDER_SOFT_LIMIT
 
         configure_durable_work(
             [
                 django_tasks_registration(recovery_queue=settings.CELERY_TASK_DEFAULT_QUEUE, cadence_seconds=5),
+                DurableWorkRegistration(
+                    name="acme_proof",
+                    capability=publish_proof,
+                    queue=settings.CELERY_TASK_DEFAULT_QUEUE,
+                    cadence_seconds=5,
+                    execution_soft_time_limit=RENDER_SOFT_LIMIT,
+                    execution_time_limit=RENDER_HARD_LIMIT,
+                ),
                 *[
                     DurableWorkRegistration(
                         name=name,
@@ -30,7 +39,6 @@ class AcmeConfig(AppConfig):
                         cadence_seconds=5,
                     )
                     for name, capability in [
-                        ("acme_proof", publish_proof),
                         ("acme_portal", project_portal),
                         ("acme_print", order_printing),
                         ("acme_cleanup", cleanup_spool),
