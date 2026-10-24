@@ -1,5 +1,18 @@
 # Prove your application's work tables
 
+**Always build this contract as you integrate Due.** The generated
+pytest-obligation tests are a central reliability benefit and part of a complete
+integration. Do not wait for an outage or a separate hardening project. Start with
+the first native capability and extend its bindings as the product grows.
+
+The [Acme Printworks tutorial](../../docs/acme-printworks-tutorial.md) shows a small
+application growing from Django Tasks to four native contracts. Its runnable
+[test classes](../../examples/acme_printworks/tests/test_contracts.py) generate
+policy-specific failure tests; the application supplies real producer commands,
+external fault seams, and independent customer-visible observations. The
+[enrollment check](../../examples/acme_printworks/tests/test_enrollment.py) also
+proves that deleting a suite is rejected.
+
 Install `django-due[testing]`. Enroll each production capability once with
 `effect_contract_suite(capability, examples=EffectExamples(...))`. The capability's
 actual mode, discovery, gate, retry and retention policies determine the required

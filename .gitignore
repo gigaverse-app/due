@@ -19,3 +19,5 @@ test-results/
 # Built documentation
 /site/
 /.venv-docs/
+
+acme-reports/

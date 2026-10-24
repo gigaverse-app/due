@@ -31,6 +31,13 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 ## Changes and proofs
 
+Always build the pytest-obligation application contract alongside a Due
+integration. Enroll each native capability, bind its real application behavior,
+and require complete enrollment and executed reports in CI. The
+[Acme Printworks example](examples/acme_printworks/README.md) demonstrates this
+workflow; [the integration skill](.agents/skills/due-integration/SKILL.md) applies
+the same requirement to agent-assisted examples and tutorials.
+
 Keep the public API focused on work tables. The delivery lease in
 `runtime/_delivery.py` is private machinery for observation workers; it is not a
 public native-table composition API. Use [the capability guide](package/docs/capabilities.md)

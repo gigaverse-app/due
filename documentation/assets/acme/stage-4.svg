@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1210" viewBox="0 0 1200 1210">
+<style>text{font-family:DejaVu Sans,Arial,sans-serif}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#62778a"/></marker></defs>
+<rect width="1200" height="1210" fill="#f3f6fa"/>
+<text x="32" y="46" fill="#137b80" font-size="19" font-weight="700">ACME PRINTWORKS  /  WILLOW CAFE  /  JOB 418</text>
+<text x="32" y="100" fill="#163449" font-size="37" font-weight="700">4. Order exactly 500 copies</text>
+<rect x="32" y="130" width="1136" height="145" rx="16" fill="#eaf2ff" stroke="#345986" stroke-width="2"/><text x="56" y="165" fill="#345986" font-size="20" font-weight="700">CUSTOMER GOAL</text><text x="56" y="207" fill="#163449" font-size="28" font-weight="400">Willow Cafe approves revision 18 and orders 500 brochures.</text>
+<rect x="32" y="325" width="548" height="245" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="360" fill="#24734d" font-size="20" font-weight="700">HAPPY PATH</text><text x="56" y="402" fill="#163449" font-size="28" font-weight="400">Printer accepts one order; Acme</text>
+<text x="56" y="439" fill="#163449" font-size="28" font-weight="400">records its matching receipt.</text>
+<rect x="620" y="325" width="548" height="245" rx="16" fill="#fff5df" stroke="#946321" stroke-width="2"/><text x="644" y="360" fill="#946321" font-size="20" font-weight="700">EXTERNAL DISRUPTION</text><text x="644" y="402" fill="#163449" font-size="28" font-weight="400">Power fails after acceptance,</text>
+<text x="644" y="439" fill="#163449" font-size="28" font-weight="400">losing the reply. Or the</text>
+<text x="644" y="476" fill="#163449" font-size="28" font-weight="400">printer explicitly refuses</text>
+<text x="644" y="513" fill="#163449" font-size="28" font-weight="400">before acceptance: no ink.</text>
+<rect x="32" y="620" width="548" height="260" rx="16" fill="#ebf7f1" stroke="#24734d" stroke-width="2"/><text x="56" y="655" fill="#24734d" font-size="20" font-weight="700">GOOD OUTCOME</text><text x="56" y="697" fill="#163449" font-size="28" font-weight="400">One purchase is accepted.</text>
+<text x="56" y="734" fill="#163449" font-size="28" font-weight="400">Printing and shipping are</text>
+<text x="56" y="771" fill="#163449" font-size="28" font-weight="400">tracked separately.</text>
+<rect x="620" y="620" width="548" height="260" rx="16" fill="#fff0ee" stroke="#aa4439" stroke-width="2"/><text x="644" y="655" fill="#aa4439" font-size="20" font-weight="700">BAD OUTCOME WITHOUT PROTECTION</text><text x="644" y="697" fill="#163449" font-size="28" font-weight="400">Blind retry after a lost reply</text>
+<text x="644" y="734" fill="#163449" font-size="28" font-weight="400">buys another 500 copies.</text>
+<text x="644" y="771" fill="#163449" font-size="28" font-weight="400">Treating acceptance as delivery</text>
+<text x="644" y="808" fill="#163449" font-size="28" font-weight="400">hides an ink delay.</text>
+<rect x="32" y="925" width="1136" height="255" rx="16" fill="#e9f5f6" stroke="#137b80" stroke-width="2"/><text x="56" y="960" fill="#137b80" font-size="20" font-weight="700">DUE RESPONSE AND ITS LIMIT</text><text x="56" y="1002" fill="#163449" font-size="28" font-weight="400">Unknown outcome: observe the receipt before resending. Definite</text>
+<text x="56" y="1039" fill="#163449" font-size="28" font-weight="400">refusal: retry under policy. Ink after acceptance still needs the</text>
+<text x="56" y="1076" fill="#163449" font-size="28" font-weight="400">printer&#x27;s fulfillment process.</text>
+<path d="M306 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 275V315" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M306 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 570V610" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+<path d="M894 880V915" fill="none" stroke="#62778a" stroke-width="3" marker-end="url(#arrow)"/>
+</svg>

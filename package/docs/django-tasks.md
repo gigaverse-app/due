@@ -12,6 +12,13 @@ The older `django_tasks` backport is not supported.
 
 This integration is available starting with **Due 0.8.0**.
 
+Follow [Acme Printworks](../../docs/acme-printworks-tutorial.md) for a runnable
+journey from a word-count task to guarded publication, portal repair and print
+ordering. **Always build the application contract as you adopt Due.** Test your
+Django task's transaction and replay assumptions, then enroll every native
+capability with the [pytest-obligation conformance suite](conformance.md).
+The shared runtime's tests cannot establish your application's provider semantics.
+
 ## Install and configure
 
 ```bash

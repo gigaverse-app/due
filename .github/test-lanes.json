@@ -8,7 +8,8 @@
     ],
     "test_roots": [
       "package/tests",
-      "integration_tests"
+      "integration_tests",
+      "examples/acme_printworks/tests"
     ],
     "pytest_policy": {
       "package/pyproject.toml": "f928b7f7adc75b1171b99f126879846904dca255050d3c560bcf10dad3cf447a",
@@ -31,7 +32,8 @@
     },
     "integration": {
       "roots": [
-        "integration_tests"
+        "integration_tests",
+        "examples/acme_printworks/tests"
       ],
       "inputs": [
         "package/src/**",
@@ -39,6 +41,7 @@
         "examples/**",
         "integration_tests/**",
         "scripts/check_adoption_report.py",
+        "scripts/check_acme_printworks.py",
         ".github/workflows/ci.yml#tests"
       ]
     },
