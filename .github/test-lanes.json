@@ -102,6 +102,7 @@
     "uv.lock",
     ".github/test-lanes.json",
     ".github/actions/**",
-    ".python-version"
+    ".python-version",
+    ".github/test-policy.json"
   ]
 }

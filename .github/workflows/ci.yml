@@ -42,7 +42,7 @@ jobs:
   select-tests:
     runs-on: ubuntu-latest
     outputs:
-      lanes: ${{ steps.select.outputs.lanes }}
+      lanes: ${{ steps.policy.outputs.admitted }}
       library: ${{ steps.scope.outputs.library }}
       integration: ${{ steps.scope.outputs.integration }}
       context: ${{ steps.scope.outputs.context }}
@@ -57,11 +57,18 @@ jobs:
         uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
+      - id: policy
+        name: Admit selected suites before provisioning
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@103d686561b4a98408ee1727a452e8b3b6fcb1f7
+        with:
+          policy: .github/test-policy.json
+          occasion: ${{ github.event_name == 'pull_request' && 'pr' || github.event_name == 'workflow_dispatch' && 'manual' || github.event_name }}
+          affected: ${{ steps.select.outputs.lanes }}
       - id: scope
         name: Identify the complete set of tests this execution proves
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
-          LANES: ${{ steps.select.outputs.lanes }}
+          LANES: ${{ steps.policy.outputs.admitted }}
           OUTCOME: ${{ steps.select.outcome }}
         with:
           script: |

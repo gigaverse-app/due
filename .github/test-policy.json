@@ -1,0 +1,54 @@
+{
+  "schema_version": "ci-esta/test-policy/v1",
+  "profiles": {
+    "legacy": {
+      "occasions": [
+        "pr",
+        "push",
+        "manual",
+        "schedule"
+      ],
+      "include": [
+        "*"
+      ]
+    }
+  },
+  "work": [
+    {
+      "id": "library",
+      "tags": [
+        "library"
+      ]
+    },
+    {
+      "id": "integration",
+      "tags": [
+        "integration"
+      ]
+    },
+    {
+      "id": "widget_comparison",
+      "tags": [
+        "widget_comparison"
+      ]
+    },
+    {
+      "id": "typecheck",
+      "tags": [
+        "typecheck"
+      ]
+    },
+    {
+      "id": "contracts",
+      "tags": [
+        "contracts"
+      ]
+    },
+    {
+      "id": "wheel",
+      "tags": [
+        "wheel"
+      ]
+    }
+  ]
+}

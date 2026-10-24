@@ -1,0 +1,19 @@
+name: Test policy contracts
+on:
+  pull_request:
+    paths:
+      - '.github/test-policy*.json'
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  routing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: gigaverse-app/ci-esta/actions/check-test-policy@103d686561b4a98408ee1727a452e8b3b6fcb1f7
+        with:
+          policy: .github/test-policy.json
+          cases: .github/test-policy-cases.json
