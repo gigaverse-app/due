@@ -52,6 +52,15 @@ class SupersessionExample[W: UniverseDurableWork, ObservationT]:
     work: W
     change: Callable[[], object]
     observe: Callable[[], ObservationT]
+    after_apply: bool = False
+    """Capture after real external apply, before fenced publication, for wake-based dependents.
+
+    The default captures a queued delivery. A queued wake intentionally keeps
+    that delivery valid so it can read fresh facts; only an already running
+    reader has a stale snapshot. This option runs that reader on a separate
+    database connection and pauses its return before settlement. Database-only
+    capabilities cannot use this boundary because their apply holds a transaction.
+    """
 
 
 @dataclass(frozen=True, kw_only=True)

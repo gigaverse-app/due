@@ -9,10 +9,11 @@ one apply can legitimately contain several provider calls.
 Design and usage: docs/architecture.md#verification.
 """
 
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from contextvars import copy_context
-from threading import Barrier, Lock
+from threading import Barrier, Event, Lock
 from typing import Any
 from unittest.mock import patch
 
@@ -20,6 +21,7 @@ from django.db import connection
 from pytest_obligation.evidence.observation import assert_observation
 from pytest_obligation.integrations.django.lock_order import locked_tables
 from pytest_obligation.integrations.django.writes import leading_keyword
+from pytest_obligation.profiles.eventual_convergence import SupersededSnapshot
 
 from due.django.conformance.worker_connection import database_worker_connection
 from due.django.public import (
@@ -30,6 +32,61 @@ from due.django.public import (
     UniverseDurableWork,
 )
 from due.django.runtime.coordination import WorkExecutionContext
+
+
+@contextmanager
+def applied_snapshot[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT],
+    work: W,
+    *,
+    change: Callable[[], object],
+    observe: Callable[[], object],
+) -> Iterator[SupersededSnapshot]:
+    """Pause the real reader after apply; release the same worker into its fenced settlement."""
+    reached, release = Event(), Event()
+    original = type(capability).apply
+    futures: list[Future[bool]] = []
+
+    def apply(self, value, context):
+        result = original(self, value, context)
+        if self is capability and value.pk == work.pk:
+            assert not connection.in_atomic_block, "after_apply snapshots require external, autocommit work"
+            reached.set()
+            assert release.wait(10), "snapshot proof did not release the captured worker"
+        return result
+
+    def execute():
+        with database_worker_connection(statement_timeout_ms=5_000):
+            return capability.execute_now(work)
+
+    with patch.object(type(capability), "apply", apply), ThreadPoolExecutor(max_workers=1) as pool:
+
+        def capture():
+            assert not futures, "one captured worker per snapshot proof"
+            future = pool.submit(copy_context().run, execute)
+            futures.append(future)
+            if not reached.wait(5):
+                if future.done():
+                    future.result()  # Preserve the real provider/worker failure.
+                raise AssertionError("worker never reached its after_apply capture point")
+            return future
+
+        def resume(future):
+            release.set()
+            return future.result(timeout=10)
+
+        try:
+            yield SupersededSnapshot(
+                name=capability.model._meta.label_lower,
+                take_snapshot=capture,
+                supersede=change,
+                run_with_snapshot=resume,
+                observe=observe,
+            )
+        finally:
+            release.set()
+            for future in futures:
+                future.result(timeout=10)
 
 
 def assert_competing_deliveries[W: UniverseDurableWork, ResultT, ObservationT](

@@ -54,7 +54,7 @@ complete coverage.
 | `RejectionExample(delivery, disposition, expected_attempts=1)` | A provider rejection, its retry/terminal disposition and the expected persisted attempt count after recovery. |
 | `FactExamples(...)` | `make_implied`, `move`, `make_stopped` arrange canonical product facts; `desired(work)` observes the derived target. `identity_after_move` describes an identity change. Never recreate the discovery query. |
 | `ObservationExample(delivery=..., reveal=..., observation_calls=...)` | Begin with a lost create response; reveal a canonical provider receipt and count actual read-only observation calls. |
-| `SupersessionExample(work=..., change=..., observe=...)` | Change desired inputs through a real command and observe the result. `ProjectionExample.latest` adds the latest target; `CancellationExample.completed` identifies the externally completed outcome. |
+| `SupersessionExample(work=..., change=..., observe=...)` | Change desired inputs through a real command and observe the result. Set `after_apply=True` for a wake-based reader: the adapter runs its real apply on another database connection, pauses before settlement, invokes the competing command, then releases that same worker. The default captures a queued delivery. `ProjectionExample.latest` adds the latest target; `CancellationExample.completed` identifies the externally completed outcome. |
 | `CompensationExample(...)` | A producer work row, the provider seam, late output, the retirement command and an independent `observe()`/`clean` oracle for cleanup. |
 
 The [source declarations for command examples](../src/due/django/conformance/scenarios.py)
