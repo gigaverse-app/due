@@ -61,6 +61,19 @@ The word-count task stays a Django task throughout. All models and migrations ar
 included. The application exposes service functions and management commands; a web
 UI, authentication and billing are outside this tutorial.
 
+The story's shared clock starts r17 at minute 0, accepts the corrected r18 at
+minute 2, and publishes its faster render at minute 3. Without a restart, r17
+returns late at minute 10. In the alternate history, a restart kills it at
+minute 7; it cannot also finish at minute 10. Due preserves r18 and recovers
+independently owed cleanup after its reservation expires. Any still-current,
+unfinished proof needs a new attempt after lease expiry, not a resumed PDF process.
+
+Both proof implementations use `acme/rendering.py`: an 11-minute soft execution
+limit, 12-minute hard limit, and 15-minute lease. A claim at minute 0 without
+renewal expires at minute 15; the five-second recovery cadence is not a guarantee
+of immediate recovery at minute 7. Bound a real provider call below the soft
+limit. The text simulator remains fast; tests compress the relevant histories.
+
 ## Provider contracts
 
 The proof is a text preview rather than a PDF, keeping the example dependency-light.
@@ -90,8 +103,8 @@ Read the [complete tutorial](../../docs/acme-printworks-tutorial.md), first
 Start with [tests/test_task_contract.py](tests/test_task_contract.py) for the
 Django task. [tests/test_contracts.py](tests/test_contracts.py) enrolls the native
 capabilities; [tests/contracts](tests/contracts) supplies their application meaning.
-The full suite has 285 tests: 270 generated native checks, three shared task replay
-proofs, ten scenario tests, and two enrollment guards. The generated suites leave
+The full suite has 286 tests: 270 generated native checks, three shared task replay
+proofs, ten scenario tests, one rendering-budget check, and two enrollment guards. The generated suites leave
 no applicable requirement unassessed. Non-applicable families have explicit reasons.
 This is evidence for these bindings and provider assumptions, not a guarantee
 about an arbitrary real printer or PDF renderer.

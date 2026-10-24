@@ -4,10 +4,11 @@ The final application registers effects.publish_proof. This intermediate version
 uses the same work schema and is exercised directly by test_stage2.py.
 """
 
-from due.django.public import DurableWorkPolicy, ReplaySafeEffect
+from due.django.public import ReplaySafeEffect
 
 from . import providers
 from .models import Job, ProofWork
+from .rendering import RENDER_POLICY
 
 
 class PublishProof(ReplaySafeEffect[Job, ProofWork, str]):
@@ -22,5 +23,5 @@ publish_proof = PublishProof.for_owner(
     owner=Job,
     work=ProofWork,
     input_fields=("universe", "revision_id", "text"),
-    policy=DurableWorkPolicy(retention=None),
+    policy=RENDER_POLICY,
 )

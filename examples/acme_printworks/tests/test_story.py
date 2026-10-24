@@ -73,7 +73,8 @@ def test_old_proof_cannot_replace_new_proof(monkeypatch):
 
 
 def test_late_portal_write_is_repaired(monkeypatch):
-    job = published(17, "Opening day: June 12")
+    # This proof already exists before the story's slow r17 render starts.
+    job = published(16, "Opening day: June 12")
     old_key = job.published_key
     new = revision(18, "New opening day: June 19", job)
     real_put = providers.put_portal

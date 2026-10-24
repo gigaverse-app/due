@@ -1,8 +1,10 @@
 # Django Tasks with Due: start simple, grow with Acme Printworks
 
-First published on [DEV](https://dev.to/aviadr1/django-tasks-with-due-commit-the-work-recover-after-a-crash-n5k). This maintained edition includes the runnable example and its application contracts in Due.
+![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png?v=e6e1fea2a5af)
 
-Start with a background task you can explain in a few lines. Keep that simple starting point when your customers begin asking for features where losing work, publishing an old result, or repeating a purchase would hurt.
+First published on [DEV](https://dev.to/aviadr1/django-tasks-with-due-commit-the-work-recover-after-a-crash-n5k). This edition preserves the author’s edits and includes the runnable application and contracts.
+
+Using `django-due` helps you start with a background task you can explain in a few lines. But it can help you grow and become more robust preventing lost or incorrect work in edge cases, that can be very hard to test for or prevent.
 
 This tutorial shows that progression with **Due's backend for Django Tasks**, installed as `django-due`. You'll begin with a familiar `@task` and `.enqueue()`, then evolve the parts that need stronger guarantees into native Due capabilities. The payoff is practical: a small first feature, application contracts that give you reusable failure tests immediately, and coordination that expands with the product. Always build the contract alongside the feature. It is one of the main reasons to use Due.
 
@@ -12,48 +14,18 @@ One premise matters for the rest of the story: **rendering a PDF can take a surp
 
 Ten minutes gives the world time to change around a running task. The customer might upload a correction. A rare power outage might stop the machine, or an unexpected server restart might kill the worker seven minutes into the render. None of these needs to happen often for Acme to need an answer: which proof should the customer see, what work is still owed, and who will remove the temporary files? We'll use that same ten-minute window throughout the story.
 
+Each chart uses the same clock as Acme adds features: r17 starts at minute 0, the customer corrects the date and font at minute 2, and the faster r18 publishes June 19 at minute 3. Then we examine two branches. A restart at minute 7 kills the old worker; without that restart, its old render returns at minute 10. These are alternative histories. A killed worker cannot also finish at minute 10. The portal and printer sections show what can still happen outside the restarted process.
+
 We'll follow that same order through each requirement. You'll see the code change, the specific failure it must handle, and a test that makes the failure happen.
 
 At the first stage, many task runners would work. Acme's reason to choose Due is that the same PostgreSQL-backed work model can support the later requirements without Acme inventing its own ownership, recovery, and evidence machinery. Due uses Celery for execution; its advantage here is the application coordination built around it.
 
-## Run the whole story first
-
-The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test. The snippets below explain its evolution. The downloadable application contains the final version; `acme/stage2.py` also preserves and tests the intermediate proof implementation.
-
-Use Python 3.14 and Docker Compose on Linux, macOS, or WSL:
-
-```bash
-git clone https://github.com/gigaverse-app/due.git
-cd due/examples/acme_printworks
-python3.14 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements.txt
-docker compose up -d --wait
-python run_demo.py
-python -m pytest -q -p due.django.conformance.reporting --due-work-require-assessed
-```
-
-The demo applies migrations, starts a Celery worker and Beat, runs the order, then stops those processes. The first run prints:
-
-```text
-Acme Printworks job 418: Willow Cafe, 500 brochures
-1. Estimate: 4 words, recovered after a lost notification
-2. Proof: revision 18, June 19
-3. Portal: displays revision 18
-4. Printer: accepted 500 copies; lost reply recovered; exactly one order
-5. Cleanup: temporary spool removed; immutable proof retained
-6. Run pytest -q for late writes, process death, and replay contracts
-```
-
-Subsequent runs create a new job. Run `docker compose down` when finished. These are disposable local development services. The README also explains how to use existing dedicated PostgreSQL and Redis instances.
-
-The providers are local simulators with independent SQLite commits. Django and Due use PostgreSQL. The proof is a text preview, keeping the example small; no PDF library, printer account, or API key is needed. We deliberately give the portal and printer difficult contracts so the failure cases are reproducible.
-
-Verified with Python 3.14.7, Django 6.0.9, published `django-due==0.8.0`, and `pytest-obligation==0.15.0`. The live journey ran with PostgreSQL 16, Redis 7, separate Celery prefork workers, and Beat. Local verification used those services directly; the supplied Compose launcher was not exercised here. Prepared and verified with OpenAI Codex for the Due project at Gigaverse.
+> ## Run the whole story
+> There's instructions at the end of this article on how to run the whole story, and The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test.
 
 ## 1. Launch: count Willow Cafe's words
 
-![Stage 1: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-1.png)
+![Stage 1: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-1.png)
 
 The first requirement is modest: count each uploaded revision so Acme can prepare an estimate. Revision 17 says `Opening day: June 12`, which has four words.
 
@@ -150,10 +122,7 @@ class AcmeConfig(AppConfig):
 
 ### Build the first contract now
 
-The allowlist says this task is safe to replay. Make that claim executable. Acme
-binds three shared pytest-obligation proofs to the actual function and reads the
-word count from the revision. The call counter checks that both executions really
-entered the function:
+The allowlist says this task is safe to replay. Make that claim executable. Acme binds three shared pytest-obligation proofs to the actual function and reads the word count from the revision. The call counter checks that both executions really entered the function:
 
 ```python
 # tests/test_task_contract.py
@@ -194,18 +163,15 @@ def test_word_count_contract(proof):
 python -m pytest -q tests/test_task_contract.py
 ```
 
-The suite checks that execution reaches the implementation, produces the expected
-four-word result, and preserves it on a real second call. Transaction rollback and
-lost-notification recovery are tested in `tests/test_story.py`. The shared Django
-Tasks runtime cannot infer these application-specific promises for you.
+The suite checks that execution reaches the implementation, produces the expected four-word result, and preserves it on a real second call. Transaction rollback and lost-notification recovery are tested in `tests/test_story.py`. The shared Django Tasks runtime cannot infer these application-specific promises for you.
 
 ## 2. Customers want proofs, and an old worker finishes late
 
-![Stage 2: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-2.png)
+![Stage 2: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-2.png)
 
 Revision 17 says June 12 and starts its ten-minute render. Two minutes later, Willow Cafe uploads revision 18 with the corrected opening date, June 19, and a repaired font. Another worker renders that corrected file quickly and publishes it at minute three. At minute ten, the original worker finally returns with the old date.
 
-That is the delayed-success case. In another run, a power outage or server restart might kill the original worker at minute seven. Acme then needs a fresh attempt using the captured input, while still respecting any newer revision the customer requested.
+That is the delayed-success case. In the restart branch, a power outage or server restart kills the original worker at minute seven. Revision 18 is already published, so Due keeps June 19 current and does not resurrect revision 17. If the currently requested proof is still unfinished in another run, recovery starts a fresh attempt after its lease expires. That attempt uses the captured input and reruns rendering; Due does not checkpoint a PDF renderer halfway through its work.
 
 A task that blindly updates `job.published_key` might put June 12 back in front of the customer. Acme now needs two properties: each revision writes its own immutable output, and only the current requested revision can publish the pointer.
 
@@ -235,10 +201,11 @@ The final application registers effects.publish_proof. This intermediate version
 uses the same work schema and is exercised directly by test_stage2.py.
 """
 
-from due.django.public import DurableWorkPolicy, ReplaySafeEffect
+from due.django.public import ReplaySafeEffect
 
 from . import providers
 from .models import Job, ProofWork
+from .rendering import RENDER_POLICY
 
 
 class PublishProof(ReplaySafeEffect[Job, ProofWork, str]):
@@ -253,7 +220,7 @@ publish_proof = PublishProof.for_owner(
     owner=Job,
     work=ProofWork,
     input_fields=("universe", "revision_id", "text"),
-    policy=DurableWorkPolicy(retention=None),
+    policy=RENDER_POLICY,
 )
 ```
 
@@ -291,13 +258,44 @@ python -m pytest -q tests/test_story.py::test_old_proof_cannot_replace_new_proof
 
 The test compresses that ten-minute window: revision 18 finishes while revision 17 is returning from its renderer. The executable provider renders text previews and injects the relevant ordering and interruptions, so running the example does not require waiting ten minutes. The test reads the published proof text and requires June 19. Checking only a task's success status would miss the actual bug.
 
-For a real ten-minute renderer, configure Due's ownership lease and the worker's soft and hard execution time limits to accommodate that rendering budget. The fast simulator uses the sample's defaults; see [execution budgets](https://due.readthedocs.io/en/latest/package/docs/operations/) when connecting a real renderer.
+The runnable app gives proof rendering an explicit budget: 11 minutes to the soft worker limit, 12 to the hard limit, and a 15-minute ownership lease. Both proof implementations share this policy:
+
+```python
+# acme/rendering.py
+"""Give the story's ten-minute render room to finish and settle."""
+
+from datetime import timedelta
+
+from due.django.public import DurableWorkPolicy
+
+RENDER_SOFT_LIMIT = 11 * 60
+RENDER_HARD_LIMIT = 12 * 60
+RENDER_POLICY = DurableWorkPolicy(retention=None, lease_duration=timedelta(minutes=15))
+```
+
+Register the final proof capability with the matching execution limits. This entry in `AcmeConfig.ready()` replaces its default entry; the other capabilities keep their own budgets:
+
+```python
+# acme/apps.py, inside ready()
+from .rendering import RENDER_HARD_LIMIT, RENDER_SOFT_LIMIT
+
+DurableWorkRegistration(
+    name="acme_proof",
+    capability=publish_proof,
+    queue=settings.CELERY_TASK_DEFAULT_QUEUE,
+    cadence_seconds=5,
+    execution_soft_time_limit=RENDER_SOFT_LIMIT,
+    execution_time_limit=RENDER_HARD_LIMIT,
+)
+```
+
+For a claim made at minute 0 with no renewal, that lease expires at minute 15. A minute-7 crash therefore does not cause an immediate replacement render. Once recovery is running and the work is eligible, a later tick can dispatch a new attempt. With r18 already settled at minute 3, there is no current proof left to render. Independent cleanup can still be owed. The five-second cadence is a polling interval, not a completion deadline. Set a real renderer's bounded call timeout below the soft limit; the text simulator has no ten-minute delay. See [execution budgets](https://due.readthedocs.io/en/latest/package/docs/operations/).
 
 ## 3. The approval portal can be overwritten remotely
 
-![Stage 3: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-3.png)
+![Stage 3: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-3.png)
 
-Acme adds a hosted approval portal. Its API accepts `PUT(job_id, proof_key)`, but provides no conditional version check. A network outage holds an already-sent revision 17 request in flight. When connectivity returns, it might arrive after revision 18 and overwrite the remote portal.
+Acme adds a hosted approval portal. Its API accepts `PUT(job_id, proof_key)`, but provides no conditional version check. For this stage, suppose an earlier proof, r16, already exists with June 12. Its portal request is held in flight before our clock starts. While r17 is rendering, the minute-2 correction produces r18 and its portal update at minute 3. Restarting Acme at minute 7 cannot retract the older HTTP request. If that request lands at minute 10, the portal shows June 12 again, even though the killed r17 renderer never returned.
 
 The database fence from stage 2 protects Acme's local pointer. The portal needs repair after an escaped old write. Model that requirement with a `Projection`:
 
@@ -358,9 +356,9 @@ It first verifies that June 12 overwrote June 19, then runs recovery and require
 
 ## 4. A timeout after ordering 500 brochures
 
-![Stage 4: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-4.png)
+![Stage 4: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-4.png)
 
-Willow Cafe approves revision 18. Acme submits 500 copies to a printing partner. The printer creates the order and commits it. A brief power outage then takes down its network gateway before the response reaches Acme.
+Willow Cafe approves revision 18 after it publishes at minute 3. Acme submits 500 copies to a printing partner just before minute 7. The printer creates the order and commits it. Then the minute-7 restart kills Acme's waiting client before it records the reply. A power outage at the printer's network gateway would leave Acme with the same uncertainty. At minute 10, the question is whether the order was accepted, regardless of whether the obsolete r17 render survived.
 
 This provider creates a new order on **every POST**. Its reference can be searched later, but it is not an idempotency key. Blindly repeating the request might buy another 500 brochures.
 
@@ -525,11 +523,7 @@ def test_accepted_print_with_lost_reply_is_observed_without_resubmit():
     assert receipt.order_id == order.provider_order_id
 ```
 
-Now consider a different incident: the printer is out of ink and explicitly
-rejects the request **before accepting an order**. The adapter raises
-`PrinterRejected`; `OrderPrinting` translates only that definite refusal into
-`EffectNotAppliedError`. Due can retry under its policy after supplies return.
-The contract exercises both histories:
+Now consider a different incident: the printer is out of ink and explicitly rejects the request **before accepting an order**. The adapter raises `PrinterRejected`; `OrderPrinting` translates only that definite refusal into `EffectNotAppliedError`. Due can retry under its policy after supplies return. The contract exercises both histories:
 
 ```python
 # tests/contracts/printer.py
@@ -567,17 +561,15 @@ def observation():
         )
 ```
 
-An ink shortage after acceptance is a fulfillment delay. Acme must follow the
-existing order's production status; submitting another order would compound the
-problem. Due's acceptance receipt does not mean paper was printed or shipped.
+An ink shortage after acceptance is a fulfillment delay. Acme must follow the existing order's production status; submitting another order would compound the problem. Due's acceptance receipt does not mean paper was printed or shipped.
 
 That is a strong reason to choose Due when your Django app makes consequential external requests: uncertainty becomes a state you can inspect and resolve with evidence, using a different policy from an ordinary replayable task.
 
 ## 5. Rendering gets temporary storage, and workers can die
 
-![Stage 5: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-5.png)
+![Stage 5: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-5.png)
 
-Acme's renderer now creates temporary spool data during those ten minutes of preparing a proof. Suppose a power outage or unexpected server restart stops it at minute seven, after it has written a multi-gigabyte spool file. Deleting that file only in a Python `finally` block is insufficient: the worker is gone before the block can run. A week of stranded files can leave too little space for the next customer.
+Acme's renderer now creates temporary spool data during those ten minutes of preparing a proof. Suppose a power outage or unexpected server restart stops it at minute seven, after it has written a multi-gigabyte spool file. Deleting that file only in a Python `finally` block is insufficient: the worker is gone before the block can run. A week of stranded files can leave too little space for the next customer. The corrected r18 proof published at minute 3 remains valid; cleaning r17's temporary files must not delete it. After the old attempt's reservation expires, Due can recover its independent cleanup. It removes disposable bytes and keeps checking until the renderer provides completion evidence that rules out later writes.
 
 Reserve a cleanup obligation **before** calling the renderer:
 
@@ -609,7 +601,7 @@ cleanup_spool = SpoolCleanup(
 )
 ```
 
-The cleanup identity uses the producer's attempt token, so separate attempts do not share temporary storage. The renderer keeps a terminal completion record. After that record exists, the attempt cannot write more spool data.
+The final `acme/effects.py` imports `RENDER_POLICY` from `.rendering`, just as stage 2 does. The cleanup identity uses the producer's attempt token, so separate attempts do not share temporary storage. The renderer keeps a terminal completion record. After that record exists, the attempt cannot write more spool data.
 
 Cleanup checks that evidence before reporting completion:
 
@@ -657,7 +649,7 @@ publish_proof = PublishProof.for_owner(
     owner=Job,
     work=ProofWork,
     input_fields=("universe", "revision_id", "text"),
-    policy=POLICY,
+    policy=RENDER_POLICY,
 )
 ```
 
@@ -689,10 +681,19 @@ class AcmeConfig(AppConfig):
             project_portal,
             publish_proof,
         )
+        from .rendering import RENDER_HARD_LIMIT, RENDER_SOFT_LIMIT
 
         configure_durable_work(
             [
                 django_tasks_registration(recovery_queue=settings.CELERY_TASK_DEFAULT_QUEUE, cadence_seconds=5),
+                DurableWorkRegistration(
+                    name="acme_proof",
+                    capability=publish_proof,
+                    queue=settings.CELERY_TASK_DEFAULT_QUEUE,
+                    cadence_seconds=5,
+                    execution_soft_time_limit=RENDER_SOFT_LIMIT,
+                    execution_time_limit=RENDER_HARD_LIMIT,
+                ),
                 *[
                     DurableWorkRegistration(
                         name=name,
@@ -701,7 +702,6 @@ class AcmeConfig(AppConfig):
                         cadence_seconds=5,
                     )
                     for name, capability in [
-                        ("acme_proof", publish_proof),
                         ("acme_portal", project_portal),
                         ("acme_print", order_printing),
                         ("acme_cleanup", cleanup_spool),
@@ -715,17 +715,11 @@ Each registration gives recovery an owner, queue, and cadence. The project's Cel
 
 ## 6. Keep the failure guarantees executable
 
-![Stage 6: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-6.png)
+![Stage 6: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-6.png)
 
-Acme changes its printer adapter six months later. A developer sees a timeout and
-adds a retry. The happy-path demo still works, but the next power failure could
-order a second 500 brochures. A contract should catch that before deployment.
+Acme changes its printer adapter six months later. A developer sees a timeout and adds a retry. The happy-path demo still works, but the next power failure could order a second 500 brochures. A contract should catch that before deployment.
 
-**Always build the application contract.** Due and pytest-obligation provide
-reusable failure histories and assertions. You supply the application meaning:
-how work is admitted, which provider call matters, what a refusal means, and what
-the customer should actually see. You get valuable runnable tests without
-designing every lease, ownership, recovery and replay interleaving yourself.
+**Always build the application contract.** Due and pytest-obligation provide reusable failure histories and assertions. You supply the application meaning: how work is admitted, which provider call matters, what a refusal means, and what the customer should actually see. You get valuable runnable tests without designing every lease, ownership, recovery and replay interleaving yourself.
 
 Start by configuring the test host:
 
@@ -743,10 +737,7 @@ def isolated_provider(settings, tmp_path):
     settings.PROVIDER_DB = tmp_path / "provider.sqlite3"
 ```
 
-For proof publication, the seam observes the published bytes and independently
-stored provider bytes. `ProviderProbe` wraps the real local provider transaction;
-its refusal control simulates an unavailable renderer while preserving real Due
-execution and PostgreSQL settlement:
+For proof publication, the seam observes the published bytes and independently stored provider bytes. `ProviderProbe` wraps the real local provider transaction; its refusal control simulates an unavailable renderer while preserving real Due execution and PostgreSQL settlement:
 
 ```python
 # tests/contracts/proof.py
@@ -763,10 +754,7 @@ SEAM = ProviderSeam(
 )
 ```
 
-The helpers live in `tests/contracts/support.py`. They call `add_revision` and
-`request_proof`, count actual provider I/O, and read the provider's separate
-SQLite database. The remaining bindings connect terminal outcomes, supersession,
-admission rollback, and cleanup composition:
+The helpers live in `tests/contracts/support.py`. They call `add_revision` and `request_proof`, count actual provider I/O, and read the provider's separate SQLite database. The remaining bindings connect terminal outcomes, supersession, admission rollback, and cleanup composition:
 
 ```python
 # tests/contracts/proof.py
@@ -806,15 +794,9 @@ def snapshot():
     )
 ```
 
-The complete `proof.py` contains the producer and compensation helpers referenced
-above. `portal.py`, `printer.py`, and `cleanup.py` bind the other capabilities.
-The cleanup lifecycle fixture begins with an owed row and real disposable bytes;
-the producer's composition histories and the subprocess test separately prove
-that cleanup was admitted before rendering. The bindings do not implement Due's
-recovery or settlement logic.
+The complete `proof.py` contains the producer and compensation helpers referenced above. `portal.py`, `printer.py`, and `cleanup.py` bind the other capabilities. The cleanup lifecycle fixture begins with an owed row and real disposable bytes; the producer's composition histories and the subprocess test separately prove that cleanup was admitted before rendering. The bindings do not implement Due's recovery or settlement logic.
 
-These four declarations generate tests from the registered production capabilities
-and their actual policies:
+These four declarations generate tests from the registered production capabilities and their actual policies:
 
 ```python
 # tests/test_contracts.py
@@ -856,10 +838,7 @@ python -m pytest -q -p due.django.conformance.reporting \
   --durable-work-report=effects.json
 ```
 
-The current example runs **285 tests**. Of those, **270 are generated native
-contract tests** and three are the first task's shared replay proofs. Ten scenario
-tests cover the application's specific story, including a real subprocess exit;
-two enrollment guards check that native contracts cannot disappear unnoticed.
+The current example runs **286 tests**. Of those, **270 are generated native contract tests** and three are the first task's shared replay proofs. Ten scenario tests cover the application's specific story, including a real subprocess exit; one budget check verifies that the registered worker allows the ten-minute render; two enrollment guards check that native contracts cannot disappear unnoticed.
 
 | Contract | Generated checks | Customer promise exercised |
 | --- | ---: | --- |
@@ -868,10 +847,7 @@ two enrollment guards check that native contracts cannot disappear unnoticed.
 | Print ordering | 80 | Definite refusal can retry; ambiguous acceptance requires observation; receipts repair local state |
 | Temporary spool cleanup | 54 | Cleanup survives loss of ownership and retries until it has completion evidence |
 
-The actual policies determine the applicable proofs. Acme also supplies explicit
-reasons for inapplicable families. A green contract says these application
-bindings passed their declared histories; it cannot establish undocumented
-behavior of a real printing vendor.
+The actual policies determine the applicable proofs. Acme also supplies explicit reasons for inapplicable families. A green contract says these application bindings passed their declared histories; it cannot establish undocumented behavior of a real printing vendor.
 
 Keep an inventory independent of the test declarations:
 
@@ -910,11 +886,7 @@ def test_deleted_contract_is_rejected():
             assert_complete_enrollment(native_capabilities(), [entry for entry in enrolled if entry != omitted])
 ```
 
-CI additionally uses Due's `scripts/check_adoption_report.py` to require every
-expected proof to be collected, selected, executed and passed for all four named
-capabilities. `--due-work-require-assessed` catches missing bindings; the inventory
-and report gates catch missing suites or filtered execution. Do not replace those
-checks with a test-count assertion.
+CI additionally uses Due's `scripts/check_adoption_report.py` to require every expected proof to be collected, selected, executed and passed for all four named capabilities. `--due-work-require-assessed` catches missing bindings; the inventory and report gates catch missing suites or filtered execution. Do not replace those checks with a test-count assertion.
 
 For the physical process-death scenario:
 
@@ -922,16 +894,9 @@ For the physical process-death scenario:
 python -m pytest -q tests/test_story.py::test_independent_cleanup_survives_process_death
 ```
 
-That test runs a separate Python process, commits the renderer output and calls
-`os._exit(79)` before publication. Its parent verifies the crash point, recovers
-cleanup, checks the spool bytes disappeared, and recovers publication. `run_demo.py`
-separately exercises Redis, Celery workers and Beat, so the contract suite and the
-live journey cover different parts of the integration.
+That test compresses a process-death history: it runs a separate Python process, commits the renderer output and calls `os._exit(79)` before publication. It covers death after provider completion; the generated compensation histories also cover cleanup while completion is unresolved. Together with the supersession test, these exercise the distinct boundaries in our minute-7 story, without claiming a real ten-minute PDF run. Its parent verifies the crash point, recovers cleanup, checks the spool bytes disappeared, and recovers publication. `run_demo.py` separately exercises Redis, Celery workers and Beat, so the contract suite and the live journey cover different parts of the integration.
 
-When Acme adds a provider, update its contract in the same change. A new lookup,
-idempotency or completion promise should have a binding and an observable verdict.
-This is how the initial small task grows into a system whose reliability claims
-remain reviewable and runnable.
+When Acme adds a provider, update its contract in the same change. A new lookup, idempotency or completion promise should have a binding and an observable verdict. This is how the initial small task grows into a system whose reliability claims remain reviewable and runnable.
 
 ## When should you choose Due over the alternatives?
 
@@ -948,8 +913,39 @@ remain reviewable and runnable.
 
 If your app only needs a few disposable background jobs, a simpler worker may be enough. Celery also supplies broad task execution features and is Due's worker engine here. The reason to add Due is that you would otherwise have to build and maintain the coordination in this table yourself, or integrate another system that provides it.
 
-For Acme, that investment starts small: keep the estimator's `@task`, configure one backend, and commit the task with the revision. As requirements grow, add the native capability that matches the problem. There is no separate migration of every task, and no need to anticipate every future workflow on day one.
+For Acme, that investment starts small: keep the estimator's `@task`, configure one backend, and commit the task with the revision. As requirements grow, add the native capability that matches the problem. There is no seperate migration of every task, and no need to anticipate every future workflow on day one.
 
-Due is still an alpha project. Evaluate its current APIs and operating requirements for your deployment. The runnable scenario gives you something concrete to evaluate: change the provider behavior, break a handoff, kill a process, and see which product guarantee survives.
 
 [Get the complete Acme Printworks project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) · [Due capabilities and contracts](https://github.com/gigaverse-app/due/blob/v0.8.0/package/docs/capabilities.md)
+
+## Run the whole story
+The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test. The snippets above explain its evolution. The downloadable application contains the final version; `acme/stage2.py` also preserves and tests the intermediate proof implementation.
+
+Use Python 3.14 and Docker Compose on Linux, macOS, or WSL:
+
+```bash
+git clone https://github.com/gigaverse-app/due.git
+cd due/examples/acme_printworks
+python3.14 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+docker compose up -d --wait
+python run_demo.py
+python -m pytest -q -p due.django.conformance.reporting --due-work-require-assessed
+```
+
+The demo applies migrations, starts a Celery worker and Beat, runs the order, then stops those processes. The first run prints:
+
+```text
+Acme Printworks job 418: Willow Cafe, 500 brochures
+1. Estimate: 4 words, recovered after a lost notification
+2. Proof: revision 18, June 19
+3. Portal: displays revision 18
+4. Printer: accepted 500 copies; lost reply recovered; exactly one order
+5. Cleanup: temporary spool removed; immutable proof retained
+6. Run pytest -q for late writes, process death, and replay contracts
+```
+
+Subsequent runs create a new job. Run `docker compose down` when finished. These are disposable local development services. The README also explains how to use existing dedicated PostgreSQL and Redis instances.
+
+> The providers are local simulators with independent SQLite commits. Django and Due use PostgreSQL. The proof is a text preview, keeping the example small; no PDF library, printer account, or API key is needed. We deliberately give the portal and printer difficult contracts so the failure cases are reproducible.
