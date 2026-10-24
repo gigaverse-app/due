@@ -279,6 +279,39 @@ unassessed evidence. [Runtime self-test](../tests/conformance/test_persistent_re
 `interleavings.WorkTableRecovery` runs registered recovery for a tuple of models
 and accounts only for worker errors explained by the bound `ProviderControl`.
 It reuses the background driver and registration manifest.
+Its `session(...)` method supplies the normal work-table bindings: captured
+admission, delivery start, broker loss/redelivery, registered recovery, clock,
+fault accounting, refreshed desired/applied revisions, and retention of active
+work or UNKNOWN evidence from any revision. Supply `intents`, the real `admit`
+command and an independent `observe`; add `change` for mutable projections.
+This returns the canonical pytest-obligation `InFlightSession`.
+
+```python
+recovery = WorkTableRecovery(background, provider, (MyWork,), (TimeoutError,))
+yield recovery.session(
+    intents=intents,
+    admit=create_document,
+    observe=read_product_and_provider,
+    change=edit_document,
+)
+```
+
+Declare the matching `InFlightConvergence` in `EffectExamples.in_flight` with
+`transport=True`; keep independent-progress and provider-lifetime choices
+explicit. For a restorable authority, supply `retire`, the reviewed `retired`
+observation and `recreate(old_work, value) -> current_work`, then declare
+`retirement=True, recreation=True`. The shared suite adds old-completion-after-
+restoration histories and Hypothesis lifecycle exploration automatically.
+For a **synchronous** retirement that can reject, also bind `authority` (an
+immutable product snapshot), `rejection_errors`, and the declaration's
+`rejected_retirement_seams`. Asynchronous admission does not claim synchronous
+rollback coverage. These are application semantics; Due cannot infer them from
+a work model.
+
+Use `retained=` only when recovery ownership passes to a different row. Use the
+underlying `InFlightSession` for other nonstandard lifecycles. Neither API
+implements another scheduler or a runtime batch mode.
+
 
 Unbounded discovery generates `test_discovery_selection_is_complete`. It compares
 the production candidate query with the real per-owner derivation, so an owner

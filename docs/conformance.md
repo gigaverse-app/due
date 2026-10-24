@@ -110,6 +110,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
 | Projection or scheduled action | `snapshot` | Supersession; late projection repair or cancellation after external entry |
+| Restorable authority | `in_flight` with `WorkTableRecovery.session`, real retirement/restoration commands | Generated late completion across retirement/restoration; optional Hypothesis lifecycle histories |
 | Canonical discovery | `derivation` | Fact-derived obligations, admissible database edge values, poisoned candidates |
 | Execution gate | `eligibility` (one or named variants) | Blocked intent, bounded inspection and periodic recovery |
 | Custom recovery callback | `recovery_steps`, bound to each actual callback | [Faulted first-page progress, preserved work, backoff and retry](conformance-api.md#executable-recovery-coverage) |
