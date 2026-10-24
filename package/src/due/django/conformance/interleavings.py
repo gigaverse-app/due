@@ -130,7 +130,9 @@ class WorkTableRecovery:
 
         Admission captures real publications; start releases them and recovery
         invokes the registered capabilities. Revision observations refresh the
-        actual work row. Retention includes UNKNOWN evidence from every revision,
+        actual work row. Retirement-only sessions use canonical product observations
+        without revision callbacks, so valid work-row purging does not break their
+        quiet-tail checks. Retention includes UNKNOWN evidence from every revision,
         even when a later attempt completed. Override only ``retained`` when an
         application hands recovery ownership to another row.
 
@@ -161,6 +163,7 @@ class WorkTableRecovery:
             model: type[UniverseDurableWork] = type(work)
             return unsettled_work(model.objects.filter(pk=work.pk), strict=True).exists()
 
+        retirement_only = retire is not None and change is None and recreate is None
         return InFlightSession(
             intents=intents,
             admit=captured_admission,
@@ -172,8 +175,8 @@ class WorkTableRecovery:
             provider=self.provider,
             transport=broker,
             account_faults=self.account,
-            desired_identity=desired,
-            acknowledged_identity=lambda work: revision(work, "applied_revision"),
+            desired_identity=None if retirement_only else desired,
+            acknowledged_identity=None if retirement_only else lambda work: revision(work, "applied_revision"),
             change=change,
             retire=retire,
             retired=retired,

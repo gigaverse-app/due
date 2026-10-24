@@ -1,6 +1,7 @@
 """Work-table defaults observe the real runtime, including unresolved evidence."""
 
 from datetime import timedelta
+from functools import partial
 
 import pytest
 from pytest_obligation.interleavings import Fault, Intent, ProviderControl
@@ -114,3 +115,36 @@ def test_recovery_does_not_swallow_an_unexplained_error():
         patches.setattr(background, "run_recovery", unrelated)
         with pytest.raises(AssertionError, match="uninjected provider failure"):
             recovery.recover()
+
+
+def test_retirement_session_observes_canonical_state_after_completed_work_is_purged():
+    entry = DurableWorkRegistration(
+        name="primitive_self_test", capability=sut.primitive, cadence_seconds=60, queue="celery"
+    )
+    with durable_work_installed(entry), environment() as (background, _):
+        recovery = WorkTableRecovery(background, ProviderControl(), (sut.PrimitiveWork,), (TimeoutError,))
+
+        def retire(work):
+            sut.PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="retired")
+
+        session = recovery.session(
+            intents={"after": Intent(value="after", expected="after")},
+            admit=partial(sut.record, notify_worker=True),
+            observe=lambda work: sut.PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            retire=retire,
+            retired="retired",
+        )
+        work = session.admit("after")
+        session.start(work)
+        assert session.observe(work) == "after"
+        retire(work)
+        session.advance(8 * 24 * 60 * 60)
+        session.recover()
+        session.account_faults()
+        assert not sut.PrimitiveWork.objects.exists(), "the real recovery must cross the retention boundary"
+        assert session.observe(work) == session.retired
+        # The shared runner compares any supplied identities on every quiet-tail turn.
+        # Retirement has no mutable revision, and canonical state survives valid row purging.
+        if session.desired_identity is not None:
+            assert session.acknowledged_identity is not None
+            assert session.desired_identity(work) == session.acknowledged_identity(work)

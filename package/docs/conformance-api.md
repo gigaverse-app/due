@@ -308,6 +308,12 @@ immutable product snapshot), `rejection_errors`, and the declaration's
 rollback coverage. These are application semantics; Due cannot infer them from
 a work model.
 
+A retirement-only session (`retire` supplied, with neither `change` nor
+`recreate`) observes canonical product/provider state without refreshing revision
+columns. Completed work can legitimately be purged during a long recovery
+history. Mutable and restorable sessions keep the revision checks; retention of
+unresolved work is still checked separately.
+
 Use `retained=` only when recovery ownership passes to a different row. Use the
 underlying `InFlightSession` for other nonstandard lifecycles. Neither API
 implements another scheduler or a runtime batch mode.
