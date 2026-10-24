@@ -96,11 +96,8 @@ class WorkTableRecovery:
 
     def recover(self) -> None:
         for model in self.models:
-            faults_before = len(self.provider.reached)
-            try:
+            with self.provider.explained_failures(*self.injected):
                 self.background.run_recovery(registration_for(model).name)
-            except self.injected:
-                assert len(self.provider.reached) > faults_before, "uninjected provider failure"
 
     def account(self) -> None:
         assert len(self.background.failures) <= len(self.provider.reached), "more worker errors than injected faults"
