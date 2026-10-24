@@ -13,6 +13,18 @@ transaction connection; cross-database atomic admission is not supported.
    recovery schedules. Configure Celery from Django settings or pass its app explicitly.
 5. Run workers for the registered queues and a recurring scheduler. Alert on
    outstanding work and stale recovery heartbeats.
+6. **Always build the application contract.** Install `django-due[testing]`, bind
+   each native capability's real commands, provider calls and independent product
+   observations, and enroll it with `effect_contract_suite`. Run the generated
+   pytest-obligation tests and require complete enrollment and executed evidence
+   in CI. Follow the [conformance guide](conformance.md) and the runnable
+   [Acme Printworks tutorial](../../docs/acme-printworks-tutorial.md).
+
+This is part of integration, starting with the first capability. Your bindings
+describe what success means; the shared tests supply reusable failure histories
+and assertions for the declared policies. That is the practical meaning of
+getting valuable tests "for free": you reuse the test design while still proving
+your application's behavior against its real dependencies and provider contracts.
 
 The [complete registration pattern](../../examples/apps.py) runs after Django
 loads application models:
