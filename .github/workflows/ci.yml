@@ -65,11 +65,11 @@ jobs:
           config: .github/test-lanes.json
       - id: policy
         name: Admit selected suites before provisioning
-        uses: gigaverse-app/ci-esta/actions/plan-test-policy@6a7a1ab5ec3b87208de60edc49751d4e50b8c461
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@f529ac3a0621870d836ec0c7ec7f3b13d46f4df4
         with:
           policy: .github/test-policy.json
+          lanes: .github/test-lanes.json
           profile: ${{ inputs.profile || 'legacy' }}
-          occasion: ${{ github.event_name == 'pull_request' && 'pr' || github.event_name == 'workflow_dispatch' && 'manual' || github.event_name }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: scope
         name: Identify the complete set of tests this execution proves

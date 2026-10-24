@@ -1,93 +1,9 @@
 {
   "schema_version": "ci-esta/test-policy/v1",
   "profiles": {
-    "legacy": {
-      "occasions": [
-        "pr",
-        "push",
-        "manual",
-        "schedule"
-      ],
-      "include": [
-        "*"
-      ]
-    },
-    "thorough": {
-      "occasions": [
-        "pr",
-        "manual",
-        "schedule"
-      ],
-      "include": [
-        "library",
-        "integration",
-        "typecheck",
-        "contracts",
-        "wheel"
-      ],
-      "scope": "all",
-      "fresh": true
-    },
-    "exhaustive": {
-      "occasions": [
-        "pr",
-        "manual",
-        "schedule"
-      ],
-      "include": [
-        "*"
-      ],
-      "scope": "all",
-      "fresh": true
-    },
-    "performance": {
-      "occasions": [
-        "manual",
-        "schedule"
-      ],
-      "include": [
-        "widget_comparison"
-      ],
-      "scope": "all",
-      "fresh": true
-    }
+    "thorough": {"occasions": ["pr", "manual", "schedule"]}
   },
   "work": [
-    {
-      "id": "library",
-      "tags": [
-        "library"
-      ]
-    },
-    {
-      "id": "integration",
-      "tags": [
-        "integration"
-      ]
-    },
-    {
-      "id": "widget_comparison",
-      "tags": [
-        "widget_comparison"
-      ]
-    },
-    {
-      "id": "typecheck",
-      "tags": [
-        "typecheck"
-      ]
-    },
-    {
-      "id": "contracts",
-      "tags": [
-        "contracts"
-      ]
-    },
-    {
-      "id": "wheel",
-      "tags": [
-        "wheel"
-      ]
-    }
+    {"id": "widget_comparison", "tags": ["expensive", "performance"]}
   ]
 }

@@ -34,6 +34,12 @@ suite/validator/gate checks remain in `ci_tests` and CI.
 
 ## Shared implementation revision
 
-Planner, routing-contract action and optional budget/resource APIs use CI-esta `6a7a1ab5ec3b87208de60edc49751d4e50b8c461`.
+Planner, routing-contract action and optional budget/resource APIs use CI-esta `f529ac3a0621870d836ec0c7ec7f3b13d46f4df4`.
 The shared design and schemas are in https://github.com/gigaverse-app/ci-esta/pull/98.
 All adoption PRs remain unmerged pending review of that design.
+
+## Opinionated defaults
+
+CI-esta now owns all standard profiles. The policy retains only the widget comparison expensive/performance tags and the existing PR-occasion exception for thorough. Both workflows and contracts read lane IDs from `.github/test-lanes.json`.
+
+Existing routing expectations are retained; ordinary workflows still default to `legacy` for compatibility. New adopters default to `ci`, which defers expensive/manual work. Overrides replace fields, including empty arrays; `extends` supports genuine exceptions and `defaults: none` disables the catalog.

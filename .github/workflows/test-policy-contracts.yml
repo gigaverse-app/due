@@ -2,6 +2,7 @@ name: Test policy contracts
 on:
   pull_request:
     paths:
+      - '.github/test-lanes.json'
       - '.github/test-policy*.json'
       - '.github/workflows/**'
       - '.github/actions/**'
@@ -13,8 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/actions/check-test-policy@6a7a1ab5ec3b87208de60edc49751d4e50b8c461
+      - uses: gigaverse-app/ci-esta/actions/check-test-policy@f529ac3a0621870d836ec0c7ec7f3b13d46f4df4
         with:
           policy: .github/test-policy.json
+          lanes: .github/test-lanes.json
           cases: .github/test-policy-cases.json
           workflow-cases: .github/test-policy-workflow-cases.json
