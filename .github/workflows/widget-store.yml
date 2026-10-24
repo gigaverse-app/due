@@ -37,7 +37,7 @@ jobs:
           config: .github/test-lanes.json
       - id: policy
         name: Admit selected suites before provisioning
-        uses: gigaverse-app/ci-esta/actions/plan-test-policy@aacff9d4e367c5944a0af84f3892cb208b7eaea0
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@v1
         with:
           policy: .github/test-policy.json
           lanes: .github/test-lanes.json

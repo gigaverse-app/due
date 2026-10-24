@@ -66,7 +66,7 @@ jobs:
           config: .github/test-lanes.json
       - id: policy
         name: Admit selected suites before provisioning
-        uses: gigaverse-app/ci-esta/actions/plan-test-policy@aacff9d4e367c5944a0af84f3892cb208b7eaea0
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@v1
         with:
           policy: .github/test-policy.json
           lanes: .github/test-lanes.json
@@ -74,7 +74,7 @@ jobs:
           affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
         name: Resolve exact execution scope and completed Django variants
-        uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@aacff9d4e367c5944a0af84f3892cb208b7eaea0
+        uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1
         with:
           lanes: '{"locked":"Execute tests (locked)","minimum":"Execute tests (minimum)"}'
           selection-keys: '["library","integration"]'
