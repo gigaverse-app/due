@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/gigaverse-app/due/compare/v0.9.0...v0.10.0) (2026-10-24)
+
+
+### Features
+
+* **ci:** adopt shared test execution profiles ([#117](https://github.com/gigaverse-app/due/issues/117)) ([b491ee8](https://github.com/gigaverse-app/due/commit/b491ee82f9da6a8c579b283c9ad257e2bc802617))
+* **testing:** reuse lifecycle bindings for generated histories ([#116](https://github.com/gigaverse-app/due/issues/116)) ([c4ba846](https://github.com/gigaverse-app/due/commit/c4ba846a75f69f46db36ee3a7b09552a5d95c2f0))
+
 ## [0.9.0](https://github.com/gigaverse-app/due/compare/v0.8.0...v0.9.0) (2026-10-24)
 
 
