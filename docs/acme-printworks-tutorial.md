@@ -8,6 +8,10 @@ This tutorial shows that progression with **Due's backend for Django Tasks**, in
 
 Meet **Acme Printworks**, a fictional company building a Django application for small businesses ordering brochures. Picture its first customer, **Willow Cafe**, uploading copy for **500 brochures, job 418**. Acme initially needs a word count for an estimate. Later, Willow Cafe wants a proof, changes its opening date from June 12 to June 19, approves the revision, and sends it to a printing partner.
 
+One premise matters for the rest of the story: **rendering a PDF can take a surprisingly long time**. Even a small document can trigger a long render with some inputs, as [WeasyPrint's rendering documentation](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#long-renderings) explains. For our story, assume Willow Cafe's troublesome PDF takes **10 minutes** to render.
+
+Ten minutes gives the world time to change around a running task. The customer might upload a correction. A rare power outage might stop the machine, or an unexpected server restart might kill the worker seven minutes into the render. None of these needs to happen often for Acme to need an answer: which proof should the customer see, what work is still owed, and who will remove the temporary files? We'll use that same ten-minute window throughout the story.
+
 We'll follow that same order through each requirement. You'll see the code change, the specific failure it must handle, and a test that makes the failure happen.
 
 At the first stage, many task runners would work. Acme's reason to choose Due is that the same PostgreSQL-backed work model can support the later requirements without Acme inventing its own ownership, recovery, and evidence machinery. Due uses Celery for execution; its advantage here is the application coordination built around it.
@@ -199,7 +203,9 @@ Tasks runtime cannot infer these application-specific promises for you.
 
 ![Stage 2: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-2.png)
 
-Willow Cafe changes its opening date. Revision 17 says June 12; revision 18 says June 19. A PDF exported with a badly encoded font makes revision 17's renderer spend hours retrying its font conversion. Another worker finishes revision 18 first. Then the old worker returns.
+Revision 17 says June 12 and starts its ten-minute render. Two minutes later, Willow Cafe uploads revision 18 with the corrected opening date, June 19, and a repaired font. Another worker renders that corrected file quickly and publishes it at minute three. At minute ten, the original worker finally returns with the old date.
+
+That is the delayed-success case. In another run, a power outage or server restart might kill the original worker at minute seven. Acme then needs a fresh attempt using the captured input, while still respecting any newer revision the customer requested.
 
 A task that blindly updates `job.published_key` might put June 12 back in front of the customer. Acme now needs two properties: each revision writes its own immutable output, and only the current requested revision can publish the pointer.
 
@@ -283,7 +289,9 @@ Try the specific regression:
 python -m pytest -q tests/test_story.py::test_old_proof_cannot_replace_new_proof
 ```
 
-The test reproduces the ordering caused by the malformed PDF without waiting hours: revision 18 finishes while revision 17 is returning from its renderer. The executable provider renders text previews; the PDF fault explains the real-world timing it models. It reads the published proof text and requires June 19. Checking only a task's success status would miss the actual bug.
+The test compresses that ten-minute window: revision 18 finishes while revision 17 is returning from its renderer. The executable provider renders text previews and injects the relevant ordering and interruptions, so running the example does not require waiting ten minutes. The test reads the published proof text and requires June 19. Checking only a task's success status would miss the actual bug.
+
+For a real ten-minute renderer, configure Due's ownership lease and the worker's soft and hard execution time limits to accommodate that rendering budget. The fast simulator uses the sample's defaults; see [execution budgets](https://due.readthedocs.io/en/latest/package/docs/operations/) when connecting a real renderer.
 
 ## 3. The approval portal can be overwritten remotely
 
@@ -569,7 +577,7 @@ That is a strong reason to choose Due when your Django app makes consequential e
 
 ![Stage 5: customer goal, happy path, external disruption, bad outcome and Due recovery.](../documentation/assets/acme/stage-5.png)
 
-Acme's renderer now creates temporary spool data while preparing a proof. Deleting it only in a Python `finally` block is insufficient: a power outage might stop the rendering machine after it writes a multi-gigabyte spool file, before that block runs. A week of stranded files can leave too little space for the next customer.
+Acme's renderer now creates temporary spool data during those ten minutes of preparing a proof. Suppose a power outage or unexpected server restart stops it at minute seven, after it has written a multi-gigabyte spool file. Deleting that file only in a Python `finally` block is insufficient: the worker is gone before the block can run. A week of stranded files can leave too little space for the next customer.
 
 Reserve a cleanup obligation **before** calling the renderer:
 
