@@ -21,7 +21,7 @@ We'll follow that same order through each requirement. You'll see the code chang
 At the first stage, many task runners would work. Acme's reason to choose Due is that the same PostgreSQL-backed work model can support the later requirements without Acme inventing its own ownership, recovery, and evidence machinery. Due uses Celery for execution; its advantage here is the application coordination built around it.
 
 > ## Run the whole story
-> There's instructions at the end of this article on how to run the whole story, and The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test. 
+> There's instructions at the end of this article on how to run the whole story, and The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test.
 
 ## 1. Launch: count Willow Cafe's words
 
@@ -918,7 +918,7 @@ For Acme, that investment starts small: keep the estimator's `@task`, configure 
 
 [Get the complete Acme Printworks project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) · [Due capabilities and contracts](https://github.com/gigaverse-app/due/blob/v0.8.0/package/docs/capabilities.md)
 
-## Run the whole story 
+## Run the whole story
 The [complete runnable project](https://github.com/gigaverse-app/due/tree/main/examples/acme_printworks) includes every model, migration, setting, provider simulator, command, and test. The snippets above explain its evolution. The downloadable application contains the final version; `acme/stage2.py` also preserves and tests the intermediate proof implementation.
 
 Use Python 3.14 and Docker Compose on Linux, macOS, or WSL:
