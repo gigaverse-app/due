@@ -87,6 +87,7 @@ from due.django.conformance.composition import (
 from due.django.conformance.composition import (
     SupersessionExample as SupersessionExample,
 )
+from due.django.conformance.concurrency import applied_snapshot
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.discovery_admissibility import (
     assert_database_legal_candidate_is_admissible,
@@ -386,6 +387,10 @@ def snapshot_bindings[W: UniverseDurableWork, ResultT](
         ),
         _binding(factory) as example,
     ):
+        if example.after_apply:
+            with applied_snapshot(capability, example.work, change=example.change, observe=example.observe) as snapshot:
+                yield snapshot
+            return
 
         def capture():
             capability.enqueue_execution(example.work.pk)

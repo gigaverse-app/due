@@ -14,6 +14,7 @@ from due.django.conformance.background import BackgroundWork
 from due.django.conformance.background import background_work as background_work
 from due.django.conformance.background import scheduler_clock as scheduler_clock
 from due.django.conformance.delivery import WorkTableDelivery
+from due.django.conformance.observation_confluence import observation_confluence
 from due.django.conformance.observations import (
     ObservationExample,
     ObservationHistory,
@@ -157,3 +158,21 @@ def test_observer_handoff_reuses_the_example_and_rejects_broken_runtime(observer
     expected = pytest.raises(AssertionError, match=message) if message else nullcontext()
     with expected:
         assert_crash_at_every_commit_converges(WorkTableDelivery(observer), history)
+
+
+@pytest.mark.parametrize("history_id", ["EC.control/canonical", "EC.permutations/inventory-receipt"])
+@pytest.mark.parametrize("broken_publication", [False, True])
+def test_observation_example_generates_product_evidence_proofs(
+    observer: ObservedPublication,
+    monkeypatch: pytest.MonkeyPatch,
+    history_id: str,
+    broken_publication: bool,
+) -> None:
+    scenario = observation_confluence("observed-publication", observer, lambda: observation_example(observer))
+    history = next(history for history in scenario.histories() if history.id == history_id)
+    if broken_publication:
+        monkeypatch.setattr(ObservedPublication, "_finalize_applied", lambda *args: None)
+    expected = pytest.raises(AssertionError, match="evidence changed") if broken_publication else nullcontext()
+    with expected:
+        scenario.run(history)
+    assert len(ObservationProvider.creates) == 1, "either evidence source must settle without resending"
