@@ -60,8 +60,10 @@ jobs:
 
   compare:
     needs: select-tests
+    # Expensive work needs successful admission. A broken planner leaves the
+    # required gate red; it must not authorize ten benchmark captures.
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result == 'success' &&
           (needs.select-tests.outputs.required != 'false' &&
            toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true'))) }}
     runs-on: ubuntu-latest
