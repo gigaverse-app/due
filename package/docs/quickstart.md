@@ -222,8 +222,8 @@ transaction so the product change and durable job stay together.
 You have used the everyday API: `@task`, `.enqueue()`, `.refresh()` and
 `.get_result()`. To use it in an existing Django project:
 
-1. Install `due.django` and `due.django.tasks`, run their migrations, and select
-   `due.django.tasks.backend.DueBackend` in `TASKS`.
+1. Add `due.django` and `due.django.tasks` to `INSTALLED_APPS`, run their
+   migrations, and select `due.django.tasks.backend.DueBackend` in `TASKS`.
 2. Put your function in an importable module. List its path in
    `OPTIONS["replay_safe_tasks"]` after checking what happens if it runs again.
 3. Register Due in `AppConfig.ready()` and run Celery workers plus Beat.
