@@ -25,7 +25,7 @@ At the first stage, many task runners would work. Acme's reason to choose Due is
 
 ## 1. Launch: count Willow Cafe's words
 
-![Stage 1: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-1.png)
+![Stage 1: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-1.png?v=9b85669)
 
 The first requirement is modest: count each uploaded revision so Acme can prepare an estimate. Revision 17 says `Opening day: June 12`, which has four words.
 
@@ -167,7 +167,7 @@ The suite checks that execution reaches the implementation, produces the expecte
 
 ## 2. Customers want proofs, and an old worker finishes late
 
-![Stage 2: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-2.png)
+![Stage 2: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-2.png?v=9b85669)
 
 Revision 17 says June 12 and starts its ten-minute render. Two minutes later, Willow Cafe uploads revision 18 with the corrected opening date, June 19, and a repaired font. Another worker renders that corrected file quickly and publishes it at minute three. At minute ten, the original worker finally returns with the old date.
 
@@ -293,7 +293,7 @@ For a claim made at minute 0 with no renewal, that lease expires at minute 15. A
 
 ## 3. The approval portal can be overwritten remotely
 
-![Stage 3: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-3.png)
+![Stage 3: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-3.png?v=9b85669)
 
 Acme adds a hosted approval portal. Its API accepts `PUT(job_id, proof_key)`, but provides no conditional version check. For this stage, suppose an earlier proof, r16, already exists with June 12. Its portal request is held in flight before our clock starts. While r17 is rendering, the minute-2 correction produces r18 and its portal update at minute 3. Restarting Acme at minute 7 cannot retract the older HTTP request. If that request lands at minute 10, the portal shows June 12 again, even though the killed r17 renderer never returned.
 
@@ -356,7 +356,7 @@ It first verifies that June 12 overwrote June 19, then runs recovery and require
 
 ## 4. A timeout after ordering 500 brochures
 
-![Stage 4: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-4.png)
+![Stage 4: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-4.png?v=9b85669)
 
 Willow Cafe approves revision 18 after it publishes at minute 3. Acme submits 500 copies to a printing partner just before minute 7. The printer creates the order and commits it. Then the minute-7 restart kills Acme's waiting client before it records the reply. A power outage at the printer's network gateway would leave Acme with the same uncertainty. At minute 10, the question is whether the order was accepted, regardless of whether the obsolete r17 render survived.
 
@@ -567,7 +567,7 @@ That is a strong reason to choose Due when your Django app makes consequential e
 
 ## 5. Rendering gets temporary storage, and workers can die
 
-![Stage 5: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-5.png)
+![Stage 5: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-5.png?v=9b85669)
 
 Acme's renderer now creates temporary spool data during those ten minutes of preparing a proof. Suppose a power outage or unexpected server restart stops it at minute seven, after it has written a multi-gigabyte spool file. Deleting that file only in a Python `finally` block is insufficient: the worker is gone before the block can run. A week of stranded files can leave too little space for the next customer. The corrected r18 proof published at minute 3 remains valid; cleaning r17's temporary files must not delete it. After the old attempt's reservation expires, Due can recover its independent cleanup. It removes disposable bytes and keeps checking until the renderer provides completion evidence that rules out later writes.
 
@@ -715,7 +715,7 @@ Each registration gives recovery an owner, queue, and cadence. The project's Cel
 
 ## 6. Keep the failure guarantees executable
 
-![Stage 6: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-6.png)
+![Stage 6: minutes 0, 2, 3, 7 and 10; restart and late-success branches; customer outcome and Due recovery.](../documentation/assets/acme/stage-6.png?v=9b85669)
 
 Acme changes its printer adapter six months later. A developer sees a timeout and adds a retry. The happy-path demo still works, but the next power failure could order a second 500 brochures. A contract should catch that before deployment.
 
