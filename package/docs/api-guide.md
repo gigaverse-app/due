@@ -1,12 +1,13 @@
 # Which API should I use?
 
-**Use `ReplaySafeEffect` plus `capability.atomic()` when your application needs
-repeatable work and guarded publication of the current requested result.** The
-[native tutorial](quickstart.md) teaches this API with trivial arithmetic.
+**For a background function, start with Django's `@task` and `.enqueue()` using
+Due as its backend.** The [first tutorial](quickstart.md) shows how to submit a
+job, retrieve its result and recover it after killing its worker.
 
-For an ordinary background function, use Django Tasks with Due as its backend.
-For remote-state repair or uncertain provider outcomes, choose the richer
-capabilities below. All use the same PostgreSQL/Celery recovery runtime.
+Use `ReplaySafeEffect` plus `capability.atomic()` when work belongs to an editable
+product and completion must publish only the current requested result. For
+remote-state repair or uncertain provider outcomes, choose the capabilities
+below. All use the same PostgreSQL/Celery recovery runtime.
 
 Most Due imports come from two entry points:
 
@@ -30,41 +31,6 @@ helpers in `AppConfig.ready()`. The expanded entry points are available in the
 source checkout, following 0.10.0. Existing module imports remain supported and
 refer to the same classes/functions.
 
-## A product outcome that needs guarded completion
-
-The native API has three parts:
-
-| Call or hook | Your application supplies | Due supplies |
-| --- | --- | --- |
-| `capability.atomic(owner_id)` and `pending.request_work(...)` | Product changes and captured inputs | Owner lock, atomic admission, revision change and post-commit notification |
-| `perform_effect(work)` | Replay-safe calculation or external operation | Claimed execution outside the settlement transaction |
-| `finalize_success(work, result)` | Local transactional product writes | Ownership/revision checks and locks before publication |
-
-Bind your capability once, after its models are loaded:
-
-```python
-from examples.numbers.effects import DoubleNumber
-from examples.numbers.models import CalculationWork
-
-calculate = DoubleNumber.for_owner(work=CalculationWork)
-```
-
-The [arithmetic tutorial](quickstart.md) shows the full model, both hooks, the
-producer command, and four failure histories. The
-[document application](../../examples/documents/README.md) uses the same pattern
-to publish immutable file revisions. A local fence cannot stop an old external
-request; your effect must tolerate repetition or use a different capability.
-
-Due infers the owner from the work model's declared one-to-one relation and uses
-`DurableWorkPolicy()` unless you provide `policy=`. Explicit `owner=` is checked
-against that relation. The standard policy has a five-minute lease, one-minute
-retry delay, three rearms and seven-day retention. Provider operations that
-require retained history still need `DurableWorkPolicy(retention=None)`.
-
-Build the [application contract](conformance.md) alongside your hooks. The
-arithmetic example includes real producer/provider bindings, generated failure
-checks, independent enrollment and executed-report validation.
-
 ## A function that can safely run again
 
 Your day-to-day API is Django's `@task`, `.enqueue()`, and `.get_result()`:
@@ -85,14 +51,51 @@ result = word_count.get_result(result.id)
 ```
 
 Define the task in an importable module and list its path in `replay_safe_tasks`.
-The [greeting walkthrough](django-tasks-quickstart.md) supplies the complete configuration,
-worker, scheduler, result inspection and application tests.
+The [task tutorial](quickstart.md) supplies a prepared project and walks through
+execution, result inspection and worker recovery. The
+[setup guide](django-tasks-quickstart.md) supplies every configuration file for
+your own project.
 The [backend reference](django-tasks.md) covers delayed execution, queues and policy.
 
 Use this for deterministic calculations or effects with established replay
 safety. Each enqueue is a distinct invocation. A task might execute again after
 a crash; Due guards its result row, while your task body must make its own writes
 safe. Enqueue in the same database transaction as the product change it serves.
+
+## A product outcome that needs guarded completion
+
+The native API has three parts:
+
+| Call or hook | Your application supplies | Due supplies |
+| --- | --- | --- |
+| `capability.atomic(owner_id)` and `pending.request_work(...)` | Product changes and captured inputs | Owner lock, atomic admission, revision change and post-commit notification |
+| `perform_effect(work)` | Replay-safe calculation or external operation | Claimed execution outside the settlement transaction |
+| `finalize_success(work, result)` | Local transactional product writes | Ownership/revision checks and locks before publication |
+
+Bind your capability once, after its models are loaded:
+
+```python
+from examples.numbers.effects import DoubleNumber
+from examples.numbers.models import CalculationWork
+
+calculate = DoubleNumber.for_owner(work=CalculationWork)
+```
+
+The [native work lesson](native-work-tutorial.md) shows the full model, both hooks, the
+producer command, and four failure histories. The
+[document application](../../examples/documents/README.md) uses the same pattern
+to publish immutable file revisions. A local fence cannot stop an old external
+request; your effect must tolerate repetition or use a different capability.
+
+Due infers the owner from the work model's declared one-to-one relation and uses
+`DurableWorkPolicy()` unless you provide `policy=`. Explicit `owner=` is checked
+against that relation. The standard policy has a five-minute lease, one-minute
+retry delay, three rearms and seven-day retention. Provider operations that
+require retained history still need `DurableWorkPolicy(retention=None)`.
+
+Build the [application contract](conformance.md) alongside your hooks. The
+arithmetic example includes real producer/provider bindings, generated failure
+checks, independent enrollment and executed-report validation.
 
 ## Register the app once
 
@@ -124,8 +127,8 @@ backend alias, queue, cadence or worker limits. Both forms use the same checks.
 
 | Your requirement | API | Learn by example |
 | --- | --- | --- |
-| Repeatable background function and stored return value | `django.tasks.task` with `DueBackend` | [Greeting walkthrough](django-tasks-quickstart.md) |
-| Repeatable effect with guarded local publication | `ReplaySafeEffect` | [Arithmetic and stale results](quickstart.md) |
+| Repeatable background function and stored return value | `django.tasks.task` with `DueBackend` | [Run and recover a task](quickstart.md) |
+| Repeatable effect with guarded local publication | `ReplaySafeEffect` | [Native work and completion hooks](native-work-tutorial.md) |
 | Repair an external view after an old write lands late | `Projection` | [Approval portal](../../docs/acme-printworks-tutorial.md#3-the-approval-portal-can-be-overwritten-remotely) |
 | Move or cancel a deadline | `ScheduledAction` | [Scheduled publication](../../examples/scheduled/README.md) |
 | Preserve an uncertain, non-repeatable occurrence | `DurableExternalOperation` | [Evidence and replay rules](capabilities.md#uncertainty-and-evidence) |

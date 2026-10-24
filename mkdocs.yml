@@ -59,6 +59,7 @@ validation:
 extra:
   published_sources:
   - package/docs/quickstart.md
+  - package/docs/native-work-tutorial.md
   - package/docs/django-tasks-quickstart.md
   - package/docs/api-guide.md
   - docs/acme-printworks-tutorial.md
@@ -98,9 +99,10 @@ extra:
 nav:
 - Home: index.md
 - Getting started:
-  - Learn Due through four failures: package/docs/quickstart.md
-  - Django Tasks walkthrough: package/docs/django-tasks-quickstart.md
+  - Run and recover your first task: package/docs/quickstart.md
+  - Set up Due in your project: package/docs/django-tasks-quickstart.md
   - Which API should I use?: package/docs/api-guide.md
+  - Native work and completion hooks: package/docs/native-work-tutorial.md
   - Grow with Printworks: docs/acme-printworks-tutorial.md
   - Why Due: docs/why-due.md
   - Recovery walkthrough: docs/recovery-walkthrough.md

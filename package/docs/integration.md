@@ -1,7 +1,8 @@
 # Django and Celery integration
 
 This is the native integration reference. For your first run, use the
-[trivial native tutorial](quickstart.md), then [choose an API](api-guide.md).
+[task tutorial](quickstart.md), then [choose an API](api-guide.md). The
+[native work lesson](native-work-tutorial.md) introduces admission and completion hooks.
 Application authoring and startup imports are collected in `due.django.public`.
 
 Use one writable PostgreSQL database for the product row, its work row, Due's

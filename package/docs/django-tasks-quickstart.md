@@ -1,8 +1,8 @@
-# Tutorial: run your first durable task
+# Set up Due in a Django project
 
-This walkthrough is for Django's `@task` interface with Due as the backend.
-To learn Due's native admission, replay and stale-result protection first, use
-the [arithmetic tutorial](quickstart.md).
+The [first tutorial](quickstart.md) supplies a prepared project so you can run a
+task and try recovery immediately. This guide shows each configuration file for
+adding Django's `@task` interface with Due as the backend to your own project.
 
 **The app is deliberately trivial so you can focus on Due.** It sleeps for a
 second, prints a greeting, and returns a string. There are no application models,

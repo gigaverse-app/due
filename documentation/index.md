@@ -12,29 +12,25 @@ stores a work row alongside the product change, retries delivery through Celery,
 and fences which worker can publish completion. Your application owns the
 meaning of success and whether an external operation is safe to repeat.
 
-[Learn Due through four failures](../package/docs/quickstart.md){ .md-button .md-button--primary }
+[Run and recover your first task](../package/docs/quickstart.md){ .md-button .md-button--primary }
 [Choose an API](../package/docs/api-guide.md){ .md-button }
 
-## Start with one calculation
+## Start with a background function
 
-Use **`ReplaySafeEffect` and `capability.atomic()`** when repeatable work must
-publish only the current requested result. The first tutorial deliberately uses
-trivial arithmetic so the interesting behavior belongs to Due:
+The [tutorial](../package/docs/quickstart.md) uses a function that sleeps, prints
+a greeting and returns it. You submit it with `.enqueue()`, start a worker, and
+retrieve the saved result. Then you kill a worker during a slow job and watch Due
+recover it after restart.
 
-```text
-Request 21 -> calculate 42 -> pause before settlement
-Request  7 -> old attempt returns 42 -> Due rejects its stale result
-Recovery -> calculate 14 -> publish the current result
-```
-
-The [tutorial](../package/docs/quickstart.md) teaches atomic admission, lost
-notifications, interrupted attempts and stale completion. A prepared application
-supplies setup; runnable histories and application contracts check the claims.
+The application is deliberately trivial so you can focus on Due. A prepared
+project supplies setup. Each step has runnable code and expected output; its
+test repeats the journey with real PostgreSQL, Redis, worker death and recovery.
 Production imports live in `due.django.public`; common testing imports live in
 `due.django.conformance`. [Choose the API and find its imports](../package/docs/api-guide.md).
 
-For ordinary background functions, use the separate
-[Django Tasks walkthrough](../package/docs/django-tasks-quickstart.md).
+Next, use the [setup guide](../package/docs/django-tasks-quickstart.md) for your
+own project, or the [native work lesson](../package/docs/native-work-tutorial.md)
+for application-owned work and guarded completion.
 
 ## Install in a Django application
 
@@ -63,8 +59,8 @@ tests make recovery promises executable from the first native capability.
 
 ## Your next step
 
-1. [Run the trivial tutorial](../package/docs/quickstart.md) to learn Due's native
-   API and see its guarantees at each failure boundary.
+1. [Run the task tutorial](../package/docs/quickstart.md) to submit work, read its
+   result, and recover it after stopping the worker.
 2. [Follow Printworks](../docs/acme-printworks-tutorial.md) to apply the ideas
    to publication, projections and uncertain provider operations.
 3. Use the [integration](../package/docs/integration.md),

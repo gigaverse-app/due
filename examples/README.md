@@ -1,9 +1,10 @@
 # Runnable applications
 
-Start with the [trivial arithmetic tutorial](../package/docs/quickstart.md) to learn
-Due's native API through rollback, lost notifications, replay and stale results.
-The [prepared numbers app](numbers/README.md) supplies setup. Then choose an application
-below when you need the corresponding product behavior.
+Start with the [task tutorial](../package/docs/quickstart.md): submit a function,
+read its result, kill its worker, and recover the job. The
+[prepared greeting app](hello_due/README.md) supplies setup. Then use the
+[numbers app](numbers/README.md) to inspect native admission and completion hooks,
+or choose an application below for its product behavior.
 
 Examples live alongside Due so API changes and the applications that exercise
 them can be reviewed together. Most share `examples.settings`,

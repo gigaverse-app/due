@@ -2,9 +2,11 @@
 
 The package subtree includes the docs needed to change and operate the library. Repository guides and application showcases stay with their full checkout. Each document has one owner.
 
-Readers start with [the native arithmetic tutorial](../package/docs/quickstart.md), then
+Readers start with [the background-task tutorial](../package/docs/quickstart.md), then
 [the API and file map](../package/docs/api-guide.md). These live in `package/docs/`
-so the entry points travel with the library. The longer
+so the entry points travel with the library. The
+[native work lesson](../package/docs/native-work-tutorial.md) follows when an
+application needs its own admission and completion hooks. The longer
 [Printworks story](acme-printworks-tutorial.md) stays with its repository example.
 
 | Previous path | Canonical path | Owner |

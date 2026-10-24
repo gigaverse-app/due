@@ -1,7 +1,7 @@
 # Double a number with Due
 
 The application is deliberately trivial: sleep, multiply by two, print, save the
-answer. Read the [Due tutorial](../../package/docs/quickstart.md) for the concepts
+answer. Read the [native work lesson](../../package/docs/native-work-tutorial.md) for the concepts
 and failure histories. This page supplies the prepared Django/Celery setup.
 
 The application code is in two files: [models.py](models.py) and

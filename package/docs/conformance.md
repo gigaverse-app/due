@@ -13,7 +13,7 @@ pytest-obligation tests are a central reliability benefit and part of a complete
 integration. Do not wait for an outage or a separate hardening project. Start with
 the first native capability and extend its bindings as the product grows.
 
-The deliberately trivial [arithmetic tutorial](quickstart.md) includes a complete
+The deliberately trivial [native work lesson](native-work-tutorial.md) includes a complete
 [binding](../../integration_tests/conformance/number_examples.py) and
 [generated suite](../../integration_tests/conformance/test_number_contract.py).
 Its hooks only sleep, multiply, print and save a result. Start there to see what

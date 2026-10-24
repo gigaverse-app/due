@@ -4,8 +4,9 @@
 
 Durable obligations for Django and PostgreSQL. This directory is a standalone installable package and the editable subtree used by adopting applications.
 
-- **[Start here: learn Due through four failures](docs/quickstart.md)**
-- [Django Tasks greeting walkthrough](docs/django-tasks-quickstart.md)
+- **[Start here: run and recover your first task](docs/quickstart.md)**
+- [Set up Due in your Django project](docs/django-tasks-quickstart.md)
+- [Native work and completion hooks](docs/native-work-tutorial.md)
 - **[Choose an API and find the imports](docs/api-guide.md)**
 - [Capabilities and guarantees](docs/capabilities.md)
 - [Application integration](docs/integration.md)
