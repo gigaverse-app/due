@@ -5,6 +5,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Legacy admission or a fresh complete checkpoint
+        type: choice
+        options: [legacy, thorough, exhaustive, performance]
+        default: legacy
 permissions:
   contents: read
   actions: read
@@ -42,7 +48,7 @@ jobs:
   select-tests:
     runs-on: ubuntu-latest
     outputs:
-      lanes: ${{ steps.select.outputs.lanes }}
+      lanes: ${{ steps.policy.outputs.admitted }}
       library: ${{ steps.scope.outputs.library }}
       integration: ${{ steps.scope.outputs.integration }}
       context: ${{ steps.scope.outputs.context }}
@@ -57,11 +63,19 @@ jobs:
         uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
+      - id: policy
+        name: Admit selected suites before provisioning
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@f529ac3a0621870d836ec0c7ec7f3b13d46f4df4
+        with:
+          policy: .github/test-policy.json
+          lanes: .github/test-lanes.json
+          profile: ${{ inputs.profile || 'legacy' }}
+          affected: ${{ steps.select.outputs.lanes }}
       - id: scope
         name: Identify the complete set of tests this execution proves
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
-          LANES: ${{ steps.select.outputs.lanes }}
+          LANES: ${{ steps.policy.outputs.admitted }}
           OUTCOME: ${{ steps.select.outcome }}
         with:
           script: |
@@ -86,7 +100,7 @@ jobs:
       - id: evidence
         name: Find completed Django suites for these exact inputs
         if: >-
-          ${{ steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
+          ${{ (inputs.profile == '' || inputs.profile == 'legacy') && steps.scope.outputs.reusable == 'true' && github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               (steps.scope.outputs.library != 'false' || steps.scope.outputs.integration != 'false') }}
         uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1

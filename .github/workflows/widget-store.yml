@@ -3,6 +3,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Legacy admission or a fresh complete checkpoint
+        type: choice
+        options: [legacy, thorough, exhaustive, performance]
+        default: legacy
   push:
     branches: [main]
 permissions:
@@ -11,14 +17,14 @@ permissions:
   checks: read
   pull-requests: read
 concurrency:
-  group: widgets-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
+  group: widgets-${{ github.workflow }}-${{ (inputs.profile == '' || inputs.profile == 'legacy') && github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 jobs:
   select-tests:
     runs-on: ubuntu-latest
     outputs:
-      lanes: ${{ steps.select.outputs.lanes }}
-      required: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.select.outputs.lanes || '{}').widget_comparison) != 'false' }}
+      lanes: ${{ steps.policy.outputs.admitted }}
+      required: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.policy.outputs.admitted || '{}').widget_comparison) != 'false' }}
       reused: ${{ steps.evidence.outputs.reused }}
       receipt: ${{ steps.evidence.outputs.receipt }}
     steps:
@@ -29,12 +35,20 @@ jobs:
         uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
+      - id: policy
+        name: Admit selected suites before provisioning
+        uses: gigaverse-app/ci-esta/actions/plan-test-policy@f529ac3a0621870d836ec0c7ec7f3b13d46f4df4
+        with:
+          policy: .github/test-policy.json
+          lanes: .github/test-lanes.json
+          profile: ${{ inputs.profile || 'legacy' }}
+          affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
         name: Find successful captures of these exact inputs
         if: >-
           ${{ github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
-              toJSON(fromJSON(steps.select.outputs.lanes || '{}').widget_comparison) != 'false' }}
+              toJSON(fromJSON(steps.policy.outputs.admitted || '{}').widget_comparison) != 'false' }}
         uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1
         with:
           # Default identity binds the entire tested merge tree, base and head tree.
