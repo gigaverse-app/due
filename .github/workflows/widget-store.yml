@@ -1,14 +1,16 @@
 name: Widget Store comparison
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: '37 4 * * 1'
   workflow_dispatch:
     inputs:
       profile:
-        description: Legacy admission or a fresh complete checkpoint
+        description: Affected ordinary work, affected expensive work, or a full checkpoint
         type: choice
-        options: [legacy, thorough, exhaustive, performance]
-        default: legacy
+        options: [affected, affected_deep, full, weekly, performance, legacy]
+        default: affected
   push:
     branches: [main]
 permissions:
@@ -17,10 +19,11 @@ permissions:
   checks: read
   pull-requests: read
 concurrency:
-  group: widgets-${{ github.workflow }}-${{ (inputs.profile == '' || inputs.profile == 'legacy') && github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
+  group: widgets-${{ github.workflow }}-${{ (inputs.profile == '' || inputs.profile == 'affected' || inputs.profile == 'legacy') && (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && github.event_name == 'pull_request' && github.run_attempt == 1 }}
 jobs:
   select-tests:
+    if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.policy.outputs.admitted }}
@@ -41,12 +44,12 @@ jobs:
         with:
           policy: .github/test-policy.json
           lanes: .github/test-lanes.json
-          profile: ${{ inputs.profile || 'legacy' }}
+          profile: ${{ inputs.profile }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
         name: Find successful captures of these exact inputs
         if: >-
-          ${{ github.event_name == 'pull_request' &&
+          ${{ (steps.policy.outputs.profile == 'affected' || steps.policy.outputs.profile == 'legacy') && github.event_name == 'pull_request' &&
               !contains(github.event.pull_request.labels.*.name, 'test:full') &&
               toJSON(fromJSON(steps.policy.outputs.admitted || '{}').widget_comparison) != 'false' }}
         uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1
@@ -58,9 +61,9 @@ jobs:
   compare:
     needs: select-tests
     if: >-
-      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
           (needs.select-tests.outputs.required != 'false' &&
-           toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true')) }}
+           toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -178,7 +181,8 @@ jobs:
   comparison-gate:
     name: Widget comparison gate
     needs: [select-tests, compare]
-    if: ${{ always() && !cancelled() }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled()) }}
     runs-on: ubuntu-latest
     steps:
       - name: Require all captures or matching successful evidence

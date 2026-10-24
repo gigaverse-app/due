@@ -3,27 +3,30 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
     inputs:
       profile:
-        description: Legacy admission or a fresh complete checkpoint
+        description: Affected ordinary work, affected expensive work, or a full checkpoint
         type: choice
-        options: [legacy, thorough, exhaustive, performance]
-        default: legacy
+        options: [affected, affected_deep, full, weekly, performance, legacy]
+        default: affected
 permissions:
   contents: read
   actions: read
   checks: read
   pull-requests: read
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
+  group: ci-${{ github.workflow }}-${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
   ci-contracts:
     needs: select-tests
-    if: ${{ !cancelled() }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +39,7 @@ jobs:
         run: >-
           uv run --no-project --python 3.14
           --with "$(python scripts/ci/selector_requirement.py)"
-          --with "ci-esta @ git+https://github.com/gigaverse-app/ci-esta.git@aacff9d4e367c5944a0af84f3892cb208b7eaea0"
+          --with "ci-esta @ git+https://github.com/gigaverse-app/ci-esta.git@315b0852ec0ba9ff217ea9b3f701496fc1817e85"
           python -m unittest discover -s ci_tests -v
       - name: Check aggregate gate against the execution lanes
         run: >-
@@ -47,6 +50,7 @@ jobs:
         run: python scripts/ci/check_docs.py
 
   select-tests:
+    if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.policy.outputs.admitted }}
@@ -70,7 +74,7 @@ jobs:
         with:
           policy: .github/test-policy.json
           lanes: .github/test-lanes.json
-          profile: ${{ inputs.profile || 'legacy' }}
+          profile: ${{ inputs.profile }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
         name: Resolve exact execution scope and completed Django variants
@@ -82,10 +86,11 @@ jobs:
           selection-outcome: ${{ steps.select.outcome }}
           selection-report: test-lanes.json
           allow-reuse: >-
-            ${{ (inputs.profile == '' || inputs.profile == 'legacy') && github.event_name == 'pull_request' &&
+            ${{ (steps.policy.outputs.profile == 'affected' || steps.policy.outputs.profile == 'legacy') && github.event_name == 'pull_request' &&
                 !contains(github.event.pull_request.labels.*.name, 'test:full') }}
 
   lint:
+    if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -102,8 +107,8 @@ jobs:
   typecheck:
     needs: select-tests
     if: >-
-      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
-          fromJSON(needs.select-tests.outputs.lanes).typecheck) }}
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).typecheck)) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -117,8 +122,8 @@ jobs:
     name: Standalone package export
     needs: select-tests
     if: >-
-      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
-          needs.select-tests.outputs.library != 'false') }}
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          needs.select-tests.outputs.library != 'false')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -161,10 +166,10 @@ jobs:
     name: Execute tests (${{ matrix.django }})
     needs: select-tests
     if: >-
-      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
           ((needs.select-tests.outputs.library != 'false' || needs.select-tests.outputs.integration != 'false') &&
            (toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').locked) != 'true' ||
-            toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true'))) }}
+            toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true')))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -275,7 +280,8 @@ jobs:
   test-gates:
     name: tests (${{ matrix.django }})
     needs: [select-tests, tests, package-export]
-    if: ${{ always() && !cancelled() }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled()) }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -295,7 +301,8 @@ jobs:
 
   build:
     needs: select-tests
-    if: ${{ !cancelled() }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -322,7 +329,8 @@ jobs:
   validation-gate:
     name: Validation gate
     needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build]
-    if: ${{ !cancelled() }}
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
     runs-on: ubuntu-latest
     steps:
       - uses: gigaverse-app/ci-esta/actions/validation-gate@v1
