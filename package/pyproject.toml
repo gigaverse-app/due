@@ -34,7 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 # Dependencies for the reusable tests shipped alongside the source.
 selftest = ["django-due[testing,redis,beat]", "pytest>=8.4", "pytest-mock>=3.16", "pytest-xdist>=3.8", "pytest-asyncio>=1.2"]
-testing = ["pytest-obligation[django,celery,exploration,debt]>=0.14.0,<1"]
+testing = ["pytest-obligation[django,celery,exploration,debt]>=0.17.0,<1"]
 redis = ["celery[redis]>=5.6,<6"]
 beat = ["django-celery-beat>=2.8"]
 
@@ -69,9 +69,9 @@ fallback_version = "0.1.0.dev0"
 
 [tool.uv.sources]
 # Reviewed public source includes recovery enforcement and index-plan fixes.
-# Contributor CI uses this revision; wheel metadata keeps the published >=0.14.0
+# Contributor CI uses the merged lifecycle API; wheel metadata requires >=0.17.0
 # dependency and does not include a Git source.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "ca21ff0bce65023cc7c69c9b180488eb9b919ba4", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "3323c2986ec72c3cc90ff64a7be17e66c015def3", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]
