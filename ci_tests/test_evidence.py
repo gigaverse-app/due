@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 import yaml
+from ci_esta.resources import source_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,23 +16,45 @@ ROOT = Path(__file__).resolve().parents[1]
 class EvidenceMatrixTests(unittest.TestCase):
     def scope_outputs(self, lanes, outcome, plan):
         workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
-        step = next(step for step in workflow["jobs"]["select-tests"]["steps"] if step.get("id") == "scope")
-        script = "const core = {setOutput: (key, value) => console.log(JSON.stringify([key, value]))};\n"
-        script += step["with"]["script"]
+        step = next(step for step in workflow["jobs"]["select-tests"]["steps"] if step.get("id") == "evidence")
+        self.assertIn("ci-esta/actions/resolve-lane-evidence@", step["uses"])
+        self.assertEqual(step["with"]["selection"], "${{ steps.policy.outputs.admitted }}")
+        self.assertEqual(step["with"]["selection-outcome"], "${{ steps.select.outcome }}")
+        action = source_root() / "actions/resolve-lane-evidence"
+        deployed = yaml.safe_load((action / "action.yml").read_text())["runs"]["steps"][0]["with"]["script"]
+        script = """
+const outputs = {};
+const core = {setOutput: (key, value) => outputs[key] = value};
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+new AsyncFunction('core','require','process',process.env.ACTION_SCRIPT)(core,require,process)
+.then(() => console.log(JSON.stringify(outputs))).catch(error => { console.error(error); process.exit(1); });
+"""
         with tempfile.TemporaryDirectory() as directory:
             if plan is not None:
-                (Path(directory) / "test-lanes.json").write_text(
+                (Path(directory) / step["with"]["selection-report"]).write_text(
                     plan if isinstance(plan, str) else json.dumps(plan), encoding="utf-8"
                 )
             result = subprocess.run(
                 ["node", "-e", script],
                 cwd=directory,
-                env={**os.environ, "LANES": lanes, "OUTCOME": outcome},
+                env={
+                    **os.environ,
+                    "SELECTION": lanes,
+                    "SELECTION_OUTCOME": outcome,
+                    "SELECTION_KEYS": step["with"]["selection-keys"],
+                    "SELECTION_REPORT": str(Path(directory) / step["with"]["selection-report"]),
+                    "EVIDENCE_LANES": step["with"]["lanes"],
+                    "GITHUB_ACTION_PATH": str(action),
+                    "ALLOW_REUSE": "false",
+                    "ACTION_SCRIPT": deployed,
+                },
                 capture_output=True,
                 text=True,
                 check=True,
             )
-        return dict(json.loads(line) for line in result.stdout.splitlines())
+        outputs = json.loads(result.stdout)
+        self.assertEqual(outputs["receipt"], "")
+        return {**json.loads(outputs["selection"]), **outputs}
 
     def test_fallback_or_unverifiable_plans_cannot_reuse_or_issue_receipts(self):
         lanes = {"library": True, "integration": True}
@@ -75,8 +98,13 @@ class EvidenceMatrixTests(unittest.TestCase):
 
     def test_only_proven_django_variants_leave_the_execution_matrix(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
-        step = next(step for step in workflow["jobs"]["select-tests"]["steps"] if step.get("id") == "matrix")
-        script = "const core = {setOutput: (key, value) => console.log(value)};\n" + step["with"]["script"]
+        step = next(step for step in workflow["jobs"]["select-tests"]["steps"] if step.get("id") == "evidence")
+        self.assertEqual(workflow["jobs"]["select-tests"]["outputs"]["django"], "${{ steps.evidence.outputs.matrix }}")
+        keys = list(json.loads(step["with"]["lanes"]))
+        script = """
+const {pendingMatrix} = require(process.env.SHARED_SELECTION);
+console.log(JSON.stringify(pendingMatrix(JSON.parse(process.env.MATRIX_KEYS), process.env.REUSED)));
+"""
         for proof, expected in (
             ({}, ["locked", "minimum"]),
             ({"locked": True}, ["minimum"]),
@@ -91,7 +119,12 @@ class EvidenceMatrixTests(unittest.TestCase):
             with self.subTest(proof=proof):
                 result = subprocess.run(
                     ["node", "-e", script],
-                    env={**os.environ, "REUSED": json.dumps(proof)},
+                    env={
+                        **os.environ,
+                        "REUSED": json.dumps(proof),
+                        "MATRIX_KEYS": json.dumps(keys),
+                        "SHARED_SELECTION": str(source_root() / "actions/resolve-lane-evidence/selection.cjs"),
+                    },
                     capture_output=True,
                     text=True,
                     check=True,
