@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/ci-esta/actions/check-test-policy@7d3c74c5428208a86f4187090eda5beca1f4376d
+      - uses: gigaverse-app/ci-esta/actions/check-test-policy@6a7a1ab5ec3b87208de60edc49751d4e50b8c461
         with:
           policy: .github/test-policy.json
           cases: .github/test-policy-cases.json
+          workflow-cases: .github/test-policy-workflow-cases.json
