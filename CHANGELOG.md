@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/gigaverse-app/due/compare/v0.8.0...v0.9.0) (2026-10-24)
+
+
+### Features
+
+* **examples:** add Acme Printworks contracts and tutorial ([8261c99](https://github.com/gigaverse-app/due/commit/8261c99552cc3123c80b98be804afa4786788168))
+
+
+### Bug fixes
+
+* **examples:** align Acme rendering budgets and tutorial timelines ([06d84e7](https://github.com/gigaverse-app/due/commit/06d84e7d5523b87d085983d9e40404bc7faee672))
+
 ## [0.8.0](https://github.com/gigaverse-app/due/compare/v0.7.5...v0.8.0) (2026-10-23)
 
 
