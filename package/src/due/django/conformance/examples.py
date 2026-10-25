@@ -123,6 +123,8 @@ class RejectionExample[W: UniverseDurableWork, ObservationT]:
     delivery: DeliveryExample[W, ObservationT]
     disposition: WorkFailureDisposition
     expected_attempts: int = 1
+    #: Independent provider expectation, forwarded to the shared retry-window proof.
+    provider_wait: timedelta | None = None
 
 
 @dataclass(frozen=True)

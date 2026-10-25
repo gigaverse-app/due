@@ -365,6 +365,8 @@ def classified_failure_bindings[W: UniverseDurableWork, ResultT](
             observe=bindings.observe,
             identity_of=lambda work: work.pk,
             waits=capability.policy.delay_at(0) > timedelta(0),
+            provider_wait=scenario.provider_wait,
+            advance_by=bindings.age_by if scenario.provider_wait is not None else None,
             product_outcome=lambda work: delivery.observe(),
             expected_product_outcome=lambda work: delivery.expected,
         )
