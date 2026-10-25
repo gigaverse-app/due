@@ -23,6 +23,26 @@ Use `due.django.public` for application classes and setup, and
 `due.django.conformance` for the common test drivers and contract bindings.
 The [API guide](api-guide.md) is the compact lookup table once you know the concepts.
 
+## Reading the code
+
+The import path tells you who supplies a name:
+
+| Import or declaration | Supplied by | How to use it |
+| --- | --- | --- |
+| `django.*` | Django | Familiar models, ORM operations, transactions and the task interface |
+| `due.django.public` | Due | Application primitives; each new capability or helper is introduced in its chapter |
+| `due.django.conformance` | Due's optional testing API | Controlled delivery, faults and contract tests; these are used in exercises, not required application hooks |
+| `examples.*` or `acme.*` | This tutorial's example code | Models, functions and configured instances supplied in the checkout; they are not names to import into your own application |
+| `time`, `typing`, `datetime`, etc. | Python's standard library | Ordinary Python operations and annotations |
+| `pydantic`, `pytest`, `celery` | Other dependencies | Receipt data types, tests and worker transport, identified where used |
+
+Names such as `Calculation`, `DoubleNumber`, `calculate` and `request_number` are
+ours. Names such as `ReplaySafeEffect`, `for_owner` and `request_work` are Due's.
+Chapter 2 introduces the shared concepts: the application record that owns work,
+the work row holding its input, the capability that runs it, and the checks that
+allow an attempt to save completion. Later chapters link back to those definitions
+and explain their additional concepts at the point of use.
+
 ## Prepare the native chapters once
 
 [Chapter 1](quickstart.md) supplies the clone, dependencies and local PostgreSQL/

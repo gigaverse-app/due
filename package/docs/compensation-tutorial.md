@@ -7,6 +7,11 @@ dies between those calls, a Python `finally` block cannot finish cleanup.
 `IndependentCompensation` records the cleanup obligation **before** the call that
 can create the output, so another worker can perform it later.
 
+**Compensation** is an application-defined follow-up action for an earlier effect;
+here it means deleting temporary output. It does not roll back an external system's
+transaction. **Independent** means the cleanup has its own work row and can recover
+even while the original work is incomplete or has been replaced.
+
 The operation here copies text into a local SQLite record and clears its temporary
 copy. We reuse the prepared Printworks renderer, but this chapter only needs its
 render and cleanup functions. No PDF generation or external service is involved.
@@ -14,7 +19,11 @@ render and cleanup functions. No PDF generation or external service is involved.
 ## 1. Give cleanup its own work row
 
 The renderer uses one temporary key per execution attempt. Cleanup keeps that key
-even if the product requests a newer attempt:
+even if the product requests a newer attempt.
+
+`CleanupWork` is our example model and `spool_key` is our name for the temporary
+output's identifier. The Due base and schema helper are the
+[work-model declarations introduced in chapter 2](native-work-tutorial.md#1-define-the-application-record-and-its-work-row).
 
 ```python
 from django.db import models
@@ -33,6 +42,23 @@ It has no product-owner foreign key: the temporary output remains owed cleanup
 independently of the product's current desired revision.
 
 ## 2. Capture the key and define cleanup
+
+The **producer** is the operation that creates the temporary output. Its example
+work model is `ProofWork`, which captures text and a revision ID for a `Job` owner.
+`IndependentCompensation[ProofWork, CleanupWork]` names the producer and cleanup
+work models, respectively. Unlike the owned capabilities, its type parameters do
+not name an application owner or a returned result.
+
+Due calls `capture()` to construct cleanup input for one producer attempt and
+`compensate()` to perform that cleanup. `WorkClaim` is Due's description of that
+attempt, including its unique `token`. Our `providers.cleanup(key)` function clears
+the simulator's temporary copy and reports whether it is conclusively finished.
+
+We configure this capability directly because cleanup has no application owner.
+`registered_nudge(CleanupWork)` supplies Due's worker-notification callback for
+that registered model. `inspection_interval` controls rechecks of inconclusive
+cleanup. `retention=None` retains completed work rows, and `max_rearms=None`
+allows failed cleanup attempts to be retried without a finite rearm limit.
 
 These are the cleanup hooks from [effects.py](../../examples/acme_printworks/acme/effects.py):
 
@@ -78,9 +104,24 @@ alone returns `False`: a delayed write could still arrive.
 
 ## 3. Protect the call that creates output
 
-Use `OwnedDurableWorkCapability` when your operation needs an execution context
-to coordinate several calls. Its `apply()` hook receives that context. The core
-of the prepared producer is:
+`OwnedDurableWorkCapability` is Due's more general base for owned work. The
+`ReplaySafeEffect` base from chapter 2 builds on it and supplies a simpler
+`perform_effect()` interface. Here we implement `apply(work, context)` so we can
+use the execution context directly.
+
+`WorkExecutionContext` is a Due object describing this attempt's claim and lease,
+with methods for checking ownership before external calls. Due supplies it when
+calling `apply()`; application code does not construct a new context for each call.
+`record_cleanup_before_call(context)` uses it to reserve cleanup for this exact
+attempt. The returned `output` is a Due `ProtectedOutput` handle; calling
+`confirm_compensated()` records that cleanup was proven complete.
+
+`Job`, `ProofWork`, `PublishProof` and `render_proof()` are example code. Our provider
+function `render(text, proof_key, spool_key)` stores the result text and a temporary
+copy. The two keys serve different purposes: Due's `provider_idempotency_key()`
+identifies the requested revision across retries, while `fencing_token` identifies
+this particular attempt's temporary output. It matches the claim token used by
+`capture()` above. The core of the prepared producer is:
 
 ```python
 from due.django.public import OwnedDurableWorkCapability, WorkExecutionContext

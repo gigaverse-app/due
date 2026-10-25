@@ -11,13 +11,17 @@ The operation here writes a short text file to local storage.
 
 ## 1. Use a scheduled work model
 
-`ScheduledWork` supplies the scheduling fields. Add the captured application input:
+`ScheduledWork` is Due's abstract work-model base for deadlines. It extends the
+`UniverseDurableWork` model introduced in chapter 2 with `run_at` (the requested
+execution time) and `cancelled` (whether pending work was cancelled). Add our
+captured application input, `text`:
 
 ```python
 from typing import ClassVar
 
 from django.db import models
 from due.django.public import ScheduledWork, durable_work_schema
+from examples.scheduled.models import Publication  # The example's application model
 
 
 class PublicationDeadline(ScheduledWork):
@@ -31,10 +35,29 @@ class PublicationDeadline(ScheduledWork):
 
 The product `Publication` stores the text, requested time and displayed status.
 Both models are supplied in [models.py](../../examples/scheduled/models.py).
+`PublicationDeadline` is our model name. Its owner metadata and schema helper
+follow [chapter 2's model declarations](native-work-tutorial.md#1-define-the-application-record-and-its-work-row).
+`schedule_at()` will populate the inherited scheduling fields for us.
 
 ## 2. Define when the action is needed and what it does
 
-These are the central hooks from [effects.py](../../examples/scheduled/effects.py):
+`ScheduledAction` is Due's capability base for a replay-safe operation with a
+deadline. `PublishAtDeadline` is our implementation. These are its Due hooks:
+
+| Hook | Your application supplies |
+| --- | --- |
+| `is_still_needed(work)` | Whether the application still needs the action when execution is attempted |
+| `perform_effect(work)` | The operation to run when Due permits it |
+| `on_completed(work, outcome)` | Local completion writes; `ActionOutcome` is Due's result enum, and `PERFORMED` means the operation ran |
+
+Our [storage adapter](../../examples/documents/storage.py) writes text to a file.
+`write_revision(text, key)` accepts an equal repeat and rejects different text for
+the same key. `revision_key(key)` derives its file name. Both functions are example
+code. Due supplies `work.provider_idempotency_key()`: a stable key for one requested
+revision, reused across attempts and changed for new input. That key works because
+our storage adapter enforces the equal-repeat rule.
+
+Here are the central hooks from [effects.py](../../examples/scheduled/effects.py):
 
 ```python
 from due.django.public import ActionOutcome, DurableWorkPolicy, ScheduledAction
@@ -69,9 +92,16 @@ Due checks the deadline and ownership before running and settling the action.
 The prepared class also enables short deadline wake-up hints and records an
 exhausted attempt in the product status.
 
+As in chapter 3, `input_fields` defines requested input and `DurableWorkPolicy`
+sets runtime behavior. Include `run_at` and `cancelled` because moving or cancelling
+the action changes that input. Retained work (`retention=None`) and attempt
+evidence let Due recognize a call that may already have started.
+
 ## 3. Request a deadline
 
-The native call is:
+Due's `schedule_at(owner_id, desired_work, at=deadline)` records the deadline and
+captured input, returning a `ScheduleResult` enum. Given an existing publication
+ID and a timezone-aware deadline, the native call is:
 
 ```python
 publish_at_deadline.schedule_at(
@@ -119,6 +149,11 @@ lock. An old queued notification cannot restore the old deadline or undo the
 cancellation. Once the provider call has started, the result can be
 `already_started`; the application must show that refusal instead of claiming
 the action was cancelled.
+
+`create_publication`, `reschedule_publication` and `cancel_publication` are our
+[application commands](../../examples/scheduled/services.py), wrapping those Due
+methods with `Publication` updates. `.value` is the string value of Due's
+`ScheduleResult` or `CancellationResult` enum, not a Django model field.
 
 ## 5. Recover overdue work
 

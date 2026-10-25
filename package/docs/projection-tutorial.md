@@ -7,20 +7,36 @@ Changing the title should eventually change what people find in search. The
 index accepts ordinary writes, so a delayed request can put an old title back.
 Use `Projection` to keep the current desired value owed until the view is repaired.
 
+A **projection** is an external copy of application data, such as a search entry.
+`Projection` is Due's capability base for maintaining that copy. We still define
+an owner model, a work model and hooks, as in [chapter 2](native-work-tutorial.md).
+The new behavior is repair when an earlier external write may arrive late.
+
 The provider in this chapter is a local SQLite table. A write replaces a title;
 a read returns it. There is no search service to configure. Use the
 [prepared native shell](tutorial.md#prepare-the-native-chapters-once).
 
 ## 1. Define what the work captures
 
-The product is `CatalogEntry`, with `title`, `author` and a stable `identity`.
-The work captures the exact values to copy:
+`CatalogEntry` and `CatalogWork` are our example models. The first stores what the
+application wants; the second captures exactly what to copy. The `owner` relation,
+`work_owner_field` declaration and `durable_work_schema()` use the
+[work-model pattern from chapter 2](native-work-tutorial.md#1-define-the-application-record-and-its-work-row):
 
 ```python
 from typing import ClassVar
+from uuid import uuid4
 
 from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
+
+
+class CatalogEntry(models.Model):
+    identity = models.UUIDField(default=uuid4, unique=True, editable=False)
+    title = models.CharField(max_length=100)
+    author = models.CharField(max_length=100)
+    published_title = models.CharField(max_length=100, blank=True)
+    indexing_failed = models.BooleanField(default=False)
 
 
 class CatalogWork(UniverseDurableWork):
@@ -39,7 +55,18 @@ index key survives title changes, because we are updating one external entry.
 
 ## 2. Define the projection hooks
 
-Here are the two central hooks from [effects.py](../../examples/catalog/effects.py):
+Due calls `write_projection(work)` to write the external copy, then
+`on_projected(work)` to update local application state after its completion
+checks. The generic parameters in `Projection[CatalogEntry, CatalogWork]` name
+the owner and work models. There is no separate returned-result type here.
+
+`search` is our example's [SQLite adapter](../../examples/books/search.py).
+Its `IndexEntry` value contains `key`, `title` and `author`; `put()` writes those
+values, `publish()` makes the entry visible, and `get()` reads it back. These are
+example operations. The binding uses Due's `input_fields` to name the captured
+fields and `DurableWorkPolicy` to configure recovery timing and retained work,
+explained below the code. Here are the two central hooks from
+[effects.py](../../examples/catalog/effects.py):
 
 ```python
 from datetime import timedelta
@@ -69,9 +96,15 @@ project_catalog = CatalogProjection.for_owner(
 product state under Due's completion checks. The prepared class also marks the
 product as failed when its retry budget is exhausted.
 
-The repair policy retains the history needed to deal with old calls that may
-still land. `repair_interval` controls when owed repair becomes eligible; keep
-the registered recovery scheduler running.
+There are two new configuration choices in this binding:
+
+| Due argument | Meaning here |
+| --- | --- |
+| `input_fields=(...)` | Declares which model fields make up the requested input. A change to one of them advances the desired revision. This includes the inherited `universe` field; `"example"` below is just this app's context label. |
+| `policy=DurableWorkPolicy(...)` | Sets execution and recovery behavior. `retention=None` disables automatic pruning of completed work rows, keeping the current input available for repair. `repair_interval` sets when another owed repair becomes eligible. |
+
+The retained work and provider-attempt evidence let Due deal with old calls that
+may still land. Keep the registered recovery scheduler running.
 
 ## 3. Save and project a title
 
@@ -88,7 +121,9 @@ with project_catalog.atomic(entry_id) as pending:
 ```
 
 [services.py](../../examples/catalog/services.py) includes creation, validation
-and a convenience command that tries completion after committing. In the shell,
+and our `save_and_project_entry()` command, which tries completion after committing.
+It uses Due's `complete_or_defer()` helper; [chapter 8](composition-tutorial.md#2-try-short-work-inline-while-retaining-recovery)
+shows that function's definition and explains inline completion. In the shell,
 use that prepared command:
 
 ```python

@@ -10,7 +10,23 @@ executable contract. Use the [prepared native shell](tutorial.md#prepare-the-nat
 
 Suppose the first operation creates a search entry and the second publishes it.
 The handoff belongs in `finalize_success()`, so completing one stage and owing
-the next stage commit together:
+the next stage commit together.
+
+A **handoff** is an application command to request one capability's work while
+completing another. We use the same Due methods from chapter 2: a finalizer calls
+the next capability's `atomic()` and `request_work()`.
+
+`Book`, `IndexBookWork` and `PublishBookWork` are our
+[example models](../../examples/books/models.py). `Book` stores title, author and
+the eventual index key. `IndexBookWork` captures title/author; `PublishBookWork`
+captures the key returned by the first stage. Each work model has its own
+one-to-one owner relation and Due schema declaration, so the stages have separate
+work rows for the same book.
+
+`search` is the example's SQLite adapter introduced in chapter 3. `hashlib` is
+Python's hash library; we use it to turn Due's revision-specific provider key into
+a fixed-length index key. `IndexBook` and `PublishBook` are our capability classes;
+`ReplaySafeEffect` and the hook names are Due's:
 
 ```python
 import hashlib
@@ -77,8 +93,15 @@ successor obligation.
 
 ## 2. Try short work inline, while retaining recovery
 
-The catalog command from chapter 3 uses `complete_or_defer()` after committing
-the request. Here is its definition:
+**Inline completion** means trying the operation now in the calling process,
+such as a web request. Due's `complete_or_defer(work)` makes one such attempt when
+the admission has committed. It returns a `Completion` value with a status; the
+work row still records anything left to do.
+
+The catalog's `save_and_project_entry()` is our application convenience function.
+It first calls our `save_entry()` command with `notify_worker=False`, suppressing
+the immediate notification so a worker does not race the inline attempt. Here is
+its definition:
 
 ```python
 from examples.catalog.effects import project_catalog
@@ -97,14 +120,18 @@ outer database transaction it defers execution until after commit instead.
 The committed obligation remains recoverable if inline execution is interrupted.
 
 Use `.complete(work)` when the caller needs completion before proceeding. It
-requires a committed transaction boundary and raises `WorkIncomplete` when it
+requires a committed transaction boundary and raises Due's `WorkIncomplete` when it
 cannot establish completion for the requested work. Handle that result explicitly;
 it does not mean the external operation definitely failed.
 
 ## 3. Refresh completed work or grant a retry
 
 `wake()` requests another execution of the current captured input. The catalog's
-refresh command uses it when an external search entry needs to be rebuilt:
+refresh command uses it when an external search entry needs to be rebuilt.
+
+`wake` is a Due method that records owed work again. `refresh_entry` is our
+application function that calls it, then tries completion. Neither is Django's
+`refresh_from_db()`, which only rereads an existing row into a Python object.
 
 ```python
 from examples.catalog.services import refresh_entry, save_and_project_entry
@@ -134,7 +161,10 @@ so work state and user-visible state agree.
 
 ## 4. Bind tests to your actual hooks and observations
 
-Due supplies failure histories. Your application must supply their meaning:
+An **application contract** is a set of tests checking that your actual hooks
+fulfil the recovery behavior you claim. A **failure history** is a sequence such
+as "commit a request, lose its notification, recover it, inspect the answer."
+Due supplies these histories. Your application must supply their meaning:
 how to create work, invoke the real provider, and observe the product and external
 result independently. For the arithmetic example, those observations are simple:
 
@@ -154,9 +184,15 @@ def product(work: CalculationWork) -> int | None:
 The complete [binding file](../../integration_tests/conformance/number_examples.py)
 also counts calls to the real `double()`, captures its printed output, invokes the
 real retry command, and requests changed input for the stale-result history.
-It assembles those bindings with `ProviderSeam` and `seam_examples`.
+These callbacks are called **bindings**: they connect reusable tests to our app.
+The file assembles them using Due's `ProviderSeam` (a description of the real
+provider call and independent observations) and `seam_examples()` (which builds
+the contract's example declarations from that description).
 
-The suite declaration then stays small:
+`EXAMPLES` below is that file's application-defined collection of bindings.
+`effect_contract_suite()` is Due's pytest decorator: it generates the required
+tests for the capability using those bindings. `TestNumberCalculation` is our
+test class, so its empty body does not mean there are no tests:
 
 ```python
 from due.django.conformance import effect_contract_suite
@@ -178,8 +214,10 @@ uv run pytest integration_tests/conformance/test_book_contracts.py -v
 ```
 
 The generated tests exercise rollback, delivery loss, interruption, retry limits
-and stale completion where applicable. The repository separately checks that
-each registered capability is enrolled and that required proofs actually ran.
+and stale completion where applicable. **Enrollment** checks that each registered
+capability has a test suite. An **executed report** records which required tests
+actually ran and passed. These checks catch a missing or accidentally unselected
+suite that would otherwise leave a gap in the contract.
 For your application, follow [the conformance guide](conformance.md) to add that
 host fixture, enrollment check and executed-report gate.
 

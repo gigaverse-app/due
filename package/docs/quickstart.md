@@ -8,6 +8,11 @@ should still get done.
 
 ## 1. Define the task
 
+`greet` is our example function. `sleep` and `os.getpid` are Python standard-library
+functions. `settings` and the `@task` decorator come from Django. Due is configured
+as the task backend: it stores invocations and results and recovers unfinished
+work. There is no Due-specific decorator to learn in this chapter.
+
 Here is the complete definition of `greet`, in
 [`examples/hello_due/tasks.py`](../../examples/hello_due/tasks.py):
 
@@ -65,6 +70,12 @@ services, set `DUE_DATABASE_URL` and `DUE_BROKER_URL` in every terminal instead.
 We will use three terminals in this directory: a Python shell, a worker, and a
 recovery scheduler. Leave the worker and scheduler stopped for now.
 
+The **worker** is a Celery process that executes tasks. **Beat** is Celery's
+scheduler; it periodically asks Due to find unfinished work. Redis carries the
+notifications to workers. PostgreSQL holds the durable job records. The Django
+`migrate` command prepares those database tables; `due_check` is Due's management
+command for checking its registration and execution configuration.
+
 ## 3. Submit a job before starting a worker
 
 In terminal 1:
@@ -86,6 +97,10 @@ print(result.status.name)  # READY
 `.enqueue()` returns without waiting for the function. Nothing has printed a
 greeting yet: we have submitted a job, but no worker is running. Due has saved
 the function's import path and arguments in PostgreSQL.
+
+`result` is Django's `TaskResult` handle, backed by Due's stored invocation.
+`READY` means the job is waiting to run. `refresh()` reads its latest stored state;
+it does not execute the function.
 
 Keep the ID if you close this shell. The job survives the submitting process.
 
@@ -162,9 +177,11 @@ interrupted.refresh()
 print(interrupted.status.name)  # RUNNING: its claim has not expired yet
 ```
 
-PostgreSQL still records unfinished work. It cannot immediately know whether a
-worker is dead or just slow, so Due gives each attempt a lease. This demo uses a
-20-second lease to keep the experiment short.
+PostgreSQL still records unfinished work. A **claim** reserves execution for one
+attempt; a **lease** bounds how long that reservation lasts. PostgreSQL cannot
+immediately know whether a worker is dead or just slow, so recovery waits for
+lease expiry before reclaiming interrupted work. This demo uses a 20-second
+lease to keep the experiment short.
 
 Restart the same worker command in terminal 2. In terminal 3, start the recovery
 scheduler:
@@ -238,7 +255,11 @@ You have used the everyday API: `@task`, `.enqueue()`, `.refresh()` and
    `OPTIONS["replay_safe_tasks"]` after checking what happens if it runs again.
 3. Register Due in `AppConfig.ready()` and run Celery workers plus Beat.
 
-For the standard queue and timings, registration is one call:
+`DueBackend` is Due's implementation of Django's task-backend interface.
+`replay_safe_tasks` is its explicit list of functions the application declares
+safe to repeat. `configure_durable_work()` is Due's startup helper: registration
+connects the task backend to worker delivery and scheduled recovery. For the
+standard queue and timings, registration is one call:
 
 ```python
 from due.django.public import configure_durable_work
