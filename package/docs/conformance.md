@@ -575,7 +575,10 @@ class TestPublicationThroughCelery:
 
 The worker is a separate process, so it needs the test database (`env`, a
 callable evaluated when each worker starts), the queue your test process
-publishes to, and the Django settings your tests use. Cases commit for real.
+publishes to, and the Django settings your tests use. Test doubles installed in
+the test process do not reach it: pass `worker_setup="module:function"`, which
+the worker calls once its tasks are loaded, to install the fake provider or
+filesystem storage your work needs there. Cases commit for real.
 [The executable example](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_document_celery_worker.py)
 also shows the control: the same histories without Due's recovery lose the
 publication whose delivery died as it started. Needs Linux or macOS.

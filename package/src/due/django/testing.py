@@ -153,6 +153,7 @@ def celery_worker_contract[WorkT: DurableWork](
     expected_state: DurableWorkState = DurableWorkState.SUCCEEDED,
     env: Mapping[str, str] | Callable[[], Mapping[str, str]] | None = None,
     worker_args: Sequence[str] = (),
+    worker_setup: str | None = None,
     sigkill: bool = True,
     fixtures: tuple[str, ...] = (),
     timeout: float = 60.0,
@@ -176,7 +177,10 @@ def celery_worker_contract[WorkT: DurableWork](
     returns its row. ``effect`` reads the product effect from that row, such as
     the published document it owes. The worker is a new process: ``env`` gives
     it what only the test knows, such as the test database's name, and it must
-    consume the queue the test process publishes to. Each case commits for
+    consume the queue the test process publishes to. ``worker_setup``
+    (``"module:function"``) runs in the worker once its tasks are loaded, to
+    install the test doubles the work needs there, such as a fake provider or
+    a filesystem storage. Each case commits for
     real, so the worker sees the rows and the wake-up follows the commit, and
     each history starts from an empty queue. Needs ``pytest-obligation[celery]``
     and Linux or macOS.
@@ -224,6 +228,7 @@ def celery_worker_contract[WorkT: DurableWork](
         transactional=True,
         env=env,
         worker_args=worker_args,
+        worker_setup=worker_setup,
         timeout=timeout,
         log=log,
     )
