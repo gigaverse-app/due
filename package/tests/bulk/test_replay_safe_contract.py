@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -13,9 +14,11 @@ from due.django.conformance.suite import (
     EffectExamples,
     FailureExample,
     ProducerExample,
+    RejectionExample,
     TerminalExample,
     effect_contract_suite,
 )
+from due.errors import EffectNotAppliedError, EffectRejection, WorkFailureDisposition
 from tests.harness.primitive import PrimitiveOwner
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 from tests.harness.replay_safe_bulk import (
@@ -54,6 +57,24 @@ def retry() -> Iterator[FailureExample[MemberSyncWork]]:
     # EXTERNAL SEAM: every call fails before the provider answers.
     with patch.object(MemberSync, "script", [TimeoutError("connection reset")] * 20):
         yield FailureExample(attempts=lambda work: len(MemberSync.calls))
+
+
+@contextmanager
+def provider_wait() -> Iterator[RejectionExample[MemberSyncWork, str]]:
+    wait = timedelta(hours=1)
+    error = EffectNotAppliedError(EffectRejection(message="429", retry_after=wait))
+    with patch.object(MemberSync, "script", [error] * 20):
+        work = make_work()
+        yield RejectionExample(
+            DeliveryExample(
+                work,
+                observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+                expected="before",
+                effect_calls=lambda: len(MemberSync.calls),
+            ),
+            disposition=WorkFailureDisposition.RETRYABLE,
+            provider_wait=wait,
+        )
 
 
 @contextmanager
@@ -101,6 +122,7 @@ with registered_member_sync():
             make_work=make_work,
             delivery=delivery,
             retry=retry,
+            rejections={"provider-wait": provider_wait},
             terminal=terminal,
             replay=replay,
             admissions={"cohort": producer},

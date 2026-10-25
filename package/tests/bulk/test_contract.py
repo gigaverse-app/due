@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -73,6 +74,14 @@ def rejection() -> Iterator[RejectionExample[BatchWork, str]]:
 
 
 @contextmanager
+def provider_wait() -> Iterator[RejectionExample[BatchWork, str]]:
+    wait = timedelta(hours=1)
+    decision = EffectRejection(message="429", retry_after=wait)
+    with patch.object(BatchOperation, "failure", EffectNotAppliedError(decision)):
+        yield RejectionExample(delivery("retry"), disposition=WorkFailureDisposition.RETRYABLE, provider_wait=wait)
+
+
+@contextmanager
 def uncertainty() -> Iterator[DeliveryExample[BatchWork, str]]:
     # EXTERNAL SEAM: the reply is lost; the provider's outcome cannot authorize a resend.
     with patch.object(BatchOperation, "failure", TimeoutError("reply lost")):
@@ -108,7 +117,7 @@ with registered_batch():
             terminal=terminal,
             applied_receipt=applied_receipt,
             receipt_repair=delivery,
-            rejections={"provider-rejected": rejection},
+            rejections={"provider-rejected": rejection, "provider-wait": provider_wait},
             uncertainties={"reply-lost": uncertainty},
             convergence=convergence,
             evidence_confluence={scenario.name: scenario for scenario in (BULK_RECEIPTS, BULK_RETRY_RECEIPTS)},
