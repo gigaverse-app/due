@@ -3,9 +3,19 @@
 [Previous: scheduling](scheduling-tutorial.md) · [All chapters](tutorial.md)
 
 You submit an order. The provider accepts it, but the response never reaches your
-worker. Submitting again might create a second order. `DurableExternalOperation`
-records that uncertainty and keeps the operation owed without automatically
-repeating an action that might already have happened.
+worker: the connection drops, or your timeout fires a moment too early. Did the
+order happen? You cannot tell. This is an
+[unknown outcome](vocabulary.md#unknown-outcome), and it is how customers end up
+charged twice: the app treats "no reply" as "failed" and submits again.
+
+Everything in chapters 2–4 was [replay-safe](vocabulary.md#replay-and-replay-safe),
+so Due could simply run it again. An order is not. If the provider honours an
+[idempotency key](vocabulary.md#idempotency-key), send one and the problem
+mostly disappears. When it does not, use `DurableExternalOperation`. Before
+calling the provider, it records that an attempt is about to cross the boundary.
+If the reply is lost, the work stays owed with its outcome marked *unknown*, and
+Due never resubmits it on its own. It waits for
+[evidence](vocabulary.md#evidence-and-receipt) of what actually happened.
 
 This chapter uses a local SQLite table as the provider. Each submission inserts
 one row. There is no printer account or network service to set up. Use the
@@ -39,9 +49,14 @@ to deduplicate submissions. The exercise can therefore detect an accidental rese
 
 ## 2. Store work and evidence separately
 
-For a submission-only capability, derive your captured work model from
-`ExternalOperationWork`. It adds the state needed to track a possibly escaped
-provider call. Store successful receipts in a concrete evidence model:
+This capability needs two Due base models:
+
+- `ExternalOperationWork` is the work-model base for operations that must not
+  repeat. It plays the role `UniverseDurableWork` played in chapter 2, and adds
+  the columns Due needs to track an attempt whose call may already have reached
+  the provider.
+- `StoredAppliedEffectEvidence` is the base for a small table where Due stores
+  each receipt it obtains. You subclass it once; you never write to it yourself.
 
 ```python
 from due.django.public import StoredAppliedEffectEvidence
@@ -60,6 +75,12 @@ reference and title. It uses `ObservedExternalOperationWork`, an extension of
 
 Here is the submission-only form of the capability. Read this definition; the
 prepared app already registers the observed version shown in chapter 6.
+
+Instead of one `finalize_success()`, this capability has a settlement hook for
+each way an attempt can end, because "unknown" and "retrying" are outcomes the
+user should see too. `StatusMirror` is a Due helper that keeps those hooks to
+one line each: you tell it which product rows to update, and each `mirror.outcome(...)`
+declares the fields to set.
 
 ```python
 from due.django.public import (
@@ -90,20 +111,38 @@ class SubmitOrder(DurableExternalOperation[PrintOrder, PrintWork, PrintReceipt])
             raise EffectNotAppliedError(str(error)) from error
 ```
 
-`JsonAppliedEffectEvidenceStore` saves the typed receipt. Recovery can use saved
-evidence to finish local settlement after an interruption. `StatusMirror` makes
-the outcome hooks short: each declares the fields to update on the product.
+| Code | Comes from | What it does |
+| --- | --- | --- |
+| `DurableExternalOperation[PrintOrder, PrintWork, PrintReceipt]` | Due | The capability base for an operation that must not be repeated blindly. Type parameters: the owner model, the work model, and the receipt type `perform_effect()` returns. |
+| `perform_effect(self, work)` | A hook you implement | Calls the provider once and returns its receipt. Due records the attempt as possibly applied before calling it. |
+| `evidence_store = JsonAppliedEffectEvidenceStore(PrintEvidence, PrintReceipt)` | Due | Where receipts are kept: it saves each `PrintReceipt` as JSON in the `PrintEvidence` table. Once a receipt is saved, recovery can finish settlement from it without calling the provider again. |
+| `StatusMirror(lambda work: ...)` | Due | Names the product rows the outcome hooks update: here, the order this work belongs to. |
+| `on_applied` | Settlement hook | The provider definitely did it; receives the receipt. |
+| `on_unknown` | Settlement hook | The call may or may not have happened. The work stays owed and will not be resubmitted. |
+| `on_retry` | Settlement hook | The provider definitely did *not* do it, and another attempt is allowed. |
+| `on_exhausted` | Settlement hook | Like `on_retry`, but the [retry budget](vocabulary.md#retry-budget) has run out. |
+| `on_terminal` | Settlement hook | The work stopped for good on a failure that will not be retried. |
+| `EffectNotAppliedError` | Due | Raise it to tell Due the provider *definitely* rejected the request, so retrying cannot create a duplicate. |
+| `provider.submit()`, `provider.PrinterRejected` | This example | The simulated printer and its definite rejection. |
+
+The most important line is the `except` clause. Only the provider's definite
+rejection becomes `EffectNotAppliedError`, which permits a retry. Any other
+exception, including a timeout, leaves the outcome unknown. Do not translate
+every provider exception into permission to try again.
+
 The sample's `printed` status means the provider accepted the order; it does not
 claim physical printing has finished.
 
-Only the provider's definite rejection becomes `EffectNotAppliedError`, which
-permits retry. A timeout after acceptance stays uncertain. Do not translate every
-provider exception into permission to try again.
-
 ## 4. Submit once and lose the reply
 
-Now use the prepared, registered instance. Its observation hook is disabled by
-the provider fault below, so it cannot resolve uncertainty yet:
+Now use the prepared, registered instance. Two environment variables switch on
+this example's simulated faults: `DUE_PRINTER_LOSE_RESPONSE` makes the printer
+accept the order and then raise `TimeoutError` instead of replying, and
+`DUE_PRINTER_HIDE_RECEIPTS` makes its receipts unreadable for now. The
+registered instance also has the observation hook from chapter 6, which the
+second switch disables, so it cannot resolve the uncertainty yet.
+`EffectOutcomeUnknownError` is what `attempt_execution()` raises when an attempt
+ends with an unknown outcome:
 
 ```python
 import os

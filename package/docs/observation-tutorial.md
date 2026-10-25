@@ -3,15 +3,22 @@
 [Previous: uncertain outcomes](external-operation-tutorial.md) · [All chapters](tutorial.md)
 
 The previous chapter left one accepted order with an unknown local outcome.
-`ObservedExternalOperation` adds a read hook that asks the provider what happened.
-When a matching receipt becomes available, Due can complete the local order.
+Retrying is unsafe and waiting forever is useless, but there is a third option:
+*ask*. Many providers let you look up what they did, for example by searching
+for orders with your reference. `ObservedExternalOperation` adds a read-only
+hook that does that. When a matching receipt turns up, it becomes
+[evidence](vocabulary.md#evidence-and-receipt), and Due completes the local
+order from it without submitting again.
 
 Continue in the same shell after chapter 5's recovery step. If you closed it,
 repeat that chapter's steps 4–5 to create a fresh uncertain order.
 
 ## 1. Add observation state to the work model
 
-The prepared work model includes an observation schedule and index:
+`ObservedExternalOperationWork` extends chapter 5's `ExternalOperationWork` with
+the columns Due uses to schedule repeated lookups. `observation_index()` returns
+the database index recovery uses to find work due for its next lookup; append
+it to the indexes from `durable_work_schema()`. The prepared work model:
 
 ```python
 from typing import ClassVar
@@ -90,12 +97,22 @@ print_order = OrderPrinting.for_owner(
 )
 ```
 
-`observe_effect()` only reads. Returning a matching receipt supplies completion
-evidence. Returning `None` leaves the outcome unknown and schedules another
-observation. It does not authorize another submission.
+| Code | Comes from | What it does |
+| --- | --- | --- |
+| `ObservedExternalOperation[...]` | Due | `DurableExternalOperation` from chapter 5, plus a lookup hook. |
+| `observe_effect(self, work)` | A hook you implement | Asks the provider what happened, using the captured `reference`. It must only read. Return a receipt if one exists, or `None`. |
+| `observation_interval = timedelta(seconds=5)` | Due setting | How long to wait before looking again after a `None`. |
+| `provider.observe()` | This example | Looks up a receipt in the simulated printer by reference. |
+| `DurableWorkPolicy(retention=None)` | Due policy setting | Keep attempt records indefinitely; an operation that might have happened must never forget it. |
 
-The interval controls when another observation becomes eligible. Actual delivery
-also depends on the recovery cadence and available workers.
+Returning a matching receipt supplies the evidence Due needs to settle. Returning
+`None` leaves the outcome unknown and schedules another lookup. It never
+authorizes another submission: "not found yet" is not proof that nothing
+happened. The `ValueError` guards against a receipt that belongs to a different
+request; only accept evidence that matches the captured input.
+
+The interval controls when another lookup becomes eligible. Actual delivery also
+depends on the recovery cadence and available workers.
 
 ## 3. Reveal the receipt and recover the same order
 
@@ -136,9 +153,11 @@ def receive_printer_receipt(receipt: PrintReceipt) -> bool:
     return print_order.record_observed_effect_evidence(work.pk, receipt)
 ```
 
-Call it with an authenticated, validated provider receipt in your application.
-It correlates the receipt to captured input and records evidence. Ordinary
-recovery performs local settlement. It never resubmits the operation.
+`record_observed_effect_evidence()` is the push version of `observe_effect()`:
+it hands Due a receipt that arrived by callback. Call it with an authenticated,
+validated provider receipt. It matches the receipt to the work's captured input
+and records it as evidence; ordinary recovery then performs local settlement. It
+never resubmits the operation.
 
 Run both recovery paths, including duplicate callback delivery:
 

@@ -3,9 +3,13 @@
 [Previous: observation](observation-tutorial.md) · [All chapters](tutorial.md)
 
 A function creates temporary output, then removes it when finished. If its process
-dies between those calls, a Python `finally` block cannot finish cleanup.
-`IndependentCompensation` records the cleanup obligation **before** the call that
-can create the output, so another worker can perform it later.
+dies between those calls, a Python `finally` block cannot finish cleanup: the
+process that would run it no longer exists. Over time the leftovers pile up.
+
+Cleanup that must survive the process that needs it is called
+[compensation](vocabulary.md#compensation). `IndependentCompensation` records
+the cleanup as its own owed work **before** the call that can create the output,
+so another worker can perform it later.
 
 The operation here copies text into a local SQLite record and clears its temporary
 copy. We reuse the prepared Printworks renderer, but this chapter only needs its
@@ -14,7 +18,8 @@ render and cleanup functions. No PDF generation or external service is involved.
 ## 1. Give cleanup its own work row
 
 The renderer uses one temporary key per execution attempt. Cleanup keeps that key
-even if the product requests a newer attempt:
+even if the product requests a newer attempt. The cleanup work model is a
+`UniverseDurableWork` like chapter 2's, but without an owner:
 
 ```python
 from django.db import models
@@ -34,7 +39,16 @@ independently of the product's current desired revision.
 
 ## 2. Capture the key and define cleanup
 
-These are the cleanup hooks from [effects.py](../../examples/acme_printworks/acme/effects.py):
+The cleanup capability watches another capability, the **producer**: the work
+that creates the temporary output. Here the producer is `ProofWork`, which
+renders a proof; you will see it in section 3. Each time a producer attempt
+starts, the cleanup capability records a cleanup row for it.
+
+`WorkClaim` is what Due passes to describe a producer attempt that has just
+claimed its work row. Its `token` is that attempt's
+[fencing token](vocabulary.md#fencing-token): unique to the attempt, which makes
+it a good name for the attempt's temporary output. These are the cleanup hooks
+from [effects.py](../../examples/acme_printworks/acme/effects.py):
 
 ```python
 from datetime import timedelta
@@ -66,10 +80,21 @@ cleanup_spool = SpoolCleanup(
 )
 ```
 
-`capture()` runs before the producer calls the provider. It derives the cleanup
-key from the attempt token, so cleanup can identify output even when the producer
-never receives a response. The cleanup capability is registered for ordinary
-worker delivery and recurring recovery alongside the producer.
+| Code | Comes from | What it does |
+| --- | --- | --- |
+| `IndependentCompensation[ProofWork, CleanupWork]` | Due | The capability base for cleanup. Type parameters: the producer's work model and the cleanup work model. |
+| `capture(self, producer)` | A hook you implement | Builds the cleanup row for one producer attempt, before that attempt calls the provider. |
+| `compensate(self, work)` | A hook you implement | Performs the cleanup. Return `True` only when cleanup is conclusively finished. |
+| `providers.cleanup()`, `providers.render()` | This example | The simulated renderer: write output under a key, and clear it. |
+| `producer_model=`, `model=` | Due | The producer's work model and the cleanup work model. |
+| `nudge=registered_nudge(CleanupWork)` | Due | Use the standard [nudge](vocabulary.md#nudge) for this work model. `for_owner()` chose this for you in earlier chapters; this capability has no owner, so it is constructed directly. |
+| `policy=DurableWorkPolicy(retention=None, max_rearms=None)` | Due policy setting | Keep records, and never stop retrying: abandoning cleanup is how leftovers accumulate. |
+| `inspection_interval=timedelta(seconds=5)` | Due setting | When `compensate()` returns `False`, how long to wait before trying cleanup again. |
+
+`capture()` derives the cleanup key from the attempt token, so cleanup can find
+the output even when the producer never receives a response. The cleanup
+capability is registered for ordinary worker delivery and recurring recovery
+alongside the producer.
 
 `compensate()` must report whether cleanup is conclusively finished. Here the
 provider returns `True` only when the temporary data is cleared **and** its render
@@ -78,8 +103,12 @@ alone returns `False`: a delayed write could still arrive.
 
 ## 3. Protect the call that creates output
 
-Use `OwnedDurableWorkCapability` when your operation needs an execution context
-to coordinate several calls. Its `apply()` hook receives that context. The core
+The producer is built on `OwnedDurableWorkCapability`, the general base that
+`ReplaySafeEffect`, `Projection` and the other owned capabilities are built on. Use it
+when one attempt makes several calls that need different handling. Instead of
+`perform_effect()`, its `apply()` hook also receives a `WorkExecutionContext`:
+the running attempt itself, which helpers like `record_cleanup_before_call()`
+need. `work.fencing_token` is the same attempt token `capture()` saw. The core
 of the prepared producer is:
 
 ```python
