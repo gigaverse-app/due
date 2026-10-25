@@ -116,7 +116,7 @@ def test_conformance_entry_point_is_safe_before_django_setup():
         from due.django.testing import hold_nudges as original_hold
         assert effect_contract_suite is original_suite
         assert hold_nudges is original_hold
-        from due.django.testing import celery_worker_contract as original_celery_contract
+        from due.django.celery_testing import celery_worker_contract as original_celery_contract
         assert celery_worker_contract is original_celery_contract
         stopped = die_after(lambda: 42)
         try:
