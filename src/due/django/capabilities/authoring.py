@@ -60,7 +60,7 @@ from due.django.runtime.recovery_pass import (
     deferral_identity_problem,
     recovery_tick,
 )
-from due.errors import CompletionStatus, WorkIncomplete
+from due.errors import CompletionStatus, EffectNotAppliedError, WorkIncomplete
 from due.observability import capture_exception_safely
 from due.observations import AppliedEffectEvidence, effect_result
 from due.retry_delays import ExponentialDelay
@@ -437,6 +437,22 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def retry_delay_for(self, work: WorkT) -> timedelta:
         return self.policy.delay_at(work.rearm_count)
 
+    def provider_retry_after(self, error: Exception) -> timedelta:
+        """
+        The provider's minimum wait before work that failed with ``error`` may run again.
+
+        A retry waits at least this long, however short ``retry_delay_for``
+        is: retrying inside a provider's rate-limit window spends a rearm on a
+        refusal. The default reads ``EffectRejection.retry_after``. Override it
+        to read a wait off another error, such as an SDK exception carrying an
+        HTTP ``Retry-After``; return ``timedelta(0)`` when there is none. The
+        retry still spends one rearm, so ``max_rearms`` bounds throttled
+        windows, not seconds.
+        """
+        if isinstance(error, EffectNotAppliedError) and error.rejection.retry_after is not None:
+            return error.rejection.retry_after
+        return timedelta(0)
+
     def attempt_execution(
         self, work_id: int, delivery_token: UUID | None = None, *, expected_revision: int | None = None
     ) -> bool:
@@ -455,6 +471,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             finalize_unknown=self._finalize_unknown,
             finalize_retry=self._finalize_retry,
             retry_delay_for=self.retry_delay_for,
+            provider_retry_after=self.provider_retry_after,
             database_only=self._database_only,
             eligibility=self.eligibility,
         )

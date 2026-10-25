@@ -35,7 +35,7 @@ class ProviderRefused(Exception):
 
 
 def rejected(
-    disposition: WorkFailureDisposition, *, expected: str = "before"
+    disposition: WorkFailureDisposition, *, expected: str = "before", provider_wait: timedelta | None = None
 ) -> Callable[[], AbstractContextManager[RejectionExample[PrimitiveWork, str]]]:
     @contextmanager
     def binding() -> Iterator[RejectionExample[PrimitiveWork, str]]:
@@ -56,6 +56,7 @@ def rejected(
                     effect_calls=lambda: calls,
                 ),
                 disposition=disposition,
+                provider_wait=provider_wait,
             )
 
     return binding
@@ -132,3 +133,23 @@ def test_a_retryable_rejection_waits_and_must_reach_the_product(visible: bool) -
 def test_an_unknown_rejection_outside_an_observed_operation_is_refused() -> None:
     with pytest.raises(ObligationContractDesignError, match="UNKNOWN outcome needs provider observation"):
         assert_classified(rejected(WorkFailureDisposition.UNKNOWN))
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
+@pytest.mark.parametrize("honors_wait", [True, False], ids=["honored", "ignored"])
+def test_declared_provider_wait_reaches_the_shared_proof(honors_wait: bool) -> None:
+    wait = timedelta(minutes=10)
+    delayed = replace(primitive, policy=replace(primitive.policy, retry_delay=timedelta(seconds=2)))
+    entry = DurableWorkRegistration(name="primitive_throttled", capability=delayed, cadence_seconds=60, queue="celery")
+    with (
+        durable_work_installed(entry),
+        production_classifies_as(RETRYABLE),
+        patch.object(PrimitiveEffect, "provider_retry_after", lambda self, error: wait if honors_wait else timedelta()),
+        classified_failure_bindings(
+            DurableWorkBindings(delayed, record), rejected(RETRYABLE, provider_wait=wait), outcome="throttled"
+        ) as failure,
+    ):
+        assert failure.provider_wait == wait
+        with nullcontext() if honors_wait else pytest.raises(AssertionError, match="inside the provider's window"):
+            assert_classified_failure_contract(failure)
