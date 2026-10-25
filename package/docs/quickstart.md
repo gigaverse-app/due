@@ -175,9 +175,9 @@ print(interrupted.status.name)  # RUNNING: its claim has not expired yet
 ```
 
 PostgreSQL still records unfinished work. It cannot immediately know whether a
-worker is dead or just slow, so when a worker starts a job it takes a **lease**:
-a deadline by which it promises to finish. Until the lease expires, nobody else
-touches the job. After it expires, Due assumes the worker is gone. This demo uses
+worker is dead or just slow, so when a worker starts a job it **claims** it,
+taking a **lease**: a deadline by which it promises to finish. Until the lease
+expires, nobody else touches the job. After it expires, Due assumes the worker is gone. This demo uses
 a 20-second lease to keep the experiment short; the standard lease is five
 minutes.
 

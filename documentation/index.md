@@ -12,6 +12,9 @@ stores a work row alongside the product change, retries delivery through Celery,
 and fences which worker can publish completion. Your application owns the
 meaning of success and whether an external operation is safe to repeat.
 
+New to owed work, leases or fencing? The [vocabulary page](../package/docs/vocabulary.md)
+defines each term, starting from the failure it prevents.
+
 [Run and recover your first task](../package/docs/quickstart.md){ .md-button .md-button--primary }
 [All eight chapters](../package/docs/tutorial.md){ .md-button }
 [Choose an API](../package/docs/api-guide.md){ .md-button }
