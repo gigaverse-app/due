@@ -1,0 +1,24 @@
+"""Install the isolated bulk hosts while generated-suite collection checks their routes."""
+
+from collections.abc import Iterator
+from contextlib import ExitStack
+
+import pytest
+
+from tests.harness.bulk import registered_batch
+from tests.harness.replay_safe_bulk import registered_member_sync
+
+_SUITE_HOSTS = {"test_contract.py": registered_batch, "test_replay_safe_contract.py": registered_member_sync}
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> Iterator[None]:
+    # The package's generated suites verify registration at collection, before
+    # function fixtures run. Scope each test host to collection of its suite;
+    # its function fixture independently installs the same route for execution.
+    collected = {item.path.name for item in items if item.path.parent.name == "bulk"}
+    with ExitStack() as hosts:
+        for name, host in _SUITE_HOSTS.items():
+            if name in collected:
+                hosts.enter_context(host())
+        return (yield)
