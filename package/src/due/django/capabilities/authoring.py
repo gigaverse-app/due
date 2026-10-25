@@ -12,7 +12,7 @@ from dataclasses import field as dataclass_field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
-from typing import Any, ClassVar, Self, final
+from typing import Any, ClassVar, Self, cast, final
 from uuid import UUID
 
 from django.db import OperationalError, connection, models, transaction
@@ -993,24 +993,37 @@ class OwnedDurableWorkCapability[
         cls,
         *,
         work: type[WorkT],
-        owner: type[OwnerT],
+        owner: type[OwnerT] | None = None,
         nudge: Publisher | None = None,
-        policy: DurableWorkPolicy,
+        policy: DurableWorkPolicy | None = None,
         discovery: Discovery[OwnerT, WorkT] | None = None,
         capture: Capture | None = None,
         input_fields: tuple[str, ...] | None = None,
         eligibility: ExecutionEligibility | None = None,
         wakes: tuple[Dependent[WorkT], ...] = (),
     ) -> Self:
-        """Bind one typed work model to its canonical aggregate owner."""
+        """Bind work to its declared owner relation, with the standard policy by default.
+
+        Explicit owners still validate against the relation. Mode-specific policy
+        checks still apply, including retained history for provider operations.
+        """
 
         owner_field = work.work_owner_field
         if owner_field is None:
             raise TypeError("owned work must declare work_owner_field on its model")
+        if owner is None:
+            relation = work._meta.get_field(owner_field)
+            if not isinstance(relation, models.OneToOneField):
+                raise TypeError(f"{work.__name__}.{owner_field} must be a OneToOneField")
+            related_model = relation.remote_field.model
+            if not isinstance(related_model, type) or not issubclass(related_model, models.Model):
+                raise TypeError("the work owner relation must be resolved before binding a capability")
+            # The schema owns this relationship; do not maintain a second owner declaration.
+            owner = cast(type[OwnerT], related_model)
         return cls(
             model=work,
             nudge=nudge if nudge is not None else registered_nudge(work),
-            policy=policy,
+            policy=policy if policy is not None else DurableWorkPolicy(),
             discovery=discovery,
             capture=capture,
             input_fields=input_fields,

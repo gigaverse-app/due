@@ -8,6 +8,7 @@ INSTALLED_APPS = [
     "due.django",
     "examples.apps.ExamplesConfig",
     "examples.documents",
+    "examples.numbers",
     "examples.books",
     "examples.catalog",
     "examples.orders",

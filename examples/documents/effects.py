@@ -1,6 +1,6 @@
 """A replay-safe file publication with fenced database settlement."""
 
-from due.django.public import DurableWorkPolicy, DurableWorkState, ReplaySafeEffect
+from due.django.public import DurableWorkState, ReplaySafeEffect
 from examples.documents import storage
 from examples.documents.models import Document, PublicationWork
 
@@ -21,7 +21,7 @@ class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
             Document.objects.filter(pk=work.owner_id).update(publication_failed=True)
 
 
-publish_document = PublishDocument.for_owner(owner=Document, work=PublicationWork, policy=DurableWorkPolicy())
+publish_document = PublishDocument.for_owner(work=PublicationWork)
 
 
 def request_publication(document_id: int, text: str) -> PublicationWork:

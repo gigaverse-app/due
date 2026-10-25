@@ -58,6 +58,17 @@ validation:
     anchors: warn
 extra:
   published_sources:
+  - package/docs/tutorial.md
+  - package/docs/quickstart.md
+  - package/docs/native-work-tutorial.md
+  - package/docs/projection-tutorial.md
+  - package/docs/scheduling-tutorial.md
+  - package/docs/external-operation-tutorial.md
+  - package/docs/observation-tutorial.md
+  - package/docs/compensation-tutorial.md
+  - package/docs/composition-tutorial.md
+  - package/docs/django-tasks-quickstart.md
+  - package/docs/api-guide.md
   - docs/acme-printworks-tutorial.md
   - docs/alternatives.md
   - docs/ci-toolkit.md
@@ -95,9 +106,19 @@ extra:
 nav:
 - Home: index.md
 - Getting started:
-  - Quickstart: package/docs/integration.md
-  - Django Tasks backend: package/docs/django-tasks.md
-  - Acme Printworks tutorial: docs/acme-printworks-tutorial.md
+  - Tutorial:
+    - All chapters: package/docs/tutorial.md
+    - 1. Run and recover a task: package/docs/quickstart.md
+    - 2. Own the result: package/docs/native-work-tutorial.md
+    - 3. Keep an external view current: package/docs/projection-tutorial.md
+    - 4. Schedule, move and cancel work: package/docs/scheduling-tutorial.md
+    - 5. Preserve an uncertain outcome: package/docs/external-operation-tutorial.md
+    - 6. Resolve uncertainty by reading: package/docs/observation-tutorial.md
+    - 7. Recover cleanup independently: package/docs/compensation-tutorial.md
+    - 8. Compose and test your work: package/docs/composition-tutorial.md
+  - Set up Due in your project: package/docs/django-tasks-quickstart.md
+  - Which API should I use?: package/docs/api-guide.md
+  - Grow with Printworks: docs/acme-printworks-tutorial.md
   - Why Due: docs/why-due.md
   - Recovery walkthrough: docs/recovery-walkthrough.md
   - Compare alternatives: docs/alternatives.md
@@ -105,6 +126,9 @@ nav:
   - Architecture: package/docs/architecture.md
   - Capabilities: package/docs/capabilities.md
   - Completion leases: package/docs/completion-leases.md
+- API and integration:
+  - Django Tasks reference: package/docs/django-tasks.md
+  - Native integration: package/docs/integration.md
 - Migration guides:
   - Choose your migration: package/docs/migrations.md
   - arq: package/docs/migrations/arq.md

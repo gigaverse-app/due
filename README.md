@@ -10,7 +10,7 @@
 
 **An attempt can end. The obligation remains.**
 
-[Read the documentation](https://due.readthedocs.io/en/latest/) · [Related tools](https://due.readthedocs.io/en/latest/ecosystem/)
+[Start the tutorial](package/docs/quickstart.md) · [All eight chapters](package/docs/tutorial.md) · [Choose an API](package/docs/api-guide.md) · [Documentation](https://due.readthedocs.io/en/latest/)
 
 The PyPI distribution name is **`django-due`** (`pip install django-due`).
 Python imports remain **`due`**. See [releasing](RELEASING.md) for the manual release process.
@@ -41,15 +41,69 @@ The message gets work started sooner. The database remembers what remains owed.
 
 [When Due is the right tool: strengths, tradeoffs, and alternatives →](docs/why-due.md)
 
-## Start simple, keep the reliability tests
+## Start here: run and recover a background task
 
-Follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django word-count
-task to proof publication, portal repair, print ordering and durable cleanup.
-The [runnable app](examples/acme_printworks/README.md) includes workflow charts and
-pytest-obligation contracts that generate 270 native reliability checks.
-**Always build the application contract** as you integrate Due: bind the real
-commands, provider faults and customer-visible outcome, then run the shared tests
-and enrollment/report gates. See the [conformance guide](package/docs/conformance.md).
+The [first tutorial](package/docs/quickstart.md) uses one deliberately trivial
+function: sleep, print a greeting, return it. A prepared project supplies setup.
+
+Define the task in `examples/hello_due/tasks.py`:
+
+```python
+import os
+from time import sleep
+
+from django.conf import settings
+from django.tasks import task
+
+
+@task(queue_name=settings.CELERY_TASK_DEFAULT_QUEUE)
+def greet(name: str, seconds: int = 1) -> str:
+    print(f"Starting greeting for {name} in process {os.getpid()}", flush=True)
+    sleep(seconds)
+    message = f"Hello, {name}!"
+    print(message, flush=True)
+    return message
+```
+
+Then submit it from application code or a Django shell:
+
+```python
+from examples.hello_due.tasks import greet
+
+result = greet.enqueue("Ada")  # Returns immediately; a worker runs the function.
+
+# After the worker finishes:
+result.refresh()
+print(result.return_value)  # Hello, Ada!
+```
+
+Submit a job before starting its worker. Read the saved result. Then kill a
+worker during a slow task, restart it, and let Due recover that same job. Each
+step shows the code, expected output and the behavior it demonstrates. The
+[runnable example](examples/hello_due/README.md) has a test that performs the real
+worker kill and waits for recurring recovery.
+
+Import production types and startup helpers from `due.django.public`; common contract and fault
+helpers live in `due.django.conformance`. [API choices, imports and file map →](package/docs/api-guide.md)
+
+The [setup guide](package/docs/django-tasks-quickstart.md) explains how to add Due
+to your Django project. The [eight-chapter tutorial](package/docs/tutorial.md)
+then introduces each capability with small operations and observable results:
+
+1. Run a task and recover it after worker death.
+2. Capture input and guard completion with `ReplaySafeEffect`.
+3. Keep a mutable external view current with `Projection`.
+4. Move or cancel a deadline with `ScheduledAction`.
+5. Preserve an uncertain outcome with `DurableExternalOperation`.
+6. Resolve it by reading a receipt with `ObservedExternalOperation`.
+7. Recover cleanup with `IndependentCompensation` and coordinate calls with `OwnedDurableWorkCapability`.
+8. Compose stages, try completion inline and bind application contract tests.
+
+Then follow [Acme Printworks](docs/acme-printworks-tutorial.md) from a Django task
+to proof publication, portal repair, print ordering and cleanup. Its
+[runnable app](examples/acme_printworks/README.md) includes application contracts.
+Build those contracts alongside your first native capability: the real commands,
+provider faults and customer-visible observations make recovery promises testable.
 
 ## What happens when things go wrong?
 
@@ -126,46 +180,11 @@ uv add 'django-due[redis]'
 The documentation under `latest` follows main. Check your installed version
 against the release notes before using an API added after that release.
 
-Add `"due.django"` to `INSTALLED_APPS`, then run your application's migrations.
-Your own work models subclass `UniverseDurableWork`, declare captured inputs,
-and include `durable_work_schema(...)` in their indexes and constraints.
-`universe` is an unrestricted tenant key retained for extraction compatibility;
-use an empty string for a single-tenant application.
-
-A capability puts external I/O and local settlement in different methods:
-
-```python
-from due.django.public import DurableWorkPolicy, ReplaySafeEffect
-
-
-class PublishDocument(ReplaySafeEffect[Document, PublicationWork, str]):
-    def perform_effect(self, work: PublicationWork) -> str:
-        return storage.put(
-            key=work.provider_idempotency_key(),
-            text=work.text,
-        )
-
-    def finalize_success(self, work: PublicationWork, result: str) -> None:
-        Document.objects.filter(pk=work.owner_id).update(published_key=result)
-
-
-publication = PublishDocument.for_owner(
-    owner=Document,
-    work=PublicationWork,
-    policy=DurableWorkPolicy(),
-)
-
-with publication.atomic(document_id) as pending:
-    pending.locked_owner.text = text
-    pending.locked_owner.save(update_fields=["text"])
-    pending.request_work(PublicationWork(text=text, universe="tenant-42"))
-```
-
-This sketch assumes your `Document`, `PublicationWork` and idempotent `storage`
-implementation. The [complete runnable example](examples/documents) includes
-models, migrations, an actual filesystem effect, registration and Celery wiring.
-Register every capability in **each process**; register once to generate the Beat
-schedule and route both execution and recovery. See [integration](package/docs/integration.md).
+Use the [task tutorial](package/docs/quickstart.md) and its prepared example.
+They use source to include the consolidated imports added after
+0.10.0. For an existing application, follow the [Django Tasks reference](package/docs/django-tasks.md)
+or [native integration reference](package/docs/integration.md). Both need registration
+in every process, workers and recurring recovery.
 
 ## Run the example
 
@@ -246,6 +265,12 @@ replay. [Operations and monitoring →](package/docs/operations.md)
 
 | You want to… | Read |
 | --- | --- |
+| Run a task and recover it after worker failure | [First task tutorial](package/docs/quickstart.md) |
+| Learn each capability step by step | [All eight tutorial chapters](package/docs/tutorial.md) |
+| Configure Due in a Django project | [Setup guide](package/docs/django-tasks-quickstart.md) |
+| Learn native admission and completion hooks | [Native work lesson](package/docs/native-work-tutorial.md) |
+| Find the high-level API and imports | [API guide and file map](package/docs/api-guide.md) |
+| Add richer product guarantees | [Printworks tutorial](docs/acme-printworks-tutorial.md) |
 | Decide whether Due fits your application | [Strengths and tradeoffs](docs/why-due.md), [alternatives](docs/alternatives.md) |
 | Integrate the runtime | [Django and Celery wiring](package/docs/integration.md), [capabilities](package/docs/capabilities.md) |
 | Move an existing application onto Due | [Migration settings and stable wire names](package/docs/integration.md#migrating-an-existing-application), [library migration guides](package/docs/migrations.md) |

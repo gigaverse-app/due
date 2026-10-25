@@ -1,8 +1,22 @@
 # Runnable applications
 
-Examples live alongside Due so changes to the public API and the applications
-that exercise it can be reviewed and tested together. They share
-`examples.settings`, `examples.celery_app`, and the root `compose.yaml`.
+Start with the [task tutorial](../package/docs/quickstart.md): submit a function,
+read its result, kill its worker, and recover the job. The
+[prepared greeting app](hello_due/README.md) supplies setup. Then use the
+[numbers app](numbers/README.md) to inspect native admission and completion hooks,
+or choose an application below for its product behavior.
+
+Examples live alongside Due so API changes and the applications that exercise
+them can be reviewed together. Most share `examples.settings`,
+`examples.celery_app`, and the root `compose.yaml`. Printworks is standalone and
+has its own setup.
+
+## Django Tasks to native capabilities
+
+[Acme Printworks](acme_printworks/README.md) grows from a word-count task into
+proof publication, portal repair, uncertain print ordering and independent
+cleanup. Follow the [step-by-step tutorial](../docs/acme-printworks-tutorial.md)
+and run its application contracts as each guarantee is introduced.
 
 ## Document publication
 

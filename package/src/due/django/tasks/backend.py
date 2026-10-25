@@ -17,9 +17,9 @@ from django.tasks.signals import task_enqueued
 from django.utils.module_loading import import_string
 from pydantic import JsonValue
 
+from due.django.capabilities.authoring import DurableWorkPolicy
 from due.django.integration import current_tenant
 from due.django.models import DurableWorkState
-from due.django.public import DurableWorkPolicy
 from due.django.runtime.registry import registration_for
 from due.django.runtime.transport import notify_after_commit
 

@@ -1,5 +1,10 @@
 # Django Tasks with Due: start simple, grow with Acme Printworks
 
+New to Due? Start with [running and recovering a task](../package/docs/quickstart.md)
+to learn the runtime without a business application. Come back here to add product
+guarantees. The [API guide](../package/docs/api-guide.md) maps the consolidated
+imports to the capabilities used throughout this story.
+
 ![Due: An attempt can end. The obligation remains.](https://raw.githubusercontent.com/gigaverse-app/due/main/docs/assets/banner.png?v=e6e1fea2a5af)
 
 First published on [DEV](https://dev.to/aviadr1/django-tasks-with-due-commit-the-work-recover-after-a-crash-n5k). This edition preserves the author’s edits and includes the runnable application and contracts.

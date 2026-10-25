@@ -1,5 +1,10 @@
 # Django and Celery integration
 
+This is the native integration reference. For your first run, use the
+[task tutorial](quickstart.md), then [choose an API](api-guide.md). The
+[native work lesson](native-work-tutorial.md) introduces admission and completion hooks.
+Application authoring and startup imports are collected in `due.django.public`.
+
 Use one writable PostgreSQL database for the product row, its work row, Due's
 attempt evidence and recovery deferrals. This release uses Django's default
 transaction connection; cross-database atomic admission is not supported.
@@ -7,8 +12,8 @@ transaction connection; cross-database atomic admission is not supported.
 1. Add `due.django` to `INSTALLED_APPS` and migrate.
 2. Define your concrete work models, owner relation, captured input fields and
    `durable_work_schema(...)`. Generate and apply your application migrations.
-3. Implement a capability with an explicit `DurableWorkPolicy` and register it
-   in every web, worker, Beat, management-command and test process that uses it.
+3. Implement a capability, choose any `DurableWorkPolicy` overrides, and register
+   it in every web, worker, Beat, management-command and test process that uses it.
 4. Call `configure_durable_work` once to install the manifest, task imports and
    recovery schedules. Configure Celery from Django settings or pass its app explicitly.
 5. Run workers for the registered queues and a recurring scheduler. Alert on
@@ -26,11 +31,17 @@ and assertions for the declared policies. That is the practical meaning of
 getting valuable tests "for free": you reuse the test design while still proving
 your application's behavior against its real dependencies and provider contracts.
 
+For owned work, `MyEffect.for_owner(work=MyWork)` infers the owner from the declared
+one-to-one relation and uses `DurableWorkPolicy()`. Explicit `owner=` and `policy=`
+remain supported. Mode-specific requirements still apply, including
+`retention=None` for provider operations that preserve evidence. See the
+[API guide](api-guide.md) for defaults and the shortest task-only setup.
+
 The [complete registration pattern](../../examples/apps.py) runs after Django
 loads application models:
 
 ```python
-from due.django.runtime.registry import configure_durable_work
+from due.django.public import configure_durable_work
 from myapp.registry import REGISTRATIONS
 
 # In AppConfig.ready(): one manifest owns routes, task imports and Beat schedules.
