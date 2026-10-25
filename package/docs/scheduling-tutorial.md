@@ -5,9 +5,9 @@
 You want to publish a text file at a particular time. Before publication starts,
 the user can move that time or cancel it.
 
-If the time lives only inside a delayed queue message, moving or cancelling the
-publication means finding and revoking that message, and a message you miss
-still fires at the old time. `ScheduledAction` instead stores the deadline in the work
+The usual approach, a delayed Celery task (`apply_async(eta=...)`), puts the time
+inside a queue message. Moving or cancelling the publication then means finding
+and revoking that message, and a message you miss still fires at the old time. `ScheduledAction` instead stores the deadline in the work
 row as [captured input](vocabulary.md#captured-input). Changing it raises the
 work's [revision](vocabulary.md#revision), so a message carrying the old time
 can no longer run anything. Due also checks the deadline again when a delivery
