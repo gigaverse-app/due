@@ -140,3 +140,105 @@ must retain access to soft-deleted owners. The default is `"objects"`.
 Admission and both runtime owner-lock paths use this same manager, preserving
 owner-before-work locking and visibility. This changes lifecycle visibility,
 not authorization: the application still decides who may request the work.
+
+
+## Bulk operations
+
+A bulk capability sends one fixed list of member keys in as few provider calls
+as possible. Each call returns a verdict per member: `COMPLETE` (a definite
+final result, including a permanent rejection), `RETRYABLE` (definitely not
+applied) or `UNKNOWN` (may have been applied). `due.bulk` owns these verdicts
+and their only reducers. Both capabilities create one work row per batch and
+keep member progress as bounded JSON on that row; neither creates a row per member.
+
+Choose by whether the provider call is safe to repeat:
+
+| Provider call | Capability | Work model | Uncertain call |
+| --- | --- | --- | --- |
+| Not safe to repeat (sending email) | `DurableBulkExternalOperation` | `BulkExternalOperationWork` plus a `StoredBulkEffectEvidence` receipt model | Blocks further calls until evidence resolves it |
+| Idempotent (adding chat members, upserting users) | `DurableBulkEffect` | `BulkEffectWork` | Raise; the core retry policy resends members without a verdict |
+
+Both take a typed `result_type`, immutable `input_fields` including `bulk_keys`,
+and a `bulk_policy` that bounds inline rounds and elapsed time; its backoff
+must be shorter than the lease. Exhausting the rounds hands the remaining
+members to the core retry policy. Register the capability and admit work
+through the normal owned-work transaction or discovery.
+
+| Hook | Application responsibility |
+| --- | --- |
+| `before_batch(work)` | Recheck product eligibility before each call; return `ContinueAfter` to pause without spending the failure budget |
+| `prepare_batch(work, batch)` | Build the request for the captured members with no provider I/O. An exception is a definite nonapplication, never an uncertain call |
+| `send_batch(work, batch, payload)` | Make exactly one provider call and return a verdict for every member |
+| `finalize_batch(work, result)` | Publish one call's member consequences under the core fence |
+| `on_batch_rejected(work, rejection)` | After a retryable whole-call `EffectNotAppliedError`: `RETRY_LATER` (default, spends one retry), `RETRY_INLINE` (paced resend within this claim), or `ContinueAfter` (for example until a rate-limit reset, no budget spent) |
+| Ordinary finalizers | Publish uncertainty, exhaustion and permanent failure consequences |
+
+A provider that definitely refuses the whole call raises `EffectNotAppliedError`
+from `send_batch`; it never returns every member as `RETRYABLE`, so attempt
+records stay truthful. A terminal rejection fails the work.
+
+### Calls that are not safe to repeat
+
+`DurableBulkExternalOperation` extends `DurableExternalOperation`: the ordinary
+claim, fenced `WorkExecutionContext`, `EffectAttempt`, retry budget and
+recovery path. Due commits the attempt and its captured membership, then calls
+`prepare_batch` and `send_batch` with `current_batch(work)` (exact members and
+the attempt id to correlate). `COMPLETE` members never reenter a later call.
+Only definite `RETRYABLE` members may retry; any `UNKNOWN` member blocks another
+call until exact-attempt evidence resolves it. Duplicate, foreign and
+contradictory receipts are rejected. Partial receipts merge monotonically in
+the canonical store and use the same settlement path as a live response.
+
+Extra hooks for this capability:
+
+| Hook | Application responsibility |
+| --- | --- |
+| `finalize_rejection(work, rejection)` | Publish a whole-call rejection's product consequence once, whether the worker settled it or recovery did |
+| `observe_batch(work, attempt, members)` | Look up evidence for an uncertain call (receipt events, a provider task's status); return `None` when nothing is new. Overriding it registers a paged observation recovery step keyed by `observation_key` |
+
+`resume_pending()` can shorten a pending delay, or explicitly reset an exhausted
+nonapplication budget with `reset_budget=True`; it refuses uncertain, active
+and completed effects, and preserves the same immutable occurrence. The runnable
+declarations are `tests/harness/bulk.py`; the email adopter is
+`gigaverse/core/mail/reminders/engine/bulk_delivery.py` in the backend.
+
+When transferring definitely unsent legacy work, call
+`import_retry_history(work, rearms=..., retry_pending=..., not_before=...)`
+inside the owner/admission transaction that excludes the old sender. This can
+initialize only an unexecuted READY occurrence. `retry_pending=True` passes the
+prior definite failure through the ordinary retry/exhaustion transition, including
+the configured product finalizer; `not_before` retains its original wait.
+It does not establish nonapplication: the application must first exclude any
+possible in-flight old effect. Retain uncertain historical ownership until evidence
+resolves it, or use the separate unknown-effect import API.
+
+### Idempotent calls
+
+`DurableBulkEffect` is a `ReplaySafeEffect`-style capability: no attempt or
+receipt rows. `prepare_batch(work, keys)` and `send_batch(work, keys, payload)`
+receive the members still without a verdict. Each round commits its verdicts to
+the work row under the fence before the claim settles, so a replay after a lost
+acknowledgement sends only the members still pending. `send_batch` returns
+`COMPLETE` or `RETRYABLE` for every key it was given, and raises for anything
+uncertain. The runnable declaration is `tests/harness/replay_safe_bulk.py`,
+scripted like a chat provider's add-members call: idempotent, all or nothing
+except for per-user rejections, and rate limited with a reset time.
+
+`run_bulk()` is the sequencing helper both capabilities use; calling it alone
+does not adopt Due's durable lifecycle. The email engine uses the registered
+capability for all new sends; only historical receipt settlement remains while
+pre-cutover attempts drain. Generated Obligation contracts exercise
+both test adopters and the production email adapter, including partial
+receipts, rejected-subset retry, delayed receipts across retry turnover and
+replay after a lost acknowledgement.
+
+### Bulk provider wait policy
+
+A positive `EffectRejection.retry_after` follows the ordinary durable retry
+path, even when `on_batch_rejected` prefers inline retry or a product pause.
+It spends one rearm and waits for the greater of the provider floor and the
+capability retry delay. This preserves the scalar retry contract and bounds
+repeated rate-limit windows. Without a provider floor, the existing inline
+round and budget-free `ContinueAfter` policies remain available. Applications
+that want unlimited rate-limit waiting need an explicit policy decision rather
+than silently bypassing the durable retry budget.
