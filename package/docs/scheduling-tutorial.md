@@ -5,10 +5,9 @@
 You want to publish a text file at a particular time. Before publication starts,
 the user can move that time or cancel it.
 
-The usual approach, a delayed task (`apply_async(eta=...)` in Celery), puts the
-time inside a queue message. Moving or cancelling the publication then means
-finding and revoking that message, and a message you failed to revoke still
-fires at the old time. `ScheduledAction` instead stores the deadline in the work
+If the time lives only inside a delayed queue message, moving or cancelling the
+publication means finding and revoking that message, and a message you miss
+still fires at the old time. `ScheduledAction` instead stores the deadline in the work
 row as [captured input](vocabulary.md#captured-input). Changing it raises the
 work's [revision](vocabulary.md#revision), so a message carrying the old time
 can no longer run anything. Due also checks the deadline again when a delivery
@@ -79,7 +78,7 @@ publish_at_deadline = PublishAtDeadline.for_owner(
     work=PublicationDeadline,
     # The deadline and the cancel flag are captured input: changing either raises the revision.
     input_fields=("universe", "text", "run_at", "cancelled"),
-    # Required here: cancelling needs the attempt records to know whether an attempt already started.
+    # Required: never prune this work row; it carries the deadline, the cancel flag and the attempt identity.
     policy=DurableWorkPolicy(retention=None),
 )
 ```

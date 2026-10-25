@@ -24,15 +24,24 @@ a read returns it. There is no search service to configure. Use the
 
 ## 1. Define what the work captures
 
-The product is `CatalogEntry`, a plain Django model with `title`, `author` and a
-stable `identity`. The work model has the same shape as chapter 2's
-`CalculationWork`; its captured input is the exact values to copy:
+The product is `CatalogEntry`, a plain Django model. The work model has the same
+shape as chapter 2's `CalculationWork`; its captured input is the exact values to
+copy:
 
 ```python
 from typing import ClassVar
+from uuid import uuid4
 
 from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
+
+
+class CatalogEntry(models.Model):
+    identity = models.UUIDField(default=uuid4, unique=True, editable=False)
+    title = models.CharField(max_length=100)
+    author = models.CharField(max_length=100)
+    published_title = models.CharField(max_length=100, blank=True)
+    indexing_failed = models.BooleanField(default=False)
 
 
 # Same Due base and owner link as chapter 2; index_key, title and author are captured input.
@@ -47,7 +56,8 @@ class CatalogWork(UniverseDurableWork):
         indexes, constraints = durable_work_schema("catalog_projection")
 ```
 
-This model is already in [models.py](../../examples/catalog/models.py). The same
+Both models are already in [models.py](../../examples/catalog/models.py).
+`published_title` records which title the index last confirmed. The same
 index key survives title changes, because we are updating one external entry.
 `UniverseDurableWork`, `work_owner_field`, the one-to-one `owner` and
 `durable_work_schema()` mean exactly what they did in
@@ -85,7 +95,7 @@ project_catalog = CatalogProjection.for_owner(
     work=CatalogWork,
     # The fields Due compares to decide whether a request is new input; must include "universe".
     input_fields=("universe", "index_key", "title", "author"),
-    # Keep old attempt records (repair needs them) and repair every 5 seconds instead of 5 minutes.
+    # Never prune this work row (late writes refer to it); make repair eligible every 5 seconds.
     policy=DurableWorkPolicy(retention=None, repair_interval=timedelta(seconds=5)),
 )
 ```
@@ -98,8 +108,8 @@ project_catalog = CatalogProjection.for_owner(
 | `search.put()`, `search.publish()`, `search.get()` | This example | Write, publish and read an entry in the local SQLite "search index". |
 | `input_fields=(...)` | Due | Names the work fields that count as captured input: Due compares these to decide whether a request changes the input and needs a new revision. It must include `"universe"`. |
 | `DurableWorkPolicy(...)` | Due | The policy object. In chapter 2, `for_owner()` used the standard one; here it is passed explicitly to change two settings. |
-| `retention=None` | Due policy setting | Keep the records of finished attempts instead of deleting them after the standard seven days. Repair needs them to know which old writes might still land. |
-| `repair_interval=timedelta(seconds=5)` | Due policy setting | How long to wait between repair passes. Five seconds keeps the demo short; the standard interval is five minutes. |
+| `retention=None` | Due policy setting | Never delete this work row once it completes (the standard policy deletes completed rows after seven days). Records of earlier writes refer to it, so a projection requires this. |
+| `repair_interval=timedelta(seconds=5)` | Due policy setting | How soon another repair pass becomes eligible. When it actually runs also depends on recovery's schedule. Five seconds keeps the demo short; the standard interval is five minutes. |
 
 The prepared class also marks the product as failed when its
 [retry budget](vocabulary.md#retry-budget) is exhausted. Keep Beat running:

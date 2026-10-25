@@ -22,10 +22,11 @@ for rendering; the number stands in for the document. The
 [document application](../../examples/documents/README.md) applies the same
 pattern to real files once you know it.
 
-You will run four experiments:
+You will make one normal request, then break it in four experiments:
 
 | Experiment | What you will observe | The idea behind it |
 | --- | --- | --- |
+| Make one normal request | `21` goes in, `42` is saved | The [effect](vocabulary.md#effect) and [settlement](vocabulary.md#settlement) hooks in order |
 | Roll back the request | Neither the new number nor its work survives | [Atomic admission](vocabulary.md#admission) |
 | Lose the message that starts the work | Recovery still produces `42` | [Owed work](vocabulary.md#owed-work-and-the-work-row) and [recovery](vocabulary.md#recovery) |
 | Stop the worker after the calculation returns | It prints twice, but saves `42` once | [Leases](vocabulary.md#attempt-claim-and-lease) and [replay safety](vocabulary.md#replay-and-replay-safe) |
@@ -153,7 +154,7 @@ calculate = DoubleNumber.for_owner(work=CalculationWork)
 | `ReplaySafeEffect[Calculation, CalculationWork, int]` | Due | The base class for work that is safe to run more than once. Its three type parameters are the owner model, the work model, and the type `perform_effect()` returns and `finalize_success()` receives. |
 | `perform_effect(self, work)` | A hook you implement | The **effect**. Due calls it with the work row and runs it outside any database transaction, so it can be slow. It can also be interrupted halfway, or run again, so it must not save anything the user sees. |
 | `finalize_success(self, work, result)` | A hook you implement | **Settlement**. Due calls it inside a short transaction, with the owner and work rows locked, and only after checking that this attempt is still the current one (next paragraph). It should only write to the database. |
-| `DoubleNumber.for_owner(work=CalculationWork)` | Due | Builds the capability. It finds the owner model through `work_owner_field` and applies the standard policy: a five-minute lease, a one-minute retry delay, three retries. The result, `calculate`, is the object the rest of the chapter uses. |
+| `DoubleNumber.for_owner(work=CalculationWork)` | Due | Builds the capability. It finds the owner model through `work_owner_field` and applies the standard policy: a five-minute lease, a one-minute retry delay, three retries. The result, `calculate`, is the object the rest of the chapter uses. Building it writes no database row and runs nothing; rows appear only when work is requested. |
 
 What does "still the current one" mean? When a worker starts an attempt, Due
 gives the work row a fresh random [fencing token](vocabulary.md#fencing-token)
@@ -215,16 +216,46 @@ new job even with identical arguments. Work that ran out of retries needs an
 explicit decision to try again; the example's `retry_number()` calls
 `pending.retry_failed()` for that.
 
-## 4. Experiment: roll back the request
+## 4. Make one normal request
 
 The remaining blocks are shell exercises. Start the
 [prepared shell](tutorial.md#prepare-the-native-chapters-once) and keep workers
 stopped.
 
-The exercises use a few tools from `due.django.conformance`, Due's testing
-package. They simulate crashes and lost messages at exact points; production
-code never imports them. The first is `hold_nudges()`: inside its `with` block,
-nudges are recorded in a list instead of being sent to Celery.
+Before breaking anything, watch one request go through. The exercises use a few
+tools from `due.django.conformance`, Due's testing package. They simulate crashes
+and lost messages at exact points; production code never imports them. The first
+is `hold_nudges()`: inside its `with` block, nudges are recorded in a list
+instead of being sent to Celery, so nothing starts the work before you do.
+
+```python
+from due.django.conformance import hold_nudges
+from examples.numbers.effects import calculate, request_number
+from examples.numbers.models import Calculation, CalculationWork
+
+sample = Calculation.objects.create()
+with hold_nudges():  # Record the request, but don't let a nudge start the work.
+    work = request_number(sample.pk, 21)
+
+print(work.owner_id == sample.pk)  # True: the work row belongs to this calculation
+print(work.number, work.state)  # 21 ready
+
+# Run the owed work here, through the same claim, effect and settlement a worker uses.
+calculate.complete(work)
+sample.refresh_from_db()
+print(sample.result)  # 42
+```
+
+That is the whole path: `request_number()` recorded the input, Due called
+`perform_effect()`, `double()` returned `42`, and Due checked the attempt before
+calling `finalize_success()` to save it. `complete()` must run after the
+request's transaction has committed, and raises `WorkIncomplete` if the work did
+not finish; [chapter 8](composition-tutorial.md#2-try-short-work-inline-while-retaining-recovery)
+returns to it. The four experiments below break this path at each step.
+
+## 5. Experiment: roll back the request
+
+Now make the request inside a transaction that fails:
 
 ```python
 from django.db import transaction
@@ -233,8 +264,7 @@ from examples.numbers.effects import request_number
 from examples.numbers.models import Calculation, CalculationWork
 
 sample = Calculation.objects.create()
-# Test tool: nudges are collected in `sent` instead of being sent to Celery.
-with hold_nudges() as sent:
+with hold_nudges() as sent:  # `sent` lists every nudge the block tried to send.
     try:
         with transaction.atomic():
             request_number(sample.pk, 21)
@@ -250,10 +280,12 @@ assert not sent  # Rolled back before commit, so no nudge was ever due.
 
 The outer transaction rolled back, so the new number, the work row and the nudge
 all disappeared together. There is no product change without its work, and no
-work for a request that failed. Keep your own related writes inside the same
-transaction to get the same guarantee.
+work for a request that failed. `transaction.atomic()` here is Django's own;
+`calculate.atomic()` inside `request_number()` joins it and adds Due's locking
+and admission. Keep your own related writes inside the same transaction to get
+the same guarantee.
 
-## 5. Experiment: lose the nudge, keep the work
+## 6. Experiment: lose the nudge, keep the work
 
 Now let the request commit, but drop its nudge, as if the broker restarted right
 after the commit:
@@ -290,7 +322,7 @@ task, and runs the work it finds through Due's real worker code. It does not
 contain a second recovery algorithm. In a running app, Beat triggers recovery
 and Celery workers execute the work.
 
-## 6. Experiment: stop after the effect, before settlement
+## 7. Experiment: stop after the effect, before settlement
 
 This time the worker dies at the worst moment: `double()` has returned its
 answer, but the answer has not been saved.
@@ -327,10 +359,8 @@ assert Calculation.objects.get(pk=sample.pk).result == 42
 The output shows the calculation running twice:
 
 ```text
-double(21) = 42
-Attempt stopped after double returned: result=None, claim is still held
-double(21) = 42
-Expired claim recovered: double ran again, result=42
+double(21) = 42    <- first attempt: computes 42, then dies before settlement
+double(21) = 42    <- recovery's new attempt: computes 42 again, and saves it
 ```
 
 The first attempt computed `42` and died before settlement, so the result stayed
@@ -345,7 +375,7 @@ happened. For work that must not repeat, use the
 and 6. (The fault here interrupts the attempt at a precise point; it does not
 kill an operating system process. Chapter 1 did that.)
 
-## 7. Experiment: let an old attempt finish late
+## 8. Experiment: let an old attempt finish late
 
 The last experiment is the stale-result problem from the start of this chapter.
 The story:
@@ -425,6 +455,7 @@ to repeat the lost-nudge experiment with independent processes.
 | `perform_effect()` / `finalize_success()` | Your hooks | Do the work outside a transaction / save it after Due's check |
 | `.for_owner()` | Due | Build the capability with the standard policy |
 | `.atomic()`, `.locked_owner`, `.request_work()` | Due | Change the product and record owed work in one transaction |
+| `.complete()` | Due | Run owed work now, in this process, and require that it finishes |
 | `hold_nudges`, `WorkTableDelivery`, `die_after`, `applied_snapshot` | Due test tools | Drop nudges, drive recovery, inject a crash, stage a late attempt |
 
 ## Carry the pattern into your app
@@ -433,11 +464,26 @@ Replace `double()` with your own replay-safe operation, put its input fields on
 your work model, and save only local product state in `finalize_success()`.
 
 Workers, Beat and your web processes must all know about the capability. You
-**register** it once at startup: list it in a `DurableWorkRegistration` and pass
-the list to `configure_durable_work`, both from `due.django.public`. The prepared
-example does this in [examples/registry.py](../../examples/registry.py); the
-[setup guide](django-tasks-quickstart.md) walks through it for your own project.
-Keep Beat running so recovery runs.
+**register** it once at startup, in your app's `AppConfig.ready()`:
+
+```python
+from due.django.public import DurableWorkRegistration, configure_durable_work
+from examples.numbers.effects import calculate
+
+# The name identifies this kind of work to workers and recovery;
+# cadence_seconds is how often Beat runs recovery for it.
+registration = DurableWorkRegistration(name="calculate_number", capability=calculate, cadence_seconds=5)
+# Installs the worker routes and the Beat recovery schedule; run it in every process.
+configure_durable_work([registration])
+```
+
+The registration name `"calculate_number"` and the schema prefix
+`"number_calculation"` from section 1 are unrelated: one names the work for
+routing and recovery, the other names database indexes. The prepared example
+registers all its capabilities together in
+[examples/registry.py](../../examples/registry.py), so you do not need to run
+this; the [setup guide](django-tasks-quickstart.md) walks through it for your own
+project. Keep Beat running so recovery runs.
 
 Due can also generate failure tests for your capability: rollback, lost nudges,
 interrupted attempts, stale results. You describe how to create work and how to

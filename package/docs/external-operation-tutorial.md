@@ -49,12 +49,29 @@ to deduplicate submissions. The exercise can therefore detect an accidental rese
 
 ## 2. Store work and evidence separately
 
-This capability needs two Due base models:
+The product is `PrintOrder`, a plain Django model. `status` is a label for the
+user, separate from Due's own work state:
+
+```python
+from uuid import uuid4
+
+from django.db import models
+
+
+class PrintOrder(models.Model):
+    reference = models.UUIDField(default=uuid4, unique=True, editable=False)
+    title = models.CharField(max_length=100)
+    provider_order_id = models.PositiveBigIntegerField(null=True)
+    status = models.CharField(max_length=20, default="pending")
+```
+
+This capability also needs two Due base models:
 
 - `ExternalOperationWork` is the work-model base for operations that must not
-  repeat. It plays the role `UniverseDurableWork` played in chapter 2, and adds
-  the columns Due needs to track an attempt whose call may already have reached
-  the provider.
+  repeat. It plays the role `UniverseDurableWork` played in chapter 2 and adds
+  no columns of its own. Instead it marks the work as needing evidence: Due
+  records each provider attempt in a table of its own, and while an attempt's
+  outcome is unresolved, Due will not submit again.
 - `StoredAppliedEffectEvidence` is the base for a small table where Due stores
   each receipt it obtains. You subclass it once; you never write to it yourself.
 
@@ -70,7 +87,8 @@ class PrintEvidence(StoredAppliedEffectEvidence):
 The prepared [models.py](../../examples/orders/models.py) already includes
 `PrintOrder`, `PrintWork` and `PrintEvidence`. `PrintWork` captures the order's
 reference and title. It uses `ObservedExternalOperationWork`, an extension of
-`ExternalOperationWork`, so chapter 6 can add recovery by reading the receipt.
+`ExternalOperationWork`, so chapter 6 can add recovery by reading the receipt;
+[chapter 6 shows its definition](observation-tutorial.md#1-add-observation-state-to-the-work-model).
 
 ## 3. Define submission and outcome hooks
 
@@ -143,7 +161,7 @@ claim physical printing has finished.
 ## 4. Submit once and lose the reply
 
 Now use the prepared, registered instance. Two environment variables switch on
-this example's simulated faults: `DUE_PRINTER_LOSE_RESPONSE` makes the printer
+this example's simulated faults (they belong to the simulator, not to Due): `DUE_PRINTER_LOSE_RESPONSE` makes the printer
 accept the order and then raise `TimeoutError` instead of replying, and
 `DUE_PRINTER_HIDE_RECEIPTS` makes its receipts unreadable for now. The
 registered instance also has the observation hook from chapter 6, which the

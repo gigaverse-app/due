@@ -92,7 +92,7 @@ cleanup_spool = SpoolCleanup(
 | `providers.cleanup()`, `providers.render()` | This example | The simulated renderer: write output under a key, and clear it. |
 | `producer_model=`, `model=` | Due | The producer's work model and the cleanup work model. |
 | `nudge=registered_nudge(CleanupWork)` | Due | Use the standard [nudge](vocabulary.md#nudge) for this work model. `for_owner()` chose this for you in earlier chapters; this capability has no owner, so it is constructed directly. |
-| `policy=DurableWorkPolicy(retention=None, max_rearms=None)` | Due policy setting | Keep records, and never stop retrying: abandoning cleanup is how leftovers accumulate. |
+| `policy=DurableWorkPolicy(retention=None, max_rearms=None)` | Due policy setting | Never delete cleanup rows, and never stop retrying: abandoning cleanup is how leftovers accumulate. |
 | `inspection_interval=timedelta(seconds=5)` | Due setting | When `compensate()` returns `False`, how long to wait before trying cleanup again. |
 
 `capture()` derives the cleanup key from the attempt token, so cleanup can find

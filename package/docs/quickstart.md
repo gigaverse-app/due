@@ -6,9 +6,9 @@ You have a slow function to run in the background. You want to submit it now,
 let a worker do it, and retrieve its result later. If that worker dies, the job
 should still get done.
 
-With many queues, a worker killed mid-job (by a deploy, an out-of-memory kill or
-a crashed machine) takes its job with it: the queue handed the message over and
-nobody else knows the job was unfinished. In this chapter you will kill a worker
+If the only record of a job is the message handed to a worker, a worker killed
+mid-job (by a deploy, an out-of-memory kill or a crashed machine) takes the job
+with it: nobody else knows it was unfinished. In this chapter you will kill a worker
 on purpose and watch the job finish anyway.
 
 This chapter uses only Django's standard task API. You will not write any Due

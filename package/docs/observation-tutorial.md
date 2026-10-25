@@ -16,7 +16,8 @@ repeat that chapter's steps 4–5 to create a fresh uncertain order.
 ## 1. Add observation state to the work model
 
 `ObservedExternalOperationWork` extends chapter 5's `ExternalOperationWork` with
-the columns Due uses to schedule repeated lookups. `observation_index()` returns
+two columns, `next_observation_at` and `observation_claimed_at`, which Due uses to
+schedule repeated lookups. `observation_index()` returns
 the database index recovery uses to find work due for its next lookup; append
 it to the indexes from `durable_work_schema()`. The prepared work model:
 
@@ -108,7 +109,7 @@ print_order = OrderPrinting.for_owner(
 | `observe_effect(self, work)` | A hook you implement | Asks the provider what happened, using the captured `reference`. It must only read. Return a receipt if one exists, or `None`. |
 | `observation_interval = timedelta(seconds=5)` | Due setting | How long to wait before looking again after a `None`. |
 | `provider.observe()` | This example | Looks up a receipt in the simulated printer by reference. |
-| `DurableWorkPolicy(retention=None)` | Due policy setting | Keep attempt records indefinitely; an operation that might have happened must never forget it. |
+| `DurableWorkPolicy(retention=None)` | Due policy setting | Never delete this work row: it identifies an operation that may have happened, and its evidence refers to it. Provider operations require this. |
 
 Returning a matching receipt supplies the evidence Due needs to settle. Returning
 `None` leaves the outcome unknown and schedules another lookup. It never
