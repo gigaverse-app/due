@@ -252,3 +252,43 @@ def test_shared_rejection_proof_detects_lost_recovery_policy(
     )
     with expectation:
         assert_rejection_survives_recovery(publication, example, interruption=interruption)
+
+
+@pytest.mark.parametrize("interruption", ["death", "late", "settlement_rollback"])
+@pytest.mark.parametrize("honors_wait", [True, False], ids=["honored", "detects-ignored-wait"])
+def test_observed_rejection_proof_checks_provider_wait(publication, monkeypatch, interruption, honors_wait):
+    from contextlib import nullcontext
+    from datetime import timedelta
+
+    from due.django.conformance.registrations import durable_work_installed
+    from due.django.conformance.suite import DeliveryExample, RejectionExample, assert_rejection_survives_recovery
+    from due.django.runtime.registry import DurableWorkRegistration
+
+    wait = timedelta(hours=1)
+    monkeypatch.setattr(
+        Publication, "failure", EffectNotAppliedError(EffectRejection(message="throttled", retry_after=wait))
+    )
+    if not honors_wait:
+        monkeypatch.setattr(Publication, "provider_retry_after", lambda self, error: timedelta(0))
+
+    def example():
+        work = record(publication)
+        return RejectionExample(
+            delivery=DeliveryExample(
+                work=work,
+                observe=lambda: (PrimitiveOwner.objects.get(pk=work.owner_id).value, len(Publication.calls)),
+                expected=("retry", 1),
+                effect_calls=lambda: len(Publication.calls),
+            ),
+            disposition=WorkFailureDisposition.RETRYABLE,
+            provider_wait=wait,
+        )
+
+    entry = DurableWorkRegistration(
+        name="throttled_publication", capability=publication, cadence_seconds=60, queue="celery"
+    )
+    with (
+        durable_work_installed(entry),
+        nullcontext() if honors_wait else pytest.raises(AssertionError, match="inside the provider's window"),
+    ):
+        assert_rejection_survives_recovery(publication, example, interruption=interruption)
