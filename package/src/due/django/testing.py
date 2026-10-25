@@ -19,10 +19,11 @@ from uuid import uuid4
 from due.django.capabilities.observed_operations import ObservedExternalOperationWork
 from due.django.models import DurableWork, DurableWorkState, RecoveryDeferral
 from due.django.runtime.coordination import database_now
-from due.django.runtime.registry import DurableWorkRegistration, installed
 
 if TYPE_CHECKING:
     from pytest_obligation import ObligationContract
+
+    from due.django.runtime.registry import DurableWorkRegistration
 
 
 @dataclass(frozen=True)
@@ -196,6 +197,7 @@ def celery_worker_contract[WorkT: DurableWork](
     from pytest_obligation.integrations.celery_tasks import task_contract
 
     from due.django.runtime.names import RUN_TASK
+    from due.django.runtime.registry import installed
     from due.django.runtime.tasks import recover_durable_work_task
 
     module, _, attribute = app.partition(":")
@@ -267,6 +269,8 @@ def route_worker_to_test_queue() -> None:
     pool child, where the work runs, then calls the adopter's own setup.
     """
     from celery import signals
+
+    from due.django.runtime.registry import installed
 
     queue = os.environ[_TEST_QUEUE]
 
