@@ -50,7 +50,13 @@ from pytest_obligation.profiles.gated_execution import (
     ExecutionGateBinding,
 )
 from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity
-from pytest_obligation.profiles.job_retry_limits import BoundedRetry, ClassifiedFailure, FailureClass, PersistentRetry
+from pytest_obligation.profiles.job_retry_limits import (
+    BoundedRetry,
+    ClassifiedFailure,
+    FailureClass,
+    PersistentRetry,
+    assert_provider_wait_is_honored,
+)
 
 from due.django.capabilities.authoring import FAILED_TERMINAL_STATES
 from due.django.capabilities.authoring import ReplaySafeEffect as ReplaySafeCapability
@@ -591,10 +597,10 @@ def _convergence_decline_defects(
     return []
 
 
-def effect_contract[W: UniverseDurableWork, ResultT](
-    capability: DurableWorkCapability[W, ResultT], *, examples: EffectExamples[W]
-) -> ObligationContract:
-    """Features create proof obligations. No profile list is supplied by the domain."""
+def _effect_bindings[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
+) -> DurableWorkBindings[W, ResultT]:
+    """Use the same occurrence identity for sweep and execution-gate proofs."""
     discovery = isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None
     identity = examples.identity_of
     if identity is None:
@@ -603,7 +609,15 @@ def effect_contract[W: UniverseDurableWork, ResultT](
             if isinstance(capability, OwnedDurableWorkCapability) and discovery
             else (lambda work: work.pk)
         )
-    bindings = DurableWorkBindings(capability, examples.make_work, identity_of=identity)
+    return DurableWorkBindings(capability, examples.make_work, identity_of=identity)
+
+
+def effect_contract[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT], *, examples: EffectExamples[W]
+) -> ObligationContract:
+    """Features create proof obligations. No profile list is supplied by the domain."""
+    discovery = isinstance(capability, OwnedDurableWorkCapability) and capability.discovery is not None
+    bindings = _effect_bindings(capability, examples)
     name = bindings.registration.name
     operation = isinstance(capability, DurableExternalOperation)
     moving = isinstance(capability, (DurableProjection, DurableScheduledAction)) or (discovery and not operation)
@@ -860,7 +874,7 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
 
     The production binding guard rejects test-authored readiness decisions. The
     accounted driver runs actual messages through blocked and eligible phases."""
-    bindings = DurableWorkBindings(capability, examples.make_work)
+    bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     assert capability.eligibility is not None
     mutations: list[str] = []
@@ -898,9 +912,9 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
 
         yield ExecutionGate(
             name=entry.name,
-            identity=work.pk,
-            due_work=lambda: capability.due_work().values_list("pk", flat=True),
-            owed_work=lambda: outstanding_work(capability.model).values_list("pk", flat=True),
+            identity=bindings.identity_of(work),
+            due_work=lambda: map(bindings.identity_of, capability.due_work()),
+            owed_work=lambda: map(bindings.identity_of, outstanding_work(capability.model)),
             reserved_state=reserved_state,
             routes={
                 "direct": lambda: capability.attempt_execution(work.pk),
@@ -925,7 +939,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
     capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
 ) -> None:
     """Drop the producer wakeup and require recovery to reach its independent product oracle."""
-    bindings = DurableWorkBindings(capability, examples.make_work)
+    bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     assert_registered_schedule(entry)
     sent = []
@@ -1003,7 +1017,7 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
     capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
 ) -> None:
     """A reservation the broker lost is redelivered by recovery with the budget untouched."""
-    bindings = DurableWorkBindings(capability, examples.make_work)
+    bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     sent = []
 
@@ -1042,7 +1056,7 @@ def assert_terminal_failure_is_visible_and_rearmable[W: UniverseDurableWork, Res
     capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
 ) -> None:
     """Exhaustion must change product-visible state, and a same-input re-request must re-arm (or say why not)."""
-    bindings = DurableWorkBindings(capability, examples.make_work)
+    bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     assert examples.terminal is not None
     assert capability.policy.max_rearms is not None, "unbounded policies never exhaust; no terminal proof applies"
@@ -1215,6 +1229,10 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
             because="rejection recovery preserves the required product outcome",
         )
         assert effect_calls() == scenario.expected_attempts
+        if scenario.provider_wait is not None and expected_state == DurableWorkState.RETRYABLE:
+            bindings = DurableWorkBindings(capability, lambda: work)
+            with classified_failure_bindings(bindings, lambda: scenario, outcome="recovered rejection") as failure:
+                assert_provider_wait_is_honored(failure, work)
 
 
 def effect_contract_suite[W: UniverseDurableWork, ResultT](

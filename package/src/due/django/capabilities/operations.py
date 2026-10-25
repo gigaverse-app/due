@@ -4,16 +4,19 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 from abc import abstractmethod
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import ClassVar
 
 from django.db import models, transaction
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q, QuerySet
 
 from due.django.capabilities.authoring import OwnedDurableWorkCapability, ReplayContract
 from due.django.declarations.mirrors import Outcome
 from due.django.evidence.attempts import (
     attempts_for,
     import_unknown_effect_attempt,
+    initial_import_work,
     observe_effect_outcome,
     record_effect_attempt,
 )
@@ -25,7 +28,9 @@ from due.django.models import (
     EffectAttemptOutcome,
     UniverseDurableWork,
 )
+from due.django.runtime import transport
 from due.django.runtime.coordination import (
+    ContinueAfter,
     WorkExecutionContext,
     WorkFailureDisposition,
     database_now,
@@ -33,6 +38,7 @@ from due.django.runtime.coordination import (
     lock_owner_of_work,
     pin_work_beneficiary,
     require_autocommit,
+    resume_unapplied_work,
     retry_locked_work,
     settle_locked_work,
     terminal_locked_work,
@@ -116,6 +122,49 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         )
         return desired
 
+    def resume_pending(self, work_id: int, *, reset_budget: bool = False, notify_worker: bool = True) -> bool:
+        """An explicit product resume; uncertainty and completed occurrences remain protected."""
+        resumed = resume_unapplied_work(self.model, work_id, reset_budget=reset_budget)
+        if resumed and notify_worker:
+            transport.notify_after_commit(self.work_name, self.enqueue_execution, work_id)
+        return resumed
+
+    def import_retry_history(
+        self,
+        work: WorkT,
+        *,
+        rearms: int,
+        retry_pending: bool,
+        not_before: datetime | None = None,
+    ) -> None:
+        """Transfer definite legacy retry debt inside its owner/admission transaction.
+
+        The application must first exclude possible old effects. This initializer
+        cannot alter executed work; shared retry/exhaustion owns the remaining
+        failure decision, and the original admission remains the same occurrence.
+        """
+        from django.utils.timezone import is_naive
+
+        if type(rearms) is not int or not 0 <= rearms <= 2**31 - 1:
+            raise ValueError("legacy rearms must be a nonnegative database integer")
+        if not_before is not None and is_naive(not_before):
+            raise ValueError("not_before must be timezone-aware")
+        current = initial_import_work(self.model, work)
+        if current.rearm_count:
+            raise ValueError("legacy retry history can only initialize an unexecuted occurrence")
+        current.rearm_count = rearms
+        current.available_at = not_before or database_now()
+        current.save(update_fields=["rearm_count", "available_at", "updated_at"])
+        if retry_pending:
+            retry_locked_work(
+                current,
+                retry_at=current.available_at,
+                retry_delay=timedelta(0),
+                max_rearms=self.policy.max_rearms,
+                error_code="legacy_retry_pending",
+                finalize=lambda row: self._finalize_retry(row, RuntimeError("legacy definite failure")),
+            )
+
     def record_unknown_effect_outcome(self, work: WorkT) -> None:
         """Import a pre-primitive possible occurrence, never permission to resend it."""
         current = import_unknown_effect_attempt(self.model, work)
@@ -127,7 +176,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
     def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> None:
         finalize_under_fence(work, self.finalize_started)
 
-    def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt:
+    def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
         with context.external_call():
             attempt = record_effect_attempt(context.claim, before_commit=self._before_attempt_commits)
             try:
@@ -165,6 +214,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             raise ValueError("persisted evidence identity differs from the supplied attempt")
         return locked
 
+    def validate_rejection_evidence(self, attempt: EffectAttempt, rejection: EffectRejection) -> None:
+        """Optional constraints from incrementally retained provider evidence, under the attempt lock."""
+
     def record_rejection(self, attempt: EffectAttempt, rejection: EffectRejection) -> EffectRejection:
         """Persist exact negative evidence and its decision atomically, even after fence loss."""
         require_autocommit()
@@ -174,6 +226,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             locked = self._lock_evidence_attempt(attempt)
             if locked.outcome == EffectAttemptOutcome.APPLIED:
                 raise ValueError("rejection contradicts applied evidence")
+            self.validate_rejection_evidence(locked, decision)
             if locked.rejection is not None and locked.rejection != payload:
                 raise ValueError("rejection contradicts earlier evidence for this attempt")
             # Persist the decision in the SAME transaction as NOT_APPLIED. A
@@ -185,6 +238,16 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
 
     def record_applied_effect_evidence(self, attempt: EffectAttempt, result: ResultT) -> None:
         """Accept an exact late receipt without borrowing another worker's token."""
+        self._record_effect_evidence(attempt, result)
+
+    def _record_effect_evidence(
+        self,
+        attempt: EffectAttempt,
+        result: ResultT,
+        *,
+        complete: Callable[[EffectAttempt], bool] | None = None,
+    ) -> None:
+        """Commit validated evidence; a bulk receipt may still leave members unknown."""
         require_autocommit()
         with transaction.atomic():
             # Evidence lock precedes its domain receipt, consistently for normal
@@ -194,7 +257,8 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 raise ValueError("applied receipt contradicts definite non-application")
             self.validate_applied_effect_evidence(result)
             self.evidence_store.record(locked, result)
-            observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
+            if complete is None or complete(locked):
+                observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
     def record_observed_effect_evidence(self, work_id: int, result: ResultT) -> bool:
         """
@@ -256,13 +320,21 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             RecoveryStep(RecoveryPhase.NONAPPLICATION, self._reconcile_nonapplication_page),
         )
 
-    def _settle_applied_evidence(self, recovery: RecoveryPass) -> int:
-        """Settle work whose APPLIED receipt still owes product repair, one work id at a time."""
-        applied_work = EffectAttempt.objects.filter(
+    def evidence_requiring_settlement(self) -> QuerySet[EffectAttempt]:
+        """Canonical receipts whose product consequence is not yet committed."""
+        return EffectAttempt.objects.filter(
             work_model=self.model._meta.label_lower,
             outcome=EffectAttemptOutcome.APPLIED,
             repair_pending=True,
-        ).values("work_id")
+        )
+
+    def blocking_attempt_filter(self) -> Q:
+        """Scalar occurrences retain every possible effect, including settled ones."""
+        return Q()
+
+    def _settle_applied_evidence(self, recovery: RecoveryPass) -> int:
+        """Settle work whose APPLIED receipt still owes product repair, one work id at a time."""
+        applied_work = self.evidence_requiring_settlement().values("work_id")
         return recovery.run_page(
             RecoveryPhase.EVIDENCE_SETTLEMENT,
             self.model.objects.filter(pk__in=applied_work).order_by("pk").values_list("pk", flat=True),
@@ -272,7 +344,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
 
     def _reconcile_nonapplication_page(self, recovery: RecoveryPass) -> int:
         """Retry UNKNOWN work whose every attempt is proven NOT_APPLIED, one work id at a time."""
-        evidence = EffectAttempt.objects.filter(work_model=self.model._meta.label_lower, work_id=OuterRef("pk"))
+        evidence = EffectAttempt.objects.filter(
+            self.blocking_attempt_filter(), work_model=self.model._meta.label_lower, work_id=OuterRef("pk")
+        )
         return recovery.run_page(
             RecoveryPhase.NONAPPLICATION,
             self.model.objects.filter(state=DurableWorkState.UNKNOWN)
@@ -287,18 +361,29 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
     def settle_expired_claim(self, work: WorkT) -> bool:
         return self._settle_rejection_locked(work)
 
-    def _settle_rejection_locked(self, work: WorkT) -> bool:
-        """Caller holds owner/work locks; only this execution's decision may settle."""
-        evidence = attempts_for(work)
-        if evidence.exclude(outcome=EffectAttemptOutcome.NOT_APPLIED).exists():
-            return False
+    def rejection_awaiting_settlement(self, work: WorkT) -> EffectAttempt | None:
+        """This execution's typed rejection whose retry or terminal decision is not yet committed."""
         try:
-            attempt = evidence.get(
-                desired_revision=work.desired_revision,
-                claim_token=work.fencing_token,
-                rejection__isnull=False,
+            return (
+                attempts_for(work)
+                .filter(self.blocking_attempt_filter())
+                .get(
+                    outcome=EffectAttemptOutcome.NOT_APPLIED,
+                    desired_revision=work.desired_revision,
+                    claim_token=work.fencing_token,
+                    rejection__isnull=False,
+                )
             )
         except EffectAttempt.DoesNotExist:
+            return None
+
+    def _settle_rejection_locked(self, work: WorkT) -> bool:
+        """Caller holds owner/work locks; only this execution's decision may settle."""
+        evidence = attempts_for(work).filter(self.blocking_attempt_filter())
+        if evidence.exclude(outcome=EffectAttemptOutcome.NOT_APPLIED).exists():
+            return False
+        attempt = self.rejection_awaiting_settlement(work)
+        if attempt is None:
             return False  # Historical untyped evidence keeps its existing policy.
         error = EffectNotAppliedError(self.rejection_type.model_validate(attempt.rejection))
         disposition = self.classify_error(error)
@@ -341,7 +426,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             work = self.model.objects.select_for_update().filter(pk=work_id).first()
             if work is None:
                 return False
-            evidence = attempts_for(work)
+            evidence = attempts_for(work).filter(self.blocking_attempt_filter())
             if work.state != DurableWorkState.UNKNOWN or not evidence.exists():
                 return False
             if evidence.exclude(outcome=EffectAttemptOutcome.NOT_APPLIED).exists():
@@ -376,8 +461,10 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if work is None:
                 return False
             try:
-                attempt = attempts_for(work).get(
-                    desired_revision=work.desired_revision, outcome=EffectAttemptOutcome.APPLIED, repair_pending=True
+                attempt = (
+                    self.evidence_requiring_settlement()
+                    .select_for_update()
+                    .get(work_id=work.pk, desired_revision=work.desired_revision)
                 )
             except EffectAttempt.DoesNotExist:
                 return False
@@ -386,10 +473,14 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             result = self.evidence_store.read(attempt)
             self.validate_applied_effect_evidence(result)
             with current_universe_scope(work.work_universe()):
-                settle_locked_work(
-                    work,
-                    revision=work.desired_revision,
-                    finalize=lambda current: self._finalize_applied(current, result),
-                )
-            EffectAttempt.objects.filter(pk=attempt.pk).update(repair_pending=False)
+                self._settle_evidence_locked(work, attempt, result)
         return True
+
+    def _settle_evidence_locked(self, work: WorkT, attempt: EffectAttempt, result: ResultT) -> None:
+        """Apply one canonical receipt under the shared owner/work/attempt locks."""
+        settle_locked_work(
+            work,
+            revision=work.desired_revision,
+            finalize=lambda current: self._finalize_applied(current, result),
+        )
+        EffectAttempt.objects.filter(pk=attempt.pk).update(repair_pending=False)
