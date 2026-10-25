@@ -50,7 +50,13 @@ from pytest_obligation.profiles.gated_execution import (
     ExecutionGateBinding,
 )
 from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity
-from pytest_obligation.profiles.job_retry_limits import BoundedRetry, ClassifiedFailure, FailureClass, PersistentRetry
+from pytest_obligation.profiles.job_retry_limits import (
+    BoundedRetry,
+    ClassifiedFailure,
+    FailureClass,
+    PersistentRetry,
+    assert_provider_wait_is_honored,
+)
 
 from due.django.capabilities.authoring import FAILED_TERMINAL_STATES
 from due.django.capabilities.authoring import ReplaySafeEffect as ReplaySafeCapability
@@ -1215,6 +1221,10 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
             because="rejection recovery preserves the required product outcome",
         )
         assert effect_calls() == scenario.expected_attempts
+        if scenario.provider_wait is not None and expected_state == DurableWorkState.RETRYABLE:
+            bindings = DurableWorkBindings(capability, lambda: work)
+            with classified_failure_bindings(bindings, lambda: scenario, outcome="recovered rejection") as failure:
+                assert_provider_wait_is_honored(failure, work)
 
 
 def effect_contract_suite[W: UniverseDurableWork, ResultT](
