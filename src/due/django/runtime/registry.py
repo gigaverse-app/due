@@ -5,6 +5,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 
 from collections.abc import Iterable, Mapping, MutableMapping
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any, TypedDict
 
 from celery import Celery
@@ -38,6 +39,41 @@ class DurableWorkRegistration[WorkT: UniverseDurableWork, ResultT]:
     def model(self) -> type[WorkT]:
         """The routed object owns its model; registration cannot name another one."""
         return self.capability.model
+
+
+def django_tasks_registration(
+    *,
+    alias: str = "default",
+    recovery_queue: str = "default",
+    cadence_seconds: int = 30,
+    execution_time_limit: int = 60,
+    execution_soft_time_limit: int = 50,
+) -> DurableWorkRegistration:
+    """Register the optional Django Tasks backend in the application's manifest.
+
+    Multiple Due aliases share this policy; their queues and result IDs stay
+    isolated. Native capabilities can be registered in the same manifest.
+    """
+    # Keep the optional task model out of native-only application imports.
+    from django.tasks import task_backends
+
+    from due.django.tasks.backend import DueBackend
+    from due.django.tasks.models import TaskWork
+    from due.django.tasks.runtime import TaskCapability, publish
+
+    backend = task_backends[alias]
+    if not isinstance(backend, DueBackend):
+        raise TypeError(f"{alias!r} must use DueBackend")
+    if backend.policy.lease_duration <= timedelta(seconds=execution_time_limit):
+        raise ValueError("Task lease must outlive the worker hard execution limit")
+    return DurableWorkRegistration(
+        name="django_tasks",
+        capability=TaskCapability(model=TaskWork, nudge=publish, policy=backend.policy),
+        queue=recovery_queue,
+        cadence_seconds=cadence_seconds,
+        execution_time_limit=execution_time_limit,
+        execution_soft_time_limit=execution_soft_time_limit,
+    )
 
 
 class RecoveryTaskOptions(TypedDict):
@@ -181,14 +217,22 @@ def _merge_schedules(existing: Mapping[str, Any], generated: Mapping[str, Recove
 
 
 def configure_durable_work(
-    registrations: Iterable[DurableWorkRegistration], *, celery_app: Celery | None = None
+    registrations: Iterable[DurableWorkRegistration] = (),
+    *,
+    celery_app: Celery | None = None,
+    django_tasks: bool = False,
 ) -> None:
     """Install a manifest, task imports and schedules during application startup.
 
     Pass an explicit Celery app if its configuration is already loaded or it does
     not read Django's CELERY settings. Otherwise configure Celery from those
     settings normally. Call before serving work; this is not a hot-reload API.
+    Set django_tasks=True to include the default Django Tasks backend with its
+    standard registration. Use an explicit registration for custom routing or
+    worker limits. Both paths share the same validation and installation.
     """
+    if django_tasks:
+        registrations = (*registrations, django_tasks_registration())
     by_name = index_durable_work_registrations(registrations)
     generated = recovery_schedules(by_name.values())
     schedules = _merge_schedules(getattr(settings, "CELERY_BEAT_SCHEDULE", {}), generated)

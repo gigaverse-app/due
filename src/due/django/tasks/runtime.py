@@ -2,20 +2,24 @@
 
 import os
 import socket
-from datetime import timedelta
 from traceback import format_exception
 from uuid import UUID
 
 from django.db import transaction
-from django.tasks import task_backends
 from django.tasks.base import TaskContext
 from django.tasks.signals import task_finished, task_started
 from pydantic import JsonValue
 
 from due.django.capabilities.authoring import DurableWorkCapability
 from due.django.models import DurableWorkState
-from due.django.public import WorkExecutionContext, WorkOwnershipLost, database_now, require_fenced_settlement
-from due.django.runtime.registry import DurableWorkRegistration, registration_for
+from due.django.runtime.coordination import (
+    WorkExecutionContext,
+    WorkOwnershipLost,
+    database_now,
+    require_fenced_settlement,
+)
+from due.django.runtime.registry import django_tasks_registration as django_tasks_registration
+from due.django.runtime.registry import registration_for
 from due.django.runtime.tasks import run_durable_work_task
 
 from .backend import DueBackend, json_value, result_for, task_for
@@ -87,31 +91,3 @@ class TaskCapability(DurableWorkCapability[TaskWork, JsonValue]):
             lambda: task_finished.send_robust(DueBackend, task_result=result_for(work)),
             robust=True,
         )
-
-
-def django_tasks_registration(
-    *,
-    alias: str = "default",
-    recovery_queue: str = "default",
-    cadence_seconds: int = 30,
-    execution_time_limit: int = 60,
-    execution_soft_time_limit: int = 50,
-) -> DurableWorkRegistration:
-    """Include once in the application's configure_durable_work() manifest.
-
-    Multiple Due aliases share this policy; their queues and result IDs stay
-    isolated. Native capabilities can be registered in the same manifest.
-    """
-    backend = task_backends[alias]
-    if not isinstance(backend, DueBackend):
-        raise TypeError(f"{alias!r} must use DueBackend")
-    if backend.policy.lease_duration <= timedelta(seconds=execution_time_limit):
-        raise ValueError("Task lease must outlive the worker hard execution limit")
-    return DurableWorkRegistration(
-        name="django_tasks",
-        capability=TaskCapability(model=TaskWork, nudge=publish, policy=backend.policy),
-        queue=recovery_queue,
-        cadence_seconds=cadence_seconds,
-        execution_time_limit=execution_time_limit,
-        execution_soft_time_limit=execution_soft_time_limit,
-    )
