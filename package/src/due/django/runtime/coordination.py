@@ -1006,6 +1006,7 @@ def run_work[WorkT: DurableWork, ResultT](
     finalize_unknown: Callable[[WorkT], None] | None = None,
     finalize_retry: Callable[[WorkT, Exception], None] | None = None,
     retry_delay_for: Callable[[WorkT], timedelta] | None = None,
+    provider_retry_after: Callable[[Exception], timedelta] | None = None,
     database_only: bool = False,
 ) -> bool:
     """Claim, run outside transactions in-domain, and fenced-finalize."""
@@ -1040,6 +1041,7 @@ def run_work[WorkT: DurableWork, ResultT](
             finalize_unknown=finalize_unknown,
             finalize_retry=finalize_retry,
             retry_delay_for=retry_delay_for,
+            provider_retry_after=provider_retry_after,
             database_only=database_only,
         )
 
@@ -1057,6 +1059,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     finalize_unknown: Callable[[WorkT], None] | None,
     finalize_retry: Callable[[WorkT, Exception], None] | None,
     retry_delay_for: Callable[[WorkT], timedelta] | None,
+    provider_retry_after: Callable[[Exception], timedelta] | None,
     database_only: bool,
 ) -> bool:
     model = claim.model
@@ -1097,11 +1100,13 @@ def _execute_claim[WorkT: DurableWork, ResultT](
         if disposition is WorkFailureDisposition.UNKNOWN:
             transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=finalize_unknown)
         elif disposition is WorkFailureDisposition.RETRYABLE:
+            delay = retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay
             transitioned = retry_work(
                 claim,
                 error_code=type(error).__name__,
                 max_rearms=max_rearms,
-                retry_delay=retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay,
+                # The provider's wait is a floor: a retry inside it is refused again.
+                retry_delay=max(delay, provider_retry_after(error)) if provider_retry_after is not None else delay,
                 finalize=_bind_finalizer(finalize_retry, error),
             )
         else:

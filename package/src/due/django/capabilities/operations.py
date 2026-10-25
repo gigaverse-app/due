@@ -316,7 +316,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                     work,
                     retry_at=database_now(),
                     max_rearms=self.policy.max_rearms,
-                    retry_delay=self.retry_delay_for(work),
+                    # Measured from settlement, not from the refusal: recovery
+                    # can only wait longer than the provider asked, never less.
+                    retry_delay=max(self.retry_delay_for(work), self.provider_retry_after(error)),
                     error_code="effect_rejected",
                     finalize=lambda current: self._finalize_retry(current, error),
                 )

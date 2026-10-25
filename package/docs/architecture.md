@@ -109,6 +109,7 @@ rewritten when configuration changes; the next successful pass uses the new poli
 | --- | --- | --- |
 | How often to repeat successful repair | `repair_interval` | No evidence is resolved; no failure budget is spent |
 | When to retry a failed attempt | `retry_delay`, `max_rearms` | A failure count does not cap successful repair passes |
+| How long a provider asked us to wait | `EffectRejection.retry_after`, `provider_retry_after(error)` | A floor on `retry_delay`, not a free retry: each throttled retry still spends a rearm |
 | Whether to stop automatic UNKNOWN repair after an age | `max_repair_window` (`None`: unbounded) | Expiry is policy, not provider completion; UNKNOWN evidence remains |
 | Retain identity/evidence | Projection `retention=None`, attempt retention rules | Retained evidence need not mean frequent polling |
 | How much work one recovery tick scans/publishes | `batch_size`, `dispatch_batch_size` | Per-tick capacity is not a global provider request rate |
@@ -120,6 +121,27 @@ provider request. With no repair window, debt remains repairable indefinitely;
 there is no separate successful-repair count limit. Choosing a finite lifetime
 or count requires an explicit product policy for unresolved debt after stopping.
 Do not repurpose `max_rearms`, fabricate a receipt, or delete evidence to impose it.
+
+### A provider's wait is a floor on the retry
+
+A provider that refuses a call for rate limiting often says when to come back,
+for example with an HTTP `Retry-After`. A retry inside that window is refused
+again, so a short `retry_delay` only spends rearms faster. Declare the wait on
+the rejection, `EffectRejection(message=..., retry_after=timedelta(seconds=60))`,
+or, for an error that is not a rejection, override
+`provider_retry_after(self, error) -> timedelta` on the capability to read it
+from the exception. The retry is then due no earlier than
+`max(retry_delay_for(work), provider_retry_after(error))`, live and when
+recovery settles a persisted rejection. Recovery measures the wait from
+settlement, so it can only wait longer than the provider asked.
+
+The retry still spends one rearm, so `max_rearms` bounds throttled windows, not
+seconds. `provider_retry_after` runs inside failure handling: it must return
+`timedelta(0)` rather than raise, as `retry_delay_for` must. An unset
+`retry_after` is omitted from the stored decision, so evidence written without
+it reads on every version. A decision stored with one cannot be read by a
+version older than this field: rolling Due back strands those rows until an
+operator settles them.
 
 ### An unknown outcome needs evidence
 

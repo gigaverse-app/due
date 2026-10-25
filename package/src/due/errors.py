@@ -3,10 +3,11 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
+from datetime import timedelta
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class WorkFailureDisposition(StrEnum):
@@ -27,6 +28,20 @@ class EffectRejection(BaseModel):
     disposition: Literal[WorkFailureDisposition.RETRYABLE, WorkFailureDisposition.TERMINAL] = (
         WorkFailureDisposition.RETRYABLE
     )
+    #: The provider's minimum wait before this work may run again, such as an
+    #: HTTP ``Retry-After``. The retry is due no earlier than this, however short
+    #: the policy's delay. Omitted from the persisted decision when unset, so
+    #: evidence written without it reads unchanged on every version.
+    retry_after: timedelta | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def _retry_after_needs_a_retry(self) -> Self:
+        if self.retry_after is not None:
+            if self.retry_after < timedelta(0):
+                raise ValueError("retry_after must be nonnegative")
+            if self.disposition is not WorkFailureDisposition.RETRYABLE:
+                raise ValueError("retry_after describes a retry; a terminal rejection never runs again")
+        return self
 
 
 class EffectNotAppliedError(Exception):

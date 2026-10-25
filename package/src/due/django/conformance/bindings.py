@@ -15,6 +15,7 @@ from typing import Any
 from unittest.mock import patch
 
 from celery import Task
+from django.db.models import F
 from prometheus_client import REGISTRY
 from pytest_obligation.integrations.django.lifecycle_states import Lifecycle
 from pytest_obligation.profiles.automatic_recovery import (
@@ -103,6 +104,11 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
 
     def age(self, work: W) -> None:
         make_due(work)
+
+    def age_by(self, work: W, delta: timedelta) -> None:
+        """Let part of a retry wait elapse without executing or settling work."""
+        self.capability.model.objects.filter(pk=work.pk).update(available_at=F("available_at") - delta)
+        work.refresh_from_db()
 
     def observe(self, work: W) -> tuple:
         work.refresh_from_db()

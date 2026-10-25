@@ -120,6 +120,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
+| Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; a stale delivery cannot call the provider or change the waiting state |
 | Replay-safe effect | `replay`; `delivery.effect_calls` | An actual second external execution leaves the same observable result; a lost acknowledgement replays through recovery to one settled outcome |
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
@@ -537,3 +538,21 @@ requirement, then checks each recovered death against the correct normal result.
 Observe actual provider content and user-visible product state, not only a
 successful work row. See the [demo comparison](https://github.com/gigaverse-app/due/blob/main/docs/demo-comparisons.md) for positive
 histories, deliberately incorrect provider replies and CI enrollment gates.
+
+
+### Provider-declared retry windows
+
+Declare the provider's expected wait independently of the resulting work row.
+For example, script an SDK refusal with a one-hour `Retry-After` and supply
+`provider_wait=timedelta(hours=1)` on that rejection example. Due supplies the
+partial timestamp aging and binds pytest-obligation's classified-failure proof;
+applications do not copy the timing assertions. The proof checks one second
+before the declared wait, so choose an example longer than one second. An absent
+wait preserves the ordinary rejection proof.
+
+This requires pytest-obligation 0.22.0 containing the provider-wait binding
+(PR #178). Contributor CI pins that reviewed source; publish that dependency
+before releasing this Due testing extra. Native application
+lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
+Due work-table migration. The SDK adapter still owns decoding headers and
+provider reset times; Due owns durable retry scheduling.

@@ -26,6 +26,7 @@ import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, overload
 
@@ -220,6 +221,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         disposition: WorkFailureDisposition,
         *,
         expected_attempts: int = 1,
+        provider_wait: timedelta | None = None,
         observe: None = None,
         make_work: Callable[[P], W] | None = None,
     ) -> Callable[[], AbstractContextManager[RejectionExample[W, O]]]: ...
@@ -232,6 +234,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         disposition: WorkFailureDisposition,
         *,
         expected_attempts: int = 1,
+        provider_wait: timedelta | None = None,
         observe: Callable[[P, W], R],
         make_work: Callable[[P], W] | None = None,
     ) -> Callable[[], AbstractContextManager[RejectionExample[W, R]]]: ...
@@ -243,6 +246,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         disposition: WorkFailureDisposition,
         *,
         expected_attempts: int = 1,
+        provider_wait: timedelta | None = None,
         observe: Callable[[P, W], Any] | None = None,
         make_work: Callable[[P], W] | None = None,
     ) -> Callable[[], AbstractContextManager[RejectionExample[W, Any]]]:
@@ -251,7 +255,12 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
         @contextmanager
         def binding() -> Iterator[RejectionExample[W, Any]]:
             with delivery() as example:
-                yield RejectionExample(delivery=example, disposition=disposition, expected_attempts=expected_attempts)
+                yield RejectionExample(
+                    delivery=example,
+                    disposition=disposition,
+                    expected_attempts=expected_attempts,
+                    provider_wait=provider_wait,
+                )
 
         return binding
 
