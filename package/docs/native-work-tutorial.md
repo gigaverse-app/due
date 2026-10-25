@@ -78,12 +78,16 @@ from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
 
 
+# Due base model: adds the state, lease, fencing token and revision columns for you.
 class CalculationWork(UniverseDurableWork):
+    # Tells Due which field leads to the product row; Due locks that row before any change.
     work_owner_field: ClassVar[str] = "owner"
     owner = models.OneToOneField(Calculation, on_delete=models.SET_NULL, null=True)
+    # Captured input: the worker doubles this copy, not the live Calculation.number.
     number = models.IntegerField()
 
     class Meta:
+        # Indexes for recovery's queries and constraints on Due's columns; the prefix names them.
         indexes, constraints = durable_work_schema("number_calculation")
 ```
 
@@ -128,14 +132,18 @@ def double(number: int) -> int:
     return answer
 
 
+# Due base for work that is safe to rerun. Type parameters: owner, work model, result type.
 class DoubleNumber(ReplaySafeEffect[Calculation, CalculationWork, int]):
+    # The effect: runs outside any transaction, and may be interrupted or run again.
     def perform_effect(self, work: CalculationWork) -> int:
         return double(work.number)
 
+    # Settlement: called only after Due has checked this attempt's fencing token and revision.
     def finalize_success(self, work: CalculationWork, result: int) -> None:
         Calculation.objects.filter(pk=work.owner_id).update(result=result, failed=False)
 
 
+# Builds the capability: the owner comes from work_owner_field, the policy is the standard one.
 calculate = DoubleNumber.for_owner(work=CalculationWork)
 ```
 
@@ -171,6 +179,7 @@ changes the product:
 
 ```python
 def request_number(calculation_id: int, number: int) -> CalculationWork:
+    # One transaction (or the caller's) with the Calculation row locked for the whole block.
     with calculate.atomic(calculation_id) as pending:
         sample = pending.locked_owner
         if sample.number != number:
@@ -178,6 +187,8 @@ def request_number(calculation_id: int, number: int) -> CalculationWork:
             sample.result = None
             sample.failed = False
             sample.save(update_fields=["number", "result", "failed"])
+        # Admission: saved in this transaction. New input raises the revision;
+        # the nudge is sent only after the outermost commit.
         return pending.request_work(CalculationWork(number=number))
 ```
 
@@ -222,6 +233,7 @@ from examples.numbers.effects import request_number
 from examples.numbers.models import Calculation, CalculationWork
 
 sample = Calculation.objects.create()
+# Test tool: nudges are collected in `sent` instead of being sent to Celery.
 with hold_nudges() as sent:
     try:
         with transaction.atomic():
@@ -233,7 +245,7 @@ with hold_nudges() as sent:
 sample.refresh_from_db()
 assert sample.number == 0
 assert not CalculationWork.objects.filter(owner=sample).exists()
-assert not sent
+assert not sent  # Rolled back before commit, so no nudge was ever due.
 ```
 
 The outer transaction rolled back, so the new number, the work row and the nudge
@@ -252,13 +264,15 @@ from examples.numbers.effects import calculate, request_number
 from examples.numbers.models import Calculation, CalculationWork
 
 sample = Calculation.objects.create()
-with hold_nudges() as dropped:
+with hold_nudges() as dropped:  # The request commits; its nudge is dropped.
     work = request_number(sample.pk, 21)
 
 assert len(dropped) == 1
+# Owed and waiting: the row still says what the lost nudge would have asked for.
 assert CalculationWork.objects.get(pk=work.pk).state == "ready"
 assert Calculation.objects.get(pk=sample.pk).result is None
 
+# Test driver: moves a simulated clock forward, then runs Due's real recovery and worker code here.
 with WorkTableDelivery(calculate).session() as delivery:
     delivery.recover()
 
@@ -290,13 +304,15 @@ sample = Calculation.objects.create()
 with hold_nudges():
     work = request_number(sample.pk, 21)
 
+# double() returns 42, then WorkerDied is raised, as if the process died right after the call.
 with patch.object(effects, "double", die_after(effects.double)):
     try:
-        calculate.attempt_execution(work.pk)
+        calculate.attempt_execution(work.pk)  # One attempt, as a worker runs it: claim, effect, settle.
     except WorkerDied:
         pass
 
-assert Calculation.objects.get(pk=sample.pk).result is None
+assert Calculation.objects.get(pk=sample.pk).result is None  # The effect ran; settlement never did.
+# Recovery waits out the dead attempt's lease, then reruns double() in a new attempt.
 with WorkTableDelivery(calculate).session() as delivery:
     delivery.recover()
 assert Calculation.objects.get(pk=sample.pk).result == 42
@@ -355,6 +371,7 @@ with hold_nudges():
 
 with (
     hold_nudges(),
+    # Test tool: runs a real attempt on another connection and pauses it before settlement.
     applied_snapshot(
         calculate,
         work,
@@ -362,10 +379,11 @@ with (
         observe=lambda: Calculation.objects.get(pk=sample.pk).result,
     ) as race,
 ):
-    old_attempt = race.take_snapshot()
-    race.supersede()
-    race.run_with_snapshot(old_attempt)
+    old_attempt = race.take_snapshot()  # Worker A computes 42 and pauses before settlement.
+    race.supersede()  # The user asks for 7: the work row's revision goes up.
+    race.run_with_snapshot(old_attempt)  # Worker A tries to settle 42 with its old revision and token.
 
+# Refused: Due never called finalize_success() for the outdated attempt.
 assert Calculation.objects.get(pk=sample.pk).result is None
 
 with WorkTableDelivery(calculate).session() as delivery:

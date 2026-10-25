@@ -26,6 +26,7 @@ from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
 
 
+# A Due work row with no owner: the cleanup stays owed whatever happens to the product.
 class CleanupWork(UniverseDurableWork):
     spool_key = models.CharField(max_length=200)
 
@@ -63,10 +64,13 @@ from acme import providers
 from acme.models import CleanupWork, ProofWork
 
 
+# Due base for cleanup. Type parameters: the producer's work model, then the cleanup work model.
 class SpoolCleanup(IndependentCompensation[ProofWork, CleanupWork]):
+    # Runs before each producer attempt calls the provider; producer.token is its fencing token.
     def capture(self, producer: WorkClaim[ProofWork]) -> CleanupWork:
         return CleanupWork(spool_key=str(producer.token), universe="acme")
 
+    # Return True only when cleanup is conclusively finished; False means "try again later".
     def compensate(self, work: CleanupWork) -> bool:
         return providers.cleanup(work.spool_key)
 
@@ -74,9 +78,9 @@ class SpoolCleanup(IndependentCompensation[ProofWork, CleanupWork]):
 cleanup_spool = SpoolCleanup(
     producer_model=ProofWork,
     model=CleanupWork,
-    nudge=registered_nudge(CleanupWork),
-    policy=DurableWorkPolicy(retention=None, max_rearms=None),
-    inspection_interval=timedelta(seconds=5),
+    nudge=registered_nudge(CleanupWork),  # No owner, so no for_owner(): choose the standard nudge here.
+    policy=DurableWorkPolicy(retention=None, max_rearms=None),  # Never give up on cleanup.
+    inspection_interval=timedelta(seconds=5),  # Wait before retrying when compensate() returns False.
 )
 ```
 
@@ -117,15 +121,18 @@ from acme.models import Job, ProofWork
 
 
 def render_proof(work: ProofWork) -> str:
+    # The attempt's fencing token names its temporary output: the same value capture() received.
     return providers.render(work.text, work.provider_idempotency_key(), str(work.fencing_token))
 
 
+# The general Due base under the owned capabilities; apply() also receives the running attempt.
 class PublishProof(OwnedDurableWorkCapability[Job, ProofWork, str]):
     def apply(self, work: ProofWork, context: WorkExecutionContext[ProofWork]) -> str:
+        # Commits the cleanup row before the body runs, so it survives a crash inside the body.
         with cleanup_spool.record_cleanup_before_call(context) as output:
             key = render_proof(work)
             if providers.cleanup(str(work.fencing_token)):
-                output.confirm_compensated()
+                output.confirm_compensated()  # Cleanup proven done: close the reservation now.
             return key
 
     def finalize_success(self, work: ProofWork, proof_key: str) -> None:

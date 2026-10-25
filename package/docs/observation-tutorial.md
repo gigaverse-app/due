@@ -32,6 +32,7 @@ from due.django.public import (
 from examples.orders.models import PrintOrder
 
 
+# Chapter 5's work base, plus the columns that schedule repeated lookups.
 class PrintWork(ObservedExternalOperationWork):
     work_owner_field: ClassVar[str] = "owner"
     owner = models.OneToOneField(PrintOrder, on_delete=models.SET_NULL, null=True)
@@ -40,6 +41,7 @@ class PrintWork(ObservedExternalOperationWork):
 
     class Meta:
         indexes, constraints = durable_work_schema("print_order")
+        # Lets recovery find unknown work that is due for its next lookup.
         indexes.append(observation_index("print_observation_ix"))
 ```
 
@@ -68,8 +70,9 @@ from examples.orders.provider import PrintReceipt
 mirror = StatusMirror(lambda work: PrintOrder.objects.filter(pk=work.owner_id))
 
 
+# Chapter 5's capability plus observe_effect(), a read-only lookup hook.
 class OrderPrinting(ObservedExternalOperation[PrintOrder, PrintWork, PrintReceipt]):
-    observation_interval = timedelta(seconds=5)
+    observation_interval = timedelta(seconds=5)  # How long to wait after a lookup finds nothing.
     evidence_store = JsonAppliedEffectEvidenceStore(PrintEvidence, PrintReceipt)
     on_applied = mirror.outcome(lambda work, receipt: {"provider_order_id": receipt.order_id, "status": "printed"})
     on_unknown = mirror.outcome({"status": "unknown"})
@@ -83,8 +86,10 @@ class OrderPrinting(ObservedExternalOperation[PrintOrder, PrintWork, PrintReceip
         except provider.PrinterRejected as error:
             raise EffectNotAppliedError(str(error)) from error
 
+    # A receipt settles the work. None means "ask again later", never "submit again".
     def observe_effect(self, work: PrintWork) -> PrintReceipt | None:
         receipt = provider.observe(str(work.reference))
+        # Accept only evidence that matches the captured request.
         if receipt is not None and (receipt.reference != str(work.reference) or receipt.title != work.title):
             raise ValueError("Printer receipt does not match the captured request")
         return receipt
@@ -121,6 +126,7 @@ Keep response loss enabled, but allow reads:
 ```python
 os.environ["DUE_PRINTER_HIDE_RECEIPTS"] = "0"
 
+# Recovery's lookup now finds the original receipt and settles from it.
 with WorkTableDelivery(print_order).session() as delivery:
     delivery.recover()
 
@@ -150,6 +156,7 @@ def receive_printer_receipt(receipt: PrintReceipt) -> bool:
     work = PrintWork.objects.filter(reference=receipt.reference, title=receipt.title).first()
     if work is None:
         return False
+    # The push version of observe_effect(): record a receipt that arrived by callback.
     return print_order.record_observed_effect_evidence(work.pk, receipt)
 ```
 

@@ -86,6 +86,7 @@ In the Python shell:
 ```python
 from examples.hello_due.tasks import greet
 
+# Due saves a row in PostgreSQL and returns at once; no worker needs to be running.
 result = greet.enqueue("Ada")
 print(result.id)
 print(result.status.name)  # READY
@@ -233,6 +234,7 @@ from django.tasks.exceptions import TaskResultDoesNotExist
 
 try:
     with transaction.atomic():
+        # The job row is written in this transaction, and the worker is told only after commit.
         rolled_back = greet.enqueue("This should never print")
         raise ValueError("Reject the request")
 except ValueError:
@@ -281,6 +283,7 @@ For the standard queue and timings, registration is one call:
 ```python
 from due.django.public import configure_durable_work
 
+# Installs Due's task backend, its Celery routes and the Beat recovery schedule.
 configure_durable_work(django_tasks=True, celery_app=app)
 ```
 

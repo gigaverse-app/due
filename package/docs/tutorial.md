@@ -59,6 +59,10 @@ work of reading it:
 | **The example application** | Imported from `examples.…` or defined in the block | Shows it in full; it is what you would replace with your own code |
 | **Due** | Imported from `due.django.public` (application code) or `due.django.conformance` (test tools) | Explains it in a sentence before its first use, then lists it in a short table after the block |
 
+Where a Due name first appears in a code block, a one- or two-line `#` comment
+says what it does or what to notice, and points back to the prose around it.
+The example files themselves are not annotated, so they read slightly shorter.
+
 A name is introduced once, in the chapter where it first appears. If a later
 chapter uses it again without explanation, its meaning has not changed; the
 [vocabulary page](vocabulary.md) has the short definition, and the

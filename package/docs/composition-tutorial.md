@@ -33,6 +33,7 @@ class IndexBook(ReplaySafeEffect[Book, IndexBookWork, str]):
 
     def finalize_success(self, work: IndexBookWork, result: str) -> None:
         assert work.owner_id is not None
+        # Handoff: the next step is admitted inside this step's settlement transaction.
         with publish_book.atomic(work.owner_id) as pending:
             pending.request_work(PublishBookWork(index_key=result, universe=work.universe))
 
@@ -99,7 +100,9 @@ from examples.catalog.services import save_entry
 
 
 def save_and_project_entry(title: str, author: str, *, entry_id: int | None = None) -> CatalogWork:
-    work = save_entry(title, author, entry_id=entry_id, notify_worker=False)
+    work = save_entry(title, author, entry_id=entry_id, notify_worker=False)  # Commit; skip the nudge.
+    # Run the work now if it is safe; inside an outer transaction, wait for commit.
+    # Either way the committed work row keeps recovery as a fallback.
     project_catalog.complete_or_defer(work)
     return work
 ```
@@ -128,6 +131,7 @@ refresh_entry(work.owner_id)
 The command's core is:
 
 ```python
+# Ask for another run of the current captured input, without changing it.
 project_catalog.wake(work.pk, notify_worker=False)
 project_catalog.complete_or_defer(work)
 ```
@@ -137,7 +141,7 @@ grants one under the owner lock:
 
 ```python
 with calculate.atomic(calculation_id) as pending:
-    retried = pending.retry_failed()
+    retried = pending.retry_failed()  # Give exhausted work a new retry budget.
 ```
 
 The [numbers commands](../../examples/numbers/effects.py) also clear the displayed
@@ -185,6 +189,7 @@ from examples.numbers.effects import calculate
 from integration_tests.conformance.number_examples import EXAMPLES
 
 
+# Generates the failure-history tests (rollback, lost nudge, crash, stale result) for calculate.
 @effect_contract_suite(calculate, examples=EXAMPLES)
 class TestNumberCalculation:
     pass

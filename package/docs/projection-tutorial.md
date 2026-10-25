@@ -35,6 +35,7 @@ from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
 
 
+# Same Due base and owner link as chapter 2; index_key, title and author are captured input.
 class CatalogWork(UniverseDurableWork):
     work_owner_field: ClassVar[str] = "owner"
     owner = models.OneToOneField(CatalogEntry, on_delete=models.SET_NULL, null=True)
@@ -68,18 +69,23 @@ from examples.books import search
 from examples.catalog.models import CatalogEntry, CatalogWork
 
 
+# Due base: like ReplaySafeEffect, plus tracking of old writes that may still land, and repairs.
 class CatalogProjection(Projection[CatalogEntry, CatalogWork]):
+    # The effect: copy the captured values to the external index. It may run more than once.
     def write_projection(self, work: CatalogWork) -> None:
         search.put(search.IndexEntry(key=work.index_key, title=work.title, author=work.author))
         search.publish(work.index_key)
 
+    # Settlement, like finalize_success(): runs only after Due's token and revision check.
     def on_projected(self, work: CatalogWork) -> None:
         CatalogEntry.objects.filter(pk=work.owner_id).update(published_title=work.title, indexing_failed=False)
 
 
 project_catalog = CatalogProjection.for_owner(
     work=CatalogWork,
+    # The fields Due compares to decide whether a request is new input; must include "universe".
     input_fields=("universe", "index_key", "title", "author"),
+    # Keep old attempt records (repair needs them) and repair every 5 seconds instead of 5 minutes.
     policy=DurableWorkPolicy(retention=None, repair_interval=timedelta(seconds=5)),
 )
 ```
@@ -111,6 +117,7 @@ with project_catalog.atomic(entry_id) as pending:
     entry = pending.locked_owner
     entry.title, entry.author = title, author
     entry.save(update_fields=["title", "author"])
+    # universe is the tenant label from chapter 2; a single-tenant app leaves it out.
     work = pending.request_work(
         CatalogWork(index_key=str(entry.identity), title=title, author=author, universe="example")
     )
@@ -124,6 +131,7 @@ use that prepared command:
 from examples.books import search
 from examples.catalog.services import save_and_project_entry
 
+# Commits the change and its work, then tries the projection at once (chapter 8 shows how).
 work = save_and_project_entry("First edition", "Author")
 print(search.get(work.index_key).title)  # First edition
 

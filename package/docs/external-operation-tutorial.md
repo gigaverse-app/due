@@ -62,6 +62,7 @@ This capability needs two Due base models:
 from due.django.public import StoredAppliedEffectEvidence
 
 
+# Due base for the table that stores receipts; Due writes to it, your code never does.
 class PrintEvidence(StoredAppliedEffectEvidence):
     pass
 ```
@@ -93,11 +94,15 @@ from examples.orders import provider
 from examples.orders.models import PrintEvidence, PrintOrder, PrintWork
 from examples.orders.provider import PrintReceipt
 
+# Names the product rows the outcome hooks below update: this work's order.
 mirror = StatusMirror(lambda work: PrintOrder.objects.filter(pk=work.owner_id))
 
 
+# Due base for an operation that must not be repeated blindly; PrintReceipt is its result type.
 class SubmitOrder(DurableExternalOperation[PrintOrder, PrintWork, PrintReceipt]):
+    # Saves each receipt as JSON, so recovery can settle without calling the provider again.
     evidence_store = JsonAppliedEffectEvidenceStore(PrintEvidence, PrintReceipt)
+    # One settlement hook per ending: applied, unknown, retrying, out of retries, stopped for good.
     on_applied = mirror.outcome(lambda work, receipt: {"provider_order_id": receipt.order_id, "status": "printed"})
     on_unknown = mirror.outcome({"status": "unknown"})
     on_retry = mirror.outcome({"status": "retrying"})
@@ -106,8 +111,10 @@ class SubmitOrder(DurableExternalOperation[PrintOrder, PrintWork, PrintReceipt])
 
     def perform_effect(self, work: PrintWork) -> PrintReceipt:
         try:
+            # Before this call, Due recorded the attempt as possibly applied.
             return provider.submit(str(work.reference), work.title)
         except provider.PrinterRejected as error:
+            # Only a definite rejection permits a retry. Any other error leaves the outcome unknown.
             raise EffectNotAppliedError(str(error)) from error
 ```
 
@@ -154,18 +161,18 @@ from examples.orders.effects import print_order
 from examples.orders.models import PrintOrder
 from examples.orders.services import order_print
 
-os.environ["DUE_PRINTER_LOSE_RESPONSE"] = "1"
-os.environ["DUE_PRINTER_HIDE_RECEIPTS"] = "1"
+os.environ["DUE_PRINTER_LOSE_RESPONSE"] = "1"  # Example fault: accept the order, then time out.
+os.environ["DUE_PRINTER_HIDE_RECEIPTS"] = "1"  # Example fault: no receipt can be read yet.
 
 with hold_nudges():
     work = order_print("Hello from Due")
     try:
         print_order.attempt_execution(work.pk)
-    except EffectOutcomeUnknownError:
+    except EffectOutcomeUnknownError:  # The attempt ended without a definite answer.
         print("The provider may have accepted the order")
 
 order = PrintOrder.objects.get(pk=work.owner_id)
-accepted = provider.receipt(str(work.reference))
+accepted = provider.receipt(str(work.reference))  # Peek at the provider's ledger: the order exists.
 assert accepted is not None
 print(order.status, order.provider_order_id)  # unknown None
 print(accepted.title)  # Hello from Due
@@ -179,6 +186,7 @@ that acceptance really happened while the application still lacks its receipt.
 ## 5. Recover while the answer is still unavailable
 
 ```python
+# One recovery round: the outcome stays unknown, and nothing is submitted again.
 with WorkTableDelivery(print_order, rounds=1).session() as delivery:
     delivery.recover()
 

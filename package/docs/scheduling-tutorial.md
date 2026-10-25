@@ -30,6 +30,7 @@ from django.db import models
 from due.django.public import ScheduledWork, durable_work_schema
 
 
+# Due base model with two extra columns: run_at (the deadline) and cancelled.
 class PublicationDeadline(ScheduledWork):
     work_owner_field: ClassVar[str] = "owner"
     owner = models.OneToOneField(Publication, on_delete=models.SET_NULL, null=True)
@@ -55,13 +56,17 @@ from examples.documents import storage
 from examples.scheduled.models import Publication, PublicationDeadline
 
 
+# Due base for work that runs at a deadline.
 class PublishAtDeadline(ScheduledAction[Publication, PublicationDeadline]):
+    # Asked when the deadline arrives; returning False finishes the work without the effect.
     def is_still_needed(self, work: PublicationDeadline) -> bool:
         return Publication.objects.filter(pk=work.owner_id, status=Publication.Status.SCHEDULED).exists()
 
     def perform_effect(self, work: PublicationDeadline) -> None:
+        # The key names this revision, so a retry finds its own file instead of writing a second one.
         storage.write_revision(work.text, work.provider_idempotency_key())
 
+    # Settlement; outcome says whether the effect ran or was no longer needed.
     def on_completed(self, work: PublicationDeadline, outcome: ActionOutcome) -> None:
         if outcome == ActionOutcome.PERFORMED:
             Publication.objects.filter(pk=work.owner_id).update(
@@ -72,7 +77,9 @@ class PublishAtDeadline(ScheduledAction[Publication, PublicationDeadline]):
 
 publish_at_deadline = PublishAtDeadline.for_owner(
     work=PublicationDeadline,
+    # The deadline and the cancel flag are captured input: changing either raises the revision.
     input_fields=("universe", "text", "run_at", "cancelled"),
+    # Required here: cancelling needs the attempt records to know whether an attempt already started.
     policy=DurableWorkPolicy(retention=None),
 )
 ```
@@ -97,6 +104,7 @@ records the work with its deadline, or replaces the deadline on the existing
 row. The native call is:
 
 ```python
+# Like request_work(), plus a deadline; on an existing row it replaces the deadline.
 publish_at_deadline.schedule_at(
     publication_id,
     PublicationDeadline(text="Hello from Due", universe="example"),
@@ -130,9 +138,11 @@ Use the same product ID:
 from examples.scheduled.services import cancel_publication, reschedule_publication
 
 with hold_nudges():
+    # A ScheduleResult: scheduled, unchanged or already_started.
     moved = reschedule_publication(publication.pk, timezone.now() + timedelta(minutes=2))
 print(moved.value)  # scheduled
 
+# A CancellationResult: already_started would mean it can no longer be stopped.
 cancelled = cancel_publication(publication.pk)
 print(cancelled.value)  # cancelled
 ```
@@ -159,6 +169,7 @@ from examples.scheduled.effects import publish_at_deadline
 with hold_nudges():
     due = create_publication("Time to publish", timezone.now() + timedelta(minutes=1))
 
+# The simulated clock passes the deadline; recovery finds the overdue work and runs it.
 with WorkTableDelivery(publish_at_deadline).session() as delivery:
     delivery.recover()
 
