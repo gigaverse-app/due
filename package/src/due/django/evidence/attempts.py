@@ -39,19 +39,26 @@ def attempts_for(work: DurableWork) -> QuerySet[EffectAttempt]:
     return EffectAttempt.objects.filter(work_model=work._meta.label_lower, work_id=work.pk)
 
 
-def import_unknown_effect_attempt[WorkT: DurableWork](
-    model: type[WorkT], work: WorkT, *, prior_revision: bool = False
-) -> WorkT:
-    """Initialize legacy uncertainty, never rewrite a primitive-owned history."""
+def initial_import_work[WorkT: DurableWork](model: type[WorkT], work: WorkT) -> WorkT:
+    """Lock a newly admitted occurrence for a one-time legacy history import."""
     if not transaction.get_connection().in_atomic_block:
         raise RuntimeError("import uncertainty inside the owner/work recording transaction")
     if not isinstance(work, model):
         raise ValueError("work belongs to another capability")
+    lock_work_owner(work)
     current = model.objects.select_for_update().get(pk=work.pk)
     if current.state != DurableWorkState.READY or current.attempt_count or attempts_for(current).exists():
         raise ValueError("legacy uncertainty can only initialize an unexecuted occurrence")
     if current.desired_revision < 1:
         raise ValueError("legacy import requires an admitted revision")
+    return current
+
+
+def import_unknown_effect_attempt[WorkT: DurableWork](
+    model: type[WorkT], work: WorkT, *, prior_revision: bool = False
+) -> WorkT:
+    """Initialize legacy uncertainty, never rewrite a primitive-owned history."""
+    current = initial_import_work(model, work)
     EffectAttempt.objects.create(
         work_model=model._meta.label_lower,
         work_id=current.pk,

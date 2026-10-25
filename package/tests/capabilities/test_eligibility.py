@@ -256,3 +256,44 @@ def test_progress_preserves_backoff_and_cannot_rearm_stopped_work() -> None:
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.desired_revision == 1
+
+
+def test_contract_gate_preserves_the_sweep_occurrence_identity() -> None:
+    from contextlib import contextmanager
+
+    from due.django.conformance._internal.suite import eligibility_binding
+    from due.django.conformance.registrations import durable_work_installed, registration_of
+    from due.django.conformance.suite import DeliveryExample, EffectExamples, EligibilityExample
+
+    # Distinct identities expose a mismatch that equal integer sequences hide.
+    PrimitiveOwner.objects.create()
+    work = record()
+    assert work.owner_id != work.pk
+
+    def ready() -> None:
+        PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="ready")
+
+    def delivery():
+        return DeliveryExample(
+            work,
+            observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            expected=work.payload,
+            effect_calls=lambda: len(PrimitiveEffect.calls),
+        )
+
+    @contextmanager
+    def example():
+        yield EligibilityExample(delivery=delivery(), make_eligible=ready)
+
+    examples = EffectExamples(make_work=record, delivery=delivery, identity_of=lambda row: row.owner_id)
+    capability = gated()
+    entry = replace(registration_of(PrimitiveWork), capability=capability)
+    with durable_work_installed(entry), eligibility_binding(capability, examples, example) as gate:
+        assert gate.identity == work.owner_id
+        assert list(gate.owed_work()) == [work.owner_id]
+        assert list(gate.due_work()) == []
+        gate.make_eligible()
+        assert list(gate.due_work()) == [work.owner_id]
+        gate.recover()
+        assert gate.observe() == work.payload
+        assert gate.effect_calls() == 1

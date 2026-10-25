@@ -484,6 +484,25 @@ def terminal_work[WorkT: DurableWork](
     return terminal
 
 
+def unknown_locked_work[WorkT: DurableWork](
+    current: WorkT,
+    *,
+    error_code: str,
+    finalize: Callable[[WorkT], None] | None = None,
+) -> None:
+    """Retain uncertain debt under caller-held owner/work locks."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("unknown settlement requires a transaction")
+    current.state = DurableWorkState.UNKNOWN
+    current.lease_expires_at = None
+    current.completed_at = None
+    current.last_error_code = error_code[:64]
+    current.save(update_fields=["state", "lease_expires_at", "completed_at", "last_error_code", "updated_at"])
+    if finalize is not None:
+        finalize_under_fence(current, finalize)
+    pin_work_beneficiary(current)
+
+
 def unknown_work[WorkT: DurableWork](
     claim: WorkClaim[WorkT],
     *,
@@ -493,18 +512,10 @@ def unknown_work[WorkT: DurableWork](
     """Release local ownership while retaining unresolved, non-dispatchable debt."""
     with transaction.atomic():
         lock_work_owner(claim.work)
-        updated = claim.owned_work().update(
-            state=DurableWorkState.UNKNOWN,
-            lease_expires_at=None,
-            completed_at=None,
-            last_error_code=error_code[:64],
-            updated_at=database_now(),
-        )
-        if updated:
-            current = claim.model.objects.get(pk=claim.work_id)
-            if finalize is not None:
-                finalize_under_fence(current, finalize)
-            pin_work_beneficiary(current)
+        current = claim.owned_work().select_for_update().first()
+        updated = current is not None
+        if current is not None:
+            unknown_locked_work(current, error_code=error_code, finalize=finalize)
     record_work_operation(
         claim.model._meta.label_lower,
         DurableWorkOperation.UNKNOWN if updated else DurableWorkOperation.OWNERSHIP_LOST,
@@ -555,6 +566,11 @@ def rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn = datab
         raise RuntimeError("rearming stopped work requires its admission transaction")
     if current.requires_effect_evidence:
         raise ValueError("provider occurrences require evidence reconciliation")
+    _rearm_stopped_work(current, now=now)
+
+
+def _rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn) -> None:
+    """Shared mutation after the calling policy has proved rearm permission."""
     if current.state not in (DurableWorkState.EXHAUSTED, DurableWorkState.TERMINAL_FAILED):
         raise WorkOwnershipLost("only stopped failures can receive a fresh retry budget")
     current.state = DurableWorkState.READY
@@ -580,6 +596,37 @@ def rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn = datab
         ]
     )
     record_work_operation(current._meta.label_lower, DurableWorkOperation.CONTINUED)
+
+
+def resume_unapplied_work[WorkT: DurableWork](model: type[WorkT], work_id: int, *, reset_budget: bool = False) -> bool:
+    """Resume a paused or exhausted occurrence only with no unresolved effect.
+
+    An operator may refresh the failure budget, never erase evidence or replace
+    the occurrence's revision. Active owners, UNKNOWN and success stay intact.
+    """
+    if not model.requires_effect_evidence:
+        raise ValueError("use wake_work for replay-safe work")
+    with transaction.atomic():
+        lock_owner_of_work(model, work_id)
+        current = model.objects.select_for_update().filter(pk=work_id).first()
+        if current is None:
+            return False
+        if current.state not in CLAIMABLE_STATES and not (reset_budget and current.state == DurableWorkState.EXHAUSTED):
+            return False
+        # INVARIANT: the authoritative evidence guard runs under the same row
+        # lock as replay permission. Partial batch success remains in progress;
+        # any uncertain crossing still forbids operator re-entry.
+        if current.has_possible_effect():
+            return False
+        if current.state == DurableWorkState.EXHAUSTED:
+            _rearm_stopped_work(current, now=database_now)
+        else:
+            # Resume can shorten a pause, never postpone already-due work.
+            resumed_at = database_now()
+            if current.available_at > resumed_at:
+                current.available_at = resumed_at
+                current.save(update_fields=["available_at", "updated_at"])
+        return True
 
 
 def supersede_work[WorkT: DurableWork](
@@ -761,12 +808,7 @@ def _reap_one[WorkT: DurableWork](
             return 0
         uncertain = work.requires_effect_evidence and work.has_possible_effect()
         if uncertain:
-            work.state = DurableWorkState.UNKNOWN
-            work.lease_expires_at = None
-            work.last_error_code = "lease_expired_after_attempt"
-            work.save(update_fields=["state", "lease_expires_at", "last_error_code", "updated_at"])
-            if finalize_unknown is not None:
-                finalize_under_fence(work, finalize_unknown)
+            unknown_locked_work(work, error_code="lease_expired_after_attempt", finalize=finalize_unknown)
         elif work.state == DurableWorkState.QUEUED:
             # Acceptance is an atomic QUEUED -> CLAIMED transition. An
             # expired reservation therefore proves this delivery never
