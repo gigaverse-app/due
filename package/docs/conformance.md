@@ -540,6 +540,47 @@ successful work row. See the [demo comparison](https://github.com/gigaverse-app/
 histories, deliberately incorrect provider replies and CI enrollment gates.
 
 
+### Every Celery failure, through a real worker
+
+`process_handoffs` above kill a child that runs the attempt directly. To check
+the whole path a deployment takes, through Celery's own worker, generate the
+histories with `due.django.conformance.celery_worker_contract()`. Each one sends the
+work with your producer, starts a real `celery worker` with a prefork child, and
+fails the delivery that runs it at each of Celery's stages: the pool child lost
+as the task starts, after the work ran or after the result was stored (each also
+by `SIGKILL`), and the task's `on_success` hook raising. The worker then starts
+again, the abandoned delivery's lease runs out, and the recovery tick your beat
+schedule publishes runs on the worker. Every history must reach the outcome a
+run with no failure reaches; nothing is declared.
+
+```python
+from due.django.conformance import celery_worker_contract
+from pytest_obligation import due_work_contract_suite
+
+PUBLICATION = celery_worker_contract(
+    "publish_document",
+    app="examples.celery_app:app",
+    send=lambda: request_publication(Document.objects.create().pk, f"revision {uuid4()}"),
+    effect=published,  # the document points at an object holding its text
+    initial_effect=False,
+    expected_effect=True,
+    env=worker_environment,  # the test database's name, which only the running test knows
+)
+
+
+@due_work_contract_suite(PUBLICATION)
+class TestPublicationThroughCelery:
+    pass
+```
+
+The worker is a separate process, so it needs the test database (`env`, a
+callable evaluated when each worker starts), the queue your test process
+publishes to, and the Django settings your tests use. Cases commit for real.
+[The executable example](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_document_celery_worker.py)
+also shows the control: the same histories without Due's recovery lose the
+publication whose delivery died as it started. Needs Linux or macOS.
+
+
 ### Provider-declared retry windows
 
 Declare the provider's expected wait independently of the resulting work row.

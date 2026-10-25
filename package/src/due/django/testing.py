@@ -3,17 +3,23 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import wraps
+from importlib import import_module
+from pathlib import Path
 from threading import Lock
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from due.django.capabilities.observed_operations import ObservedExternalOperationWork
 from due.django.models import DurableWork, DurableWorkState, RecoveryDeferral
 from due.django.runtime.coordination import database_now
+
+if TYPE_CHECKING:
+    from pytest_obligation import ObligationContract
 
 
 @dataclass(frozen=True)
@@ -134,3 +140,90 @@ def die_after[**P, ResultT](operation: Callable[P, ResultT]) -> Callable[P, Resu
         return result
 
     return call
+
+
+def celery_worker_contract[WorkT: DurableWork](
+    name: str,
+    *,
+    app: str,
+    send: Callable[[], WorkT],
+    effect: Callable[[WorkT], object],
+    expected_effect: object,
+    initial_effect: object = None,
+    expected_state: DurableWorkState = DurableWorkState.SUCCEEDED,
+    env: Mapping[str, str] | Callable[[], Mapping[str, str]] | None = None,
+    worker_args: Sequence[str] = (),
+    sigkill: bool = True,
+    fixtures: tuple[str, ...] = (),
+    timeout: float = 60.0,
+    log: Path | None = None,
+) -> ObligationContract:
+    """
+    Generated failure tests for one registered work through a real Celery worker, recovered by Due.
+
+    Each generated history sends the work with the application's own producer,
+    fails the worker at one of Celery's stages in the delivery that runs it (the
+    pool child lost as the task starts, after the work ran or after Celery stored
+    the task's result, also by ``SIGKILL``, and the task's ``on_success`` hook
+    raising), then starts the worker again and lets Due recover the work: the
+    abandoned delivery's lease runs out, and the recovery tick that the beat
+    schedule publishes runs on the worker. Every history must leave the work in
+    ``expected_state`` with the product effect ``expected_effect``, as a run
+    with no failure does; nothing is declared.
+
+    ``name`` is the work's registered name, ``app`` the Celery application as
+    ``"module:attribute"``, and ``send`` the producer that records the work and
+    returns its row. ``effect`` reads the product effect from that row, such as
+    the published document it owes. The worker is a new process: ``env`` gives
+    it what only the test knows, such as the test database's name, and it must
+    consume the queue the test process publishes to. Each case commits for
+    real, so the worker sees the rows and the wake-up follows the commit, and
+    each history starts from an empty queue. Needs ``pytest-obligation[celery]``
+    and Linux or macOS.
+    """
+    from pytest_obligation.integrations.celery_tasks import task_contract
+
+    from due.django.runtime.names import RUN_TASK
+    from due.django.runtime.tasks import recover_durable_work_task
+
+    module, _, attribute = app.partition(":")
+    application = getattr(import_module(module), attribute or "app")
+
+    def sent() -> WorkT:
+        # ARRANGE: no message another history left in the queue, then the application's own producer.
+        application.control.purge()
+        return send()
+
+    def observe(work: WorkT) -> tuple[str, object]:
+        # OBSERVE: the obligation's state, and the product effect it owes.
+        work.refresh_from_db()
+        return str(work.state), effect(work)
+
+    def recover(work: WorkT) -> None:
+        # Time passes: a delivery the worker abandoned runs out its lease, and the work is due again.
+        work.refresh_from_db()
+        if work.state in (DurableWorkState.QUEUED, DurableWorkState.CLAIMED):
+            expire_lease(work)
+        if work.state in (DurableWorkState.READY, DurableWorkState.QUEUED, DurableWorkState.RETRYABLE):
+            make_due(work)
+        # REAL PRODUCTION: the recovery tick the beat schedule publishes, run by the worker.
+        recover_durable_work_task.delay(name)
+
+    return task_contract(
+        app,
+        RUN_TASK,
+        send=sent,
+        effect=observe,
+        initial_effect=(None, initial_effect),
+        expected_effect=(str(expected_state), expected_effect),
+        recovery=recover,
+        recovered_by=f"Due's recovery of {name!r}",
+        sigkill=sigkill,
+        name=f"a worker runs {name!r} through Celery",
+        fixtures=fixtures,
+        transactional=True,
+        env=env,
+        worker_args=worker_args,
+        timeout=timeout,
+        log=log,
+    )
