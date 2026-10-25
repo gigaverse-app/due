@@ -3,9 +3,10 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
+import os
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from functools import wraps
 from importlib import import_module
@@ -13,10 +14,12 @@ from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING
 from unittest.mock import patch
+from uuid import uuid4
 
 from due.django.capabilities.observed_operations import ObservedExternalOperationWork
 from due.django.models import DurableWork, DurableWorkState, RecoveryDeferral
 from due.django.runtime.coordination import database_now
+from due.django.runtime.registry import DurableWorkRegistration, installed
 
 if TYPE_CHECKING:
     from pytest_obligation import ObligationContract
@@ -154,6 +157,7 @@ def celery_worker_contract[WorkT: DurableWork](
     env: Mapping[str, str] | Callable[[], Mapping[str, str]] | None = None,
     worker_args: Sequence[str] = (),
     worker_setup: str | None = None,
+    queue: str | None = None,
     sigkill: bool = True,
     fixtures: tuple[str, ...] = (),
     timeout: float = 60.0,
@@ -176,14 +180,18 @@ def celery_worker_contract[WorkT: DurableWork](
     ``"module:attribute"``, and ``send`` the producer that records the work and
     returns its row. ``effect`` reads the product effect from that row, such as
     the published document it owes. The worker is a new process: ``env`` gives
-    it what only the test knows, such as the test database's name, and it must
-    consume the queue the test process publishes to. ``worker_setup``
-    (``"module:function"``) runs in the worker once its tasks are loaded, to
-    install the test doubles the work needs there, such as a fake provider or
-    a filesystem storage. Each case commits for
-    real, so the worker sees the rows and the wake-up follows the commit, and
-    each history starts from an empty queue. Needs ``pytest-obligation[celery]``
-    and Linux or macOS.
+    it what only the test knows, such as the test database's name.
+    ``worker_setup`` (``"module:function"``) runs in the worker once its tasks
+    are loaded, to install the test doubles the work needs there, such as a
+    fake provider or a filesystem storage.
+
+    The work runs on a queue of its own (``queue``, by default a new name), so
+    the worker takes only this test's messages even when other tests share the
+    broker: the registrations are routed there while ``send`` runs and in the
+    worker, the recovery tick is published there, and each history starts with
+    it empty. Each case commits for real, so the worker sees the rows and the
+    wake-up follows the commit. Needs ``pytest-obligation[celery]`` and Linux
+    or macOS.
     """
     from pytest_obligation.integrations.celery_tasks import task_contract
 
@@ -192,11 +200,15 @@ def celery_worker_contract[WorkT: DurableWork](
 
     module, _, attribute = app.partition(":")
     application = getattr(import_module(module), attribute or "app")
+    own_queue = queue or f"due-celery-{uuid4().hex[:12]}"
 
     def sent() -> WorkT:
-        # ARRANGE: no message another history left in the queue, then the application's own producer.
-        application.control.purge()
-        return send()
+        # ARRANGE: no message another history left on the work's own queue.
+        with application.connection_for_write() as connection:
+            connection.default_channel.queue_purge(own_queue)
+        # REAL PRODUCTION: the application's own producer, its wake-up routed to the work's own queue.
+        with installed.installed(routed_to(own_queue, installed.get())):
+            return send()
 
     def observe(work: WorkT) -> tuple[str, object]:
         # OBSERVE: the obligation's state, and the product effect it owes.
@@ -211,7 +223,11 @@ def celery_worker_contract[WorkT: DurableWork](
         if work.state in (DurableWorkState.READY, DurableWorkState.QUEUED, DurableWorkState.RETRYABLE):
             make_due(work)
         # REAL PRODUCTION: the recovery tick the beat schedule publishes, run by the worker.
-        recover_durable_work_task.delay(name)
+        recover_durable_work_task.apply_async(args=(name,), queue=own_queue)
+
+    def worker_environment() -> dict[str, str]:
+        given = env() if callable(env) else env
+        return {**(given or {}), _TEST_QUEUE: own_queue, _TEST_SETUP: worker_setup or ""}
 
     return task_contract(
         app,
@@ -226,9 +242,39 @@ def celery_worker_contract[WorkT: DurableWork](
         name=f"a worker runs {name!r} through Celery",
         fixtures=fixtures,
         transactional=True,
-        env=env,
-        worker_args=worker_args,
-        worker_setup=worker_setup,
+        env=worker_environment,
+        worker_args=(*worker_args, "-Q", own_queue),
+        worker_setup="due.django.testing:route_worker_to_test_queue",
         timeout=timeout,
         log=log,
     )
+
+
+#: The queue a worker started by ``celery_worker_contract`` takes its work from, and the adopter's own setup.
+_TEST_QUEUE, _TEST_SETUP = "DUE_CELERY_TEST_QUEUE", "DUE_CELERY_TEST_SETUP"
+
+
+def routed_to(queue: str, registrations: Mapping[str, DurableWorkRegistration]) -> dict[str, DurableWorkRegistration]:
+    """Every registration routed to ``queue``, for one test's worker; production routes stay untouched."""
+    return {name: replace(registration, queue=queue) for name, registration in registrations.items()}
+
+
+def route_worker_to_test_queue() -> None:
+    """
+    ARRANGE, in a worker ``celery_worker_contract`` starts: the work it publishes stays on the test's queue.
+
+    Runs once the worker has loaded its tasks; routes the registrations in each
+    pool child, where the work runs, then calls the adopter's own setup.
+    """
+    from celery import signals
+
+    queue = os.environ[_TEST_QUEUE]
+
+    def route(**_kwargs: object) -> None:
+        installed.install(routed_to(queue, installed.get()))
+
+    signals.worker_process_init.connect(route, weak=False)
+    setup = os.environ.get(_TEST_SETUP, "")
+    if setup:
+        module, _, function = setup.partition(":")
+        getattr(import_module(module), function)()

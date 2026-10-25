@@ -574,8 +574,9 @@ class TestPublicationThroughCelery:
 ```
 
 The worker is a separate process, so it needs the test database (`env`, a
-callable evaluated when each worker starts), the queue your test process
-publishes to, and the Django settings your tests use. Test doubles installed in
+callable evaluated when each worker starts) and the Django settings your tests
+use. The work runs on a queue of its own, so other tests sharing the broker do
+not reach the worker and it does not take their messages. Test doubles installed in
 the test process do not reach it: pass `worker_setup="module:function"`, which
 the worker calls once its tasks are loaded, to install the fake provider or
 filesystem storage your work needs there. Cases commit for real.
