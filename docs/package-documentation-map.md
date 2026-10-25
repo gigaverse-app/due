@@ -4,7 +4,8 @@ The package subtree includes the docs needed to change and operate the library. 
 
 Readers start with [the background-task tutorial](../package/docs/quickstart.md), then
 follow [the capability chapters](../package/docs/tutorial.md) and use
-[the API and file map](../package/docs/api-guide.md) for lookup. These live in
+[the API and file map](../package/docs/api-guide.md) for lookup, with
+[the vocabulary page](../package/docs/vocabulary.md) defining the terms they use. These live in
 `package/docs/` so the entry points travel with the library. Each chapter owns one
 capability's teaching sequence and links to its prepared example. The longer
 [Printworks story](acme-printworks-tutorial.md) stays with its repository example.

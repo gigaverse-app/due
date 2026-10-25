@@ -6,6 +6,12 @@ You now have operations with explicit completion rules. This chapter connects
 them, tries short work inline, and gives your application's recovery behavior an
 executable contract. Use the [prepared native shell](tutorial.md#prepare-the-native-chapters-once).
 
+Multi-step work has its own version of the lost-message problem. Step one
+finishes and then queues step two. If the process dies between those two
+actions, step one looks done and step two never happens. The fix is the same as
+in chapter 2: record step two as owed work in the same transaction that records
+step one as finished. Due calls that a **handoff**.
+
 ## 1. Request the next stage while completing the first
 
 Suppose the first operation creates a search entry and the second publishes it.
@@ -27,6 +33,7 @@ class IndexBook(ReplaySafeEffect[Book, IndexBookWork, str]):
 
     def finalize_success(self, work: IndexBookWork, result: str) -> None:
         assert work.owner_id is not None
+        # Handoff: the next step is admitted inside this step's settlement transaction.
         with publish_book.atomic(work.owner_id) as pending:
             pending.request_work(PublishBookWork(index_key=result, universe=work.universe))
 
@@ -44,7 +51,10 @@ publish_book = PublishBook.for_owner(work=PublishBookWork)
 ```
 
 These are the central hooks in [effects.py](../../examples/books/effects.py).
-The prepared classes also mark exhausted attempts in the product. As before,
+Everything here appeared in chapter 2 except the shape: `IndexBook`'s
+`finalize_success()` calls `publish_book.atomic()` and `request_work()`, so the
+second step is admitted inside the first step's settlement transaction. The
+prepared classes also mark exhausted attempts in the product. As before,
 external writes happen in `perform_effect()`. Finalizers contain only local
 database writes and admission of further work.
 
@@ -77,8 +87,11 @@ successor obligation.
 
 ## 2. Try short work inline, while retaining recovery
 
-The catalog command from chapter 3 uses `complete_or_defer()` after committing
-the request. Here is its definition:
+So far, work ran in a worker after a nudge. For quick work, you may prefer to
+run it right away in the request, so the user sees the result immediately, but
+without losing recovery if that inline attempt is interrupted. The catalog
+command from chapter 3 does this with `complete_or_defer()` after committing the
+request. Here is its definition:
 
 ```python
 from examples.catalog.effects import project_catalog
@@ -87,7 +100,9 @@ from examples.catalog.services import save_entry
 
 
 def save_and_project_entry(title: str, author: str, *, entry_id: int | None = None) -> CatalogWork:
-    work = save_entry(title, author, entry_id=entry_id, notify_worker=False)
+    work = save_entry(title, author, entry_id=entry_id, notify_worker=False)  # Commit; skip the nudge.
+    # Run the work now if it is safe; inside an outer transaction, wait for commit.
+    # Either way the committed work row keeps recovery as a fallback.
     project_catalog.complete_or_defer(work)
     return work
 ```
@@ -116,6 +131,7 @@ refresh_entry(work.owner_id)
 The command's core is:
 
 ```python
+# Ask for another run of the current captured input, without changing it.
 project_catalog.wake(work.pk, notify_worker=False)
 project_catalog.complete_or_defer(work)
 ```
@@ -125,7 +141,7 @@ grants one under the owner lock:
 
 ```python
 with calculate.atomic(calculation_id) as pending:
-    retried = pending.retry_failed()
+    retried = pending.retry_failed()  # Give exhausted work a new retry budget.
 ```
 
 The [numbers commands](../../examples/numbers/effects.py) also clear the displayed
@@ -134,9 +150,15 @@ so work state and user-visible state agree.
 
 ## 4. Bind tests to your actual hooks and observations
 
-Due supplies failure histories. Your application must supply their meaning:
-how to create work, invoke the real provider, and observe the product and external
-result independently. For the arithmetic example, those observations are simple:
+The experiments in chapter 2 (roll back, drop a nudge, die after the effect,
+finish late) apply to every capability. Due can generate them as pytest tests
+for your own capability, so you do not write each failure scenario by hand.
+Due calls this an **application contract**.
+
+Due supplies the failure histories. Your application supplies their meaning: how
+to create work, invoke the real provider, and observe the product and external
+result independently. These descriptions are called **bindings**. For the
+arithmetic example, they are simple:
 
 ```python
 from examples.numbers.effects import request_number
@@ -156,7 +178,10 @@ also counts calls to the real `double()`, captures its printed output, invokes t
 real retry command, and requests changed input for the stale-result history.
 It assembles those bindings with `ProviderSeam` and `seam_examples`.
 
-The suite declaration then stays small:
+`ProviderSeam` and `seam_examples` are the `due.django.conformance` helpers that
+bundle those bindings into `EXAMPLES`; the [conformance guide](conformance.md)
+describes them. `effect_contract_suite` then turns a capability and its bindings
+into a pytest test class. The suite declaration stays small:
 
 ```python
 from due.django.conformance import effect_contract_suite
@@ -164,6 +189,7 @@ from examples.numbers.effects import calculate
 from integration_tests.conformance.number_examples import EXAMPLES
 
 
+# Generates the failure-history tests (rollback, lost nudge, crash, stale result) for calculate.
 @effect_contract_suite(calculate, examples=EXAMPLES)
 class TestNumberCalculation:
     pass

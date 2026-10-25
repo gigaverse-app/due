@@ -59,6 +59,7 @@ validation:
 extra:
   published_sources:
   - package/docs/tutorial.md
+  - package/docs/vocabulary.md
   - package/docs/quickstart.md
   - package/docs/native-work-tutorial.md
   - package/docs/projection-tutorial.md
@@ -108,6 +109,7 @@ nav:
 - Getting started:
   - Tutorial:
     - All chapters: package/docs/tutorial.md
+    - Vocabulary: package/docs/vocabulary.md
     - 1. Run and recover a task: package/docs/quickstart.md
     - 2. Own the result: package/docs/native-work-tutorial.md
     - 3. Keep an external view current: package/docs/projection-tutorial.md

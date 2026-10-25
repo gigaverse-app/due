@@ -1,27 +1,76 @@
 # Learn Due, one capability at a time
 
-Start with a function that sleeps, prints and returns a greeting. Then introduce
-one new requirement per chapter. Each chapter defines the relevant hooks, shows
-how to call them, and gives you an observable result.
+## Does any of this sound familiar?
 
-The application operations stay deliberately small: arithmetic, text files, and
-local SQLite records. These let you inspect Due's behavior without a provider
-account, a network API or a substantial business application.
+Most Django apps start background work the same way: save something, then put a
+job on a queue. That works until production traffic, deploys and slow providers
+find the gaps:
 
-| Chapter | What you will do | API you will learn |
+- **A job never ran, and nothing logged an error.** The worker was restarted
+  mid-job, or the queue message was lost after the database commit.
+- **A job ran for a request that failed.** The job was queued before the
+  transaction rolled back.
+- **A job ran twice.** One worker looked dead, so another started the same job.
+- **An old result replaced a new one.** The user changed their input, and the
+  slow job for the old input finished last.
+- **A customer was charged twice.** The provider accepted the first request, but
+  the reply timed out, so the app tried again.
+
+None of these are bugs in your function. They happen *between* your function
+and the database, the queue and the provider. Due is a Django library that
+closes those gaps. It stores the fact that work is **owed** in PostgreSQL, next
+to your data, and it recovers that work after crashes and lost messages, without
+letting an outdated attempt overwrite a newer result.
+
+If those bold words are new, the [vocabulary page](vocabulary.md) defines each
+one in a sentence or two, starting from the failure it addresses. You can start
+chapter 1 without it.
+
+## What you will build
+
+Each chapter adds one requirement to a deliberately small application:
+arithmetic, short text files and local SQLite tables. There is no provider
+account, network API or real business logic to set up, so everything you observe
+is Due's behaviour, not the application's.
+
+| Chapter | The problem it solves | What you will do | Due API it introduces |
+| --- | --- | --- | --- |
+| [1. Run and recover a task](quickstart.md) | Jobs lost when a worker dies | Enqueue a function, kill its worker, get the result anyway | None of its own: Django's `@task` with Due as the backend |
+| [2. Own the result](native-work-tutorial.md) | An old result overwriting a new one; lost notifications | Save an answer only if the attempt is still the current one | `ReplaySafeEffect`, work models, `.atomic()`, `.request_work()` |
+| [3. Keep an external view current](projection-tutorial.md) | A search index stuck on an old value | Repair a search entry after an old write arrives late | `Projection` |
+| [4. Schedule, move and cancel work](scheduling-tutorial.md) | Work running at the old time, or after cancellation | Publish text at a deadline, change it, cancel it | `ScheduledAction` |
+| [5. Preserve an uncertain outcome](external-operation-tutorial.md) | Double charges after a timeout | Record an order that might have happened, without resending it | `DurableExternalOperation` |
+| [6. Resolve uncertainty by reading](observation-tutorial.md) | Not knowing whether the provider acted | Ask the provider what happened and finish from its answer | `ObservedExternalOperation` |
+| [7. Recover cleanup independently](compensation-tutorial.md) | Temporary output left behind by a crash | Record cleanup before creating output, finish it after a crash | `IndependentCompensation` |
+| [8. Compose and test your work](composition-tutorial.md) | Multi-step work losing a step; untested recovery | Chain two steps, run work inline, generate failure tests | `.complete_or_defer()`, `.wake()`, `effect_contract_suite` |
+
+Chapter 1 uses only Django's standard task API. Chapters 2 onwards introduce
+Due's own classes, which you need when the work belongs to a row in your app that
+can change while the work is running.
+
+## How to read the code in this tutorial
+
+Every code block mixes three kinds of names. Telling them apart is most of the
+work of reading it:
+
+| Kind | How to recognise it | What the tutorial does with it |
 | --- | --- | --- |
-| [1. Run and recover a task](quickstart.md) | Define a function, enqueue it, read its result, kill its worker and recover the job | `@task`, `.enqueue()`, `.get_result()` |
-| [2. Own the result](native-work-tutorial.md) | Capture input and publish a result only while the attempt still owns completion | `ReplaySafeEffect`, `.for_owner()`, `.atomic()`, `.request_work()` |
-| [3. Keep an external view current](projection-tutorial.md) | Write a search entry and repair it after an old write arrives late | `Projection` |
-| [4. Schedule, move and cancel work](scheduling-tutorial.md) | Publish text at a deadline, change the time and cancel pending work | `ScheduledAction` |
-| [5. Preserve an uncertain outcome](external-operation-tutorial.md) | Record an operation that might have happened even though its reply was lost | `DurableExternalOperation`, receipt storage, outcome callbacks |
-| [6. Resolve uncertainty by reading](observation-tutorial.md) | Ask the provider what happened and settle from its original receipt | `ObservedExternalOperation` |
-| [7. Recover cleanup independently](compensation-tutorial.md) | Record cleanup before creating temporary output and recover it after process death | `IndependentCompensation`, `OwnedDurableWorkCapability` |
-| [8. Compose and test your work](composition-tutorial.md) | Hand off work in a transaction, try completion inline and bind application contracts | `.complete_or_defer()`, `.wake()`, `effect_contract_suite` |
+| **Django and Python** | Imported from `django`, `typing`, the standard library | Assumes you know it (models, `transaction.atomic()`, `OneToOneField`) |
+| **The example application** | Imported from `examples.…` or defined in the block | Shows it in full; it is what you would replace with your own code |
+| **Due** | Imported from `due.django.public` (application code) or `due.django.conformance` (test tools) | Explains it in a sentence before its first use, then lists it in a short table after the block |
 
-Use `due.django.public` for application classes and setup, and
-`due.django.conformance` for the common test drivers and contract bindings.
-The [API guide](api-guide.md) is the compact lookup table once you know the concepts.
+Where a Due name first appears in a code block, a one- or two-line `#` comment
+says what it does or what to notice, and points back to the prose around it.
+The example files themselves are not annotated, so they read slightly shorter.
+
+A name is introduced once, in the chapter where it first appears. If a later
+chapter uses it again without explanation, its meaning has not changed; the
+[vocabulary page](vocabulary.md) has the short definition, and the
+[API guide](api-guide.md) is the lookup table once you know the concepts.
+
+Code from `due.django.conformance` is for exercises and tests only. The tutorial
+uses it to simulate crashes and lost messages on purpose; your production code
+never imports it.
 
 ## Prepare the native chapters once
 
@@ -40,13 +89,16 @@ uv run python -m django shell
 If you already use dedicated PostgreSQL and Redis instances, keep the service
 environment variables from chapter 1 instead of starting Compose again.
 
-The chapters identify the small model and hook files that matter for their
-exercise. Model and class definitions explain the supplied files; the steps
-labelled as shell exercises import those configured implementations. You do not
-need to redefine the classes or read the other installed examples. Keep workers
-stopped during controlled exercises: those explicitly drive execution or use
-`WorkTableDelivery` to advance the recovery clock. The driver uses Due's real
-worker/recovery bodies against PostgreSQL.
+The models and classes shown in each chapter are already in the prepared example
+files; the chapters show them so you can read them. Only the blocks introduced
+as shell exercises are meant to be typed. You do not need to redefine the
+classes or read the other installed examples.
+
+Keep Celery workers stopped during the exercises. Each exercise drives the work
+itself, so it can stop the work at an exact point, and a real worker running at
+the same time would race it. The test driver it uses, `WorkTableDelivery`, runs
+Due's real worker and recovery code against PostgreSQL; it only replaces the
+clock and the queue. Chapter 2 introduces it.
 
 To send ordinary requests through separate workers instead, run these in two
 terminals with the same service settings:
@@ -57,6 +109,5 @@ uv run celery -A examples.celery_app:app beat --loglevel=INFO
 ```
 
 Chapter 7 supplies the small additional setup for its temporary-output example.
-Every native example has application contract bindings and executed-report
-validation in CI. Chapter 8 explains how to build those bindings for your own
-hooks.
+Every native example has application contract tests, checked in CI. Chapter 8
+explains how to build those tests for your own hooks.
