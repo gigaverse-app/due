@@ -41,9 +41,9 @@ def test_provider_floor_defers_bulk_reentry(
     assert provider.calls == [("a", "b", "c")]
     assert work.available_at >= started + timedelta(hours=1)
     assert work.state == DurableWorkState.RETRYABLE
-    assert work.rearm_count == 1
+    assert work.rearm_count == 0, "provider waiting preserves the failure budget"
     assert provider.calls == [("a", "b", "c")]
     assert operation.attempt_execution(work.pk) is False
     assert provider.calls == [("a", "b", "c")]
     work.refresh_from_db()
-    assert work.rearm_count == 1
+    assert work.rearm_count == 0, "provider waiting preserves the failure budget"

@@ -60,6 +60,41 @@ class EffectNotAppliedError(Exception):
         super().__init__(self.rejection.message)
 
 
+class WorkDeferredError(Exception):
+    """A dependency asks us to wait; this does not spend the failure budget.
+
+    This is scheduling evidence, not proof of nonapplication. An operation
+    with a possible external effect remains UNKNOWN until reconciled.
+    Adapters may use this for HTTP 429/503 or accepted-but-pending work.
+    Omit retry_after to use the capability's configured delay.
+    """
+
+    def __init__(self, message: str, *, retry_after: timedelta | None = None) -> None:
+        if retry_after is not None and retry_after < timedelta(0):
+            raise ValueError("retry_after must be nonnegative")
+        self.retry_after = retry_after
+        super().__init__(message)
+
+
+def provider_wait_delay(
+    error: Exception, *, fallback: timedelta, provider_delay: timedelta = timedelta(0)
+) -> timedelta | None:
+    """Return paced non-failure waiting, or None for an ordinary failure.
+
+    SDK adapters retain ownership of status interpretation. A positive wait
+    from the capability hook, a typed deferral, or a definite rejection with
+    Retry-After selects waiting. Even a zero hint must not create a hot loop.
+    """
+    hint = provider_delay if provider_delay > timedelta(0) else None
+    if isinstance(error, (WorkDeferredError, EffectNotAppliedError)):
+        declared = error.retry_after if isinstance(error, WorkDeferredError) else error.rejection.retry_after
+        if declared is not None:
+            hint = max(declared, hint or timedelta(0))
+    if hint is None and not isinstance(error, WorkDeferredError):
+        return None
+    return max(timedelta(seconds=1), fallback if hint is None else hint)
+
+
 class EffectOutcomeUnknownError(Exception):
     """A possible mutation has no definite result; another attempt is forbidden."""
 

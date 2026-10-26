@@ -68,9 +68,9 @@ fallback_version = "0.1.0.dev0"
 
 
 [tool.uv.sources]
-# pytest-obligation #180 (task_contract, on top of main's provider-wait proofs) supplies celery_worker_contract.
+# pytest-obligation #183 adds provider-wait budget and paced acknowledgement proofs.
 # Replace with its release during publication; wheel metadata has no Git source.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "012a2993e8dce9b9771b534e09dbdb7b1cdf2a49", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "18e554f954b9d231b44c1d30d5b237a6215a4940", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]

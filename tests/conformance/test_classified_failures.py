@@ -151,5 +151,9 @@ def test_declared_provider_wait_reaches_the_shared_proof(honors_wait: bool) -> N
         ) as failure,
     ):
         assert failure.provider_wait == wait
-        with nullcontext() if honors_wait else pytest.raises(AssertionError, match="inside the provider's window"):
+        with (
+            nullcontext()
+            if honors_wait
+            else pytest.raises(AssertionError, match="provider waiting spent the failure budget")
+        ):
             assert_classified_failure_contract(failure)
