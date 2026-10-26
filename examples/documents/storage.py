@@ -3,7 +3,7 @@
 import hashlib
 import os
 from pathlib import Path
-from uuid import uuid4
+from uuid import uuid7
 
 
 def revision_key(operation_key: str) -> str:
@@ -36,7 +36,7 @@ def write_revision(text: str, operation_key: str) -> str:
     if _matches(destination, content):
         return key
     output.mkdir(parents=True, exist_ok=True)
-    pending = output / f".pending-{uuid4().hex}"
+    pending = output / f".pending-{uuid7().hex}"
     # Exclusive creation preserves ordinary file permissions and cannot clobber
     # another writer's staging file. Own cleanup only after acquisition succeeds.
     staged = pending.open("xb")
