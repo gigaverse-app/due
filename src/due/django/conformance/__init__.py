@@ -9,6 +9,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from due.django.celery_testing import celery_worker_contract as celery_worker_contract
     from due.django.testing import WorkerDied as WorkerDied
     from due.django.testing import die_after as die_after
     from due.django.testing import expire_lease as expire_lease
@@ -48,6 +49,7 @@ _EXPORT_MODULES = {
     "WorkTableRecovery": ".interleavings",
     "applied_snapshot": ".concurrency",
     "assert_complete_enrollment": ".enrollment",
+    "celery_worker_contract": "due.django.celery_testing",
     "die_after": "due.django.testing",
     "discover_enrollment": ".enrollment",
     "effect_contract_suite": ".suite",
