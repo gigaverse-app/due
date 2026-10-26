@@ -10,6 +10,7 @@ from due.errors import (
     EffectNotAppliedError,
     EffectOutcomeUnknownError,
     EffectRejection,
+    WorkDeferredError,
     WorkIncomplete,
 )
 from due.observations import AppliedEffectEvidence
@@ -138,6 +139,7 @@ __all__ = [
     "DurableWorkPolicy",
     "WorkOwnerBusy",
     "WorkIncomplete",
+    "WorkDeferredError",
     "DurableWorkState",
     "OwnedDurableWorkCapability",
     "Discovery",

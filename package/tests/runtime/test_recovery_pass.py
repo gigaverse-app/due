@@ -290,3 +290,62 @@ def test_an_unclean_heartbeat_tick_stamps_the_time_the_slow_sweep_rule_compares_
             pass
     assert stamp("tests.daily_aborted") == aborted_at, "a clean tick moved the unclean stamp"
     assert stamp("tests.daily_clean") is None, "a clean tick stamped an unclean one"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_provider_wait_is_durable_paced_and_not_a_recovery_failure():
+    from due.django.models import RecoveryDeferral
+    from due.django.public import database_now
+    from due.django.testing import use_database_clock
+    from due.errors import WorkDeferredError
+
+    now = database_now()
+    for _ in range(7):
+        with use_database_clock(lambda now=now: now), recovery_tick("tests.wait") as tick:
+            with tick.isolate(PHASE, 1):
+                raise WorkDeferredError("HTTP 503", retry_after=timedelta(minutes=2))
+            assert tick.held(
+                PHASE, RecoveryDeferral.objects.filter(effect="tests.wait").values_list("identity", flat=True)
+            ) == {"1"}
+        hold = RecoveryDeferral.objects.get(effect="tests.wait", identity="1")
+        assert hold.failures == 0
+        assert hold.retry_at == now + timedelta(minutes=2)
+        assert tick.failures == 0
+        now = hold.retry_at
+    with use_database_clock(lambda now=now: now), recovery_tick("tests.wait") as tick:
+        tick.held(PHASE, RecoveryDeferral.objects.filter(effect="tests.wait").values_list("identity", flat=True))
+        with tick.isolate(PHASE, 1):
+            pass
+    assert not RecoveryDeferral.objects.filter(effect="tests.wait").exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_long_provider_wait_survives_census_retention_and_shorter_reports():
+    from due.django.models import RecoveryDeferral
+    from due.django.public import database_now
+    from due.django.testing import use_database_clock
+    from due.errors import WorkDeferredError
+
+    now = database_now()
+    with use_database_clock(lambda: now):
+        recovery_pass.defer_identity(
+            "tests.long-wait",
+            PHASE,
+            "1",
+            "waiting",
+            wait=WorkDeferredError("unavailable", retry_after=timedelta(days=10)),
+        )
+        recovery_pass.defer_identity(
+            "tests.long-wait",
+            PHASE,
+            "1",
+            "waiting",
+            wait=WorkDeferredError("unavailable", retry_after=timedelta(seconds=30)),
+        )
+    recovery_pass.publish_recovery_deferrals("tests.long-wait", observed_at=now + timedelta(days=8))
+    hold = RecoveryDeferral.objects.get(effect="tests.long-wait")
+    assert hold.retry_at == now + timedelta(days=10)
+    assert hold.failures == 0
+    labels = {"effect": "tests.long-wait", "phase": PHASE.value}
+    assert REGISTRY.get_sample_value(f"{metrics.METRIC_NAMESPACE}_recovery_waiting", labels) == 1
+    assert REGISTRY.get_sample_value(f"{metrics.METRIC_NAMESPACE}_recovery_deferred", labels) == 0

@@ -10,7 +10,8 @@ Design and counter conventions: docs/architecture.md.
 """
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,3 +32,19 @@ class ExponentialDelay:
         if step >= (self.maximum // self.initial).bit_length():
             return self.maximum
         return self.initial * (1 << step)
+
+
+def parse_retry_after(value: str | None, *, now: datetime) -> timedelta | None:
+    """Parse HTTP Retry-After seconds or HTTP-date; malformed hints use caller policy."""
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        if value.isascii() and value.isdecimal():
+            return timedelta(seconds=int(value))
+        deadline = parsedate_to_datetime(value)
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
+        return max(timedelta(0), deadline - now)
+    except ValueError, TypeError, OverflowError:
+        return None

@@ -37,7 +37,7 @@ from due.django.runtime.metrics import (
     record_work_operation,
 )
 from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
-from due.errors import WorkFailureDisposition
+from due.errors import WorkDeferredError, WorkFailureDisposition, provider_wait_delay
 
 logger = logging.getLogger(__name__)
 
@@ -370,18 +370,20 @@ def retry_locked_work[WorkT: DurableWork](
     *,
     retry_at: datetime,
     max_rearms: int | None,
+    consumes_budget: bool = True,
     retry_delay: timedelta,
     error_code: str,
     finalize: Callable[[WorkT], None] | None = None,
 ) -> None:
     """Shared retry/exhaustion transition; caller already owns this work row."""
-    if max_rearms is not None and current.rearm_count >= max_rearms:
+    if consumes_budget and max_rearms is not None and current.rearm_count >= max_rearms:
         current.state = DurableWorkState.EXHAUSTED
         current.completed_at = retry_at
     else:
         current.state = DurableWorkState.RETRYABLE
         # With no budget nothing retires the row first: a corrupt maximum must not fail every retry.
-        current.rearm_count = saturating_increment(current.rearm_count)
+        if consumes_budget:
+            current.rearm_count = saturating_increment(current.rearm_count)
         current.available_at = retry_at + retry_delay
     current.lease_expires_at = None
     current.last_error_code = error_code[:64]
@@ -405,6 +407,7 @@ def retry_work[WorkT: DurableWork](
     *,
     error_code: str,
     max_rearms: int | None,
+    consumes_budget: bool = True,
     retry_delay: timedelta,
     finalize: Callable[[WorkT], None] | None = None,
     now: NowFn = database_now,
@@ -428,6 +431,7 @@ def retry_work[WorkT: DurableWork](
             current,
             retry_at=retry_at,
             max_rearms=max_rearms,
+            consumes_budget=consumes_budget,
             retry_delay=retry_delay,
             error_code=error_code,
             finalize=finalize,
@@ -1138,17 +1142,29 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
-        disposition = WorkFailureDisposition.UNKNOWN if possible_attempt else classify_error(error)
+        disposition = (
+            WorkFailureDisposition.UNKNOWN
+            if possible_attempt
+            else WorkFailureDisposition.RETRYABLE
+            if isinstance(error, WorkDeferredError)
+            else classify_error(error)
+        )
         if disposition is WorkFailureDisposition.UNKNOWN:
             transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=finalize_unknown)
         elif disposition is WorkFailureDisposition.RETRYABLE:
             delay = retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay
+            wait = provider_wait_delay(
+                error,
+                fallback=delay,
+                provider_delay=provider_retry_after(error) if provider_retry_after is not None else timedelta(0),
+            )
             transitioned = retry_work(
                 claim,
                 error_code=type(error).__name__,
                 max_rearms=max_rearms,
                 # The provider's wait is a floor: a retry inside it is refused again.
-                retry_delay=max(delay, provider_retry_after(error)) if provider_retry_after is not None else delay,
+                retry_delay=wait if wait is not None else delay,
+                consumes_budget=wait is None,
                 finalize=_bind_finalizer(finalize_retry, error),
             )
         else:
@@ -1167,6 +1183,8 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     "disposition": disposition,
                 },
             )
+        if isinstance(error, WorkDeferredError) and disposition is WorkFailureDisposition.RETRYABLE:
+            return transitioned
         raise
     if not completed:
         logger.warning(

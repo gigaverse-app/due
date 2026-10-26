@@ -109,7 +109,7 @@ rewritten when configuration changes; the next successful pass uses the new poli
 | --- | --- | --- |
 | How often to repeat successful repair | `repair_interval` | No evidence is resolved; no failure budget is spent |
 | When to retry a failed attempt | `retry_delay`, `max_rearms` | A failure count does not cap successful repair passes |
-| How long a provider asked us to wait | `EffectRejection.retry_after`, `provider_retry_after(error)` | A floor on `retry_delay`, not a free retry: each throttled retry still spends a rearm |
+| How long a provider asked us to wait | `EffectRejection.retry_after`, `provider_retry_after(error)` | An explicit provider wait preserves failure budget; ordinary failures keep bounded retry policy |
 | Whether to stop automatic UNKNOWN repair after an age | `max_repair_window` (`None`: unbounded) | Expiry is policy, not provider completion; UNKNOWN evidence remains |
 | Retain identity/evidence | Projection `retention=None`, attempt retention rules | Retained evidence need not mean frequent polling |
 | How much work one recovery tick scans/publishes | `batch_size`, `dispatch_batch_size` | Per-tick capacity is not a global provider request rate |
@@ -122,26 +122,48 @@ there is no separate successful-repair count limit. Choosing a finite lifetime
 or count requires an explicit product policy for unresolved debt after stopping.
 Do not repurpose `max_rearms`, fabricate a receipt, or delete evidence to impose it.
 
-### A provider's wait is a floor on the retry
+### Provider waiting preserves the failure budget
 
-A provider that refuses a call for rate limiting often says when to come back,
-for example with an HTTP `Retry-After`. A retry inside that window is refused
-again, so a short `retry_delay` only spends rearms faster. Declare the wait on
-the rejection, `EffectRejection(message=..., retry_after=timedelta(seconds=60))`,
-or, for an error that is not a rejection, override
-`provider_retry_after(self, error) -> timedelta` on the capability to read it
-from the exception. The retry is then due no earlier than
-`max(retry_delay_for(work), provider_retry_after(error))`, live and when
-recovery settles a persisted rejection. Recovery measures the wait from
-settlement, so it can only wait longer than the provider asked.
+Rate limiting, temporary HTTP 503 unavailability and an accepted operation that
+is still processing are waiting conditions. They must not exhaust the budget for
+actual failures. An explicit `EffectRejection.retry_after` or a positive
+`provider_retry_after(error)` hint selects a paced retry without incrementing
+`rearm_count`, both during live execution and after persisted-rejection recovery.
+Use the provider's interval without adding ordinary failure backoff; a zero hint
+still waits at least one second to prevent a hot loop.
 
-The retry still spends one rearm, so `max_rearms` bounds throttled windows, not
-seconds. `provider_retry_after` runs inside failure handling: it must return
-`timedelta(0)` rather than raise, as `retry_delay_for` must. An unset
-`retry_after` is omitted from the stored decision, so evidence written without
-it reads on every version. A decision stored with one cannot be read by a
-version older than this field: rolling Due back strands those rows until an
-operator settles them.
+At a replay-safe provider boundary, raise
+`WorkDeferredError("HTTP 503", retry_after=timedelta(seconds=30))`. Omit the hint
+to use the capability's configured retry delay, still without charging a failure.
+`due.retry_delays.parse_retry_after(value, now=...)` parses seconds and HTTP dates;
+invalid headers return None so the adapter can use its configured fallback.
+Adapters own HTTP status interpretation. Generic errors without waiting evidence
+retain the ordinary bounded failure policy.
+
+Waiting is scheduling evidence, not proof that an external mutation did not
+happen. A non-repeatable operation with a possible effect stays UNKNOWN and must
+reconcile; a 503 cannot authorize a blind replay. For known nonapplication use
+`EffectNotAppliedError` with a typed rejection. For accepted external work, use
+an observation capability or a replay-safe status reader and keep the obligation
+until the provider's completion is confirmed.
+
+Native sweeps can raise `WorkDeferredError` inside `RecoveryPass.isolate`.
+Due retains the wait in the existing indexed `RecoveryDeferral` table, with zero
+consecutive failures, and does not report the tick as failed. `held(...,
+defer_failures=False)` lets an existing native failure policy remain its owner
+while consuming these provider waits. The native row still owns the obligation
+and its failure budget; when it reserves a failure slot before I/O, refund that
+slot and persist `defer_identity(..., wait=...)` in the same transaction.
+Zero-failure waiting rows are reported by `recovery_waiting` and its oldest-age
+gauge, separately from failed recovery deferrals. Census retention cannot remove
+a future provider deadline. These records retain scheduling, never proof of
+external completion.
+
+This changes timing and budget semantics without changing stored rejection
+JSON or adding tables. Older workers can read the same data but still charge
+provider waits, so finish rolling workers before relying on budget preservation.
+Existing exhausted work requires the application's explicit rearm policy; this
+change does not silently reset historical failures.
 
 ### An unknown outcome needs evidence
 
