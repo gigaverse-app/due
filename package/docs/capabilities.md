@@ -251,13 +251,13 @@ primary key on a new work model when its identity must be generated outside the
 database or shared with an existing UUID domain record:
 
 ```python
-from uuid import uuid4
+from uuid import uuid7
 from django.db import models
 from due.django.public import ExternalOperationWork
 
 
 class PublicationWork(ExternalOperationWork):
-    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     # Declare the owner, captured inputs and durable_work_schema as usual.
 ```
 
@@ -307,3 +307,44 @@ stores remain compatible. Bulk receipt ingestion uses the retained merged
 value to check completeness without a second SELECT. This reuse is confined
 to one evidence transaction; product settlement still rereads canonical
 evidence because a late receipt may have committed in between.
+
+
+### Ordered generation and ULID interoperability
+
+The UUID column describes storage, not a requirement to generate UUIDv4.
+For new locally generated 128-bit keys, Python 3.14's `uuid.uuid7` gives
+time-ordered values without another dependency. Keep externally supplied UUIDs
+unchanged. Do not change existing primary keys or fencing tokens as part of
+choosing a generator for a new work table. Ordered IDs expose their generation
+timestamp, and clock order does not establish causal order across workers.
+
+ULIDs also contain exactly 128 bits. An application using
+[python-ulid](https://python-ulid.readthedocs.io/en/stable/) can store them in the
+same UUIDField using its lossless `ULID.to_uuid()` conversion:
+
+```python
+from ulid import ULID
+
+
+def new_ulid_key():
+    return ULID().to_uuid()
+
+
+# On a new work model:
+# id = models.UUIDField(primary_key=True, default=new_ulid_key, editable=False)
+# At the application presentation boundary:
+# public_id = str(ULID.from_uuid(work.pk))
+```
+
+Due does not require or install that library. The conversion preserves all
+16 bytes; the 26-character ULID display string belongs at the application's
+boundary. Do not pass that base32 string directly to UUIDField or Due's task
+messages, or force a UUID version during conversion: replacing version/variant
+bits changes an existing identity. Binary ULIDs and UUIDv7 use the same native
+PostgreSQL UUID indexes and comparison operations. A text-key fallback would
+add another storage and transport contract without helping either case.
+
+The generated publication contract uses UUIDv7. Focused lifecycle, late-evidence,
+deadline and real-worker tests run with UUIDv4, UUIDv7 and ULID-layout values. This proves
+the lifecycle does not depend on UUID version bits; it does not certify a
+third-party generator or promise a global generation order.

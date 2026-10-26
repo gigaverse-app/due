@@ -66,9 +66,7 @@ def uncertainty() -> Iterator[DeliveryExample[UUIDWork, str]]:
 
 
 with registered_uuid():
-
-    @pytest.mark.usefixtures("uuid_publication")
-    @effect_contract_suite(
+    publication_contract = effect_contract_suite(
         uuid_capability,
         examples=EffectExamples(
             make_work=make_work,
@@ -84,5 +82,8 @@ with registered_uuid():
             fixtures=("uuid_publication",),
         ),
     )
+
+    @pytest.mark.usefixtures("uuid_publication")
+    @publication_contract
     class TestUUIDOperationContract:
         pass

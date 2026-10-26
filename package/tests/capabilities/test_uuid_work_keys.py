@@ -1,7 +1,7 @@
 """UUID work keys cross real admission, evidence and JSON transport boundaries."""
 
 from unittest.mock import patch
-from uuid import UUID
+from uuid import UUID, uuid4, uuid7
 
 import pytest
 from kombu.serialization import dumps, loads
@@ -15,10 +15,16 @@ from tests.harness.broker import real_broker as real_broker
 from tests.harness.operation import ProviderResult
 from tests.harness.primitive import PrimitiveOwner
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
-from tests.harness.uuid_work import UUIDPublication, admit
+from tests.harness.uuid_work import UUIDPublication, UUIDWork, admit, ulid_fixture_key
 from tests.harness.uuid_work import uuid_publication as uuid_publication
 
-pytestmark = pytest.mark.django_db(transaction=True)
+
+@pytest.fixture(params=[uuid4, uuid7, ulid_fixture_key], ids=["uuid4", "uuid7", "ulid-bits"])
+def key_default(request, monkeypatch):
+    monkeypatch.setattr(UUIDWork._meta.pk, "_get_default", request.param)
+
+
+pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("key_default")]
 
 
 def test_uuid_admission_executes_once_and_correlates_receipt(uuid_publication: UUIDPublication) -> None:

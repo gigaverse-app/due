@@ -3,8 +3,9 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import timedelta
+from itertools import count
 from typing import ClassVar
-from uuid import UUID, uuid4
+from uuid import UUID, uuid7
 
 import pytest
 from django.conf import settings
@@ -25,7 +26,7 @@ with isolate_apps("tests"):
 
     class UUIDWork(ExternalOperationWork):
         # Django permits concrete PKs on abstract models; Pyrefly assumes an implicit int id.
-        id = models.UUIDField(primary_key=True, default=uuid4, editable=False)  # pyrefly: ignore[bad-override-mutable-attribute]
+        id = models.UUIDField(primary_key=True, default=uuid7, editable=False)  # pyrefly: ignore[bad-override-mutable-attribute]
         work_owner_field: ClassVar[str] = "owner"
         owner = models.OneToOneField(PrimitiveOwner, on_delete=models.SET_NULL, null=True)
         payload = models.CharField(max_length=40)
@@ -74,6 +75,15 @@ def registered_uuid() -> Iterator[None]:
         override_settings(CELERY_BEAT_SCHEDULE={**settings.CELERY_BEAT_SCHEDULE, **recovery_schedules([entry])}),
     ):
         yield
+
+
+_ulid_randomness = count()
+
+
+def ulid_fixture_key() -> UUID:
+    # Test values follow ULID's 48-bit timestamp + 80-bit randomness layout.
+    # A fixed timestamp and counter produce distinct monotonic fixtures, not a production generator.
+    return UUID(int=(1469918176385 << 80) | next(_ulid_randomness))
 
 
 @pytest.fixture

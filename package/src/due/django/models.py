@@ -42,7 +42,7 @@ class EffectAttempt(models.Model):
     """
     Immutable crossing identity; evidence survives claim and owner deletion.
 
-    The model label and integer work identity deliberately are not a cascading
+    The model label and typed work identity deliberately are not a cascading
     relation: deleting a work row cannot destroy evidence about escaped I/O.
     Provider receipts remain in domain-owned models, linked by this UUID.
     """
