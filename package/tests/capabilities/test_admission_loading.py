@@ -9,7 +9,7 @@ from django.db import close_old_connections, connection, models, transaction
 from django.db.models import Prefetch
 from django.test.utils import CaptureQueriesContext, isolate_apps
 
-from due.django.public import ReplaySafeEffect, UniverseDurableWork, durable_work_schema
+from due.django.public import DurableWorkPolicy, ReplaySafeEffect, UniverseDurableWork, durable_work_schema
 
 with isolate_apps("tests"):
 
@@ -56,6 +56,8 @@ pytestmark = pytest.mark.django_db(transaction=True)
 def related_capability() -> RelatedEffect:
     return RelatedEffect.for_owner(
         work=RelatedWork,
+        owner=RelatedOwner,
+        policy=DurableWorkPolicy(),
         owner_prefetch=(Prefetch("parent", queryset=RelatedOwner.objects.select_related("parent")),),
     )
 
