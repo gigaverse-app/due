@@ -185,7 +185,10 @@ def test_census_forgets_holds_no_page_selects_and_publishes_the_rest():
     defer_identity(EFFECT, RecoveryPhase.DISCOVERY, "1", "ValidationError()")
     defer_identity(EFFECT, RecoveryPhase.REAP, "2", "RuntimeError()")
     # Its hold ended long ago and it never failed again: no page selects it any more.
-    RecoveryDeferral.objects.filter(identity="2").update(last_failed_at=database_now() - DEFERRAL_FORGET_AFTER * 2)
+    RecoveryDeferral.objects.filter(identity="2").update(
+        last_failed_at=database_now() - DEFERRAL_FORGET_AFTER * 2,
+        retry_at=database_now() - DEFERRAL_FORGET_AFTER,
+    )
     # Its hold ended too, but it failed recently: a live identity waiting for its turn.
     RecoveryDeferral.objects.filter(identity="1").update(retry_at=database_now() - DEFERRAL_CAP * 3)
     published: list[tuple[str, int]] = []
