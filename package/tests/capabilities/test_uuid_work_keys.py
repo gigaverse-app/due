@@ -97,3 +97,59 @@ def test_uuid_delivery_runs_in_real_prefork_worker(uuid_publication, real_broker
             duplicate = task.apply_async(args=(entry.name, str(work.pk), token), queue=entry.queue)
             assert duplicate.get(timeout=10) is False
             assert attempts_for(work).count() == 1
+
+
+def test_uuid_deadline_hint_waits_and_fences_duplicate(uuid_publication):
+    from datetime import timedelta
+
+    from due.django.runtime.tasks import wake_scheduled_work_task
+    from due.django.testing import database_now, use_database_clock
+    from tests.harness.uuid_work import UUIDWork
+
+    now = database_now()
+    at = now + timedelta(minutes=1)
+    with (
+        patch.object(UUIDPublication, "deadline_wakeup_horizon", timedelta(minutes=2)),
+        patch.object(wake_scheduled_work_task, "apply_async") as broker,
+        use_database_clock(lambda: now),
+    ):
+        with uuid_publication.atomic(PrimitiveOwner.objects.create().pk) as pending:
+            work = pending.request_work(UUIDWork(universe="acme", payload="published"), not_before=at)
+        args = broker.call_args.kwargs["args"]
+        content_type, encoding, payload = dumps(args, serializer="json")
+        args = loads(payload, content_type=content_type, content_encoding=encoding)
+        assert args[1] == str(work.pk)
+        wake_scheduled_work_task(*args)
+        assert UUIDPublication.accepted == []
+        now = at
+        wake_scheduled_work_task(*args)
+        wake_scheduled_work_task(*args)
+    assert UUIDPublication.accepted == [work.pk]
+    assert PrimitiveOwner.objects.get(pk=work.owner_id).value == "published"
+
+
+def test_uuid_evidence_selectors_correlate_only_the_matching_work(uuid_publication):
+    from due.django.capabilities.projection import projections_with_stale_writes
+    from due.django.evidence.attempts import resolve_confirmed_attempts, unsettled_work
+    from due.django.models import EffectAttempt
+    from due.django.testing import database_now
+    from tests.harness.uuid_work import UUIDWork
+
+    work, other = admit(uuid_publication), admit(uuid_publication)
+    UUIDWork.objects.filter(pk__in=[work.pk, other.pk]).update(
+        state=DurableWorkState.SUCCEEDED,
+        desired_revision=2,
+        applied_revision=2,
+        completed_at=database_now(),
+    )
+    old = EffectAttempt.objects.create(
+        work_model=UUIDWork._meta.label_lower,
+        work_uuid=work.pk,
+        claim_token=work.fencing_token,
+        desired_revision=1,
+    )
+    assert list(projections_with_stale_writes(UUIDWork.objects.all()).values_list("pk", flat=True)) == [work.pk]
+    assert list(unsettled_work(UUIDWork.objects.all(), strict=True).values_list("pk", flat=True)) == [work.pk]
+    assert resolve_confirmed_attempts(UUIDWork, batch_size=10) == 0
+    old.refresh_from_db()
+    assert old.repair_pending
