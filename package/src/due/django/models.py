@@ -47,7 +47,8 @@ class EffectAttempt(models.Model):
     Provider receipts remain in domain-owned models, linked by this UUID.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Append-friendly identity; never use its timestamp as provider or claim authority.
+    id = models.UUIDField(primary_key=True, default=uuid.uuid7, editable=False)
     work_model = models.CharField(max_length=128)
     work_id = models.BigIntegerField(null=True)
     work_uuid = models.UUIDField(null=True)
