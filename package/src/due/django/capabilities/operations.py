@@ -246,7 +246,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         attempt: EffectAttempt,
         result: ResultT,
         *,
-        complete: Callable[[EffectAttempt], bool] | None = None,
+        complete: Callable[[ResultT], bool] | None = None,
     ) -> None:
         """Commit validated evidence; a bulk receipt may still leave members unknown."""
         require_autocommit()
@@ -257,8 +257,12 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if locked.outcome == EffectAttemptOutcome.NOT_APPLIED:
                 raise ValueError("applied receipt contradicts definite non-application")
             self.validate_applied_effect_evidence(result)
-            self.evidence_store.record(locked, result)
-            if complete is None or complete(locked):
+            if complete is None:
+                self.evidence_store.record(locked, result)
+                finished = True
+            else:
+                finished = complete(self.evidence_store.record_and_read(locked, result))
+            if finished:
                 observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
     def record_observed_effect_evidence(self, work_id: int, result: ResultT) -> bool:
