@@ -15,7 +15,7 @@ from typing import Any
 
 from celery.exceptions import SoftTimeLimitExceeded
 from django.db import IntegrityError, NotSupportedError, models, transaction
-from django.db.models import Count, Min, Q, QuerySet
+from django.db.models import Count, F, Min, Q, QuerySet
 from psycopg.pq import TransactionStatus
 from sentry_sdk.scope import add_global_event_processor
 from sentry_sdk.types import Event
@@ -33,7 +33,9 @@ from due.django.runtime.metrics import (
     record_recovery_pass,
     record_recovery_stale_after,
     record_recovery_unclean,
+    record_recovery_waits,
 )
+from due.errors import WorkDeferredError, provider_wait_delay
 from due.retry_delays import ExponentialDelay
 
 logger = logging.getLogger(__name__)
@@ -178,8 +180,8 @@ class RecoveryPass:
 
     @property
     def paged(self) -> bool:
-        """Whether any phase of this tick paged, and so may hold identities."""
-        return bool(self._paged)
+        """Whether this tick observes identity holds, through paging or provider waiting."""
+        return bool(self._paged) or self._holds is not None
 
     def clock(self) -> datetime:
         """The tick's coordination time, read once: its holds and its census judge against one instant."""
@@ -236,7 +238,9 @@ class RecoveryPass:
                 changed += step(identity)
         return changed
 
-    def held(self, phase: RecoveryPhase, selection: QuerySet[Any, Any]) -> frozenset[str]:
+    def held(
+        self, phase: RecoveryPhase, selection: QuerySet[Any, Any], *, defer_failures: bool = True
+    ) -> frozenset[str]:
         """
         The identities this phase holds out right now, for a loop that picks one identity at a time.
 
@@ -251,7 +255,7 @@ class RecoveryPass:
         """
         if phase not in DEFERRING_PHASES:
             raise ValueError(f"{phase.value} holds identities, so it must be listed in DEFERRING_PHASES")
-        holds = self._holds_for(phase)
+        holds = self._holds_for(phase, track_failures=defer_failures)
         self._release_unselected(phase, selection, absent=set(holds.known))
         return frozenset(holds.waiting)
 
@@ -268,7 +272,20 @@ class RecoveryPass:
         except Exception as error:
             if ends_the_tick(error, self.propagate):
                 raise
-            self._record(phase, identity, error)
+            if isinstance(error, WorkDeferredError) and identity is not None:
+                # Expected provider waiting is persisted but never reported as a failure.
+                # Failure to persist the wait remains a real recovery failure.
+                try:
+                    defer_identity(self.effect, phase, str(identity), str(error), step=self.step_key, wait=error)
+                    holds = self._holds_for(phase, track_failures=False)
+                    holds.waiting.add(str(identity))
+                    holds.ended.pop(str(identity), None)
+                except Exception as failure:
+                    if ends_the_tick(failure, self.propagate):
+                        raise
+                    self._record(phase, identity, failure)
+            else:
+                self._record(phase, identity, error)
 
     def raise_if_failed(self) -> None:
         """Count the tick's outcome, then raise every failure it isolated. Ticks call this through ``recovery_tick``."""
@@ -291,7 +308,7 @@ class RecoveryPass:
         finally:
             self.step_key = previous
 
-    def _holds_for(self, phase: RecoveryPhase) -> _StepHolds:
+    def _holds_for(self, phase: RecoveryPhase, *, track_failures: bool = True) -> _StepHolds:
         if self._holds is None:
             now = self.clock()
             self._holds = {}
@@ -307,7 +324,8 @@ class RecoveryPass:
                 else:
                     holds.ended[identity] = retry_at
         key = (phase, self.step_key)
-        self._paged.add(key)
+        if track_failures:
+            self._paged.add(key)
         return self._holds.setdefault(key, _StepHolds())
 
     def _record(self, phase: RecoveryPhase, identity: object, error: Exception) -> None:
@@ -371,7 +389,7 @@ class RecoveryPass:
                 extra={"effect": self.effect, "phase": phase.value},
             )
             return
-        holds = self._holds_for(phase)
+        holds = self._holds_for(phase, track_failures=False)
         for identity in gone:
             holds.forget(identity)
 
@@ -425,14 +443,27 @@ def recovery_tick(
         record_recovery_completed(effect, _coordination_now().timestamp())
 
 
-def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str, *, step: str = "") -> None:
-    """Record one more consecutive failure and push ``retry_at`` out by the backoff."""
+def defer_identity(
+    effect: str,
+    phase: RecoveryPhase,
+    identity: str,
+    error: str,
+    *,
+    step: str = "",
+    wait: WorkDeferredError | None = None,
+) -> None:
+    """Persist failure backoff or a provider wait in the existing scheduling row.
+
+    Waiting uses zero failures and leaves an existing failure count unchanged.
+    Legacy first_failed_at/last_failed_at columns timestamp observations here.
+    """
     with transaction.atomic():
         now = _coordination_now()
+        delay = provider_wait_delay(wait, fallback=DEFERRAL_BASE) if wait is not None else None
         current = (
             RecoveryDeferral.objects.select_for_update()
             .filter(effect=effect, phase=phase, step=step, identity=identity)
-            .values_list("pk", "failures")
+            .values_list("pk", "failures", "retry_at")
             .first()
         )
         if current is None:
@@ -446,7 +477,8 @@ def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str,
                         identity=identity,
                         first_failed_at=now,
                         last_failed_at=now,
-                        retry_at=now + deferral_backoff(1),
+                        failures=0 if wait is not None else 1,
+                        retry_at=now + (delay if delay is not None else deferral_backoff(1)),
                         last_error=error[:255],
                     )
                 return
@@ -454,12 +486,16 @@ def defer_identity(effect: str, phase: RecoveryPhase, identity: str, error: str,
                 current = (
                     RecoveryDeferral.objects.select_for_update()
                     .filter(effect=effect, phase=phase, step=step, identity=identity)
-                    .values_list("pk", "failures")
+                    .values_list("pk", "failures", "retry_at")
                     .get()
                 )
-        failures = current[1] + 1
+        failures = 0 if wait is not None else current[1] + 1
         RecoveryDeferral.objects.filter(pk=current[0]).update(
-            failures=failures, last_failed_at=now, retry_at=now + deferral_backoff(failures), last_error=error[:255]
+            failures=failures,
+            first_failed_at=now if bool(current[1]) != bool(failures) else F("first_failed_at"),
+            last_failed_at=now,
+            retry_at=max(current[2], now + (delay if delay is not None else deferral_backoff(failures))),
+            last_error=error[:255],
         )
 
 
@@ -468,29 +504,36 @@ def publish_recovery_deferrals(effect: str, *, observed_at: datetime | None = No
     observed_at = observed_at or _coordination_now()
     forget_before = observed_at - DEFERRAL_FORGET_AFTER
 
-    def per_phase() -> dict[str, tuple[int, datetime, int]]:
+    forgotten = Q(last_failed_at__lt=forget_before, retry_at__lte=observed_at)
+
+    # Count expired holds in the same census; idle ticks need no extra query.
+    def per_phase() -> dict[str, tuple[int, datetime | None, int, datetime | None, int]]:
         return {
-            phase: (count, oldest, forgettable)
-            for phase, count, oldest, forgettable in RecoveryDeferral.objects.filter(effect=effect)
+            phase: (failures, first_failure, waiting, first_wait, forgettable)
+            for phase, failures, first_failure, waiting, first_wait, forgettable in RecoveryDeferral.objects.filter(
+                effect=effect
+            )
             .values("phase")
             .annotate(
-                count=Count("id"),
-                oldest=Min("first_failed_at"),
-                forgettable=Count("id", filter=Q(last_failed_at__lt=forget_before)),
+                failures_count=Count("id", filter=Q(failures__gt=0)),
+                first_failure=Min("first_failed_at", filter=Q(failures__gt=0)),
+                waiting_count=Count("id", filter=Q(failures=0)),
+                first_wait=Min("first_failed_at", filter=Q(failures=0)),
+                forgettable=Count("id", filter=forgotten),
             )
-            .values_list("phase", "count", "oldest", "forgettable")
+            .values_list("phase", "failures_count", "first_failure", "waiting_count", "first_wait", "forgettable")
         }
 
     rows = per_phase()
-    if any(
-        forgettable for _count, _oldest, forgettable in rows.values()
-    ):  # A tick with nothing to forget writes nothing.
-        RecoveryDeferral.objects.filter(effect=effect, last_failed_at__lt=forget_before).delete()
+    if any(forgettable for *_counts, forgettable in rows.values()):
+        RecoveryDeferral.objects.filter(forgotten, effect=effect).delete()
         rows = per_phase()
     for phase in DEFERRING_PHASES:
-        count, oldest, _forgettable = rows.get(phase.value, (0, None, 0))
-        age = 0.0 if oldest is None else max(0.0, (observed_at - oldest).total_seconds())
-        record_recovery_deferrals(effect, phase, count=count, oldest_age_seconds=age)
+        failures, first_failure, waiting, first_wait, _forgettable = rows.get(phase.value, (0, None, 0, None, 0))
+        failure_age = 0.0 if first_failure is None else max(0.0, (observed_at - first_failure).total_seconds())
+        wait_age = 0.0 if first_wait is None else max(0.0, (observed_at - first_wait).total_seconds())
+        record_recovery_deferrals(effect, phase, count=failures, oldest_age_seconds=failure_age)
+        record_recovery_waits(effect, phase, count=waiting, oldest_age_seconds=wait_age)
 
 
 @contextmanager

@@ -120,7 +120,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
-| Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; a stale delivery cannot call the provider or change the waiting state |
+| Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; stale delivery cannot call the provider; repeated waiting preserves the failure budget |
 | Replay-safe effect | `replay`; `delivery.effect_calls` | An actual second external execution leaves the same observable result; a lost acknowledgement replays through recovery to one settled outcome |
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
@@ -601,3 +601,11 @@ before releasing this Due testing extra. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.
+
+
+Provider-wait examples also bind the production failure counter to obligation's
+`preserved_failure_budget` observation. The generated history repeats waits
+beyond an ordinary small retry budget and verifies that no budget is consumed.
+Recovered-rejection histories make the same assertion against the pre-recovery
+counter. A declared waiting contract therefore proves pacing and budget
+preservation; the provider still must supply safe replay or completion evidence.

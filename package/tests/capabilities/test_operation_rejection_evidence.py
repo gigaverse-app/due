@@ -269,7 +269,9 @@ def test_observed_rejection_proof_checks_provider_wait(publication, monkeypatch,
         Publication, "failure", EffectNotAppliedError(EffectRejection(message="throttled", retry_after=wait))
     )
     if not honors_wait:
-        monkeypatch.setattr(Publication, "provider_retry_after", lambda self, error: timedelta(0))
+        from due.django.capabilities import operations
+
+        monkeypatch.setattr(operations, "provider_wait_delay", lambda *args, **kwargs: timedelta(seconds=1))
 
     def example():
         work = record(publication)

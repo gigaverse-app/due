@@ -199,3 +199,24 @@ def test_explicit_stopped_retry_preserves_only_unchanged_revision(
     attempt.refresh_from_db()
     assert attempt.outcome == EffectAttemptOutcome.UNKNOWN
     assert attempt.repair_pending, "Retrying identical input must retain uncertainty for future changed input"
+
+
+@pytest.mark.parametrize(
+    "header,seconds",
+    [
+        ("120", 120),
+        ("Mon, 26 Oct 2026 10:02:00 GMT", 120),
+        ("Mon, 26 Oct 2026 09:00:00 GMT", 0),
+        ("bogus", None),
+        ("-1", None),
+        ("9" * 100, None),
+        (None, None),
+    ],
+)
+def test_http_retry_after_supports_dates_and_seconds(header, seconds):
+    from datetime import UTC, datetime
+
+    from due.retry_delays import parse_retry_after
+
+    result = parse_retry_after(header, now=datetime(2026, 10, 26, 10, tzinfo=UTC))
+    assert result == (None if seconds is None else timedelta(seconds=seconds))
