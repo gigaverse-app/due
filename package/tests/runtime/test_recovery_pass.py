@@ -27,6 +27,7 @@ from due.django.runtime.recovery_pass import (
     recovery_pass_for,
     recovery_tick,
 )
+from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 
 PHASE = RecoveryPhase.DISPATCH
 
@@ -293,27 +294,28 @@ def test_an_unclean_heartbeat_tick_stamps_the_time_the_slow_sweep_rule_compares_
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("isolated_primitive")
 def test_provider_wait_is_durable_paced_and_not_a_recovery_failure():
     from due.django.models import RecoveryDeferral
     from due.django.public import database_now
     from due.django.testing import use_database_clock
     from due.errors import WorkDeferredError
+    from tests.harness.primitive import PrimitiveOwner
 
+    PrimitiveOwner.objects.create(pk=1)
     now = database_now()
     for _ in range(7):
         with use_database_clock(lambda now=now: now), recovery_tick("tests.wait") as tick:
             with tick.isolate(PHASE, 1):
                 raise WorkDeferredError("HTTP 503", retry_after=timedelta(minutes=2))
-            assert tick.held(
-                PHASE, RecoveryDeferral.objects.filter(effect="tests.wait").values_list("identity", flat=True)
-            ) == {"1"}
+            assert tick.held(PHASE, PrimitiveOwner.objects.values_list("pk", flat=True)) == {"1"}
         hold = RecoveryDeferral.objects.get(effect="tests.wait", identity="1")
         assert hold.failures == 0
         assert hold.retry_at == now + timedelta(minutes=2)
         assert tick.failures == 0
         now = hold.retry_at
     with use_database_clock(lambda now=now: now), recovery_tick("tests.wait") as tick:
-        tick.held(PHASE, RecoveryDeferral.objects.filter(effect="tests.wait").values_list("identity", flat=True))
+        tick.held(PHASE, PrimitiveOwner.objects.values_list("pk", flat=True))
         with tick.isolate(PHASE, 1):
             pass
     assert not RecoveryDeferral.objects.filter(effect="tests.wait").exists()
