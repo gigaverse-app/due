@@ -70,7 +70,7 @@ fallback_version = "0.1.0.dev0"
 [tool.uv.sources]
 # pytest-obligation #183 adds provider-wait budget and paced acknowledgement proofs.
 # Replace with its release during publication; wheel metadata has no Git source.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "a085dcf277647172246f1ad5e636c57528adb23c", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "18e554f954b9d231b44c1d30d5b237a6215a4940", subdirectory = "package" }
 
 [tool.ruff]
 src = ["src", "shims", "."]
