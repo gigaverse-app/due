@@ -37,6 +37,7 @@ from due.django.capabilities.authoring import OwnedDurableWorkCapability
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.evidence.attempts import attempts_for
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore, StoredAppliedEffectEvidence
+from due.django.identities import WorkId
 from due.django.models import DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
 from due.django.runtime.coordination import (
     ContinueAfter,
@@ -501,7 +502,7 @@ class DurableBulkExternalOperation[
         )
         return (observation, *steps)
 
-    def observe_uncertain_batch(self, work_id: int) -> int:
+    def observe_uncertain_batch(self, work_id: WorkId) -> int:
         """Record newly observed evidence; the evidence-settlement phase applies it."""
         work = self.model.objects.filter(pk=work_id, state=DurableWorkState.UNKNOWN).first()
         if work is None:

@@ -81,6 +81,7 @@ def test_evidence_checks_the_complete_persisted_identity(publication, monkeypatc
     elif altered == "persisted_work_model":
         EffectAttempt.objects.filter(pk=persisted_id).update(work_model="tests.unrelated")
     elif altered == "work_id":
+        assert attempt.work_id is not None
         attempt.work_id += 1
     elif altered == "desired_revision":
         attempt.desired_revision += 1

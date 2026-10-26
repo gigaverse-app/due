@@ -14,6 +14,7 @@ def test_step_migration_preserves_existing_holds_and_reversible_advisory_state()
     before = [("due", "0002_effectattempt_target_retired")]
     after = [("due", "0003_recoverydeferral_step")]
     executor = MigrationExecutor(connection)
+    latest = executor.loader.graph.leaf_nodes("due")
     executor.migrate(before)
     try:
         old = executor.loader.project_state(before).apps.get_model("due", "RecoveryDeferral")
@@ -34,4 +35,4 @@ def test_step_migration_preserves_existing_holds_and_reversible_advisory_state()
         assert hold.pk == original.pk
         assert hold.retry_at == later and hold.failures == 4
     finally:
-        MigrationExecutor(connection).migrate(after)
+        MigrationExecutor(connection).migrate(latest)

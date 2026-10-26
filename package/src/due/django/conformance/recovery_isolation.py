@@ -51,6 +51,7 @@ from due.django.conformance.recovery_steps import Generated as Generated
 from due.django.conformance.recovery_steps import NoApplicationCode as NoApplicationCode
 from due.django.conformance.recovery_steps import ProvenOnce as ProvenOnce
 from due.django.conformance.recovery_steps import recovery_histories
+from due.django.identities import WorkId, work_id_from_wire
 from due.django.models import RecoveryDeferral
 from due.django.public import (
     DurableWorkCapability,
@@ -98,14 +99,14 @@ def assert_one_poisoned_identity_does_not_stall_recovery(
     arrange = {"reap": _reap, "dispatch": _dispatch, "discovery": _discovery}[history]
     bindings = DurableWorkBindings(capability, examples.make_work)
     entry = bindings.registration
-    published: list[int] = []
+    published: list[WorkId] = []
     refusals = PoisonSwitch()
 
     def broker(*, args: tuple[Any, ...], **options: object) -> None:
         if args[0] == entry.name:
             # EXTERNAL SEAM: the broker refuses an armed work id on every publication.
-            refusals.check(args[1], f"broker refused work {args[1]}")
-            published.append(args[1])
+            refusals.check(work_id_from_wire(capability.model, args[1]), f"broker refused work {args[1]}")
+            published.append(work_id_from_wire(capability.model, args[1]))
 
     def tick() -> None:
         recover_durable_work_task(entry.name)
@@ -184,7 +185,9 @@ def _reaped(work: Any) -> bool:
     return work.lease_expires_at is None or work.lease_expires_at > database_now()
 
 
-def _reap(capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[int]) -> _History:
+def _reap(
+    capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[WorkId]
+) -> _History:
     bad = _claimed_and_expired(capability, bindings, expired_for=timedelta(seconds=20))
     good = _claimed_and_expired(capability, bindings, expired_for=timedelta(seconds=10))
     switch = PoisonSwitch()
@@ -206,7 +209,7 @@ def _reap(capability, examples, bindings, stack: ExitStack, refusals: PoisonSwit
 
 
 def _dispatch(
-    capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[int]
+    capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[WorkId]
 ) -> _History:
     # Dispatch defers through its retained reservation, not a deferral row.
     bad = bindings.make(age=timedelta(minutes=20))
@@ -232,7 +235,7 @@ def _dispatch(
 
 
 def _discovery(
-    capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[int]
+    capability, examples, bindings, stack: ExitStack, refusals: PoisonSwitch, published: list[WorkId]
 ) -> _History:
     assert examples.derivation is not None, "registered discovery requires derivation examples"
     facts = stack.enter_context(_binding(examples.derivation))

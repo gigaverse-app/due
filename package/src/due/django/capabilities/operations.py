@@ -21,6 +21,7 @@ from due.django.evidence.attempts import (
     record_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
+from due.django.identities import WorkId, attempt_key_field
 from due.django.integration import current_universe_scope
 from due.django.models import (
     DurableWorkState,
@@ -122,7 +123,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         )
         return desired
 
-    def resume_pending(self, work_id: int, *, reset_budget: bool = False, notify_worker: bool = True) -> bool:
+    def resume_pending(self, work_id: WorkId, *, reset_budget: bool = False, notify_worker: bool = True) -> bool:
         """An explicit product resume; uncertainty and completed occurrences remain protected."""
         resumed = resume_unapplied_work(self.model, work_id, reset_budget=reset_budget)
         if resumed and notify_worker:
@@ -205,9 +206,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         if attempt.work_model != self.model._meta.label_lower:
             raise ValueError("evidence belongs to another operation model")
         locked = EffectAttempt.objects.select_for_update().get(pk=attempt.pk)
-        if (locked.work_model, locked.work_id, locked.desired_revision, locked.claim_token) != (
+        if (locked.work_model, locked.work_identity, locked.desired_revision, locked.claim_token) != (
             attempt.work_model,
-            attempt.work_id,
+            attempt.work_identity,
             attempt.desired_revision,
             attempt.claim_token,
         ):
@@ -260,7 +261,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if complete is None or complete(locked):
                 observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
-    def record_observed_effect_evidence(self, work_id: int, result: ResultT) -> bool:
+    def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
         """
         Attach a domain-correlated observation to the sole possible crossing.
 
@@ -334,7 +335,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
 
     def _settle_applied_evidence(self, recovery: RecoveryPass) -> int:
         """Settle work whose APPLIED receipt still owes product repair, one work id at a time."""
-        applied_work = self.evidence_requiring_settlement().values("work_id")
+        applied_work = self.evidence_requiring_settlement().values(attempt_key_field(self.model))
         return recovery.run_page(
             RecoveryPhase.EVIDENCE_SETTLEMENT,
             self.model.objects.filter(pk__in=applied_work).order_by("pk").values_list("pk", flat=True),
@@ -345,7 +346,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
     def _reconcile_nonapplication_page(self, recovery: RecoveryPass) -> int:
         """Retry UNKNOWN work whose every attempt is proven NOT_APPLIED, one work id at a time."""
         evidence = EffectAttempt.objects.filter(
-            self.blocking_attempt_filter(), work_model=self.model._meta.label_lower, work_id=OuterRef("pk")
+            self.blocking_attempt_filter(),
+            work_model=self.model._meta.label_lower,
+            **{attempt_key_field(self.model): OuterRef("pk")},
         )
         return recovery.run_page(
             RecoveryPhase.NONAPPLICATION,
@@ -418,7 +421,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         record_work_operation(self.model._meta.label_lower, operation)
         return True
 
-    def reconcile_nonapplication(self, work_id: int) -> bool:
+    def reconcile_nonapplication(self, work_id: WorkId) -> bool:
         """Unblock only after every possible attempt is definitely not applied."""
         require_autocommit()
         with transaction.atomic():
@@ -452,7 +455,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         )
         return True
 
-    def settle_from_applied_effect_evidence(self, work_id: int) -> bool:
+    def settle_from_applied_effect_evidence(self, work_id: WorkId) -> bool:
         """Complete from durable evidence under fresh authority, without another call."""
         require_autocommit()
         with transaction.atomic():
@@ -464,7 +467,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 attempt = (
                     self.evidence_requiring_settlement()
                     .select_for_update()
-                    .get(work_id=work.pk, desired_revision=work.desired_revision)
+                    .get(**{attempt_key_field(self.model): work.pk}, desired_revision=work.desired_revision)
                 )
             except EffectAttempt.DoesNotExist:
                 return False

@@ -242,3 +242,58 @@ repeated rate-limit windows. Without a provider floor, the existing inline
 round and budget-free `ContinueAfter` policies remain available. Applications
 that want unlimited rate-limit waiting need an explicit policy decision rather
 than silently bypassing the durable retry budget.
+
+
+## Choose integer or UUID work keys
+
+Existing work models keep Django's integer primary key. Choose a native UUID
+primary key on a new work model when its identity must be generated outside the
+database or shared with an existing UUID domain record:
+
+```python
+from uuid import uuid4
+from django.db import models
+from due.django.public import ExternalOperationWork
+
+
+class PublicationWork(ExternalOperationWork):
+    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    # Declare the owner, captured inputs and durable_work_schema as usual.
+```
+
+A work table chooses one key type. Integer keys remain the compact default;
+UUID keys occupy 16 bytes rather than 8 for a bigint, and random UUIDs can have
+different index locality. This is identity flexibility, not a performance claim.
+Admission still owns row creation and identity: the unsaved input object's
+default UUID is not an instruction to reuse an existing row. Reusing a domain
+row as the work row is a separate model/lifecycle design.
+
+Runtime APIs accept `WorkId` (`int | UUID`). Registered execution, observation
+and deadline messages keep integers unchanged and encode UUIDs as canonical
+strings. Workers normalize the wire value through the registered model before
+claiming; custom publishers receive the model's native key type.
+
+Effect attempts preserve the existing nullable integer `work_id` column and add
+a nullable native `work_uuid` column. Exactly one must be present.
+`attempt.work_identity` reads either type. Correlation and recovery use the
+matching typed column and its indexes, without casting indexed values to text.
+The UUID indexes contain only UUID attempts; existing integer indexes stay in
+place to avoid rebuilding them during rollout. UUID rows therefore also occupy
+entries in the retained general integer indexes.
+
+Apply the additive migration before deploying code that selects the UUID
+column. It builds the new indexes concurrently and validates the key constraint
+after installing it without a table scan under the initial constraint lock.
+Schema changes still need brief PostgreSQL locks; use the application's normal
+migration lock/statement timeout and rollout procedure. Existing integer data
+needs no backfill and integer messages remain compatible. Upgrade every worker
+and recovery process before admitting UUID work: old code cannot correlate UUID
+attempts. Rolling code back is safe only while no UUID work has been enabled.
+The schema cannot be downgraded with UUID attempts present because the old
+integer key is required; do not delete evidence to force a downgrade.
+
+Generated application contracts support both key types. Keep the product
+bindings and full executed report for UUID adopters, including lost delivery,
+ambiguous provider acceptance, late receipts and stale claim fencing. The
+package's UUID publication example runs the same scalar operation contract
+against real PostgreSQL and exercises JSON task transport.

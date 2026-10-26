@@ -14,6 +14,7 @@ from due.django.capabilities import authoring
 from due.django.conformance.binding import Binding, entered_binding
 from due.django.conformance.examples import DeliveryExample
 from due.django.conformance.provider import ProviderProbe
+from due.django.identities import WorkId
 from due.django.public import DatabaseEffect, DurableWork, UniverseDurableWork
 from due.django.runtime.registry import registration_for
 from due.django.runtime.tasks import run_durable_work_task
@@ -34,7 +35,7 @@ def database_replay[W: UniverseDurableWork, O](
         token = delivery.work.fencing_token
         assert delivery.effect_calls is not None, "database replay needs actual callback entry counts"
 
-        def identity(model: type[DurableWork], work_id: int, **kwargs: object) -> tuple[type[DurableWork], int]:
+        def identity(model: type[DurableWork], work_id: WorkId, **kwargs: object) -> tuple[type[DurableWork], WorkId]:
             return model, work_id
 
         def disconnected_delivery() -> None:

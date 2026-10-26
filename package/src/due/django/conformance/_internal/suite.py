@@ -151,6 +151,7 @@ from due.django.evidence.attempts import (
     observe_effect_outcome,
     record_effect_attempt,
 )
+from due.django.identities import work_id_from_wire
 from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
     DatabaseEffect,
@@ -973,7 +974,9 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         if example.work.state == DurableWorkState.RETRYABLE:
             bindings.age(example.work)
             recover_durable_work_task(entry.name)
-        deliveries = [(args, options) for args, options in sent if args[1] == example.work.pk]
+        deliveries = [
+            (args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == example.work.pk
+        ]
         assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
         args, options = deliveries[0]
         assert_registered_worker_options(entry, options)
@@ -1036,14 +1039,14 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
         capability.enqueue_execution(work.pk)  # The broker accepts and then loses this message.
         work.refresh_from_db()
         assert work.state == DurableWorkState.QUEUED, "positive control: the reservation must be recorded"
-        lost = [args for args, _ in sent if args[1] == work.pk]
+        lost = [args for args, _ in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
         assert len(lost) == 1
         expire_lease(work)
         recover_durable_work_task(entry.name)
         work.refresh_from_db()
         assert work.rearm_count == 0, f"{entry.name}: an undelivered reservation spent the retry budget"
         assert work.state == DurableWorkState.QUEUED, f"{entry.name}: recovery did not redeliver lost work"
-        redelivered = [args for args, _ in sent if args[1] == work.pk]
+        redelivered = [args for args, _ in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
         assert len(redelivered) == 2, f"{entry.name}: recovery must publish exactly one replacement delivery"
         assert not run_durable_work_task(*lost[0]), "the lost token must not start execution later"
         assert run_durable_work_task(*redelivered[-1]), "the redelivery was not executable"

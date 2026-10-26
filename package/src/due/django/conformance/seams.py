@@ -53,6 +53,7 @@ from due.django.conformance.scenarios import (
     ProducerExample,
     SynchronousCallerExample,
 )
+from due.django.identities import WorkId
 from due.django.models import UniverseDurableWork
 from due.django.testing import hold_nudges
 from due.errors import WorkFailureDisposition
@@ -370,7 +371,7 @@ class ProviderSeam[W: UniverseDurableWork, P, O]:
                 # REAL PRODUCTION: attempt_execution runs the registered projection.
                 # OBSERVE: persisted revisions and the seam's independent product observation.
 
-                def result(work_id: int) -> tuple[int, str, int, int | None, O]:
+                def result(work_id: WorkId) -> tuple[int, str, int, int | None, O]:
                     work = projection.model.objects.get(pk=work_id)
                     return (
                         work.pk,

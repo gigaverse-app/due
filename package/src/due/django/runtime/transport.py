@@ -11,6 +11,8 @@ import sentry_sdk
 from asgiref.sync import AsyncSingleThreadContext, async_to_sync, sync_to_async
 from django.db import transaction
 
+from due.django.identities import WorkId
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ async def after_commit(callback: Callable[[], object]) -> None:
     await sync_to_async(transaction.on_commit)(callback, robust=True)
 
 
-def notify_after_commit(work_name: str, publish: Callable[[int], object], identity: int) -> None:
+def notify_after_commit[KeyT: WorkId](work_name: str, publish: Callable[[KeyT], object], identity: KeyT) -> None:
     """
     Publish a wake-up for a committed obligation after the outermost commit.
 
@@ -30,7 +32,7 @@ def notify_after_commit(work_name: str, publish: Callable[[int], object], identi
     transaction.on_commit(partial(publish_notification, work_name, publish, identity), robust=True)
 
 
-def publish_notification(work_name: str, publish: Callable[[int], object], identity: int) -> None:
+def publish_notification[KeyT: WorkId](work_name: str, publish: Callable[[KeyT], object], identity: KeyT) -> None:
     """
     Publish one committed notification; failure is observable, never raised.
 
