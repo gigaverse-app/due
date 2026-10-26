@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import partial
-from uuid import uuid4
+from uuid import uuid7
 
 import psycopg
 from celery.app.trace import build_tracer
@@ -49,7 +49,7 @@ def database_replay[W: UniverseDurableWork, O](
             # so one proof's cached hooks cannot hide another's negative control.
             trace = build_tracer(run_durable_work_task.name, run_durable_work_task, app=run_durable_work_task.app)
             result = trace(
-                str(uuid4()),
+                str(uuid7()),
                 [registration_for(capability.model).name, delivery.work.pk, str(token)],
                 {},
                 {"is_eager": False},
