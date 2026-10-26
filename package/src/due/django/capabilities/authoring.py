@@ -449,8 +449,10 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         refusal. The default reads ``EffectRejection.retry_after``. Override it
         to read a wait off another error, such as an SDK exception carrying an
         HTTP ``Retry-After``; return ``timedelta(0)`` when there is none. The
-        retry still spends one rearm, so ``max_rearms`` bounds throttled
-        windows, not seconds.
+        provider wait preserves the failure budget. Without a provider hint,
+        ordinary failures retain the configured delay and bounded rearms.
+        Use WorkDeferredError for unavailability without a hint; it selects
+        the configured delay without charging a failure.
         """
         if isinstance(error, EffectNotAppliedError) and error.rejection.retry_after is not None:
             return error.rejection.retry_after

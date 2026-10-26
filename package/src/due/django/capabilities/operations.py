@@ -54,6 +54,7 @@ from due.errors import (
     EffectNotAppliedError,
     EffectOutcomeUnknownError,
     EffectRejection,
+    provider_wait_delay,
 )
 from due.observations import AppliedEffectEvidence, effect_result
 
@@ -246,7 +247,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         attempt: EffectAttempt,
         result: ResultT,
         *,
-        complete: Callable[[EffectAttempt], bool] | None = None,
+        complete: Callable[[ResultT], bool] | None = None,
     ) -> None:
         """Commit validated evidence; a bulk receipt may still leave members unknown."""
         require_autocommit()
@@ -257,8 +258,12 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if locked.outcome == EffectAttemptOutcome.NOT_APPLIED:
                 raise ValueError("applied receipt contradicts definite non-application")
             self.validate_applied_effect_evidence(result)
-            self.evidence_store.record(locked, result)
-            if complete is None or complete(locked):
+            if complete is None:
+                self.evidence_store.record(locked, result)
+                finished = True
+            else:
+                finished = complete(self.evidence_store.record_and_read(locked, result))
+            if finished:
                 observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
     def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
@@ -400,13 +405,17 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 )
                 operation = DurableWorkOperation.TERMINAL_FAILED
             elif disposition is WorkFailureDisposition.RETRYABLE:
+                wait = provider_wait_delay(
+                    error, fallback=self.retry_delay_for(work), provider_delay=self.provider_retry_after(error)
+                )
                 retry_locked_work(
                     work,
                     retry_at=database_now(),
                     max_rearms=self.policy.max_rearms,
                     # Measured from settlement, not from the refusal: recovery
                     # can only wait longer than the provider asked, never less.
-                    retry_delay=max(self.retry_delay_for(work), self.provider_retry_after(error)),
+                    retry_delay=wait if wait is not None else self.retry_delay_for(work),
+                    consumes_budget=wait is None,
                     error_code="effect_rejected",
                     finalize=lambda current: self._finalize_retry(current, error),
                 )

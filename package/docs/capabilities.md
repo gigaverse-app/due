@@ -297,3 +297,13 @@ bindings and full executed report for UUID adopters, including lost delivery,
 ambiguous provider acceptance, late receipts and stale claim fencing. The
 package's UUID publication example runs the same scalar operation contract
 against real PostgreSQL and exercises JSON task transport.
+
+### Reusing a canonical receipt read
+
+Evidence stores may override `record_and_read(attempt, result)` to return the
+canonical value they just persisted while the caller holds the attempt lock.
+The default calls the existing `record` and `read` methods, so existing custom
+stores remain compatible. Bulk receipt ingestion uses the retained merged
+value to check completeness without a second SELECT. This reuse is confined
+to one evidence transaction; product settlement still rereads canonical
+evidence because a late receipt may have committed in between.

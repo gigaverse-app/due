@@ -125,6 +125,9 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
         return merge_bulk_evidence(receipt.members, recorded, BulkResult(items=()))
 
     def record(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
+        self.record_and_read(attempt, result)
+
+    def record_and_read(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> BulkResult[ResultT]:
         # DurableExternalOperation holds the attempt lock for both owner and
         # late writers. Membership was committed BEFORE provider entry.
         receipt = self.model.objects.get(attempt=attempt)
@@ -136,6 +139,9 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
             receipt.result = encoded
             receipt.settlement_pending = True
             receipt.save(update_fields=["result", "settlement_pending"])
+        # The attempt lock serializes every writer. This merged value is the
+        # canonical receipt just persisted, including earlier partial evidence.
+        return retained
 
     def retains(self, stored: BulkResult[ResultT], received: BulkResult[ResultT]) -> bool:
         by_key = {item.key: item for item in stored.items}
@@ -310,7 +316,7 @@ class DurableBulkExternalOperation[
         self.finalize_batch(work, result)
 
     def record_applied_effect_evidence(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
-        self._record_effect_evidence(attempt, result, complete=lambda entry: self.evidence_store.read(entry).complete)
+        self._record_effect_evidence(attempt, result, complete=lambda retained: retained.complete)
 
     def validate_rejection_evidence(self, attempt: EffectAttempt, rejection: EffectRejection) -> None:
         if any(item.state is BulkOutcomeState.COMPLETE for item in self.evidence_store.read(attempt).items):

@@ -341,7 +341,11 @@ def classified_failure_bindings[W: UniverseDurableWork, ResultT](
                 f"{name}: a classified rejection is one provider call per execution; "
                 f"expected_attempts={scenario.expected_attempts} describes a different shape"
             )
-        if scenario.disposition is WorkFailureDisposition.RETRYABLE and capability.policy.max_rearms == 0:
+        if (
+            scenario.disposition is WorkFailureDisposition.RETRYABLE
+            and capability.policy.max_rearms == 0
+            and scenario.provider_wait is None
+        ):
             raise ObligationContractDesignError(
                 f"{name}: max_rearms=0 exhausts on the first failure, so nothing is retryable"
             )
@@ -371,7 +375,12 @@ def classified_failure_bindings[W: UniverseDurableWork, ResultT](
             failure_attempt_count=lambda work: effect_calls(),
             observe=bindings.observe,
             identity_of=lambda work: work.pk,
-            waits=capability.policy.delay_at(0) > timedelta(0),
+            waits=scenario.provider_wait is not None or capability.policy.delay_at(0) > timedelta(0),
+            preserved_failure_budget=(
+                lambda work: capability.model.objects.values_list("rearm_count", flat=True).get(pk=work.pk)
+            )
+            if scenario.provider_wait is not None
+            else None,
             provider_wait=scenario.provider_wait,
             advance_by=bindings.age_by if scenario.provider_wait is not None else None,
             product_outcome=lambda work: delivery.observe(),
@@ -1205,7 +1214,9 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
             DurableWorkState.TERMINAL_FAILED
             if scenario.disposition == WorkFailureDisposition.TERMINAL
             else DurableWorkState.EXHAUSTED
-            if capability.policy.max_rearms is not None and initial_rearms >= capability.policy.max_rearms
+            if scenario.provider_wait is None
+            and capability.policy.max_rearms is not None
+            and initial_rearms >= capability.policy.max_rearms
             else DurableWorkState.RETRYABLE
         )
         assert work.state == expected_state, "recovery must preserve the rejection decision"
@@ -1221,8 +1232,8 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
         assert evidence.outcome == EffectAttemptOutcome.NOT_APPLIED
         decision = capability.rejection_type.model_validate(evidence.rejection)
         assert decision.disposition == scenario.disposition
-        rearms = initial_rearms + (expected_state == DurableWorkState.RETRYABLE)
-        assert work.rearm_count == rearms, "one rejection must consume exactly one available retry"
+        rearms = initial_rearms + (expected_state == DurableWorkState.RETRYABLE and scenario.provider_wait is None)
+        assert work.rearm_count == rearms, "ordinary rejections spend one retry; provider waits preserve the budget"
         capability.recover()
         work.refresh_from_db()
         assert work.rearm_count == rearms, "recovery must not spend the same rejection's budget twice"
@@ -1233,6 +1244,7 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
         )
         assert effect_calls() == scenario.expected_attempts
         if scenario.provider_wait is not None and expected_state == DurableWorkState.RETRYABLE:
+            assert work.rearm_count == initial_rearms, "recovered provider waiting spent the failure budget"
             bindings = DurableWorkBindings(capability, lambda: work)
             with classified_failure_bindings(bindings, lambda: scenario, outcome="recovered rejection") as failure:
                 assert_provider_wait_is_honored(failure, work)

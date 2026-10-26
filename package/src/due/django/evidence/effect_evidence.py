@@ -33,6 +33,15 @@ class AppliedEffectEvidenceStore[ResultT](ABC):
     def read(self, attempt: EffectAttempt) -> ResultT:
         """Read canonical evidence for the captured attempt; no external I/O."""
 
+    def record_and_read(self, attempt: EffectAttempt, result: ResultT) -> ResultT:
+        """Persist and return canonical evidence; stores may reuse their locked read.
+
+        The fallback preserves existing custom stores implementing record/read.
+        The caller must keep the evidence lock across this operation.
+        """
+        self.record(attempt, result)
+        return self.read(attempt)
+
     def retains(self, stored: ResultT, received: ResultT) -> bool:
         """Whether ``stored`` is what this store keeps for ``received``; equality unless it canonicalizes."""
         return stored == received
