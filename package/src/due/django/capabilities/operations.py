@@ -15,6 +15,7 @@ from due.django.capabilities.authoring import OwnedDurableWorkCapability, Replay
 from due.django.declarations.mirrors import Outcome
 from due.django.evidence.attempts import (
     attempts_for,
+    attempts_for_model,
     import_unknown_effect_attempt,
     initial_import_work,
     observe_effect_outcome,
@@ -328,8 +329,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
 
     def evidence_requiring_settlement(self) -> QuerySet[EffectAttempt]:
         """Canonical receipts whose product consequence is not yet committed."""
-        return EffectAttempt.objects.filter(
-            work_model=self.model._meta.label_lower,
+        return attempts_for_model(self.model).filter(
             outcome=EffectAttemptOutcome.APPLIED,
             repair_pending=True,
         )

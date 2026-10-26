@@ -35,9 +35,20 @@ from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError
 logger = logging.getLogger(__name__)
 
 
+def attempts_for_model(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
+    """Typed model scope lets PostgreSQL use the matching sparse history/repair index.
+
+    Model labels alone do not let the planner infer which key column is populated.
+    Attempt creation enforces the model's native key; state and outcome remain caller policy.
+    """
+    return EffectAttempt.objects.filter(
+        work_model=model._meta.label_lower, **{f"{attempt_key_field(model)}__isnull": False}
+    )
+
+
 def attempts_for(work: DurableWork) -> QuerySet[EffectAttempt]:
     """Library transition/test seam; application policy uses unsettled_work()."""
-    return EffectAttempt.objects.filter(work_model=work._meta.label_lower, **{attempt_key_field(type(work)): work.pk})
+    return attempts_for_model(type(work)).filter(**{attempt_key_field(type(work)): work.pk})
 
 
 def initial_import_work[WorkT: DurableWork](model: type[WorkT], work: WorkT) -> WorkT:
@@ -103,7 +114,7 @@ def attempt_by_id(model: type[DurableWork], attempt_id: UUID) -> EffectAttempt:
     Applications must also authorize the associated product owner before
     importing evidence. This lookup grants neither ownership nor replay.
     """
-    return EffectAttempt.objects.get(work_model=model._meta.label_lower, pk=attempt_id)
+    return attempts_for_model(model).get(pk=attempt_id)
 
 
 @contextmanager
@@ -190,8 +201,8 @@ def resolve_confirmed_attempts(model: type[DurableWork], *, batch_size: int) -> 
         applied_revision=OuterRef("desired_revision"),
     )
     resolved = list(
-        EffectAttempt.objects.filter(
-            work_model=model._meta.label_lower,
+        attempts_for_model(model)
+        .filter(
             outcome=EffectAttemptOutcome.APPLIED,
             repair_pending=True,
         )
@@ -225,7 +236,8 @@ def prune_resolved_attempts(
     ).filter(Q(started_at__gt=OuterRef("started_at")) | Q(started_at=OuterRef("started_at"), pk__gt=OuterRef("pk")))
     covered_before = later.filter(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False, observed_at__lt=before)
     candidates = (
-        EffectAttempt.objects.filter(work_model=model._meta.label_lower, repair_pending=False)
+        attempts_for_model(model)
+        .filter(repair_pending=False)
         # Policy-settled UNKNOWN stays as operator evidence, never a receipt.
         .exclude(repair_settled_by__in=(RepairSettledBy.POLICY_WINDOW, RepairSettledBy.TARGET_RETIRED))
         .filter(Q(observed_at__lt=before) | (Q(outcome=EffectAttemptOutcome.UNKNOWN) & Q(Exists(covered_before))))
@@ -250,9 +262,9 @@ def expire_repair_window(model: type[DurableWork], *, window: timedelta | None, 
 
     with transaction.atomic():
         page = list(
-            EffectAttempt.objects.select_for_update(skip_locked=True)
+            attempts_for_model(model)
+            .select_for_update(skip_locked=True)
             .filter(
-                work_model=model._meta.label_lower,
                 outcome=EffectAttemptOutcome.UNKNOWN,
                 repair_pending=True,
                 started_at__lt=database_now() - window,
@@ -307,16 +319,14 @@ def retire_repair_for_gone_target(work: DurableWork) -> int:
 
 def unknown_effect_attempts(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
     """Operator inspection, including policy-expired evidence; never permission to replay."""
-    return EffectAttempt.objects.filter(work_model=model._meta.label_lower, outcome=EffectAttemptOutcome.UNKNOWN)
+    return attempts_for_model(model).filter(outcome=EffectAttemptOutcome.UNKNOWN)
 
 
 def publish_pending_attempt_census(model: type[DurableWork]) -> None:
     """Count this capability's unsettled evidence, excluding retained history."""
     counts = {
         row["outcome"]: row["count"]
-        for row in EffectAttempt.objects.filter(work_model=model._meta.label_lower, repair_pending=True)
-        .values("outcome")
-        .annotate(count=Count("pk"))
+        for row in attempts_for_model(model).filter(repair_pending=True).values("outcome").annotate(count=Count("pk"))
     }
     for outcome in EffectAttemptOutcome:
         record_pending_effect_attempts(model._meta.label_lower, outcome, counts.get(outcome, 0))
