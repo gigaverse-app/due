@@ -30,14 +30,14 @@ copy:
 
 ```python
 from typing import ClassVar
-from uuid import uuid4
+from uuid import uuid7
 
 from django.db import models
 from due.django.public import UniverseDurableWork, durable_work_schema
 
 
 class CatalogEntry(models.Model):
-    identity = models.UUIDField(default=uuid4, unique=True, editable=False)
+    identity = models.UUIDField(default=uuid7, unique=True, editable=False)
     title = models.CharField(max_length=100)
     author = models.CharField(max_length=100)
     published_title = models.CharField(max_length=100, blank=True)

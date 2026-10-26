@@ -1,7 +1,7 @@
 """Equivalent immutable-book workflow on Procrastinate's PostgreSQL queue."""
 
 import os
-from uuid import uuid4
+from uuid import uuid7
 
 from django.db import transaction
 from procrastinate import JobContext
@@ -34,7 +34,7 @@ def create_book(title: str, author: str) -> Book:
     book.save()
     # DjangoConnector uses the SAME Django connection. Rollback removes both
     # the product and queued intent; no on_commit publication gap is introduced.
-    key = uuid4().hex
+    key = uuid7().hex
     index_book.configure(lock=f"index:{key}").defer(book_id=book.pk, key=key, title=title, author=author)
     return book
 

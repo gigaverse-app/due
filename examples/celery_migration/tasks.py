@@ -1,7 +1,7 @@
 """Plain Celery baseline: useful delivery options, without a custom outbox/reaper."""
 
 from functools import partial
-from uuid import uuid4
+from uuid import uuid7
 
 from celery import shared_task
 from django.db import transaction
@@ -30,7 +30,7 @@ def request_publication(document_id: int, text: str) -> str:
     document.text = text
     document.publication_failed = False
     document.save(update_fields=["text", "publication_failed"])
-    operation_key = uuid4().hex
+    operation_key = uuid7().hex
     # on_commit avoids executing against uncommitted data. It does not persist
     # an executable obligation; the only delivery record will be in the broker.
     transaction.on_commit(partial(publish_document_task.delay, document.pk, text, operation_key))

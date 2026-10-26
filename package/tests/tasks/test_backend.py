@@ -28,6 +28,8 @@ def test_standard_task_roundtrip_and_distinct_invocations(task_runtime, body):
     _, deliveries = task_runtime
     definition = task(body)
     first, second = definition.enqueue(2, 3), definition.enqueue(2, 3)
+    assert UUID(first.id).version == UUID(second.id).version == 7
+    assert UUID(first.id).int < UUID(second.id).int
     assert first.id != second.id
     assert first.status == TaskResultStatus.READY
     assert first.attempts == 0

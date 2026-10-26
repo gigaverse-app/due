@@ -12,7 +12,7 @@ from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import uuid7
 
 from due.django.models import DurableWork, DurableWorkState
 from due.django.testing import expire_lease, make_due
@@ -79,7 +79,7 @@ def celery_worker_contract[WorkT: DurableWork](
 
     module, _, attribute = app.partition(":")
     application = getattr(import_module(module), attribute or "app")
-    own_queue = queue or f"due-celery-{uuid4().hex[:12]}"
+    own_queue = queue or f"due-celery-{uuid7().hex}"
 
     def sent() -> WorkT:
         # ARRANGE: no message another history left on the work's own queue.

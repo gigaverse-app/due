@@ -1,5 +1,5 @@
 from typing import ClassVar
-from uuid import uuid4
+from uuid import uuid7
 
 from django.db import models
 
@@ -9,7 +9,7 @@ from due.django.public import durable_work_schema
 
 
 class PrintOrder(models.Model):
-    reference = models.UUIDField(default=uuid4, unique=True, editable=False)
+    reference = models.UUIDField(default=uuid7, unique=True, editable=False)
     title = models.CharField(max_length=100)
     provider_order_id = models.PositiveBigIntegerField(null=True)
     status = models.CharField(max_length=20, default="pending")
