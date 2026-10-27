@@ -756,7 +756,7 @@ def _enqueue_registered(model: type[UniverseDurableWork], work_id: WorkId) -> No
     registration_for(model).capability.enqueue_execution(work_id)
 
 
-def registered_nudge(model: type[UniverseDurableWork]) -> Publisher:
+def registered_nudge(model: type[UniverseDurableWork]) -> Callable[[WorkId, UUID], object]:
     """Build the standard low-latency wake-up for a registered capability."""
 
     def nudge(work_id: WorkId, token: UUID) -> object:

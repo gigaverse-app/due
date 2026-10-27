@@ -1,10 +1,14 @@
 """Concise authoring keeps the canonical owner, policies and settlement path."""
 
+from collections.abc import Callable
 from datetime import timedelta
-from typing import cast
+from typing import assert_type, cast
+from uuid import UUID
 
 import pytest
 
+from due.django.capabilities.authoring import registered_nudge
+from due.django.identities import WorkId
 from due.django.public import DurableWorkPolicy, DurableWorkState
 from tests.harness.operation import Publication, PublicationWork
 from tests.harness.primitive import PrimitiveEffect, PrimitiveOwner, PrimitiveWork
@@ -53,3 +57,9 @@ def test_evidence_required_operations_still_require_retained_history():
         Publication.for_owner(work=PublicationWork)
     capability = Publication.for_owner(work=PublicationWork, policy=DurableWorkPolicy(retention=None))
     assert capability.owner_model is PrimitiveOwner
+
+
+@pytest.mark.no_db
+def test_registered_nudge_exposes_both_identity_types() -> None:
+    # This factory accepts either key; a union of callbacks rejects normal int callers.
+    assert_type(registered_nudge(PrimitiveWork), Callable[[WorkId, UUID], object])
