@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 from django.db import connection, models, transaction
 from django.db.models import Count, F, Min, Q, QuerySet
+from django.db.models.functions import Now
 
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.external_services import execution_external_services
@@ -213,6 +214,11 @@ def _read_database_clock() -> datetime:
     return value
 
 
+def _database_statement_clock() -> models.Expression:
+    """One statement-stable database time, replaceable by the public test clock."""
+    return Now()
+
+
 def claim_work[WorkT: DurableWork](
     model: type[WorkT],
     work_id: WorkId,
@@ -284,7 +290,11 @@ def renew_work[WorkT: DurableWork](
     lease_duration: timedelta,
     now: NowFn = database_now,
 ) -> bool:
-    renewed_at = now()
+    # PostgreSQL's statement timestamp is sampled before an UPDATE waits for
+    # the row lock. Keep that wait inside the lease, and use the same instant
+    # for both fields, without a separate clock round trip. Explicit clocks
+    # retain their callable contract; use_database_clock controls both paths.
+    renewed_at = _database_statement_clock() if now is database_now else now()
     updated = claim.owned_work().update(
         lease_expires_at=renewed_at + lease_duration,
         updated_at=renewed_at,

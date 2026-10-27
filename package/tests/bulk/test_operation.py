@@ -49,6 +49,14 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision
+    assert work.published_keys == ["a", "b", "c"]
+    progress_writes = [
+        q["sql"]
+        for q in queries
+        if q["sql"].startswith(f'UPDATE "{BatchWork._meta.db_table}"') and '"bulk_progress" =' in q["sql"]
+    ]
+    assert len(progress_writes) == 1
+    assert '"published_keys" =' in progress_writes[0]
     assert BatchOperation.calls == [("a", "b", "c")]
     attempt = attempts_for(work).get()
     assert attempt.outcome == EffectAttemptOutcome.APPLIED
@@ -107,6 +115,7 @@ def test_partial_receipts_preserve_uncertainty_and_repair_without_resending(batc
     work.refresh_from_db()
     assert work.state == DurableWorkState.UNKNOWN
     assert [item.key for item in batch_operation.completed_items(work)] == ["a"]
+    assert work.published_keys == ["a"]
     attempt = attempts_for(work).get()
     assert attempt.outcome == EffectAttemptOutcome.UNKNOWN
     batch_operation.record_applied_effect_evidence(attempt, result("b"))
@@ -114,11 +123,13 @@ def test_partial_receipts_preserve_uncertainty_and_repair_without_resending(batc
     work.refresh_from_db()
     assert work.state == DurableWorkState.UNKNOWN
     assert [item.key for item in batch_operation.completed_items(work)] == ["a", "b"]
+    assert work.published_keys == ["a", "b"]
     batch_operation.record_applied_effect_evidence(attempt, result("c"))
     batch_operation.derive()
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert BatchOperation.calls == [("a", "b", "c")]
+    assert work.published_keys == ["a", "b", "c"]
     assert not attempts_for(work).filter(repair_pending=True).exists()
 
 
@@ -162,12 +173,19 @@ def test_death_after_receipt_still_owes_work_completion(
         with pytest.raises(WorkerDied):
             batch_operation.attempt_execution(work.pk)
     assert attempts_for(work).get().repair_pending
+    assert BatchReceipt.objects.get(attempt=attempts_for(work).get()).settlement_pending
     # Preserve repair debt across this crash without rewriting the already-true
-    # attempt flag during member settlement. Evidence acceptance sets it once.
+    # attempt or receipt flag during member settlement. Evidence acceptance
+    # sets both once; the receipt remains discoverable until final completion.
     redundant = [
         query["sql"]
         for query in queries
-        if query["sql"].startswith('UPDATE "due_effectattempt" SET "repair_pending" = true')
+        if query["sql"].startswith(
+            (
+                'UPDATE "due_effectattempt" SET "repair_pending" = true',
+                f'UPDATE "{BatchReceipt._meta.db_table}" SET "settlement_pending" = true',
+            )
+        )
     ]
     assert redundant == [], redundant
     expire_lease(work)
@@ -175,6 +193,7 @@ def test_death_after_receipt_still_owes_work_completion(
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert not attempts_for(work).get().repair_pending
+    assert not BatchReceipt.objects.get(attempt=attempts_for(work).get()).settlement_pending
     assert BatchOperation.calls == [("a", "b", "c")]
 
 

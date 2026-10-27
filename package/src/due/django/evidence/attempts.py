@@ -30,7 +30,7 @@ from due.django.runtime.coordination import (
     require_autocommit,
 )
 from due.django.runtime.metrics import record_pending_effect_attempts
-from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError
+from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 logger = logging.getLogger(__name__)
 
@@ -181,26 +181,42 @@ def observe_effect_outcome(attempt: EffectAttempt, outcome: EffectAttemptOutcome
         observe_locked_effect_outcome(current, outcome)
 
 
-def observe_locked_effect_outcome(current: EffectAttempt, outcome: EffectAttemptOutcome) -> None:
+def observe_locked_effect_outcome(
+    current: EffectAttempt, outcome: EffectAttemptOutcome, *, rejection: EffectRejection | None = None
+) -> None:
     """Internal transition for a freshly SELECT FOR UPDATE locked attempt.
 
     The caller owns the transaction and lock, and must not pass a snapshot from
     an earlier transaction. Keep acceptance in that transaction so the receipt,
-    rejection policy, and outcome either all commit or all roll back.
+    rejection policy, and outcome either all commit or all roll back. A typed
+    rejection shares the outcome write; identical observations need no write.
     """
     if not transaction.get_connection().in_atomic_block:
         raise RuntimeError("evidence acceptance requires the attempt lock transaction")
     if outcome is EffectAttemptOutcome.UNKNOWN:
         raise ValueError("an observation must provide definite evidence")
-    if current.outcome == outcome:
-        return
-    if current.outcome != EffectAttemptOutcome.UNKNOWN:
+    if current.outcome not in (EffectAttemptOutcome.UNKNOWN, outcome):
         raise ValueError("provider evidence contradicts a previous definite outcome")
-    current.outcome = outcome
-    current.observed_at = database_now()
-    current.repair_pending = outcome is EffectAttemptOutcome.APPLIED
-    current.repair_settled_by = RepairSettledBy.RECEIPT if not current.repair_pending else ""
-    current.save(update_fields=["outcome", "observed_at", "repair_pending", "repair_settled_by"])
+    fields: list[str] = []
+    if rejection is not None:
+        if outcome is not EffectAttemptOutcome.NOT_APPLIED:
+            raise ValueError("a rejection requires definite nonapplication")
+        payload = rejection.model_dump(mode="json")
+        if current.rejection is not None and current.rejection != payload:
+            raise ValueError("rejection contradicts earlier evidence for this attempt")
+        if current.rejection != payload:
+            current.rejection = payload
+            fields.append("rejection")
+    if current.outcome != outcome:
+        current.outcome = outcome
+        current.observed_at = database_now()
+        current.repair_pending = outcome is EffectAttemptOutcome.APPLIED
+        current.repair_settled_by = RepairSettledBy.RECEIPT if not current.repair_pending else ""
+        fields.extend(["outcome", "observed_at", "repair_pending", "repair_settled_by"])
+    if fields:
+        # Persist policy and replay permission in the same locked-row UPDATE.
+        # Enriching legacy NOT_APPLIED evidence preserves its observation time.
+        current.save(update_fields=fields)
 
 
 def resolve_confirmed_attempts(model: type[DurableWork], *, batch_size: int) -> int:

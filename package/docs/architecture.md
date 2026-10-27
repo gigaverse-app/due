@@ -74,6 +74,12 @@ Ownership also gets checked immediately before external calls, outside the DB
 transaction. Configure provider timeouts below the worker soft limit, soft below
 hard, and hard below the lease.
 
+Renewal uses PostgreSQL's UPDATE statement timestamp for both `updated_at` and
+the new lease deadline. Lock waits consume that lease; renewal does not start a
+fresh interval after acquiring the row. This avoids a separate clock query.
+Evidence-required provider entry still checks expiry using a fresh database
+clock after its row lock. `use_database_clock` controls both clock paths in tests.
+
 A local fence does not cancel remote I/O. A timeout can mean the provider accepted
 the operation but lost the reply. Evidence-required operations commit an UNKNOWN
 attempt before crossing that boundary. They never infer nonapplication from lease

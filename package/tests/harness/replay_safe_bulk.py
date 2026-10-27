@@ -31,6 +31,7 @@ with isolate_apps("tests"):
     class MemberSyncWork(BulkEffectWork):
         work_owner_field: ClassVar[str] = "owner"
         owner = models.OneToOneField(PrimitiveOwner, on_delete=models.SET_NULL, null=True)
+        joined_members = models.JSONField(default=list, blank=True)
 
         class Meta:
             app_label = "tests"
@@ -88,6 +89,13 @@ class MemberSync(DurableBulkEffect[PrimitiveOwner, MemberSyncWork, Membership]):
         if isinstance(rejection, RateLimited):
             return ContinueAfter(timedelta(seconds=rejection.reset_seconds), until=None)
         return RejectionResponse.RETRY_LATER
+
+    def progress_updates(self, work: MemberSyncWork, progress: BulkResult[Membership]) -> dict[str, object]:
+        return {
+            "joined_members": sorted(
+                item.key for item in progress.items if item.result and item.result.status == "member"
+            )
+        }
 
     def finalize_batch(self, work: MemberSyncWork, result: BulkResult[Membership]) -> None:
         joined = sorted(
