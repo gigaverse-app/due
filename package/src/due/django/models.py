@@ -86,11 +86,15 @@ class EffectAttempt(models.Model):
                 condition=models.Q(work_uuid__isnull=False, repair_pending=True),
                 name="effect_attempt_uuid_repair_ix",
             ),
-            models.Index(fields=["work_model", "work_id", "started_at"], name="effect_attempt_work_ix"),
+            models.Index(
+                fields=["work_model", "work_id", "started_at"],
+                condition=models.Q(work_id__isnull=False),
+                name="effect_attempt_int_ix",
+            ),
             models.Index(
                 fields=["work_model", "work_id"],
-                condition=models.Q(repair_pending=True),
-                name="effect_attempt_repair_ix",
+                condition=models.Q(repair_pending=True, work_id__isnull=False),
+                name="effect_attempt_int_repair_ix",
             ),
             models.Index(
                 fields=["work_model", "observed_at", "id"],

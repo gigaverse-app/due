@@ -254,7 +254,7 @@ def test_retained_history_does_not_drive_shared_queries() -> None:
                 reads=pending,
                 baseline=attempt_baseline,
                 live_rows=5,
-                index_name="effect_attempt_repair_ix",
+                index_name="effect_attempt_int_repair_ix",
             ),
         ]
         costs = {case.name: assert_index_paths_stay_bounded(case) for case in cases}
