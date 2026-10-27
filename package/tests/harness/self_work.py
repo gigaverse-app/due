@@ -22,7 +22,7 @@ from tests.harness.registrations import durable_work_installed
 
 with isolate_apps("tests"):
 
-    class Chunk(BulkExternalOperationWork):
+    class ChunkFields(BulkExternalOperationWork):
         id = models.UUIDField(primary_key=True, default=uuid7, editable=False)  # pyrefly: ignore[bad-override-mutable-attribute]
         delivered = models.JSONField(default=list)
         product_status = models.CharField(max_length=40, default="pending")
@@ -34,6 +34,10 @@ with isolate_apps("tests"):
         }
 
         class Meta:
+            abstract = True
+
+    class Chunk(ChunkFields):
+        class Meta:
             app_label = "tests"
             indexes = durable_work_schema("self_chunk")[0]
             constraints = [
@@ -44,9 +48,21 @@ with isolate_apps("tests"):
                 for constraint in durable_work_schema("self_chunk")[1]
             ]
 
+    class InlineChunk(ChunkFields):
+        class Meta:
+            app_label = "tests"
+            indexes = durable_work_schema("inline_chunk")[0]
+            constraints = [
+                models.CheckConstraint(
+                    name=constraint.name,
+                    condition=models.Q(state="legacy") | models.Q(cast(models.CheckConstraint, constraint).condition),
+                )
+                for constraint in durable_work_schema("inline_chunk")[1]
+            ]
+
 
 @dataclass(frozen=True)
-class SendChunk(DurableBulkExternalOperation[Chunk, Chunk, ItemResult]):
+class SendChunk(DurableBulkExternalOperation[ChunkFields, ChunkFields, ItemResult]):
     receipt_model = BatchReceipt
     result_type: type[ItemResult] = field(default=ItemResult, kw_only=True)
     calls: ClassVar[list[tuple[UUID, tuple[str, ...]]]] = []
@@ -55,10 +71,10 @@ class SendChunk(DurableBulkExternalOperation[Chunk, Chunk, ItemResult]):
     script: ClassVar[list[BulkResult[ItemResult] | Exception]] = []
     accepted_by_work: ClassVar[dict[UUID, list[str]]] = {}
 
-    def prepare_batch(self, work: Chunk, batch: CapturedBatch) -> None:
+    def prepare_batch(self, work: ChunkFields, batch: CapturedBatch) -> None:
         pass
 
-    def send_batch(self, work: Chunk, batch: CapturedBatch, payload: None) -> BulkResult[ItemResult]:
+    def send_batch(self, work: ChunkFields, batch: CapturedBatch, payload: None) -> BulkResult[ItemResult]:
         self.calls.append((work.pk, batch.keys))
         if self.failure is not None:
             raise self.failure
@@ -72,21 +88,21 @@ class SendChunk(DurableBulkExternalOperation[Chunk, Chunk, ItemResult]):
             raise TimeoutError("provider accepted; reply lost")
         return response
 
-    def progress_updates(self, work: Chunk, progress: BulkResult[ItemResult]) -> dict[str, object]:
+    def progress_updates(self, work: ChunkFields, progress: BulkResult[ItemResult]) -> dict[str, object]:
         delivered = [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]
         return {"delivered": delivered, "product_status": ",".join(delivered)}
 
-    def finalize_batch(self, work: Chunk, result: BulkResult[ItemResult]) -> None:
+    def finalize_batch(self, work: ChunkFields, result: BulkResult[ItemResult]) -> None:
         pass
 
-    def finalize_retry(self, work: Chunk, error: Exception) -> None:
-        Chunk.objects.filter(pk=work.pk).update(product_status="retry")
+    def finalize_retry(self, work: ChunkFields, error: Exception) -> None:
+        self.model.objects.filter(pk=work.pk).update(product_status="retry")
 
-    def finalize_terminal(self, work: Chunk, error: Exception) -> None:
-        Chunk.objects.filter(pk=work.pk).update(product_status="terminal")
+    def finalize_terminal(self, work: ChunkFields, error: Exception) -> None:
+        self.model.objects.filter(pk=work.pk).update(product_status="terminal")
 
-    def finalize_unknown(self, work: Chunk) -> None:
-        Chunk.objects.filter(pk=work.pk).update(
+    def finalize_unknown(self, work: ChunkFields) -> None:
+        self.model.objects.filter(pk=work.pk).update(
             product_status=",".join(item.key for item in self.completed_items(work)) or "unknown"
         )
 
@@ -98,10 +114,22 @@ chunk_delivery = SendChunk.for_work(
 )
 
 
+class InlineSendChunk(SendChunk):
+    receipt_model = None
+
+
+inline_chunk_delivery = InlineSendChunk.for_work(
+    work=InlineChunk, input_fields=chunk_delivery.input_fields, policy=chunk_delivery.policy
+)
+
+
 @contextmanager
-def registered_chunk() -> Iterator[None]:
+def registered_chunk(capability: SendChunk = chunk_delivery) -> Iterator[None]:
     entry = DurableWorkRegistration(
-        name="chunk_self_test", capability=chunk_delivery, cadence_seconds=60, queue="celery"
+        name="chunk_self_test" if capability.model is Chunk else "inline_chunk_self_test",
+        capability=capability,
+        cadence_seconds=60,
+        queue="celery",
     )
     with (
         durable_work_installed(entry),
@@ -110,20 +138,32 @@ def registered_chunk() -> Iterator[None]:
         yield
 
 
-@pytest.fixture(name="self_chunk")
-def chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
+@contextmanager
+def _chunk_environment(capability: SendChunk) -> Iterator[SendChunk]:
     SendChunk.calls.clear()
     SendChunk.script.clear()
     SendChunk.accepted_by_work.clear()
     SendChunk.lose_reply = False
     SendChunk.failure = None
     with connection.schema_editor() as editor:
-        editor.create_model(Chunk)
+        editor.create_model(capability.model)
         editor.create_model(BatchReceipt)
     try:
-        with registered_chunk():
-            yield chunk_delivery
+        with registered_chunk(capability):
+            yield capability
     finally:
         with connection.schema_editor() as editor:
             editor.delete_model(BatchReceipt)
-            editor.delete_model(Chunk)
+            editor.delete_model(capability.model)
+
+
+@pytest.fixture(name="self_chunk")
+def chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
+    with _chunk_environment(chunk_delivery) as capability:
+        yield capability
+
+
+@pytest.fixture(name="inline_chunk")
+def inline_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
+    with _chunk_environment(inline_chunk_delivery) as capability:
+        yield capability

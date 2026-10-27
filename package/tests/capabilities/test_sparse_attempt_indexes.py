@@ -63,13 +63,14 @@ def test_sparse_index_migration_preserves_both_key_families():
     latest = executor.loader.graph.leaf_nodes("due")
     executor.migrate(old_target)
     try:
-        integer = EffectAttempt.objects.create(
+        old = executor.loader.project_state(old_target).apps.get_model("due", "EffectAttempt")
+        integer = old.objects.create(
             work_model="tests.integer",
             work_id=7,
             claim_token=uuid4(),
             desired_revision=1,
         )
-        uuid = EffectAttempt.objects.create(
+        uuid = old.objects.create(
             work_model="tests.uuid",
             work_uuid=uuid4(),
             claim_token=uuid4(),

@@ -44,7 +44,8 @@ class EffectAttempt(models.Model):
 
     The model label and typed work identity deliberately are not a cascading
     relation: deleting a work row cannot destroy evidence about escaped I/O.
-    Provider receipts remain in domain-owned models, linked by this UUID.
+    Provider receipts either live in domain-owned models linked by this UUID,
+    or in the opt-in inline receipt envelope on this row.
     """
 
     # Append-friendly identity; never use its timestamp as provider or claim authority.
@@ -60,6 +61,10 @@ class EffectAttempt(models.Model):
     # Canonical application rejection serialized by its declared schema; old
     # evidence has NULL and retains its historical generic retry behavior.
     rejection = models.JSONField(null=True)
+    # Optional co-located evidence. Existing domain-owned receipt stores keep
+    # these empty; the library owns the envelope for an opted-in store.
+    receipt = models.JSONField(null=True)
+    receipt_pending = models.BooleanField(default=False, db_default=False)
     started_at = models.DateTimeField(db_default=Now())
     observed_at = models.DateTimeField(null=True)
     repair_pending = models.BooleanField(default=True)
@@ -76,6 +81,11 @@ class EffectAttempt(models.Model):
     class Meta:
         db_table = getattr(settings, "DUE_EFFECT_ATTEMPT_TABLE", "due_effectattempt")
         indexes = [
+            models.Index(
+                fields=["work_model", "id"],
+                condition=models.Q(receipt_pending=True),
+                name="effect_attempt_receipt_ix",
+            ),
             models.Index(
                 fields=["work_model", "work_uuid", "started_at"],
                 condition=models.Q(work_uuid__isnull=False),
@@ -103,6 +113,10 @@ class EffectAttempt(models.Model):
             ),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(receipt_pending=False) | models.Q(receipt__isnull=False),
+                name="effect_attempt_receipt_ck",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(work_id__isnull=False, work_uuid__isnull=True)

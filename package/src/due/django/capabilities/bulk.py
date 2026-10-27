@@ -1,24 +1,25 @@
 """Batches on Due's work-table lifecycle: one work row per fixed cohort, one provider call per round.
 
 ``DurableBulkExternalOperation`` is for calls that must not be repeated when
-their outcome is uncertain: every crossing captures its exact members in one
-receipt row beside EffectAttempt. ``DurableBulkEffect`` is for idempotent calls:
+their outcome is uncertain: every crossing captures its exact members in a
+receipt beside or inside EffectAttempt. ``DurableBulkEffect`` is for idempotent calls:
 an uncertain round is simply resent for its pending members. Item progress is
 bounded JSON, never one work row per item. Claims, fencing, retry budgets and
 recovery remain core-owned. Verdict semantics and reducers live in ``due.bulk``.
 """
 
 from abc import abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
 from typing import ClassVar, final
 from uuid import UUID
 
+from django.contrib.postgres.fields import ArrayField
 from django.db import models, transaction
-from django.db.models import OuterRef, Q, QuerySet, Subquery
-from pydantic import BaseModel, TypeAdapter
+from django.db.models import F, Func, OuterRef, Q, QuerySet, Subquery, Value
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from due.bulk import (
     BulkOutcome,
@@ -36,7 +37,7 @@ from due.bulk import (
 )
 from due.django.capabilities.authoring import OwnedDurableWorkCapability
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
-from due.django.evidence.attempts import attempts_for
+from due.django.evidence.attempts import attempts_for, observe_locked_effect_outcome
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore, StoredAppliedEffectEvidence
 from due.django.identities import WorkId
 from due.django.models import DurableWork, DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
@@ -113,7 +114,7 @@ def bulk_evidence_index(name: str) -> models.Index:
 
 @dataclass(frozen=True)
 class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResult[ResultT]]):
-    model: type[StoredBulkEffectEvidence]
+    model: type[StoredBulkEffectEvidence] | None
     result_type: type[ResultT]
 
     @cached_property
@@ -121,9 +122,50 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
         return TypeAdapter(BulkResult[self.result_type])
 
     def read(self, attempt: EffectAttempt) -> BulkResult[ResultT]:
+        if self.model is None:
+            return self._read_inline(EffectAttempt.objects.only("receipt").get(pk=attempt.pk))
         receipt = self.model.objects.get(attempt=attempt)
         recorded = self.adapter.validate_python({"items": receipt.result})
         return merge_bulk_evidence(receipt.members, recorded, BulkResult(items=()))
+
+    def _read_inline(self, attempt: EffectAttempt) -> BulkResult[ResultT]:
+        if attempt.receipt is None:
+            raise EffectAttempt.DoesNotExist("the crossing has no captured inline receipt")
+        recorded = self.adapter.validate_python({"items": attempt.receipt["result"]})
+        return merge_bulk_evidence(attempt.receipt["members"], recorded, BulkResult(items=()))
+
+    def read_locked(self, attempt: EffectAttempt) -> BulkResult[ResultT]:
+        return self._read_inline(attempt) if self.model is None else self.read(attempt)
+
+    def _stage_inline(
+        self, attempt: EffectAttempt, result: BulkResult[ResultT]
+    ) -> tuple[BulkResult[ResultT], tuple[str, ...]]:
+        if attempt.receipt is None:
+            raise EffectAttempt.DoesNotExist("the crossing has no captured inline receipt")
+        retained = merge_bulk_evidence(
+            attempt.receipt["members"], self._read_inline(attempt), self.adapter.validate_python(result)
+        )
+        encoded = self.adapter.dump_python(retained, mode="json")["items"]
+        if encoded == attempt.receipt["result"]:
+            return retained, ()
+        attempt.receipt = {**attempt.receipt, "result": encoded}
+        attempt.receipt_pending = True
+        return retained, ("receipt", "receipt_pending")
+
+    def record_applied(
+        self,
+        attempt: EffectAttempt,
+        result: BulkResult[ResultT],
+        *,
+        complete: Callable[[BulkResult[ResultT]], bool] | None = None,
+    ) -> None:
+        if self.model is not None:
+            return super().record_applied(attempt, result, complete=complete)
+        retained, fields = self._stage_inline(attempt, result)
+        if complete is None or complete(retained):
+            observe_locked_effect_outcome(attempt, EffectAttemptOutcome.APPLIED, extra_fields=fields)
+        elif fields:
+            attempt.save(update_fields=fields)
 
     def record(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
         self.record_and_read(attempt, result)
@@ -131,6 +173,11 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
     def record_and_read(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> BulkResult[ResultT]:
         # DurableExternalOperation holds the attempt lock for both owner and
         # late writers. Membership was committed BEFORE provider entry.
+        if self.model is None:
+            retained, fields = self._stage_inline(attempt, result)
+            if fields:
+                attempt.save(update_fields=fields)
+            return retained
         receipt = self.model.objects.get(attempt=attempt)
         incoming = self.adapter.validate_python(result)
         first = self.adapter.validate_python({"items": receipt.result})
@@ -147,6 +194,50 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
     def retains(self, stored: BulkResult[ResultT], received: BulkResult[ResultT]) -> bool:
         by_key = {item.key: item for item in stored.items}
         return all(item.state is BulkOutcomeState.UNKNOWN or by_key.get(item.key) == item for item in received.items)
+
+    def member_expression(self) -> F | Subquery:
+        if self.model is None:
+            return F("receipt__members")
+        return Subquery(self.model.objects.filter(attempt_id=OuterRef("pk")).values("members"))
+
+    def members(self, attempt: EffectAttempt) -> tuple[str, ...]:
+        if self.model is None:
+            self._read_inline(attempt)  # Missing/corrupt receipt is not an empty membership.
+            assert attempt.receipt is not None
+            return tuple(attempt.receipt["members"])
+        return tuple(self.model.objects.get(attempt=attempt).members)
+
+    def pending_attempts(self, work_model: str) -> QuerySet[EffectAttempt]:
+        attempts = EffectAttempt.objects.filter(work_model=work_model)
+        if self.model is None:
+            return attempts.filter(receipt_pending=True)
+        return attempts.filter(pk__in=self.model.objects.filter(settlement_pending=True).values("attempt_id"))
+
+    def consume(self, attempt: EffectAttempt, state: BulkOutcomeState) -> None:
+        # The caller owns a freshly loaded attempt lock. Progress and these
+        # replay/settlement markers commit in the same fenced transaction.
+        fields = []
+        repair_pending = state is not BulkOutcomeState.RETRYABLE
+        if attempt.repair_pending != repair_pending:
+            attempt.repair_pending = repair_pending
+            fields.append("repair_pending")
+        if self.model is None and state is not BulkOutcomeState.COMPLETE and attempt.receipt_pending:
+            attempt.receipt_pending = False
+            fields.append("receipt_pending")
+        if fields:
+            attempt.save(update_fields=fields)
+        if self.model is not None and state is not BulkOutcomeState.COMPLETE:
+            self.model.objects.filter(attempt=attempt).update(settlement_pending=False)
+
+    def finish(self, attempt: EffectAttempt) -> None:
+        # Core completion owns the work fence; never trust a pre-I/O snapshot
+        # of the attempt's markers when completing its retained evidence.
+        updates = {"repair_pending": False}
+        if self.model is None:
+            updates["receipt_pending"] = False
+        EffectAttempt.objects.filter(pk=attempt.pk).update(**updates)
+        if self.model is not None:
+            self.model.objects.filter(attempt=attempt).update(settlement_pending=False)
 
 
 @dataclass(frozen=True)
@@ -256,7 +347,7 @@ class DurableBulkExternalOperation[
     core retry policy for its members.
     """
 
-    receipt_model: ClassVar[type[StoredBulkEffectEvidence]]
+    receipt_model: ClassVar[type[StoredBulkEffectEvidence] | None]
     observation_key: ClassVar[str] = "bulk_observation"
 
     def __post_init__(self) -> None:
@@ -276,11 +367,20 @@ class DurableBulkExternalOperation[
         return super()._desired_work(owner=owner, work=work)
 
     def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> None:
+        if self.receipt_model is not None:
+            self.receipt_model.objects.create(attempt=attempt, members=self._crossing_members(work))
+        super()._before_attempt_commits(work, attempt)
+
+    def _crossing_members(self, work: WorkT) -> list[str]:
         members = self.pending_keys(work)
         if not members:
             raise ValueError("a provider batch must contain pending members")
-        self.receipt_model.objects.create(attempt=attempt, members=list(members))
-        super()._before_attempt_commits(work, attempt)
+        return list(members)
+
+    def _initial_effect_receipt(self, work: WorkT) -> JsonValue:
+        if self.receipt_model is None:
+            return {"members": [key for key in self._crossing_members(work)], "result": []}
+        return None
 
     def current_batch(self, work: WorkT) -> CapturedBatch:
         """The exact captured membership and correlation ID of the open crossing."""
@@ -288,17 +388,37 @@ class DurableBulkExternalOperation[
         # even if its receipt is missing. An inner receipt join would hide it.
         attempt = (
             attempts_for(work)
-            .annotate(
-                captured_members=Subquery(
-                    self.receipt_model.objects.filter(attempt_id=OuterRef("pk")).values("members")
-                )
-            )
+            .annotate(captured_members=self.evidence_store.member_expression())
             .values("pk", "captured_members")
             .get(claim_token=work.fencing_token, outcome=EffectAttemptOutcome.UNKNOWN, repair_pending=True)
         )
         if attempt["captured_members"] is None:
-            raise self.receipt_model.DoesNotExist("the open crossing has no captured membership")
+            raise (self.receipt_model or EffectAttempt).DoesNotExist("the open crossing has no captured membership")
         return CapturedBatch(attempt["pk"], tuple(attempt["captured_members"]))
+
+    def record_receipt_diagnostics(self, attempt_id: UUID, diagnostics: JsonValue) -> None:
+        """Retain opaque diagnostics without changing semantic evidence or replay permission.
+
+        Inline receipts keep this optional metadata beside membership and
+        verdicts. A database expression preserves concurrent canonical writes;
+        the attempt row serializes both writers. Custom receipt models retain
+        their own diagnostic fields and APIs.
+        """
+        if self.receipt_model is not None:
+            raise ValueError("inline diagnostics require receipt_model=None")
+        updated = EffectAttempt.objects.filter(
+            pk=attempt_id, work_model=self.model._meta.label_lower, receipt__isnull=False
+        ).update(
+            receipt=Func(
+                F("receipt"),
+                Value(["diagnostics"], output_field=ArrayField(models.TextField())),
+                Value(diagnostics, output_field=models.JSONField()),
+                function="jsonb_set",
+                output_field=models.JSONField(),
+            )
+        )
+        if updated != 1:
+            raise EffectAttempt.DoesNotExist("no inline receipt belongs to this capability and attempt")
 
     @abstractmethod
     def prepare_batch(self, work: WorkT, batch: CapturedBatch) -> PayloadT:
@@ -380,10 +500,7 @@ class DurableBulkExternalOperation[
             return None
 
     def evidence_requiring_settlement(self) -> QuerySet[EffectAttempt]:
-        return EffectAttempt.objects.filter(
-            work_model=self.model._meta.label_lower,
-            pk__in=self.receipt_model.objects.filter(settlement_pending=True).values("attempt_id"),
-        )
+        return self.evidence_store.pending_attempts(self.model._meta.label_lower)
 
     def classify_error(self, error: Exception) -> WorkFailureDisposition:
         if isinstance(error, BulkRetryNeeded):
@@ -399,17 +516,7 @@ class DurableBulkExternalOperation[
         # The last receipt still owes final work settlement. Keeping its repair
         # marker until finalize_success covers death after progress commits but
         # before the core completes the claim, without inventing another send.
-        repair_pending = state is not BulkOutcomeState.RETRYABLE
-        # Every caller holds a freshly loaded attempt lock. Successful and
-        # uncertain rounds already owe repair; only persist a real transition.
-        if attempt.repair_pending != repair_pending:
-            attempt.repair_pending = repair_pending
-            attempt.save(update_fields=["repair_pending"])
-        # Evidence acceptance already marked this receipt pending; recovery
-        # selects only pending receipts. A complete round must retain that
-        # marker until finalize_success, without writing True a second time.
-        if state is not BulkOutcomeState.COMPLETE:
-            self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=False)
+        self.evidence_store.consume(attempt, state)
         return state
 
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
@@ -460,7 +567,7 @@ class DurableBulkExternalOperation[
                     # stale claim; the committed receipt remains owed to recovery.
                     return BulkStep.STOP
                 attempt = EffectAttempt.objects.select_for_update().get(pk=last.pk)
-                result = self.evidence_store.read(attempt)
+                result = self.evidence_store.read_locked(attempt)
                 state = finalize_under_fence(current, lambda row: self._consume_evidence(row, attempt, result))
             # Finished batches return to core completion, which reacquires the
             # work lock and reads current progress. No next round needs this
@@ -493,8 +600,7 @@ class DurableBulkExternalOperation[
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         if batch_state(work.bulk_keys, self._progress(work)) is not BulkOutcomeState.COMPLETE:
             raise ValueError("bulk work cannot complete with unfinished members")
-        EffectAttempt.objects.filter(pk=result.pk).update(repair_pending=False)
-        self.receipt_model.objects.filter(attempt=result).update(settlement_pending=False)
+        self.evidence_store.finish(result)
         self._wake_dependents(work)
 
     def _unconsumed_rejections(self, work: WorkT) -> list[EffectAttempt]:
@@ -569,7 +675,7 @@ class DurableBulkExternalOperation[
         attempt = self.possible_effect_attempt(work)
         if attempt is None:
             return 0
-        members = tuple(self.receipt_model.objects.get(attempt=attempt).members)
+        members = self.evidence_store.members(attempt)
         result = self.observe_batch(work, attempt, members)
         if result is None:
             return 0

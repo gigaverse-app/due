@@ -189,7 +189,7 @@ Choose by whether the provider call is safe to repeat:
 
 | Provider call | Capability | Work model | Uncertain call |
 | --- | --- | --- | --- |
-| Not safe to repeat (sending email) | `DurableBulkExternalOperation` | `BulkExternalOperationWork` plus a `StoredBulkEffectEvidence` receipt model | Blocks further calls until evidence resolves it |
+| Not safe to repeat (sending email) | `DurableBulkExternalOperation` | `BulkExternalOperationWork`, with inline or domain-owned receipts | Blocks further calls until evidence resolves it |
 | Idempotent (adding chat members, upserting users) | `DurableBulkEffect` | `BulkEffectWork` | Raise; the core retry policy resends members without a verdict |
 
 Both take a typed `result_type`, immutable `input_fields` including `bulk_keys`,
@@ -245,6 +245,50 @@ Only definite `RETRYABLE` members may retry; any `UNKNOWN` member blocks another
 call until exact-attempt evidence resolves it. Duplicate, foreign and
 contradictory receipts are rejected. Partial receipts merge monotonically in
 the canonical store and use the same settlement path as a live response.
+
+#### Choose receipt storage
+
+Declare `receipt_model = None` to store captured membership and typed results
+on the existing `EffectAttempt` row. This avoids a companion receipt INSERT,
+uses the freshly locked attempt for evidence reads, and saves evidence and its
+APPLIED verdict together. Work progress and final completion retain their
+existing transaction boundaries. This option works with integer and UUID work
+keys; it creates no additional work table.
+
+Existing declarations with a concrete `StoredBulkEffectEvidence` subclass
+retain their current storage and model hooks. Keep a domain-owned receipt when
+it needs custom columns, relations, independent permissions, or model-level
+deletion protection. Inline receipts share the attempt's storage, permissions
+and deletion lifecycle. Direct ORM/SQL deletion of an attempt deletes its inline
+evidence; there is no separate PROTECT relation. Normal provider-operation
+retention remains disabled (`retention=None`), and Due's generic attempt
+compactor also excludes inline receipts.
+
+An inline receipt has `members`, `result`, and optionally `diagnostics` keys.
+Use the capability's `record_receipt_diagnostics(attempt_id, json_value)` for
+opaque provider metadata. It preserves concurrently accepted semantic evidence
+and does not grant replay permission. It is available only with inline storage;
+custom receipt models keep their own metadata API. Diagnostics are last-write-wins
+and are not used as evidence unless the adopter separately validates a typed
+result through `record_applied_effect_evidence`.
+
+Apply Due's schema migrations before deploying inline writers. The added fields
+allow old writers to continue; existing receipts are not automatically moved.
+To switch a running capability, quiesce its workers and receipt consumers, copy
+every retained receipt (including exact membership, results, pending marker and
+needed metadata) to its attempt, verify the copy, and switch the declaration
+before resuming. Mixed writers for the same capability are unsupported. To
+roll back, quiesce again and copy all new evidence back before restoring the old
+declaration. The schema rollback refuses to drop inline columns while any
+inline receipt remains; it does not erase evidence to make rollback succeed.
+
+The sparse `effect_attempt_receipt_ix` selects attempts whose inline receipt
+still needs settlement. A work row's ready index cannot find late evidence for
+an already terminal work row, and the attempt repair index represents a different
+debt: unresolved outcomes may need observation without having any new receipt.
+The new index is built concurrently; allow temporary disk and I/O capacity.
+Co-location makes the attempt row wider and serializes metadata writes with
+evidence writers. Measure those costs with realistic receipt sizes before adoption.
 
 Extra hooks for this capability:
 
