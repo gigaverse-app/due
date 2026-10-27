@@ -127,9 +127,9 @@ maintain a second copy of that logic here.
 
 ## Current dependency release prerequisite
 
-The Due 0.7 conformance code requires pytest-obligation 0.14.0 or later.
-Development CI uses the reviewed Git source through `tool.uv.sources`; wheel
-metadata contains `pytest-obligation>=0.14.0,<1`, with no direct Git dependency.
-pytest-obligation 0.14.0 is published. The release build still verifies that the
-wheel's testing extra resolves entirely from published packages before publishing.
+The Due 0.11 conformance code requires pytest-obligation 0.24.0 or later for its
+shared regression, expiry and index controls. Development and release CI resolve
+the testing extra entirely from published packages, with no Git source override.
+Publish obligation 0.24.0 before releasing this Due version. Both wheel checks
+import the installed conformance modules and verify dependency compatibility.
 A runtime-only install does not need pytest-obligation.
