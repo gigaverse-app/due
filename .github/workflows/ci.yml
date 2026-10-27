@@ -203,6 +203,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
+        env:
+          # Share the installation cache, but report each matrix observation.
+          MEASUREMENT_JOB: Execute tests (${{ matrix.django }})
         with:
           python-version: '3.14'
           sync-args: --all-packages
