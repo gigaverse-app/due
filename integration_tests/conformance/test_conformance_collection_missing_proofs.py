@@ -74,6 +74,27 @@ REMOVED_ROOM_PROOFS = {
 }
 
 
+@pytest.mark.no_db
+def test_declared_sensitivity_control_cannot_disappear_from_collection(child: ChildSession) -> None:
+    child.edit(
+        "test_effects.py",
+        "from due.django.conformance.suite import EffectExamples, effect_contract_suite",
+        "from due.django.conformance.suite import EffectExamples, effect_contract_suite\n"
+        "from due.django.conformance.regressions import EffectRegression",
+    )
+    child.edit(
+        "test_effects.py",
+        "examples = EffectExamples(",
+        "examples = EffectExamples(regressions=(EffectRegression.LOST_PUBLICATION,),",
+    )
+    baseline = child.run("--collect-only", "-q", "test_effects.py::TestRoom").result
+    assert baseline.ret == pytest.ExitCode.OK
+    child.append("test_effects.py", "\ndel TestRoom.test_contract_detects_regression\n")
+    broken = child.run("--collect-only", "-q", "test_effects.py::TestRoom").result
+    assert broken.ret != pytest.ExitCode.OK
+    assert "test_contract_detects_regression[disable-lost-publication-recovery]" in lost_proofs(broken, "TestRoom")
+
+
 @pytest.fixture(scope="module")
 def room_without_proofs(tmp_path_factory: pytest.TempPathFactory) -> ChildRun:
     child = ChildSession(tmp_path_factory.mktemp("room-without-proofs"))
