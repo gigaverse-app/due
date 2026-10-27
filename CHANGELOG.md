@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.11.0](https://github.com/gigaverse-app/due/compare/v0.10.0...v0.11.0) (2026-10-27)
+
+
+### Features
+
+* **api:** simplify setup and add capability tutorials ([#120](https://github.com/gigaverse-app/due/issues/120)) ([7a20aa4](https://github.com/gigaverse-app/due/commit/7a20aa41924c938e56ea9b812aa15d6ba4d9f510))
+* **bulk:** share fixed-cohort delivery and legacy retry import ([0215542](https://github.com/gigaverse-app/due/commit/0215542d9a204a56ea041df1f9d311c7af5d02f7))
+* **conformance:** add reusable regression sensitivity controls ([075bd94](https://github.com/gigaverse-app/due/commit/075bd94301992741da09884f3b060087071221b0))
+* **identity:** support native UUID work keys alongside integers ([#131](https://github.com/gigaverse-app/due/issues/131)) ([7d2f9bd](https://github.com/gigaverse-app/due/commit/7d2f9bd2af206d2a8b8f779c012a209a64ff4527))
+* **recovery:** preserve failure budgets during provider waits ([ab879d1](https://github.com/gigaverse-app/due/commit/ab879d12cd1255c493e6acb39cf5a075e0392127))
+* **retry:** share provider wait scheduling and conformance ([#124](https://github.com/gigaverse-app/due/issues/124)) ([24a35b9](https://github.com/gigaverse-app/due/commit/24a35b979b1a81e6b0db3140e9eca0e583d25e18))
+* **testing:** celery_worker_contract, every Celery failure through a real worker recovered by Due ([#127](https://github.com/gigaverse-app/due/issues/127)) ([6d7de62](https://github.com/gigaverse-app/due/commit/6d7de62f304d1327e31565470dac8b3142467770))
+* **work:** let business rows own their durable lifecycle ([c2fcdc5](https://github.com/gigaverse-app/due/commit/c2fcdc5dde79da67e1711305ec352c51a7d82c95))
+
+
+### Bug fixes
+
+* **api:** expose both work key types on registered nudges ([92abfd3](https://github.com/gigaverse-app/due/commit/92abfd3804cfa360fe73ef2dbff7dccbd600d50a))
+* **conformance:** verify provider waits after observed rejection recovery ([b00cb05](https://github.com/gigaverse-app/due/commit/b00cb05a53d6fdf2e6d09c80d91c052cab4f31c6))
+* **evidence:** check the provider lease after acquiring its lock ([#130](https://github.com/gigaverse-app/due/issues/130)) ([2734bca](https://github.com/gigaverse-app/due/commit/2734bcaf2dac2c6082ae69a5a710f924873d93a2))
+* **testing:** separate lazy facade typing from runtime dependencies ([76f9fc3](https://github.com/gigaverse-app/due/commit/76f9fc3d3b2a870bc2ee212cbca3acf111fba14b))
+
+
+### Performance
+
+* **bulk:** load captured membership in one query ([ce661d4](https://github.com/gigaverse-app/due/commit/ce661d4bf54d53b2f89b0e9774130e74627315b3))
+* **bulk:** persist product fields with member progress ([5972b55](https://github.com/gigaverse-app/due/commit/5972b55e483af8891961ad7a4b0169b97f616ad7))
+* **bulk:** retain the pending receipt marker through progress ([772fe4b](https://github.com/gigaverse-app/due/commit/772fe4b0a440ad4d0a477e19c4b7f15e98f91a8c))
+* **bulk:** skip the work reload before completion ([100d861](https://github.com/gigaverse-app/due/commit/100d8616a8473c43ecadbf6dcdf3bdeb4bef882a))
+* **bulk:** skip unchanged attempt repair writes ([9258f37](https://github.com/gigaverse-app/due/commit/9258f37dc0538ddfad45c8f46f7dd0349e550494))
+* **evidence:** exclude UUID rows from integer attempt indexes ([#133](https://github.com/gigaverse-app/due/issues/133)) ([27433c3](https://github.com/gigaverse-app/due/commit/27433c3a958f41c6d0f414cc10d944be46f6d238))
+* **evidence:** generate ordered UUIDv7 attempt identities ([d40ab86](https://github.com/gigaverse-app/due/commit/d40ab86b061e7e61a35f283df849cb33d3a87faf))
+* **evidence:** persist rejection and outcome in one write ([#147](https://github.com/gigaverse-app/due/issues/147)) ([fec72d1](https://github.com/gigaverse-app/due/commit/fec72d1c1557dfac21c01fb3c03fbb2ac057da0b))
+* **evidence:** reuse locked attempts during receipt acceptance ([1685499](https://github.com/gigaverse-app/due/commit/1685499c975658983da4abbeba6464f7439add63))
+* **evidence:** reuse the canonical receipt during ingestion ([#128](https://github.com/gigaverse-app/due/issues/128)) ([81f0ff2](https://github.com/gigaverse-app/due/commit/81f0ff250b1b23d6e68affd5cf00a97909b6f40f))
+* **runtime:** renew leases with the update statement clock ([f8acbc8](https://github.com/gigaverse-app/due/commit/f8acbc8e7cfb1da5d5ada05b3b6af7983242ffd6))
+
 ## [0.10.0](https://github.com/gigaverse-app/due/compare/v0.9.0...v0.10.0) (2026-10-24)
 
 

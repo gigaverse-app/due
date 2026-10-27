@@ -1,5 +1,20 @@
 # Prove your application's work tables
 
+Additional shared proofs belong in `EffectExamples.extras`, as `ExtraProof`
+declarations. They use the same generated suite, fixtures, reporting, and required
+collection as Due's built-in histories. For example, a Django selection with
+dependency subqueries can declare `IndexedSelectionDependencies` from
+`pytest_obligation.integrations.django.selection` with the production query
+callable and dependency table names. Profile sensitivity checks can declare
+`RegressionControl` from `pytest_obligation.regression_controls` with the existing
+harness proof, production binding, scoped fault, and expected diagnostic.
+
+Every sensitivity invocation needs fresh state, including database identities.
+Keep context-managed resources open through the proof. Setup and cleanup failures
+raise `BindingScopeError`; they cannot pass as behavioral regression detection.
+These controls require `pytest-obligation>=0.24.0`. Development and release CI
+install the testing extra from published packages and verify the installed wheel.
+
 Common application bindings and fault controls are available from
 `due.django.conformance`: `EffectExamples`, `effect_contract_suite`,
 `work_table_host`, `ProviderSeam`, `seam_examples`, `WorkTableDelivery`,
@@ -331,6 +346,47 @@ replay proof names; deleting a replay binding cannot shrink the required evidenc
 
 ## Prove the proof, and use exploration where it applies
 
+Declare opt-in controls in the same `EffectExamples` passed to
+`effect_contract_suite`. The suite owns their generation, fixtures, production
+registration checks and required collection/report evidence:
+
+```python
+from dataclasses import replace
+
+from due.django.conformance.regressions import EffectRegression
+from due.django.conformance.suite import effect_contract_suite
+
+
+@effect_contract_suite(publish_document, examples=replace(EXAMPLES, regressions=(EffectRegression.LOST_PUBLICATION,)))
+class TestPublication:
+    pass
+```
+
+Every check uses a fresh example scope for the passing baseline, the deliberately
+broken run, and the restored baseline. Existing observers, expectations and
+generated assertions remain unchanged. Missing declared control cases fail
+collection just like other generated proofs. Adopters do not need handwritten
+proof calls or policy exceptions. The standalone assertion remains available
+for library self-tests and custom harness implementations.
+
+| Control | Existing binding / proof | Deliberate regression |
+| --- | --- | --- |
+| `LOST_PUBLICATION` | `delivery`, registered recovery and its product outcome | Omit the selected capability's recovery |
+| `UNCERTAINTY_SETTLEMENT` | Named `uncertainties` example and no-resend proof | Omit its product uncertainty finalizer |
+| `DUPLICATE_EFFECT` | `receipt_repair`, live receipt proof and independent provider-call count | Invoke its external operation twice |
+
+The latter two require `DurableExternalOperation`. The uncertainty control
+generates a case for every named uncertainty scenario. Mutations delegate normally for other
+instances of the same capability class and are restored on failure. Use isolated
+test processes; these process-local patches are not safe beside live workers.
+
+These are specific sensitivity checks. The uncertainty control establishes that
+the product update is observed, not that every possible resend defect is covered.
+The duplicate control establishes visibility of repeated external entries, not
+physical exactly-once delivery for every provider. A broken baseline, missing
+oracle, unexpected exception or failed cleanup is an error, never evidence of
+detection. Keep the normal generated suite and its enrollment/report checks.
+
 A positive case proves the bound workflow can finish. A negative control changes
 one production seam and must make the same generated assertion fail:
 
@@ -595,9 +651,8 @@ applications do not copy the timing assertions. The proof checks one second
 before the declared wait, so choose an example longer than one second. An absent
 wait preserves the ordinary rejection proof.
 
-This requires pytest-obligation 0.22.0 containing the provider-wait binding
-(PR #178). Contributor CI pins that reviewed source; publish that dependency
-before releasing this Due testing extra. Native application
+This uses the shared provider-wait binding. The testing extra now requires
+pytest-obligation 0.24.0 for the full control set. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.

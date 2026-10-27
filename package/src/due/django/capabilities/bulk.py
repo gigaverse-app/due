@@ -9,6 +9,7 @@ recovery remain core-owned. Verdict semantics and reducers live in ``due.bulk``.
 """
 
 from abc import abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
@@ -38,7 +39,7 @@ from due.django.capabilities.operations import DurableExternalOperation, Externa
 from due.django.evidence.attempts import attempts_for
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore, StoredAppliedEffectEvidence
 from due.django.identities import WorkId
-from due.django.models import DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
+from due.django.models import DurableWork, DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
 from due.django.runtime.coordination import (
     ContinueAfter,
     WorkExecutionContext,
@@ -159,7 +160,7 @@ class BulkRetryNeeded(RuntimeError):
 
 
 @dataclass(frozen=True)
-class _BatchProgress[WorkT: BulkWork, ResultT: BaseModel]:
+class _BatchProgress[WorkT: BulkEffectWork | BulkExternalOperationWork, ResultT: BaseModel]:
     """Declaration checks and progress reads shared by both bulk capabilities."""
 
     result_type: type[ResultT] = field(kw_only=True)
@@ -178,11 +179,41 @@ class _BatchProgress[WorkT: BulkWork, ResultT: BaseModel]:
     def pending_keys(self, work: WorkT) -> tuple[str, ...]:
         return pending_members(work.bulk_keys, self._progress(work))
 
-    def _record_progress(self, work: WorkT, result: BulkResult[ResultT]) -> BulkOutcomeState:
+    def progress_updates(self, work: WorkT, progress: BulkResult[ResultT]) -> Mapping[str, object]:
+        """Project accumulated progress onto application fields on this work row.
+
+        Return values only; do not save or perform I/O. Due persists them with
+        bulk_progress under the same fence, before finalize_batch. Only concrete
+        non-relation fields outside declared inputs and coordination are allowed.
+        The default leaves existing adopters' finalizers unchanged.
+        """
+        return {}
+
+    def _record_progress(
+        self, work: WorkT, result: BulkResult[ResultT], *, input_fields: tuple[str, ...] | None
+    ) -> BulkOutcomeState:
         """Commit one call's verdicts to the cohort; the caller holds the fenced transaction."""
+        require_fenced_settlement(work)
         current = advance_progress(work.bulk_keys, self._progress(work), result)
         work.bulk_progress = self.progress_adapter.dump_python(current, mode="json")["items"]
-        work.save(update_fields=["bulk_progress", "updated_at"])
+        updates = dict(self.progress_updates(work, current))
+        if updates:
+            assert input_fields is not None, "bulk input_fields are checked at capability construction"
+            protected = (
+                {field.name for field in DurableWork._meta.concrete_fields} | set(input_fields) | {"bulk_progress"}
+            )
+            allowed = {
+                field.name
+                for field in work._meta.concrete_fields
+                if not field.primary_key and not field.is_relation and field.name not in protected
+            }
+            if invalid := updates.keys() - allowed:
+                raise ValueError(f"progress_updates must name application progress fields: {sorted(invalid)}")
+            for name, value in updates.items():
+                setattr(work, name, value)
+        # One write owns both canonical progress and its application projection.
+        # A later finalizer failure still rolls back this entire transaction.
+        work.save(update_fields=["bulk_progress", "updated_at", *updates])
         return batch_state(work.bulk_keys, current)
 
     @staticmethod
@@ -361,7 +392,7 @@ class DurableBulkExternalOperation[
 
     def _consume_evidence(self, work: WorkT, attempt: EffectAttempt, result: BulkResult[ResultT]) -> BulkOutcomeState:
         require_fenced_settlement(work)
-        state = self._record_progress(work, result)
+        state = self._record_progress(work, result, input_fields=self.input_fields)
         self._finalize_applied(work, result)
         # INVARIANT: replay permission and member progress commit together.
         # An uncertain member retains the entire exact attempt for later receipts.
@@ -374,7 +405,11 @@ class DurableBulkExternalOperation[
         if attempt.repair_pending != repair_pending:
             attempt.repair_pending = repair_pending
             attempt.save(update_fields=["repair_pending"])
-        self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=state is BulkOutcomeState.COMPLETE)
+        # Evidence acceptance already marked this receipt pending; recovery
+        # selects only pending receipts. A complete round must retain that
+        # marker until finalize_success, without writing True a second time.
+        if state is not BulkOutcomeState.COMPLETE:
+            self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=False)
         return state
 
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
@@ -667,6 +702,6 @@ class DurableBulkEffect[
         return self._progress(work)
 
     def _commit_round(self, work: WorkT, result: BulkResult[ResultT]) -> BulkOutcomeState:
-        state = self._record_progress(work, result)
+        state = self._record_progress(work, result, input_fields=self.input_fields)
         self.finalize_batch(work, result)
         return state
