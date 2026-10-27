@@ -47,7 +47,8 @@ class EffectAttempt(models.Model):
     Provider receipts remain in domain-owned models, linked by this UUID.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Append-friendly identity; never use its timestamp as provider or claim authority.
+    id = models.UUIDField(primary_key=True, default=uuid.uuid7, editable=False)
     work_model = models.CharField(max_length=128)
     work_id = models.BigIntegerField(null=True)
     work_uuid = models.UUIDField(null=True)
@@ -285,6 +286,9 @@ class DurableWork(models.Model):
     """
 
     work_owner_field: ClassVar[str | None] = None
+    # Business rows can retain states owned by an earlier lifecycle during adoption.
+    # Conformance inventories every such state with its declared owner/reason.
+    work_external_states: ClassVar[dict[str, str]] = {}
     # Admission and settlement must use the same owner visibility and lock order.
     work_owner_manager_name: ClassVar[str] = "objects"
     requires_effect_evidence: ClassVar[bool] = False

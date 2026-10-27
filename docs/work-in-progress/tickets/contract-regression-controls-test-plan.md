@@ -15,7 +15,7 @@
 - The control is declared through `EffectExamples.regressions`; the suite owns fixtures, registration, case generation and required collection/report evidence. No application proof-call exception is needed.
 - The document suite, enrollment guards and missing-proof collection checks pass together: 217 tests. This includes the existing test-authored production-transition rejection and a new control that deletes the generated sensitivity case and requires collection to fail. The profile report is generated with `--due-work-profile-report`.
 - Ruff, formatting and Pyrefly pass. The full package suite passes: 1,479 tests with real PostgreSQL and an isolated local Redis instance. The first attempt lacked the real-worker tests' Redis endpoint; supplying the required service resolved all six failures.
-- The initial dependency source was merged obligation #186. The review follow-up pins obligation #187 at `d107f089e62c2bb840f894153d62622ce93b6b45`, raises the published testing floor to 0.23.0, and keeps the release gate resolving only published packages.
+- The initial integration used obligation candidates #186 and #187. The release follow-up requires published obligation 0.24.0 and removes the Git override. Version 0.23.0 was published before #187 merged and does not contain the required shared controls. PR and release CI share the same PyPI-only installed-wheel check.
 
 ## Review follow-up
 

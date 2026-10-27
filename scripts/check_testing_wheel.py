@@ -23,8 +23,8 @@ import due.django.conformance as conformance  # noqa: E402
 
 requirements = [Requirement(value) for value in importlib.metadata.requires("django-due") or []]
 obligation = next(item for item in requirements if item.name == "pytest-obligation")
-assert not obligation.specifier.contains("0.22.0"), "testing extra permits a release without regression controls"
-assert obligation.specifier.contains("0.23.0")
+assert not obligation.specifier.contains("0.23.0"), "testing extra permits a release without shared control APIs"
+assert obligation.specifier.contains("0.24.0")
 assert conformance.EffectExamples.__dataclass_fields__["extras"].default == ()
 assert callable(ExtraProof) and callable(RegressionControl)
 assert conformance.__file__ is not None

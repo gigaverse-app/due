@@ -18,7 +18,7 @@ from due.django.evidence.attempts import (
     attempts_for_model,
     import_unknown_effect_attempt,
     initial_import_work,
-    observe_effect_outcome,
+    observe_locked_effect_outcome,
     record_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
@@ -224,19 +224,14 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         """Persist exact negative evidence and its decision atomically, even after fence loss."""
         require_autocommit()
         decision = self.rejection_type.model_validate(rejection.model_dump(mode="json"))
-        payload = decision.model_dump(mode="json")
         with transaction.atomic():
             locked = self._lock_evidence_attempt(attempt)
             if locked.outcome == EffectAttemptOutcome.APPLIED:
                 raise ValueError("rejection contradicts applied evidence")
             self.validate_rejection_evidence(locked, decision)
-            if locked.rejection is not None and locked.rejection != payload:
-                raise ValueError("rejection contradicts earlier evidence for this attempt")
             # Persist the decision in the SAME transaction as NOT_APPLIED. A
             # crash can leave neither or both, never replay permission without policy.
-            observe_effect_outcome(locked, EffectAttemptOutcome.NOT_APPLIED)
-            locked.rejection = payload
-            locked.save(update_fields=["rejection"])
+            observe_locked_effect_outcome(locked, EffectAttemptOutcome.NOT_APPLIED, rejection=decision)
         return decision
 
     def record_applied_effect_evidence(self, attempt: EffectAttempt, result: ResultT) -> None:
@@ -265,7 +260,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             else:
                 finished = complete(self.evidence_store.record_and_read(locked, result))
             if finished:
-                observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
+                observe_locked_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
     def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
         """

@@ -33,6 +33,7 @@ with isolate_apps("tests"):
     class BatchWork(BulkExternalOperationWork):
         work_owner_field: ClassVar[str] = "owner"
         owner = models.OneToOneField(PrimitiveOwner, on_delete=models.SET_NULL, null=True)
+        published_keys = models.JSONField(default=list, blank=True)
 
         class Meta:
             app_label = "tests"
@@ -82,6 +83,9 @@ class BatchOperation(DurableBulkExternalOperation[PrimitiveOwner, BatchWork, Ite
         if self.lose_reply:
             raise TimeoutError("provider accepted the batch but its reply was lost")
         return response
+
+    def progress_updates(self, work: BatchWork, progress: BulkResult[ItemResult]) -> dict[str, object]:
+        return {"published_keys": [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]}
 
     def finalize_batch(self, work: BatchWork, result: BulkResult[ItemResult]) -> None:
         PrimitiveOwner.objects.filter(pk=work.owner_id).update(

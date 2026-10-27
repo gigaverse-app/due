@@ -12,9 +12,8 @@ harness proof, production binding, scoped fault, and expected diagnostic.
 Every sensitivity invocation needs fresh state, including database identities.
 Keep context-managed resources open through the proof. Setup and cleanup failures
 raise `BindingScopeError`; they cannot pass as behavioral regression detection.
-These controls require `pytest-obligation>=0.23.0`. Development uses the reviewed
-source pin until that release is available; release CI requires the testing extra
-to resolve from published packages before publishing Due.
+These controls require `pytest-obligation>=0.24.0`. Development and release CI
+install the testing extra from published packages and verify the installed wheel.
 
 Common application bindings and fault controls are available from
 `due.django.conformance`: `EffectExamples`, `effect_contract_suite`,
@@ -653,8 +652,7 @@ before the declared wait, so choose an example longer than one second. An absent
 wait preserves the ordinary rejection proof.
 
 This uses the shared provider-wait binding. The testing extra now requires
-pytest-obligation 0.23.0 for the full control set; contributor CI pins the
-reviewed source until publication. Native application
+pytest-obligation 0.24.0 for the full control set. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.

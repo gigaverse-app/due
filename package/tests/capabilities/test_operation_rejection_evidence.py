@@ -3,11 +3,12 @@
 from uuid import uuid4
 
 import pytest
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
+from django.test.utils import CaptureQueriesContext
 from pydantic import ValidationError
 
 from due.django.capabilities import operations
-from due.django.evidence.attempts import attempts_for, observe_effect_outcome
+from due.django.evidence.attempts import attempts_for, observe_effect_outcome, record_effect_attempt
 from due.django.models import DurableWorkState, EffectAttempt, EffectAttemptOutcome
 from due.django.runtime import coordination
 from due.django.runtime.coordination import WorkFailureDisposition, claim_work
@@ -33,7 +34,7 @@ def test_rejection_is_atomic_with_evidence(publication, monkeypatch):
     monkeypatch.setattr(Publication, "failure", EffectNotAppliedError("definitely rejected"))
     # Fault inside the evidence transaction: neither half may commit alone.
     with monkeypatch.context() as fault:
-        fault.setattr(operations, "observe_effect_outcome", die_after(operations.observe_effect_outcome))
+        fault.setattr(operations, "observe_locked_effect_outcome", die_after(operations.observe_locked_effect_outcome))
         with pytest.raises(WorkerDied):
             publication.attempt_execution(work.pk)
     attempt = attempts_for(work).get()
@@ -53,7 +54,11 @@ def test_identical_rejection_is_idempotent_and_conflicts_are_refused(publication
     with pytest.raises(EffectNotAppliedError):
         publication.attempt_execution(work.pk)
     attempt = attempts_for(work).get()
-    assert publication.record_rejection(attempt, decision) == decision
+    observed_at = attempt.observed_at
+    with CaptureQueriesContext(connection) as queries:
+        assert publication.record_rejection(attempt, decision) == decision
+    assert not [query for query in queries if query["sql"].startswith("UPDATE")]
+    assert attempts_for(work).get().observed_at == observed_at
     with pytest.raises(ValueError, match="contradicts"):
         publication.record_rejection(attempt, decision.model_copy(update={"message": "different"}))
     with pytest.raises(ValueError, match="contradicts"):
@@ -61,6 +66,23 @@ def test_identical_rejection_is_idempotent_and_conflicts_are_refused(publication
     work.refresh_from_db()
     assert work.state == DurableWorkState.TERMINAL_FAILED
     assert attempts_for(work).get().rejection == decision.model_dump(mode="json")
+
+
+def test_typed_rejection_enriches_legacy_nonapplication_without_redating_it(publication: Publication) -> None:
+    work = record(publication)
+    claim = claim_work(type(work), work.pk, lease_duration=publication.policy.lease_duration)
+    assert claim is not None
+    attempt = record_effect_attempt(claim)
+    observe_effect_outcome(attempt, EffectAttemptOutcome.NOT_APPLIED)
+    attempt.refresh_from_db()
+    observed_at = attempt.observed_at
+    decision = EffectRejection(message="confirmed refusal", disposition=WorkFailureDisposition.TERMINAL)
+    assert publication.record_rejection(attempt, decision) == decision
+    attempt.refresh_from_db()
+    assert attempt.rejection == decision.model_dump(mode="json")
+    assert attempt.observed_at == observed_at
+    assert attempt.outcome == EffectAttemptOutcome.NOT_APPLIED
+    assert not attempt.repair_pending
 
 
 @pytest.mark.parametrize("writer", ["rejection", "receipt"])

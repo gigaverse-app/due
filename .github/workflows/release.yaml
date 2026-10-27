@@ -158,13 +158,7 @@ jobs:
           uv venv /tmp/wheel && uv pip install --python /tmp/wheel dist/*.whl
           /tmp/wheel/bin/python -I scripts/check_wheel.py
       - name: Require the testing extra to resolve from published packages
-        # Development CI uses the reviewed Git source. A release must also be
-        # installable by ordinary PyPI consumers, without uv.sources or Git.
-        run: |
-          wheel=(dist/*.whl)
-          uv pip install --no-sources --default-index https://pypi.org/simple --python /tmp/wheel "${wheel[0]}[testing]"
-          uv pip check --python /tmp/wheel
-          /tmp/wheel/bin/python -I scripts/check_testing_wheel.py
+        run: uv run --no-project scripts/check_published_testing_wheel.py
       - uses: actions/upload-artifact@v7
         with:
           name: dist

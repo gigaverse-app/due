@@ -175,6 +175,7 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
     def lifecycle(self) -> Lifecycle:
         policy = self.capability.policy
         excluded = {
+            **self.capability.model.work_external_states,
             DurableWorkState.QUEUED.value: (
                 "a lost reservation returns to READY in recover() before selection; owned by the generated "
                 "test_registered_producer_lost_notification and test_lost_delivery_spends_no_retry_budget"

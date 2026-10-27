@@ -15,6 +15,40 @@ different timing or retention, and optionally `owner=` for an explicit checked
 binding. Provider operations that require retained history still need
 `DurableWorkPolicy(retention=None)`.
 
+## Let a business row own the work
+
+When a business row already represents exactly one durable obligation, it can
+inherit the appropriate work base and bind with `MyEffect.for_work(work=MyRow)`.
+It needs no `work_owner_field`, companion row, or missing-companion discovery.
+Integer keys remain the default; a UUID primary key works with the same attempts,
+worker transport, indexed recovery, and evidence rules.
+
+The producer inserts the business fields and coordination fields in the same
+transaction, including through `bulk_create`. Use Due's initial READY state and
+valid captured inputs. Register the capability and its recovery schedule before
+producing rows. A lost post-commit nudge is recovered from that row; rolling back
+the business transaction rolls back the work too. `capability.atomic(pk)` locks
+the existing row once for subsequent input changes. It cannot recover business
+intent that the producer never committed.
+
+Choose this layout when business retention and obligation retention agree.
+Deleting the row deletes the intent and can break recovery of unresolved effects.
+Provider operations still require retained work and evidence. Migrating a live
+companion table must preserve attempt correlation, receipts, pending progress,
+and fencing; changing the Python binding alone is insufficient.
+
+If another engine shares this table during a migration, declare each of its
+state choices in `work_external_states`, with the recovery owner and proof for
+that state. These declarations appear as exclusions in the generated lifecycle
+report and cannot exclude Due states. They do not migrate rows or transfer
+ownership. Each engine's selector and generated contract must cover its own
+states without claiming the other's rows.
+
+The [UUID business-row example](../tests/harness/self_work.py) and its
+[generated failure contract](../tests/bulk/test_self_work_contract.py) exercise
+lost notifications, stale workers, provider uncertainty, and late receipts using
+the ordinary Due lifecycle.
+
 ## Pick the external contract first
 
 | Contract | Public module and type | Executable example |
@@ -169,6 +203,7 @@ through the normal owned-work transaction or discovery.
 | `before_batch(work)` | Recheck product eligibility before each call; return `ContinueAfter` to pause without spending the failure budget |
 | `prepare_batch(work, batch)` | Build the request for the captured members with no provider I/O. An exception is a definite nonapplication, never an uncertain call |
 | `send_batch(work, batch, payload)` | Make exactly one provider call and return a verdict for every member |
+| `progress_updates(work, progress)` | Optionally return application fields to persist on the work row in the same UPDATE as accumulated member progress |
 | `finalize_batch(work, result)` | Publish one call's member consequences under the core fence |
 | `on_batch_rejected(work, rejection)` | After a retryable whole-call `EffectNotAppliedError`: `RETRY_LATER` (default, spends one retry), `RETRY_INLINE` (paced resend within this claim), or `ContinueAfter` (for example until a rate-limit reset, no budget spent) |
 | Ordinary finalizers | Publish uncertainty, exhaustion and permanent failure consequences |
@@ -176,6 +211,28 @@ through the normal owned-work transaction or discovery.
 A provider that definitely refuses the whole call raises `EffectNotAppliedError`
 from `send_batch`; it never returns every member as `RETRYABLE`, so attempt
 records stay truthful. A terminal rejection fails the work.
+
+Use `progress_updates` when the work row also stores product fields derived from
+member outcomes. It receives the validated, accumulated progress across all calls,
+including earlier completed members. Return a mapping of concrete, non-relation
+field names to values; those fields must be outside `input_fields` and Due's
+coordination fields. Do not save or perform I/O in this hook. Due writes the
+mapping and `bulk_progress` together under the current fence, then calls
+`finalize_batch` with the current call's canonical result. A constraint or later
+finalizer failure rolls back both. Live delivery and receipt recovery use the same
+hook; a stale claim cannot publish the projection. The default returns no extra
+fields, preserving existing finalizers.
+
+With an application `published_keys` JSON field on the work model:
+
+```python
+def progress_updates(self, work: BatchWork, progress: BulkResult[ItemResult]) -> dict[str, object]:
+    return {"published_keys": [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]}
+```
+
+Keep updates to other tables and other product consequences in `finalize_batch`.
+This hook coalesces a write on the existing row; it does not create another work
+table or change the receipt/settlement transaction boundaries.
 
 ### Calls that are not safe to repeat
 
@@ -365,3 +422,14 @@ The generated publication contract uses UUIDv7. Focused lifecycle, late-evidence
 deadline and real-worker tests run with UUIDv4, UUIDv7 and ULID-layout values. This proves
 the lifecycle does not depend on UUID version bits; it does not certify a
 third-party generator or promise a global generation order.
+
+
+### Attempt IDs
+
+Due generates new EffectAttempt primary keys with Python's UUIDv7 generator.
+Existing UUIDv4 attempts and their receipt foreign keys remain unchanged and
+readable by either version of the code. The migration changes the Python
+default only; it does not rewrite persisted IDs. Fencing tokens remain random
+UUIDv4 values. Evidence correlation still uses the exact attempt ID, claim and
+desired revision; UUID timestamp order never grants authority or resolves
+ambiguous effects. Attempt IDs now expose an approximate generation timestamp.
