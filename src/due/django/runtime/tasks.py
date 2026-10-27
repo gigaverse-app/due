@@ -11,6 +11,7 @@ from celery import Task, shared_task
 from django.db import close_old_connections
 
 from due.django.capabilities.authoring import DurableWorkCapability
+from due.django.identities import work_id_from_wire
 from due.django.runtime.limits import (
     EXECUTION_SOFT_TIME_LIMIT_SECONDS,
     EXECUTION_TIME_LIMIT_SECONDS,
@@ -60,8 +61,9 @@ def capability_for(name: str) -> DurableWorkCapability:
     time_limit=EXECUTION_TIME_LIMIT_SECONDS,
     soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS,
 )
-def run_durable_work_task(name: str, work_id: int, delivery_token: str) -> bool:
-    return capability_for(name).attempt_execution(work_id, UUID(delivery_token))
+def run_durable_work_task(name: str, work_id: int | str | UUID, delivery_token: str) -> bool:
+    capability = capability_for(name)
+    return capability.attempt_execution(work_id_from_wire(capability.model, work_id), UUID(delivery_token))
 
 
 @shared_task(base=DatabaseTask, name=RECOVERY_TASK, time_limit=60, soft_time_limit=50)
@@ -75,19 +77,21 @@ def recover_durable_work_task(name: str) -> int:
     time_limit=EXECUTION_TIME_LIMIT_SECONDS,
     soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS,
 )
-def observe_durable_work_task(name: str, work_id: int, delivery_token: str) -> bool:
+def observe_durable_work_task(name: str, work_id: int | str | UUID, delivery_token: str) -> bool:
     from due.django.capabilities.observed_operations import ObservedExternalOperation
 
     capability = capability_for(name)
     if not isinstance(capability, ObservedExternalOperation):
         raise TypeError(f"{name}: capability does not declare UNKNOWN observation")
-    return capability.attempt_observation(work_id, delivery_token)
+    return capability.attempt_observation(work_id_from_wire(capability.model, work_id), delivery_token)
 
 
 @shared_task(base=DatabaseTask, time_limit=60, soft_time_limit=50)
-def wake_scheduled_work_task(name: str, work_id: int, revision: int, available_at: str) -> None:
+def wake_scheduled_work_task(name: str, work_id: int | str | UUID, revision: int, available_at: str) -> None:
     capability = capability_for(name)
     # Keep the existing task name compatible with already queued scheduled hints.
     if capability.deadline_wakeup_horizon is None:
         raise TypeError(f"{name}: capability does not enable deadline wakeups")
-    capability.deliver_deadline_hint(work_id, revision, datetime.fromisoformat(available_at))
+    capability.deliver_deadline_hint(
+        work_id_from_wire(capability.model, work_id), revision, datetime.fromisoformat(available_at)
+    )

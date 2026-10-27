@@ -57,6 +57,7 @@ from .evidence.effect_evidence import (
     JsonAppliedEffectEvidenceStore,
     StoredAppliedEffectEvidence,
 )
+from .identities import WorkId
 from .integration import ApplicationHooks
 from .integration import configure as configure_application
 from .models import (
@@ -93,6 +94,7 @@ from .runtime.registry import DurableWorkRegistration, configure_durable_work, d
 from .runtime.transport import run_effect_coroutine
 
 __all__ = [
+    "WorkId",
     "ActionOutcome",
     "ApplicationHooks",
     "AppliedEffectEvidenceStore",

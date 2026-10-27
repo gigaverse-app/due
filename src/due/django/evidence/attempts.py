@@ -12,6 +12,7 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
+from due.django.identities import attempt_key_field
 from due.django.models import (
     ACTIVE_WORK_STATES,
     DurableWork,
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def attempts_for(work: DurableWork) -> QuerySet[EffectAttempt]:
     """Library transition/test seam; application policy uses unsettled_work()."""
-    return EffectAttempt.objects.filter(work_model=work._meta.label_lower, work_id=work.pk)
+    return EffectAttempt.objects.filter(work_model=work._meta.label_lower, **{attempt_key_field(type(work)): work.pk})
 
 
 def initial_import_work[WorkT: DurableWork](model: type[WorkT], work: WorkT) -> WorkT:
@@ -61,7 +62,7 @@ def import_unknown_effect_attempt[WorkT: DurableWork](
     current = initial_import_work(model, work)
     EffectAttempt.objects.create(
         work_model=model._meta.label_lower,
-        work_id=current.pk,
+        **{attempt_key_field(model): current.pk},
         claim_token=current.fencing_token,
         # Revision zero precedes the first admitted document: an unknown old
         # payload is NOT an identical write of that document. Existing repair
@@ -89,7 +90,9 @@ def unsettled_work[WorkT: DurableWork](work: QuerySet[WorkT], *, strict: bool = 
     unresolved = Q(repair_pending=True)
     if strict:
         unresolved |= Q(outcome=EffectAttemptOutcome.UNKNOWN)
-    pending = EffectAttempt.objects.filter(unresolved, work_model=work.model._meta.label_lower, work_id=OuterRef("pk"))
+    pending = EffectAttempt.objects.filter(
+        unresolved, work_model=work.model._meta.label_lower, **{attempt_key_field(work.model): OuterRef("pk")}
+    )
     return work.filter(Q(state__in=ACTIVE_WORK_STATES) | Q(Exists(pending)))
 
 
@@ -139,7 +142,7 @@ def record_effect_attempt[WorkT: DurableWork](
             raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
         attempt = EffectAttempt.objects.create(
             work_model=claim.model._meta.label_lower,
-            work_id=claim.work_id,
+            **{attempt_key_field(claim.model): claim.work_id},
             claim_token=claim.token,
             desired_revision=claim.desired_revision,
             started_at=database_now(),
@@ -181,7 +184,7 @@ def resolve_confirmed_attempts(model: type[DurableWork], *, batch_size: int) -> 
     and composition section for the distinction from pruning.
     """
     identical = model.objects.filter(
-        pk=OuterRef("work_id"),
+        pk=OuterRef(attempt_key_field(model)),
         state=DurableWorkState.SUCCEEDED,
         desired_revision=OuterRef("desired_revision"),
         applied_revision=OuterRef("desired_revision"),
@@ -217,7 +220,7 @@ def prune_resolved_attempts(
     """
     later = EffectAttempt.objects.filter(
         work_model=model._meta.label_lower,
-        work_id=OuterRef("work_id"),
+        **{attempt_key_field(model): OuterRef(attempt_key_field(model))},
         desired_revision=OuterRef("desired_revision"),
     ).filter(Q(started_at__gt=OuterRef("started_at")) | Q(started_at=OuterRef("started_at"), pk__gt=OuterRef("pk")))
     covered_before = later.filter(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False, observed_at__lt=before)
@@ -264,7 +267,7 @@ def expire_repair_window(model: type[DurableWork], *, window: timedelta | None, 
         logger.warning(
             "Durable repair window expired: effect=%s work_id=%s attempt_id=%s revision=%s",
             model._meta.label_lower,
-            attempt.work_id,
+            attempt.work_identity,
             attempt.pk,
             attempt.desired_revision,
         )

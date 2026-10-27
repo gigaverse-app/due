@@ -11,6 +11,7 @@ from django.db import models
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
+from due.django.identities import WorkId
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
 
@@ -22,10 +23,10 @@ logger = logging.getLogger(__name__)
 _executing: ContextVar[frozenset[tuple[str, str]]] = ContextVar("recovery_lease_executing", default=frozenset())
 
 
-def dispatch_recovery_page[RowT: models.Model, DispatchResultT](
+def dispatch_recovery_page[RowT: models.Model, DispatchResultT, KeyT: WorkId](
     due: QuerySet[RowT],
     *,
-    dispatch: Callable[[int], DispatchResultT],
+    dispatch: Callable[[KeyT], DispatchResultT],
     batch_size: int,
     observe_outstanding: Callable[[int], None] | None = None,
     recovery: RecoveryPass | None = None,
@@ -83,11 +84,11 @@ class RecoveryLease[RowT: models.Model]:
             Q(**{f"{self.claimed_at}__isnull": True}) | Q(**{f"{self.claimed_at}__lte": database_now() - self.duration})
         )
 
-    def recover(
+    def recover[KeyT: WorkId](
         self,
         due: QuerySet[RowT],
         *,
-        publish: Callable[[int, datetime], None],
+        publish: Callable[[KeyT, datetime], None],
         batch_size: int,
         observe_outstanding: Callable[[int], None] | None = None,
         recovery: RecoveryPass | None = None,
@@ -111,12 +112,12 @@ class RecoveryLease[RowT: models.Model]:
     def _key(self) -> tuple[str, str]:
         return (self.model._meta.label_lower, self.claimed_at)
 
-    def _reserve_and_publish(
+    def _reserve_and_publish[KeyT: WorkId](
         self,
         due: QuerySet[RowT],
-        identity: int,
+        identity: KeyT,
         *,
-        publish: Callable[[int, datetime], None],
+        publish: Callable[[KeyT, datetime], None],
         reserve_for: timedelta | None = None,
     ) -> bool:
         from due.django.runtime.coordination import database_now
@@ -135,8 +136,8 @@ class RecoveryLease[RowT: models.Model]:
         publish(identity, token)
         return True
 
-    def attempt_execution[ResultT](
-        self, identity: int, *, run: Callable[[int], ResultT], token: datetime | None = None
+    def attempt_execution[ResultT, KeyT: WorkId](
+        self, identity: KeyT, *, run: Callable[[KeyT], ResultT], token: datetime | None = None
     ) -> bool:
         from due.django.runtime.coordination import database_now, require_autocommit
 

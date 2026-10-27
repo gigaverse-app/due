@@ -12,6 +12,8 @@ from django.db import models
 from django.db.models import F
 from django.db.models.functions import Now
 
+from due.django.identities import WorkId, attempt_key_field
+
 
 class DurableWorkState(models.TextChoices):
     READY = "ready", "ready"
@@ -40,14 +42,15 @@ class EffectAttempt(models.Model):
     """
     Immutable crossing identity; evidence survives claim and owner deletion.
 
-    The model label and integer work identity deliberately are not a cascading
+    The model label and typed work identity deliberately are not a cascading
     relation: deleting a work row cannot destroy evidence about escaped I/O.
     Provider receipts remain in domain-owned models, linked by this UUID.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     work_model = models.CharField(max_length=128)
-    work_id = models.BigIntegerField()
+    work_id = models.BigIntegerField(null=True)
+    work_uuid = models.UUIDField(null=True)
     claim_token = models.UUIDField()
     desired_revision = models.PositiveIntegerField()
     outcome = models.CharField(
@@ -61,9 +64,27 @@ class EffectAttempt(models.Model):
     repair_pending = models.BooleanField(default=True)
     repair_settled_by = models.CharField(max_length=20, choices=RepairSettledBy.choices, blank=True)
 
+    @property
+    def work_identity(self) -> WorkId:
+        """The single typed owner key retained by this attempt."""
+        if self.work_uuid is not None:
+            return self.work_uuid
+        assert self.work_id is not None, "attempt must retain one work key"
+        return self.work_id
+
     class Meta:
         db_table = getattr(settings, "DUE_EFFECT_ATTEMPT_TABLE", "due_effectattempt")
         indexes = [
+            models.Index(
+                fields=["work_model", "work_uuid", "started_at"],
+                condition=models.Q(work_uuid__isnull=False),
+                name="effect_attempt_uuid_ix",
+            ),
+            models.Index(
+                fields=["work_model", "work_uuid"],
+                condition=models.Q(work_uuid__isnull=False, repair_pending=True),
+                name="effect_attempt_uuid_repair_ix",
+            ),
             models.Index(fields=["work_model", "work_id", "started_at"], name="effect_attempt_work_ix"),
             models.Index(
                 fields=["work_model", "work_id"],
@@ -77,6 +98,13 @@ class EffectAttempt(models.Model):
             ),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(work_id__isnull=False, work_uuid__isnull=True)
+                    | models.Q(work_id__isnull=True, work_uuid__isnull=False)
+                ),
+                name="effect_attempt_work_key_ck",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(outcome=EffectAttemptOutcome.UNKNOWN, observed_at__isnull=True)
@@ -290,7 +318,7 @@ class DurableWork(models.Model):
         neither elapsed time nor repair_pending=False grants resend permission.
         """
         return (
-            EffectAttempt.objects.filter(work_model=self._meta.label_lower, work_id=self.pk)
+            EffectAttempt.objects.filter(work_model=self._meta.label_lower, **{attempt_key_field(type(self)): self.pk})
             .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
             .exists()
         )

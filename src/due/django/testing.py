@@ -12,6 +12,7 @@ from threading import Lock
 from unittest.mock import patch
 
 from due.django.capabilities.observed_operations import ObservedExternalOperationWork
+from due.django.identities import WorkId
 from due.django.models import DurableWork, DurableWorkState, RecoveryDeferral
 from due.django.runtime.coordination import database_now
 
@@ -25,7 +26,7 @@ class HeldNudge:
     """
 
     work_name: str
-    work_id: int
+    work_id: WorkId
 
 
 @contextmanager
@@ -41,7 +42,7 @@ def hold_nudges() -> Iterator[list[HeldNudge]]:
     """
     held: list[HeldNudge] = []
 
-    def capture(work_name: str, nudge: Callable[[int], object], work_id: int) -> None:
+    def capture(work_name: str, nudge: Callable[[WorkId], object], work_id: WorkId) -> None:
         held.append(HeldNudge(work_name, work_id))
 
     with patch("due.django.runtime.transport.publish_notification", new=capture):
