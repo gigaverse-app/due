@@ -374,7 +374,11 @@ class DurableBulkExternalOperation[
         if attempt.repair_pending != repair_pending:
             attempt.repair_pending = repair_pending
             attempt.save(update_fields=["repair_pending"])
-        self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=state is BulkOutcomeState.COMPLETE)
+        # Evidence acceptance already marked this receipt pending; recovery
+        # selects only pending receipts. A complete round must retain that
+        # marker until finalize_success, without writing True a second time.
+        if state is not BulkOutcomeState.COMPLETE:
+            self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=False)
         return state
 
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:

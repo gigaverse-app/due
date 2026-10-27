@@ -137,12 +137,19 @@ def test_death_after_member_progress_still_owes_work_completion(
         with pytest.raises(WorkerDied):
             batch_operation.attempt_execution(work.pk)
     assert attempts_for(work).get().repair_pending
+    assert BatchReceipt.objects.get(attempt=attempts_for(work).get()).settlement_pending
     # Preserve repair debt across this crash without rewriting the already-true
-    # attempt flag during member settlement. Evidence acceptance sets it once.
+    # attempt or receipt flag during member settlement. Evidence acceptance
+    # sets both once; the receipt remains discoverable until final completion.
     redundant = [
         query["sql"]
         for query in queries
-        if query["sql"].startswith('UPDATE "due_effectattempt" SET "repair_pending" = true')
+        if query["sql"].startswith(
+            (
+                'UPDATE "due_effectattempt" SET "repair_pending" = true',
+                f'UPDATE "{BatchReceipt._meta.db_table}" SET "settlement_pending" = true',
+            )
+        )
     ]
     assert redundant == [], redundant
     expire_lease(work)
@@ -150,6 +157,7 @@ def test_death_after_member_progress_still_owes_work_completion(
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert not attempts_for(work).get().repair_pending
+    assert not BatchReceipt.objects.get(attempt=attempts_for(work).get()).settlement_pending
     assert BatchOperation.calls == [("a", "b", "c")]
 
 
