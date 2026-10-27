@@ -239,11 +239,18 @@ def claim_work[WorkT: DurableWork](
     """
 
     with transaction.atomic():
-        claimed_at = now()
-        candidates = model.objects.select_for_update(of=("self",)).filter(
-            id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=claimed_at
+        # Eligibility callbacks and explicit clocks require a concrete datetime.
+        # Ordinary claims obtain one statement-stable time with the row itself;
+        # the same value authorizes availability and anchors the lease.
+        claimed_at = now() if eligibility is not None or now is not database_now else None
+        selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
+        candidates = (
+            model.objects.select_for_update(of=("self",))
+            .annotate(_due_claimed_at=selection_time)
+            .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
         )
         if eligibility is not None:
+            assert claimed_at is not None
             candidates = eligibility.filter(candidates, now=claimed_at)
         work = candidates.first()
         if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
@@ -257,9 +264,10 @@ def claim_work[WorkT: DurableWork](
         # Both counters saturate: neither fences anything (the token does).
         work.claim_generation = saturating_increment(work.claim_generation)
         work.attempt_count = saturating_increment(work.attempt_count)
-        # The lease runs from the instant the row was judged due, read before
-        # its lock: any lock wait (a short transaction) comes off the lease.
-        work.lease_expires_at = claimed_at + lease_duration
+        # Statement time precedes the row lock, so any lock wait still consumes
+        # the lease. Provider-entry validation separately reads a fresh clock.
+        selected_at = cast(datetime, vars(work).pop("_due_claimed_at"))
+        work.lease_expires_at = selected_at + lease_duration
         work.last_error_code = ""
         work.save(
             update_fields=[

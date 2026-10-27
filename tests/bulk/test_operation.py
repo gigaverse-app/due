@@ -47,9 +47,9 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     assert unlocked_reads == [], unlocked_reads
     assert sum(query["sql"] == "COMMIT" for query in queries) == 4
     # Elapsed retry pacing is process-local; only durable authority and
-    # evidence timestamps use database time. Claim and provider entry read it;
-    # renewal, receipt observation and completion use their writes' timestamps.
-    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 2
+    # evidence timestamps use database time. Only provider entry reads it
+    # separately; claim, renewal, receipt and completion return statement time.
+    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 1
     # Ingestion and locked completion each read the receipt. Routing between
     # them reuses the canonical value returned by the committed ingestion.
     receipt_reads = [
