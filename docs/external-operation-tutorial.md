@@ -53,13 +53,13 @@ The product is `PrintOrder`, a plain Django model. `status` is a label for the
 user, separate from Due's own work state:
 
 ```python
-from uuid import uuid4
+from uuid import uuid7
 
 from django.db import models
 
 
 class PrintOrder(models.Model):
-    reference = models.UUIDField(default=uuid4, unique=True, editable=False)
+    reference = models.UUIDField(default=uuid7, unique=True, editable=False)
     title = models.CharField(max_length=100)
     provider_order_id = models.PositiveBigIntegerField(null=True)
     status = models.CharField(max_length=20, default="pending")

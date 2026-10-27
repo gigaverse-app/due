@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Iterator
-from uuid import uuid4
+from uuid import uuid7
 
 import pytest
 from celery import Celery
@@ -15,7 +15,7 @@ def real_broker() -> Iterator[Celery]:
     broker_url = os.environ.get("DUE_BROKER_URL", "redis://127.0.0.1:56389/0")
     # global_keyprefix also covers kombu's bindings and unacked keys, so a crashed run leaves only keys
     # under its own prefix, which no later run reads.
-    prefix = f"durable-smoke-{uuid4().hex}-"
+    prefix = f"durable-smoke-{uuid7().hex}-"
     with (
         Redis.from_url(broker_url) as redis,
         Celery("durable_smoke", broker=broker_url, backend=broker_url, set_as_current=False, fixups=[]) as app,
