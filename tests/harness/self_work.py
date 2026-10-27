@@ -72,10 +72,12 @@ class SendChunk(DurableBulkExternalOperation[Chunk, Chunk, ItemResult]):
             raise TimeoutError("provider accepted; reply lost")
         return response
 
+    def progress_updates(self, work: Chunk, progress: BulkResult[ItemResult]) -> dict[str, object]:
+        delivered = [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]
+        return {"delivered": delivered, "product_status": ",".join(delivered)}
+
     def finalize_batch(self, work: Chunk, result: BulkResult[ItemResult]) -> None:
-        work.delivered = [item.key for item in self.completed_items(work)]
-        work.product_status = ",".join(work.delivered)
-        work.save(update_fields=["delivered", "product_status"])
+        pass
 
     def finalize_retry(self, work: Chunk, error: Exception) -> None:
         Chunk.objects.filter(pk=work.pk).update(product_status="retry")
