@@ -33,7 +33,7 @@ def test_rejection_is_atomic_with_evidence(publication, monkeypatch):
     monkeypatch.setattr(Publication, "failure", EffectNotAppliedError("definitely rejected"))
     # Fault inside the evidence transaction: neither half may commit alone.
     with monkeypatch.context() as fault:
-        fault.setattr(operations, "observe_effect_outcome", die_after(operations.observe_effect_outcome))
+        fault.setattr(operations, "observe_locked_effect_outcome", die_after(operations.observe_locked_effect_outcome))
         with pytest.raises(WorkerDied):
             publication.attempt_execution(work.pk)
     attempt = attempts_for(work).get()
