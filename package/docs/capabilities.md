@@ -243,6 +243,21 @@ round and budget-free `ContinueAfter` policies remain available. Applications
 that want unlimited rate-limit waiting need an explicit policy decision rather
 than silently bypassing the durable retry budget.
 
+### Loading admission relationships
+
+Declare Django `Prefetch` objects (or ordinary relationship names) through
+`for_owner(owner_prefetch=(... ,))` when several relationships are needed to
+derive work. For example, `Prefetch("campaign",
+queryset=Campaign.objects.select_related("event__community"))` loads that chain
+in one additional SELECT instead of three lazy reads.
+
+Due runs this plan after acquiring the owner and existing work locks, for both
+explicit admission and discovery. It uses Django's normal relation caches and
+does not lock related rows. Related data is a snapshot: if its concurrent
+mutation must be serialized with admission, the application must declare and
+enforce that locking policy separately. Do not reuse these snapshots across
+transaction boundaries. The default empty plan preserves existing behavior.
+
 
 ## Choose integer or UUID work keys
 
