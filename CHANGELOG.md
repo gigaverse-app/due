@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.12.0](https://github.com/gigaverse-app/due/compare/v0.11.0...v0.12.0) (2026-10-27)
+
+
+### Features
+
+* **identity:** use UUIDv7 for task and example identifiers ([#135](https://github.com/gigaverse-app/due/issues/135)) ([8cc5484](https://github.com/gigaverse-app/due/commit/8cc5484b2fca09af33979b1cbb92644e81fac99c))
+
+
+### Bug fixes
+
+* **ci:** distinguish cache measurements across Django variants ([26fae9a](https://github.com/gigaverse-app/due/commit/26fae9a728828ca7403369f1b9818286951f795b))
+
+
+### Performance
+
+* **bulk:** commit complete progress with work settlement ([e019c1b](https://github.com/gigaverse-app/due/commit/e019c1ba55694e2d92e0021ef5d0e4be01dc5a7e))
+* **bulk:** support inline attempt receipts ([3e58bac](https://github.com/gigaverse-app/due/commit/3e58baccce348ea4a95d103cbc49a0da8e760520))
+* **bulk:** use a monotonic elapsed retry budget ([8331729](https://github.com/gigaverse-app/due/commit/83317290cc63c23a396582962f65580ba63b1a02))
+
 ## [0.11.0](https://github.com/gigaverse-app/due/compare/v0.10.0...v0.11.0) (2026-10-27)
 
 
