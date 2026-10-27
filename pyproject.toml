@@ -35,7 +35,3 @@ members = ["package"]
 
 [tool.uv.sources]
 django-due = { workspace = true }
-
-[tool.uv]
-# Candidate verification only. Remove after obligation's lifecycle API is released.
-override-dependencies = ["pytest-obligation[django,celery,exploration,debt] @ git+https://github.com/gigaverse-app/pytest-obligation.git@547098d552013d52ee147daf0269b571a1efae00#subdirectory=package"]

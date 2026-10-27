@@ -9,17 +9,35 @@ the intended public imports, not a promise of API stability before 1.0.
 
 ### Overlapping lifecycle paths
 
-`EffectExamples.admission_overlaps` maps producer-pair names to fresh
-`pytest_obligation.lifecycle.AdmissionOverlap` bindings. Obligation generates
-pending-first and settled-first histories and replays the narrower request after
-expansion. `settlement_interleavings` maps checkpoint names to fresh
-`SettlementInterleaving` bindings. Both are forwarded without reimplementing the
-proofs and protected by the generated-suite collection guard.
+Use `EffectExamples.extras` with obligation's `LifecycleProof` to declare
+overlapping lifecycle histories. This requires an obligation version providing
+`pytest_obligation.lifecycle`; during development pin the upstream candidate
+explicitly. Due's existing extra-proof API and collection guard are sufficient,
+so adopting the proof library does not require unrelated runtime upgrades.
+
+```python
+from pytest_obligation.contract import ExtraProof
+from pytest_obligation.lifecycle import LifecycleProof, assert_pending_admission_preserves_effects
+
+extra = ExtraProof(
+    name="pending_repair_then_full_request",
+    run=LifecycleProof(
+        binding=overlapping_producers,  # context yielding an AdmissionOverlap
+        proof=assert_pending_admission_preserves_effects,
+    ),
+    transactional=True,
+)
+# Include extra in EffectExamples(extras=(extra,), ...).
+```
+
+Also declare `assert_settled_admission_preserves_effects` for completed first
+requests and `assert_competing_transition_preserves_effects` with a
+`SettlementInterleaving` binding for the observation/settlement boundary.
 
 Bindings own their scopes, call real application commands and registered
 recovery, and observe product effects independently. See obligation's
 [lifecycle guide](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/lifecycle-histories.md).
-An empty mapping is outside coverage. Ordinary producer transaction or replay
+An undeclared history is outside coverage. Ordinary producer transaction or replay
 cases do not establish that different producers compose correctly.
 
 | Module | Interface and responsibility |

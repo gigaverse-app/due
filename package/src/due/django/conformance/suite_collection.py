@@ -131,10 +131,6 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
     )
     assert set(contract.completions) == set(examples.completions), "terminal completion bindings differ"
     assert set(contract.delivery_replays) == set(examples.delivery_replays), "database delivery replay bindings differ"
-    assert set(contract.admission_overlaps) == set(examples.admission_overlaps), "admission overlap bindings differ"
-    assert set(contract.settlement_interleavings) == set(examples.settlement_interleavings), (
-        "settlement interleaving bindings differ"
-    )
     assert contract.process_handoffs == examples.process_handoffs, (
         f"{cls.__name__}: process histories differ from declared product transitions"
     )

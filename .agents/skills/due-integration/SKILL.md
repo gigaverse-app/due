@@ -49,11 +49,14 @@ use [Acme Printworks](../../../examples/acme_printworks/README.md) and its
    installed wheel with its testing extra, and release the provider first.
 
 Before claiming coverage, inventory all producers for each owner: ordinary
-commands, migration bridges, late retries, webhooks and narrow repairs. Bind
-`EffectExamples.admission_overlaps` for cumulative scopes and
-`settlement_interleavings` at external observation boundaries where a competing
-path can change terminal state. Due forwards these examples to obligation's
-shared proofs and guards collection. Include pending and completed first
+commands, migration bridges, late retries, webhooks and narrow repairs. Use
+obligation's `AdmissionOverlap` for cumulative scopes and
+`SettlementInterleaving` at external observation boundaries where a competing
+path can change terminal state. Declare each shared assertion through
+`EffectExamples.extras` and `ExtraProof(run=LifecycleProof(...))`; the existing
+collection guard requires those cases. Upgrade obligation to a version providing
+these APIs first, or use an explicitly pinned upstream candidate for development.
+Do not add another schedule runner or backend-only exemption. Include pending and completed first
 requests, and observe every promised effect plus meaningful duplicate counts.
 Immutable provider identity does not imply immutable effect scope. Verify the
 original lost-effect behavior fails without changing the observation. Undeclared

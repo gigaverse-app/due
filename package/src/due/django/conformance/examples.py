@@ -26,7 +26,6 @@ from pytest_obligation.contract import (
 from pytest_obligation.crash_histories import HandoffHistory
 from pytest_obligation.integrations.django.owed_rows import EdgeFamily
 from pytest_obligation.interleavings.bindings import Scenario
-from pytest_obligation.lifecycle import AdmissionOverlap, SettlementInterleaving
 from pytest_obligation.process_histories import ProcessHistory
 from pytest_obligation.profiles.catalog import ConvergenceFamily
 from pytest_obligation.profiles.eventual_convergence import (
@@ -276,8 +275,6 @@ class EffectExamples[W: UniverseDurableWork]:
     process_handoffs: tuple[ProcessHistory[Any, Any], ...] = ()
     completions: Mapping[str, Binding[BoundedCompletion]] = field(default_factory=dict)
     delivery_replays: Mapping[str, Binding[DeliveryReplay]] = field(default_factory=dict)
-    admission_overlaps: Mapping[str, Binding[AdmissionOverlap]] = field(default_factory=dict)
-    settlement_interleavings: Mapping[str, Binding[SettlementInterleaving]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for history in self.process_handoffs:

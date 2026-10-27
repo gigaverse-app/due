@@ -812,8 +812,6 @@ def effect_contract[W: UniverseDurableWork, ResultT](
     contract = ObligationContract(
         name=name,
         extras=examples.extras,
-        admission_overlaps=examples.admission_overlaps,
-        settlement_interleavings=examples.settlement_interleavings,
         transactional=True,
         fixtures=examples.fixtures,
         profiles={
