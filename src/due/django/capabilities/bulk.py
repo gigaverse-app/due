@@ -16,7 +16,7 @@ from typing import ClassVar, final
 from uuid import UUID
 
 from django.db import models, transaction
-from django.db.models import Q, QuerySet
+from django.db.models import OuterRef, Q, QuerySet, Subquery
 from pydantic import BaseModel, TypeAdapter
 
 from due.bulk import (
@@ -253,11 +253,21 @@ class DurableBulkExternalOperation[
 
     def current_batch(self, work: WorkT) -> CapturedBatch:
         """The exact captured membership and correlation ID of the open crossing."""
-        attempt = attempts_for(work).get(
-            claim_token=work.fencing_token, outcome=EffectAttemptOutcome.UNKNOWN, repair_pending=True
+        # Select attempts first: an extra UNKNOWN attempt must remain ambiguous
+        # even if its receipt is missing. An inner receipt join would hide it.
+        attempt = (
+            attempts_for(work)
+            .annotate(
+                captured_members=Subquery(
+                    self.receipt_model.objects.filter(attempt_id=OuterRef("pk")).values("members")
+                )
+            )
+            .values("pk", "captured_members")
+            .get(claim_token=work.fencing_token, outcome=EffectAttemptOutcome.UNKNOWN, repair_pending=True)
         )
-        receipt = self.receipt_model.objects.get(attempt=attempt)
-        return CapturedBatch(attempt.pk, tuple(receipt.members))
+        if attempt["captured_members"] is None:
+            raise self.receipt_model.DoesNotExist("the open crossing has no captured membership")
+        return CapturedBatch(attempt["pk"], tuple(attempt["captured_members"]))
 
     @abstractmethod
     def prepare_batch(self, work: WorkT, batch: CapturedBatch) -> PayloadT:
