@@ -149,14 +149,14 @@ def test_full_rejection_cannot_erase_an_accepted_member(batch_operation: BatchOp
     assert batch_operation.evidence_store.read(attempt).items[0] == result("a").items[0]
 
 
-def test_death_after_member_progress_still_owes_work_completion(
+def test_death_after_receipt_still_owes_work_completion(
     batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     work = record(batch_operation)
     with monkeypatch.context() as fault, CaptureQueriesContext(connection) as queries:
 
         def die_before_completion(*args: object, **kwargs: object) -> None:
-            raise WorkerDied("progress committed before claim completion")
+            raise WorkerDied("receipt committed before claim completion")
 
         fault.setattr(coordination, "complete_work", die_before_completion)
         with pytest.raises(WorkerDied):
