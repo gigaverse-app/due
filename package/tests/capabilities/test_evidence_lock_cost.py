@@ -30,6 +30,8 @@ def test_acceptance_reads_the_attempt_once(publication: Publication, writer: str
     attempt_reads = [query for query in sql if query.startswith("SELECT") and 'FROM "due_effectattempt"' in query]
     assert len(attempt_reads) == 1, attempt_reads
     assert "FOR UPDATE" in attempt_reads[0]
+    attempt_writes = [query for query in sql if query.startswith('UPDATE "due_effectattempt"')]
+    assert len(attempt_writes) == 1, attempt_writes
     # JSON receipt creation keeps its own insert-conflict savepoint. Outcome
     # acceptance must not add another savepoint while holding the same lock.
     assert sum(query.startswith("SAVEPOINT") for query in sql) == (1 if writer == "receipt" else 0), sql
