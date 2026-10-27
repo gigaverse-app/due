@@ -4,6 +4,8 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from due.bulk import BulkOutcomeState, BulkResult, BulkRetryPolicy, RejectionResponse
 from due.django.capabilities.bulk import BulkRetryNeeded, CapturedBatch
@@ -31,7 +33,18 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -> None:
     work = record(batch_operation)
-    assert batch_operation.attempt_execution(work.pk)
+    with CaptureQueriesContext(connection) as queries:
+        assert batch_operation.attempt_execution(work.pk)
+    # Claim, provider entry, progress and completion each validate under locks.
+    # A finished round needs no unlocked refresh between those transitions.
+    unlocked_reads = [
+        query["sql"]
+        for query in queries
+        if query["sql"].startswith("SELECT")
+        and f'FROM "{BatchWork._meta.db_table}"' in query["sql"]
+        and "FOR UPDATE" not in query["sql"]
+    ]
+    assert unlocked_reads == [], unlocked_reads
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision

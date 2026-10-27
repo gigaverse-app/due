@@ -422,11 +422,14 @@ class DurableBulkExternalOperation[
                 attempt = EffectAttempt.objects.select_for_update().get(pk=last.pk)
                 result = self.evidence_store.read(attempt)
                 state = finalize_under_fence(current, lambda row: self._consume_evidence(row, attempt, result))
+            # Finished batches return to core completion, which reacquires the
+            # work lock and reads current progress. No next round needs this
+            # transient snapshot. Retry and unknown paths keep their refresh.
+            if state is BulkOutcomeState.COMPLETE:
+                return BulkStep.STOP
             work.refresh_from_db()
             if state is BulkOutcomeState.UNKNOWN:
                 raise EffectOutcomeUnknownError("bulk members remain unknown")
-            if state is BulkOutcomeState.COMPLETE:
-                return BulkStep.STOP
             continuation = self.before_batch(work)
             return BulkStep.STOP if continuation is not None else BulkStep.RETRY
 
