@@ -64,10 +64,22 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     assert BatchReceipt.objects.get(attempt=attempt).members == ["a", "b", "c"]
 
 
+@pytest.mark.parametrize("subset_retry", [False, True])
 def test_completion_failure_rolls_back_progress_but_keeps_provider_receipt(
-    batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch
+    batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch, subset_retry: bool
 ) -> None:
     work = record(batch_operation)
+    if subset_retry:
+        BatchOperation.script.append(
+            BulkResult(
+                items=(
+                    *result("a", "c").items,
+                    *result("b", state=BulkOutcomeState.RETRYABLE).items,
+                )
+            )
+        )
+    prior_progress = ["a", "c"] if subset_retry else []
+    expected_calls = [("a", "b", "c"), ("b",)] if subset_retry else [("a", "b", "c")]
 
     def fail_completion(*args: object, **kwargs: object) -> None:
         raise RuntimeError("product completion failed")
@@ -76,16 +88,32 @@ def test_completion_failure_rolls_back_progress_but_keeps_provider_receipt(
         failure.setattr(BatchOperation, "finalize_success", fail_completion)
         with pytest.raises(RuntimeError, match="product completion failed"):
             batch_operation.attempt_execution(work.pk)
-    work.refresh_from_db()
-    assert work.state == DurableWorkState.UNKNOWN
-    assert work.bulk_progress == []
-    attempt = attempts_for(work).get()
-    assert attempt.repair_pending
-    assert batch_operation.evidence_store.read(attempt) == result("a", "b", "c")
+        # Repeated repair failures keep all accepted members durably owed.
+        # No recovery iteration may send the already-accepted members again.
+        for _ in range(3):
+            work.refresh_from_db()
+            assert work.state == DurableWorkState.UNKNOWN
+            assert work.published_keys == prior_progress
+            assert [item.key for item in batch_operation.completed_items(work)] == prior_progress
+            attempt = attempts_for(work).order_by("started_at", "pk").last()
+            assert attempt is not None and attempt.repair_pending
+            assert BatchReceipt.objects.get(attempt=attempt).settlement_pending
+            assert batch_operation.evidence_store.read(attempt) == (
+                result("b") if subset_retry else result("a", "b", "c")
+            )
+            assert BatchOperation.calls == expected_calls
+            assert sorted(BatchOperation.accepted) == ["a", "b", "c"]
+            with pytest.raises(RuntimeError, match="product completion failed"):
+                batch_operation.settle_from_applied_effect_evidence(work.pk)
     batch_operation.recover()
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
-    assert BatchOperation.calls == [("a", "b", "c")]
+    assert sorted(work.published_keys) == ["a", "b", "c"]
+    assert sorted(item.key for item in batch_operation.completed_items(work)) == ["a", "b", "c"]
+    assert BatchOperation.calls == expected_calls
+    assert sorted(BatchOperation.accepted) == ["a", "b", "c"]
+    assert not attempts_for(work).filter(repair_pending=True).exists()
+    assert not BatchReceipt.objects.filter(attempt__in=attempts_for(work), settlement_pending=True).exists()
 
 
 def test_only_definite_rejections_reenter_the_bulk_provider(batch_operation: BatchOperation) -> None:
