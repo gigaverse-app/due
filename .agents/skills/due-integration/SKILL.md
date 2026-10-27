@@ -48,6 +48,17 @@ use [Acme Printworks](../../../examples/acme_printworks/README.md) and its
    Raise the testing dependency floor when adding an upstream API, verify the
    installed wheel with its testing extra, and release the provider first.
 
+Before claiming coverage, inventory all producers for each owner: ordinary
+commands, migration bridges, late retries, webhooks and narrow repairs. Bind
+`EffectExamples.admission_overlaps` for cumulative scopes and
+`settlement_interleavings` at external observation boundaries where a competing
+path can change terminal state. Due forwards these examples to obligation's
+shared proofs and guards collection. Include pending and completed first
+requests, and observe every promised effect plus meaningful duplicate counts.
+Immutable provider identity does not imply immutable effect scope. Verify the
+original lost-effect behavior fails without changing the observation. Undeclared
+pairs and checkpoints remain outside coverage despite passing ordinary cases.
+
 The Django Tasks shared runtime is not enrolled as an application-native effect.
 Always test each application's producer transaction, replay assumptions, and
 customer outcome; add the native contract as soon as it gains a native capability.

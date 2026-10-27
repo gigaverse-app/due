@@ -7,6 +7,21 @@ the intended public imports, not a promise of API stability before 1.0.
 
 ## Public imports
 
+### Overlapping lifecycle paths
+
+`EffectExamples.admission_overlaps` maps producer-pair names to fresh
+`pytest_obligation.lifecycle.AdmissionOverlap` bindings. Obligation generates
+pending-first and settled-first histories and replays the narrower request after
+expansion. `settlement_interleavings` maps checkpoint names to fresh
+`SettlementInterleaving` bindings. Both are forwarded without reimplementing the
+proofs and protected by the generated-suite collection guard.
+
+Bindings own their scopes, call real application commands and registered
+recovery, and observe product effects independently. See obligation's
+[lifecycle guide](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/lifecycle-histories.md).
+An empty mapping is outside coverage. Ordinary producer transaction or replay
+cases do not establish that different producers compose correctly.
+
 | Module | Interface and responsibility |
 | --- | --- |
 | [`suite`](../src/due/django/conformance/suite.py) | `effect_contract_suite` enrolls a pytest class; `effect_contract` builds a shared `ObligationContract` for advanced composition. Existing example-type imports remain supported. |
