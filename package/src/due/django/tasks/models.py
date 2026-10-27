@@ -8,7 +8,8 @@ from due.django.models import UniverseDurableWork, durable_work_schema
 
 
 class TaskWork(UniverseDurableWork):
-    result_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    # Full time-ordered identity; this is a correlation key, not an authorization token.
+    result_id = models.UUIDField(default=uuid.uuid7, unique=True, editable=False)
     backend = models.CharField(max_length=128)
     task_path = models.CharField(max_length=512)
     queue_name = models.CharField(max_length=128)

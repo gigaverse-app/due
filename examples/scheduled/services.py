@@ -1,7 +1,7 @@
 """The browser, CLI and conformance bindings share these application commands."""
 
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import UUID, uuid7
 
 from django.db import transaction
 from django.utils import timezone
@@ -27,7 +27,7 @@ def create_publication(text: str, at: datetime, *, submission_key: UUID | None =
         text=text,
         publish_at=at,
         initial_publish_at=at,
-        submission_key=submission_key if submission_key is not None else uuid4(),
+        submission_key=submission_key if submission_key is not None else uuid7(),
     )
     candidate.full_clean(validate_unique=False)
     # The row's unique key arbitrates concurrent callers; get_or_create retries

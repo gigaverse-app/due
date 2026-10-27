@@ -126,7 +126,7 @@ def test_staging_collision_never_removes_another_writers_file(tmp_path: Path, mo
     identity = UUID(int=1)
     occupied = tmp_path / f".pending-{identity.hex}"
     occupied.write_bytes(b"other writer's unfinished content")
-    monkeypatch.setattr(storage, "uuid4", lambda: identity)
+    monkeypatch.setattr(storage, "uuid7", lambda: identity)
     with pytest.raises(FileExistsError):
         write_revision("Complete edition", "collision")
     assert occupied.read_bytes() == b"other writer's unfinished content"

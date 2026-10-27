@@ -1,5 +1,5 @@
 from typing import ClassVar
-from uuid import uuid4
+from uuid import uuid7
 
 from django.db import models
 from due.django.capabilities.observed_operations import (
@@ -48,7 +48,7 @@ class PortalWork(UniverseDurableWork):
 
 
 class PrintOrder(models.Model):
-    reference = models.UUIDField(default=uuid4, unique=True, editable=False)
+    reference = models.UUIDField(default=uuid7, unique=True, editable=False)
     revision = models.ForeignKey(Revision, on_delete=models.PROTECT)
     proof_key = models.CharField(max_length=200)
     quantity = models.PositiveIntegerField(default=500)

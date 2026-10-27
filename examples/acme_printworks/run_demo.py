@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from uuid import uuid4
+from uuid import uuid7
 
 ROOT = Path(__file__).resolve().parent
 os.chdir(ROOT)
@@ -29,7 +29,7 @@ with (
                     "--loglevel=INFO",
                     "--concurrency=2",
                     "--queues=" + os.getenv("ACME_QUEUE", "default"),
-                    "--hostname=acme-" + uuid4().hex + "@%h",
+                    "--hostname=acme-" + uuid7().hex + "@%h",
                 ],
                 stdout=worker_log,
                 stderr=subprocess.STDOUT,
