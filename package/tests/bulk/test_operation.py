@@ -45,6 +45,10 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
         and "FOR UPDATE" not in query["sql"]
     ]
     assert unlocked_reads == [], unlocked_reads
+    # Elapsed retry pacing is process-local; only durable authority and
+    # evidence timestamps need the database clock (four reads in this path).
+    # Lease renewal already uses its UPDATE statement's database timestamp.
+    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 4
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision
