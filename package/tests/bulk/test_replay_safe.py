@@ -1,6 +1,8 @@
 """Idempotent bulk calls: progress per member, resend on uncertainty, pause on a provider rate limit."""
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from due.django.capabilities.bulk import BulkRetryNeeded
 from due.django.models import DurableWorkState
@@ -20,7 +22,9 @@ def owner_value(work_owner_id: int | None) -> str:
 
 def test_one_call_adds_the_whole_cohort(member_sync_operation: MemberSync) -> None:
     work = record_sync()
-    assert member_sync_operation.attempt_execution(work.pk)
+    with CaptureQueriesContext(connection) as queries:
+        assert member_sync_operation.attempt_execution(work.pk)
+    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 3
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert MemberSync.calls == [("a", "b", "c")]
