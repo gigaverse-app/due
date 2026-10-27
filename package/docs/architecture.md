@@ -80,6 +80,14 @@ fresh interval after acquiring the row. This avoids a separate clock query.
 Evidence-required provider entry still checks expiry using a fresh database
 clock after its row lock. `use_database_clock` controls both clock paths in tests.
 
+Receipt observation and successful completion also use their UPDATE statement's
+database time. Django returns the persisted timestamps before receipt callers
+or completion hooks read them, avoiding a separate clock query. Completion
+hooks and same-revision followups receive ordinary datetimes; an explicitly
+supplied completion clock retains its behavior. Duplicate receipts preserve
+their original observation time. The receipt still commits independently before
+product completion, so a failed completion does not discard accepted evidence.
+
 A local fence does not cancel remote I/O. A timeout can mean the provider accepted
 the operation but lost the reply. Evidence-required operations commit an UNKNOWN
 attempt before crossing that boundary. They never infer nonapplication from lease

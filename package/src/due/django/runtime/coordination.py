@@ -347,15 +347,18 @@ def settle_locked_work[WorkT: DurableWork](
         raise RuntimeError("settling locked work requires a transaction")
     if current.desired_revision != revision:
         raise WorkOwnershipLost("settlement revision was superseded")
-    completed_at = now()
     current.state = DurableWorkState.SUCCEEDED
     current.applied_revision = revision
     current.lease_expires_at = None
-    current.completed_at = completed_at
+    # Django 6 returns the persisted expression value before the finalizer.
+    # An explicitly supplied clock retains its existing sampling behavior.
+    current.completed_at = cast(datetime, _database_statement_clock()) if now is database_now else now()
     current.last_error_code = ""
     current.save(
         update_fields=["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
     )
+    completed_at = current.completed_at
+    assert isinstance(completed_at, datetime), "completion must return its persisted timestamp"
     followup = finalize_under_fence(current, finalize) if finalize is not None else None
     pin_work_beneficiary(current)
     if followup is not None:

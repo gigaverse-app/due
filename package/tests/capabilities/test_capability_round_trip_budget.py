@@ -192,7 +192,6 @@ def test_a_worker_without_a_reservation_claims_runs_and_settles():
         # Settlement: owner before work, then the fenced write and the product callback.
         LOCK_OWNER,
         LOCK_WORK,
-        CLOCK,
         UPDATE_WORK,
         UPDATE_OWNER,
     ]
