@@ -292,9 +292,11 @@ Effect attempts preserve the existing nullable integer `work_id` column and add
 a nullable native `work_uuid` column. Exactly one must be present.
 `attempt.work_identity` reads either type. Correlation and recovery use the
 matching typed column and its indexes, without casting indexed values to text.
-The UUID indexes contain only UUID attempts; existing integer indexes stay in
-place to avoid rebuilding them during rollout. UUID rows therefore also occupy
-entries in the retained general integer indexes.
+History and repair indexes contain only their matching key family. Model-scoped
+queries explicitly select that native key so PostgreSQL can use its partial
+index even when a query has no individual work ID. The follow-up index migration
+builds replacements concurrently before dropping the old integer indexes;
+existing data is retained, and the shared pruning index is unchanged.
 
 Apply the additive migration before deploying code that selects the UUID
 column. It builds the new indexes concurrently and validates the key constraint
