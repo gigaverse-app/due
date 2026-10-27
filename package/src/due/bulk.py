@@ -8,6 +8,7 @@ capabilities decide what a verdict permits. No database or Django import here.
 """
 
 import random
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -132,7 +133,7 @@ def run_bulk(
     resume: Callable[[], bool],
     exhausted: Callable[[RetryLimit], None],
     policy: BulkRetryPolicy,
-    now: Callable[[], datetime],
+    now: Callable[[], datetime] | None = None,
     sleep: Callable[[float], None] = time_sleep,
     random_fraction: Callable[[], float] = random.random,
 ) -> None:
@@ -145,13 +146,26 @@ def run_bulk(
     round. exhausted() durably hands work to existing recovery. Exceptions
     propagate, leaving the committed attempt for that recovery to interpret.
     No database transaction is opened or held across callbacks or sleep.
+    The elapsed budget uses a local monotonic clock by default. An explicit
+    ``now`` retains the existing datetime clock contract for callers that need
+    it. This timer never grants ownership or sets persisted deadlines.
     """
-    started = now()
+    if now is None:
+        started = time.monotonic()
+
+        def elapsed() -> timedelta:
+            return timedelta(seconds=time.monotonic() - started)
+    else:
+        started_at = now()
+
+        def elapsed() -> timedelta:
+            return now() - started_at
+
     retries = 0
     for _ in range(policy.max_rounds):
         if not ready():
             return
-        if now() - started > policy.wall_clock_budget:
+        if elapsed() > policy.wall_clock_budget:
             exhausted(RetryLimit.ELAPSED)
             return
         result = step()

@@ -236,6 +236,12 @@ table or change the receipt/settlement transaction boundaries.
 
 ### Calls that are not safe to repeat
 
+Both bulk capabilities measure the per-invocation elapsed retry budget with a
+local monotonic clock. Clock corrections on the database or worker do not extend
+or prematurely exhaust that duration. Lease validation, persisted retry deadlines
+and attempt timestamps still use database time. The framework-neutral `run_bulk`
+runner retains its explicit `now=` datetime clock override for existing callers.
+
 `DurableBulkExternalOperation` extends `DurableExternalOperation`: the ordinary
 claim, fenced `WorkExecutionContext`, `EffectAttempt`, retry budget and
 recovery path. Due commits the attempt and its captured membership, then calls
@@ -289,6 +295,21 @@ debt: unresolved outcomes may need observation without having any new receipt.
 The new index is built concurrently; allow temporary disk and I/O capacity.
 Co-location makes the attempt row wider and serializes metadata writes with
 evidence writers. Measure those costs with realistic receipt sizes before adoption.
+#### Completion and recovery
+
+A fully completed batch publishes member progress and final work completion in
+one transaction, after the provider receipt has committed independently. Core
+completion reloads work and evidence under their locks before applying progress;
+an earlier complete-result read only chooses this path. Partial and retryable
+rounds still commit progress before another provider call.
+
+This changes failure visibility: if a final completion hook fails, that batch's
+progress and product callbacks roll back together with completion. The canonical
+receipt remains owed to recovery, which applies it without resending. Previously,
+progress could remain visible while the final completion hook failed separately.
+Applications whose UI or callbacks rely on that intermediate state must review
+this tradeoff before adopting the change. Hooks keep their prior order and state:
+`finalize_batch` sees the claimed row, then success hooks see the completed row.
 
 Extra hooks for this capability:
 

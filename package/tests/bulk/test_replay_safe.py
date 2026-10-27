@@ -24,6 +24,7 @@ def test_one_call_adds_the_whole_cohort(member_sync_operation: MemberSync) -> No
     work = record_sync()
     with CaptureQueriesContext(connection) as queries:
         assert member_sync_operation.attempt_execution(work.pk)
+    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 2
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert MemberSync.calls == [("a", "b", "c")]

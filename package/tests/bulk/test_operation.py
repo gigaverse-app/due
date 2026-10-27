@@ -45,6 +45,11 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
         and "FOR UPDATE" not in query["sql"]
     ]
     assert unlocked_reads == [], unlocked_reads
+    assert sum(query["sql"] == "COMMIT" for query in queries) == 4
+    # Elapsed retry pacing is process-local; only durable authority and
+    # evidence timestamps need the database clock (four reads in this path).
+    # Lease renewal already uses its UPDATE statement's database timestamp.
+    assert sum("clock_timestamp()" in query["sql"] for query in queries) == 4
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision
@@ -61,6 +66,58 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     assert attempt.outcome == EffectAttemptOutcome.APPLIED
     assert not attempt.repair_pending
     assert BatchReceipt.objects.get(attempt=attempt).members == ["a", "b", "c"]
+
+
+@pytest.mark.parametrize("subset_retry", [False, True])
+def test_completion_failure_rolls_back_progress_but_keeps_provider_receipt(
+    batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch, subset_retry: bool
+) -> None:
+    work = record(batch_operation)
+    if subset_retry:
+        BatchOperation.script.append(
+            BulkResult(
+                items=(
+                    *result("a", "c").items,
+                    *result("b", state=BulkOutcomeState.RETRYABLE).items,
+                )
+            )
+        )
+    prior_progress = ["a", "c"] if subset_retry else []
+    expected_calls = [("a", "b", "c"), ("b",)] if subset_retry else [("a", "b", "c")]
+
+    def fail_completion(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("product completion failed")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(BatchOperation, "finalize_success", fail_completion)
+        with pytest.raises(RuntimeError, match="product completion failed"):
+            batch_operation.attempt_execution(work.pk)
+        # Repeated repair failures keep all accepted members durably owed.
+        # No recovery iteration may send the already-accepted members again.
+        for _ in range(3):
+            work.refresh_from_db()
+            assert work.state == DurableWorkState.UNKNOWN
+            assert work.published_keys == prior_progress
+            assert [item.key for item in batch_operation.completed_items(work)] == prior_progress
+            attempt = attempts_for(work).order_by("started_at", "pk").last()
+            assert attempt is not None and attempt.repair_pending
+            assert BatchReceipt.objects.get(attempt=attempt).settlement_pending
+            assert batch_operation.evidence_store.read(attempt) == (
+                result("b") if subset_retry else result("a", "b", "c")
+            )
+            assert BatchOperation.calls == expected_calls
+            assert sorted(BatchOperation.accepted) == ["a", "b", "c"]
+            with pytest.raises(RuntimeError, match="product completion failed"):
+                batch_operation.settle_from_applied_effect_evidence(work.pk)
+    batch_operation.recover()
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.SUCCEEDED
+    assert sorted(work.published_keys) == ["a", "b", "c"]
+    assert sorted(item.key for item in batch_operation.completed_items(work)) == ["a", "b", "c"]
+    assert BatchOperation.calls == expected_calls
+    assert sorted(BatchOperation.accepted) == ["a", "b", "c"]
+    assert not attempts_for(work).filter(repair_pending=True).exists()
+    assert not BatchReceipt.objects.filter(attempt__in=attempts_for(work), settlement_pending=True).exists()
 
 
 def test_only_definite_rejections_reenter_the_bulk_provider(batch_operation: BatchOperation) -> None:
@@ -135,14 +192,14 @@ def test_full_rejection_cannot_erase_an_accepted_member(batch_operation: BatchOp
     assert batch_operation.evidence_store.read(attempt).items[0] == result("a").items[0]
 
 
-def test_death_after_member_progress_still_owes_work_completion(
+def test_death_after_receipt_still_owes_work_completion(
     batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     work = record(batch_operation)
     with monkeypatch.context() as fault, CaptureQueriesContext(connection) as queries:
 
         def die_before_completion(*args: object, **kwargs: object) -> None:
-            raise WorkerDied("progress committed before claim completion")
+            raise WorkerDied("receipt committed before claim completion")
 
         fault.setattr(coordination, "complete_work", die_before_completion)
         with pytest.raises(WorkerDied):

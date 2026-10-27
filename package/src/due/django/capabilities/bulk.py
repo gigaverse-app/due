@@ -507,10 +507,19 @@ class DurableBulkExternalOperation[
             return WorkFailureDisposition.RETRYABLE
         return super().classify_error(error)
 
-    def _consume_evidence(self, work: WorkT, attempt: EffectAttempt, result: BulkResult[ResultT]) -> BulkOutcomeState:
+    def _consume_evidence(
+        self, work: WorkT, attempt: EffectAttempt, result: BulkResult[ResultT], *, completing: bool = False
+    ) -> BulkOutcomeState:
         require_fenced_settlement(work)
         state = self._record_progress(work, result, input_fields=self.input_fields)
         self._finalize_applied(work, result)
+        if completing:
+            if state is not BulkOutcomeState.COMPLETE:
+                raise ValueError("bulk work cannot complete with unfinished members")
+            # Core completion clears both markers in this same transaction.
+            # Publishing an intermediate owed marker cannot help recovery here;
+            # rollback retains the independently committed receipt and debt.
+            return state
         # INVARIANT: replay permission and member progress commit together.
         # An uncertain member retains the entire exact attempt for later receipts.
         # The last receipt still owes final work settlement. Keeping its repair
@@ -559,6 +568,14 @@ class DurableBulkExternalOperation[
                 return after_rejection(rejected)
             assert isinstance(crossing, EffectAttempt), "scalar crossing must return its committed attempt"
             last = crossing
+            # This read is only a routing hint. Completion reloads both work and
+            # receipt under their locks before publishing any product progress.
+            # The independently committed receipt remains recoverable if we die
+            # before that single progress/completion transaction.
+            recorded = self.evidence_store.read(crossing)
+            predicted = advance_progress(work.bulk_keys, self._progress(work), recorded)
+            if batch_state(work.bulk_keys, predicted) is BulkOutcomeState.COMPLETE:
+                return BulkStep.STOP
             with transaction.atomic():
                 lock_work_owner(work)
                 current = context.claim.owned_work().select_for_update().first()
@@ -589,13 +606,20 @@ class DurableBulkExternalOperation[
             resume=lambda: renew_work(context.claim, lease_duration=context.lease_duration),
             exhausted=exhausted,
             policy=self.bulk_policy,
-            now=database_now,
         )
         if continuation is not None:
             return continuation
         if last is None:
             raise WorkOwnershipLost("bulk execution stopped without a settled crossing")
         return last
+
+    def _prepare_success(self, work: WorkT, result: EffectAttempt) -> None:
+        require_fenced_settlement(work)
+        if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
+            return
+        attempt = EffectAttempt.objects.select_for_update().get(pk=result.pk)
+        recorded = self.evidence_store.read_locked(attempt)
+        self._consume_evidence(work, attempt, recorded, completing=True)
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         if batch_state(work.bulk_keys, self._progress(work)) is not BulkOutcomeState.COMPLETE:
@@ -803,7 +827,6 @@ class DurableBulkEffect[
             resume=lambda: renew_work(context.claim, lease_duration=context.lease_duration),
             exhausted=exhausted,
             policy=self.bulk_policy,
-            now=database_now,
         )
         if continuation is not None:
             return continuation

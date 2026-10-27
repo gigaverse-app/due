@@ -213,3 +213,32 @@ def test_inline_acceptance_failure_preserves_prior_evidence_and_replay_block(inl
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.delivered == ["a", "b"]
     assert len(SendChunk.calls) == 1
+
+
+def test_inline_completion_failure_keeps_receipt_owed_until_recovery(inline_chunk, monkeypatch):
+    work = InlineChunk.objects.create(universe="acme", bulk_keys=["a", "b"])
+
+    def failed_hook(self, work, attempt):
+        raise RuntimeError("completion unavailable")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(InlineSendChunk, "finalize_success", failed_hook)
+        with pytest.raises(RuntimeError, match="completion unavailable"):
+            inline_delivery.attempt_execution(work.pk)
+        for _ in range(3):
+            work.refresh_from_db()
+            attempt = attempts_for(work).get()
+            assert work.delivered == [] and work.bulk_progress == []
+            assert attempt.repair_pending and attempt.receipt_pending
+            assert inline_delivery.evidence_store.read(attempt) == result("a", "b")
+            assert SendChunk.accepted_by_work[work.pk] == ["a", "b"]
+            assert SendChunk.calls == [(work.pk, ("a", "b"))]
+            with pytest.raises(RuntimeError, match="completion unavailable"):
+                inline_delivery.settle_from_applied_effect_evidence(work.pk)
+    inline_delivery.recover()
+    work.refresh_from_db()
+    attempt.refresh_from_db()
+    assert work.state == DurableWorkState.SUCCEEDED and work.delivered == ["a", "b"]
+    assert not attempt.repair_pending and not attempt.receipt_pending
+    assert SendChunk.calls == [(work.pk, ("a", "b"))]
+    assert SendChunk.accepted_by_work[work.pk] == ["a", "b"]
