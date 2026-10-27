@@ -177,7 +177,7 @@ def test_retention_deletes_without_a_clock_read_of_its_own():
     assert not PrimitiveWork.objects.exists()
 
 
-def test_a_fast_path_claim_reads_the_clock_once():
+def test_a_fast_path_claim_returns_the_clock_with_its_row():
     work = record()
     assert _round_trips(lambda: primitive.enqueue_execution(work.pk)) == CLAIM
     assert PrimitiveEffect.deliveries == [(work.pk, PrimitiveWork.objects.get(pk=work.pk).fencing_token)]
