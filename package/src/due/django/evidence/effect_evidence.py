@@ -11,7 +11,8 @@ from functools import cached_property
 from django.db import models
 from pydantic import JsonValue, TypeAdapter
 
-from due.django.models import EffectAttempt
+from due.django.evidence.attempts import observe_locked_effect_outcome
+from due.django.models import EffectAttempt, EffectAttemptOutcome
 
 
 class StoredAppliedEffectEvidence(models.Model):
@@ -41,6 +42,22 @@ class AppliedEffectEvidenceStore[ResultT](ABC):
         """
         self.record(attempt, result)
         return self.read(attempt)
+
+    def read_locked(self, attempt: EffectAttempt) -> ResultT:
+        """Read evidence while holding this freshly loaded attempt's row lock."""
+        return self.read(attempt)
+
+    def record_applied(
+        self, attempt: EffectAttempt, result: ResultT, *, complete: Callable[[ResultT], bool] | None = None
+    ) -> None:
+        """Accept evidence and its verdict inside the caller's attempt-lock transaction."""
+        if complete is None:
+            self.record(attempt, result)
+            finished = True
+        else:
+            finished = complete(self.record_and_read(attempt, result))
+        if finished:
+            observe_locked_effect_outcome(attempt, EffectAttemptOutcome.APPLIED)
 
     def retains(self, stored: ResultT, received: ResultT) -> bool:
         """Whether ``stored`` is what this store keeps for ``received``; equality unless it canonicalizes."""

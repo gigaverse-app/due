@@ -24,7 +24,7 @@ from due.bulk import BulkOutcomeState, BulkResult
 from due.django.conformance.background import frozen_scheduler_clock, harness_owned_background_work
 from due.django.conformance.interleavings import connection_scope
 from due.django.evidence.attempts import attempts_for
-from due.django.models import DurableWorkState
+from due.django.models import DurableWorkState, EffectAttempt
 from due.django.testing import make_due
 from due.errors import EffectOutcomeUnknownError
 from tests.harness.bulk import BatchReceipt, batch, record, result
@@ -47,6 +47,17 @@ def expected(
     )
 
 
+def separate_receipt_snapshot(attempt: EffectAttempt) -> str:
+    receipt = BatchReceipt.objects.get(attempt=attempt)
+    return json.dumps({"members": receipt.members, "result": receipt.result}, sort_keys=True)
+
+
+def inline_receipt_snapshot(attempt: EffectAttempt) -> str:
+    # Independent SQL observation; never reuse the store implementation under test.
+    receipt = EffectAttempt.objects.values_list("receipt", flat=True).get(pk=attempt.pk)
+    return json.dumps(receipt, sort_keys=True)
+
+
 @dataclass(frozen=True)
 class BulkHistoryHost:
     """Bind the same receipt races to a real producer and independent product oracle."""
@@ -55,6 +66,7 @@ class BulkHistoryHost:
     make: Callable[[], Any]
     product: Callable[[Any], str]
     cleanup_owner: Callable[[Any], object]
+    receipt_snapshot: Callable[[EffectAttempt], str] = separate_receipt_snapshot
 
 
 OWNED_BATCH = BulkHistoryHost(
@@ -151,8 +163,7 @@ def receipts(
 
         def settled_evidence():
             assert original_attempt is not None
-            receipt = BatchReceipt.objects.get(attempt=original_attempt)
-            return json.dumps({"members": receipt.members, "result": receipt.result}, sort_keys=True)
+            return host.receipt_snapshot(original_attempt)
 
         try:
             yield EvidenceSession(

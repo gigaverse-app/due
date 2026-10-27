@@ -473,7 +473,7 @@ def operation_ambiguity[W: UniverseDurableWork, ResultT](
         return work.pk, claimed.token
 
     def start(pk, token):
-        value = record_effect_attempt(claims[token], before_commit=capability._before_attempt_commits)
+        value = capability._record_attempt(claims[token])
         attempts[pk] = value
         return value
 
