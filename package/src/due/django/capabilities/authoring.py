@@ -306,6 +306,12 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     def __post_init__(self) -> None:
         attempt_key_field(self.model)
+        if set(self.model.work_external_states) & set(DurableWorkState.values):
+            raise ValueError("external lifecycle states cannot exclude any Due state")
+        choices = {value for value, _ in cast(models.Field, self.model._meta.get_field("state")).flatchoices}
+        for state, reason in self.model.work_external_states.items():
+            if state not in choices or not isinstance(reason, str) or len(reason.strip()) < 20:
+                raise ValueError("external lifecycle states must name declared choices and their recovery owner")
         if self.deadline_wakeup_horizon is not None and not (
             timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
         ):
@@ -962,7 +968,7 @@ class OwnedDurableWorkCapability[
     """
 
     owner_model: type[OwnerT]
-    owner_field_name: str
+    owner_field_name: str | None
     discovery: Discovery[OwnerT, WorkT] | None = None
     capture: Capture | None = None
     input_fields: tuple[str, ...] | None = None
@@ -970,16 +976,20 @@ class OwnedDurableWorkCapability[
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        owner_field = self.model._meta.get_field(self.owner_field_name)
         if self.model.work_owner_field != self.owner_field_name:
             raise TypeError("work.work_owner_field must match the declared owner for consistent lock ordering")
-        if not isinstance(owner_field, models.OneToOneField):
-            raise TypeError(f"{self.model.__name__}.{self.owner_field_name} must be a OneToOneField")
-        if owner_field.remote_field.model is not self.owner_model:
-            raise TypeError(
-                f"{self.model.__name__}.{self.owner_field_name} points to "
-                f"{owner_field.remote_field.model}, not {self.owner_model.__name__}"
-            )
+        if self.owner_field_name is None:
+            if self.owner_model is not self.model or self.discovery is not None:
+                raise TypeError("self-contained work owns its row and cannot discover missing companion rows")
+        else:
+            owner_field = self.model._meta.get_field(self.owner_field_name)
+            if not isinstance(owner_field, models.OneToOneField):
+                raise TypeError(f"{self.model.__name__}.{self.owner_field_name} must be a OneToOneField")
+            if owner_field.remote_field.model is not self.owner_model:
+                raise TypeError(
+                    f"{self.model.__name__}.{self.owner_field_name} points to "
+                    f"{owner_field.remote_field.model}, not {self.owner_model.__name__}"
+                )
         if self.input_fields is not None:
             available = {field.name for field in self._application_fields}
             if len(set(self.input_fields)) != len(self.input_fields):
@@ -1010,6 +1020,39 @@ class OwnedDurableWorkCapability[
             and self.policy.retention is not None
         ):
             raise ValueError("discovered work using retained work-row evidence must disable retention")
+
+    @classmethod
+    def for_work(
+        cls,
+        *,
+        work: type[WorkT],
+        nudge: Publisher | None = None,
+        policy: DurableWorkPolicy | None = None,
+        input_fields: tuple[str, ...] | None = None,
+        owner_prefetch: tuple[str | models.Prefetch, ...] = (),
+        eligibility: ExecutionEligibility | None = None,
+        wakes: tuple[Dependent[WorkT], ...] = (),
+    ) -> Self:
+        """Use a business row as the work row, with the ordinary execution/recovery lifecycle.
+
+        The producer inserts this row in its business transaction (including bulk_create).
+        There is no missing companion row to discover. Optional post-commit nudges reduce
+        latency; the registered indexed recovery sweep remains the durable wake-up owner.
+        atomic(pk) locks this one existing row for later changes and progress requests.
+        """
+        if work.work_owner_field is not None:
+            raise TypeError("self-contained work must not declare a separate work_owner_field")
+        return cls(
+            model=work,
+            owner_model=cast(type[OwnerT], work),
+            owner_field_name=None,
+            nudge=nudge if nudge is not None else registered_nudge(work),
+            policy=policy if policy is not None else DurableWorkPolicy(),
+            input_fields=input_fields,
+            owner_prefetch=owner_prefetch,
+            eligibility=eligibility,
+            wakes=wakes,
+        )
 
     @classmethod
     def for_owner(
@@ -1100,6 +1143,8 @@ class OwnedDurableWorkCapability[
 
     @property
     def owner_attname(self) -> str:
+        if self.owner_field_name is None:
+            return self.model._meta.pk.attname
         owner_field = self.model._meta.get_field(self.owner_field_name)
         assert isinstance(owner_field, models.OneToOneField)
         return owner_field.attname
@@ -1158,8 +1203,12 @@ class OwnedDurableWorkCapability[
                     raise WorkOwnerBusy(f"{self.owner_model._meta.label_lower}:{owner_id}") from None
                 raise
             try:
+                # The business row is already locked when it is also the work row.
+                # Reuse that authority rather than reading/locking the same row again.
                 current = (
-                    self.model.objects.select_for_update(nowait=not wait_for_owner)
+                    cast(WorkT, owner)
+                    if self.owner_field_name is None
+                    else self.model.objects.select_for_update(nowait=not wait_for_owner)
                     .filter(**{self.owner_attname: owner_id})
                     .first()
                 )
@@ -1208,17 +1257,20 @@ class OwnedDurableWorkCapability[
             for field in self._application_fields:
                 if field.name not in self.input_fields and field.value_from_object(work) != field.get_default():
                     raise TypeError(f"progress field {field.name} cannot be supplied as desired input")
-        owner_id = getattr(work, self.owner_attname)
-        if owner_id is not None and owner_id != owner.pk:
-            raise TypeError("work belongs to a different owner than atomic()")
+        owner_values = {}
+        if self.owner_field_name is not None:
+            owner_id = getattr(work, self.owner_attname)
+            if owner_id is not None and owner_id != owner.pk:
+                raise TypeError("work belongs to a different owner than atomic()")
+            owner_values[self.owner_field_name] = owner
         desired = self.model(
             **{
-                self.owner_field_name: owner,
+                **owner_values,
                 **{field.attname: field.value_from_object(work) for field in self.domain_fields},
             }
         )
         desired.full_clean(
-            exclude=[*self.coordination_field_names, self.owner_field_name],
+            exclude=[*self.coordination_field_names, *owner_values],
             validate_unique=False,
             validate_constraints=False,
         )

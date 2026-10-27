@@ -286,6 +286,9 @@ class DurableWork(models.Model):
     """
 
     work_owner_field: ClassVar[str | None] = None
+    # Business rows can retain states owned by an earlier lifecycle during adoption.
+    # Conformance inventories every such state with its declared owner/reason.
+    work_external_states: ClassVar[dict[str, str]] = {}
     # Admission and settlement must use the same owner visibility and lock order.
     work_owner_manager_name: ClassVar[str] = "objects"
     requires_effect_evidence: ClassVar[bool] = False

@@ -2,9 +2,11 @@
 
 import json
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import partial
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -25,7 +27,7 @@ from due.django.evidence.attempts import attempts_for
 from due.django.models import DurableWorkState
 from due.django.testing import make_due
 from due.errors import EffectOutcomeUnknownError
-from tests.harness.bulk import BatchOperation, BatchReceipt, batch, record, result
+from tests.harness.bulk import BatchReceipt, batch, record, result
 from tests.harness.primitive import PrimitiveOwner
 
 
@@ -45,17 +47,38 @@ def expected(
     )
 
 
+@dataclass(frozen=True)
+class BulkHistoryHost:
+    """Bind the same receipt races to a real producer and independent product oracle."""
+
+    capability: Any
+    make: Callable[[], Any]
+    product: Callable[[Any], str]
+    cleanup_owner: Callable[[Any], object]
+
+
+OWNED_BATCH = BulkHistoryHost(
+    capability=batch,
+    make=lambda: record(batch, ("a", "b")),
+    product=lambda work: PrimitiveOwner.objects.get(pk=work.owner_id).value,
+    cleanup_owner=lambda work: PrimitiveOwner.objects.filter(pk=work.owner_id).delete(),
+)
+
+
 @contextmanager
-def receipts(*, retry_subset: bool = False) -> Iterator[EvidenceSession[BatchObservation]]:
+def receipts(
+    *, retry_subset: bool = False, host: BulkHistoryHost = OWNED_BATCH
+) -> Iterator[EvidenceSession[BatchObservation]]:
     # ARRANGE: a real admitted two-member batch, isolated for each generated history.
+    batch = host.capability
+    operation = type(batch)
     with (
         AsyncSingleThreadContext(),
         frozen_scheduler_clock() as clock,
         harness_owned_background_work(clock) as background,
     ):
         background.hold()
-        work = record(batch, ("a", "b"))
-        owner_id = work.owner_id
+        work = host.make()
         visible: set[str] = set()
         original_attempt = None
         accepted = ("a",) if retry_subset else ("a", "b")
@@ -75,11 +98,11 @@ def receipts(*, retry_subset: bool = False) -> Iterator[EvidenceSession[BatchObs
         def prepare() -> None:
             nonlocal original_attempt
             if retry_subset:
-                BatchOperation.script.append(
+                operation.script.append(
                     BulkResult(items=(*result("a").items, *result("b", state=BulkOutcomeState.RETRYABLE).items))
                 )
             # EXTERNAL SEAM: acceptance occurs in the independent provider before its reply is lost.
-            with patch.object(BatchOperation, "lose_reply", True), pytest.raises(EffectOutcomeUnknownError):
+            with patch.object(operation, "lose_reply", True), pytest.raises(EffectOutcomeUnknownError):
                 batch.attempt_execution(work.pk)
             original_attempt = attempts_for(work).get()
 
@@ -106,7 +129,7 @@ def receipts(*, retry_subset: bool = False) -> Iterator[EvidenceSession[BatchObs
             # OBSERVE: product publication, work state and the persisted attempt census.
             work.refresh_from_db()
             return BatchObservation(
-                product=PrimitiveOwner.objects.get(pk=owner_id).value,
+                product=host.product(work),
                 # Reservation changes transport ownership, not the rejected
                 # subset's outcome. No new provider attempt exists until retry.
                 work_state=DurableWorkState.RETRYABLE if work.state == DurableWorkState.QUEUED else work.state,
@@ -114,14 +137,14 @@ def receipts(*, retry_subset: bool = False) -> Iterator[EvidenceSession[BatchObs
             )
 
         def retry(replay):
-            original = BatchOperation.perform_effect
+            original = operation.perform_effect
 
             def before_provider(operation, current):
                 replay()  # The new EffectAttempt is already committed.
                 return original(operation, current)
 
             make_due(work)
-            with patch.object(BatchOperation, "perform_effect", before_provider):
+            with patch.object(operation, "perform_effect", before_provider):
                 batch.recover()
                 background.release()
                 background.hold()
@@ -152,14 +175,14 @@ def receipts(*, retry_subset: bool = False) -> Iterator[EvidenceSession[BatchObs
                 settled_evidence=settled_evidence if retry_subset else None,
                 recover=batch.recover,
                 advance=background.advance,
-                effects=lambda: Counter(BatchOperation.accepted_by_work.get(work.pk, [])),
+                effects=lambda: Counter(operation.accepted_by_work.get(work.pk, [])),
                 actor_scope=connection_scope,
             )
         finally:
             BatchReceipt.objects.filter(attempt__in=attempts_for(work)).delete()
             attempts_for(work).delete()
             work.delete()
-            PrimitiveOwner.objects.filter(pk=owner_id).delete()
+            host.cleanup_owner(work)
 
 
 BULK_RECEIPTS = EvidenceConfluence(

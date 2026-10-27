@@ -15,6 +15,40 @@ different timing or retention, and optionally `owner=` for an explicit checked
 binding. Provider operations that require retained history still need
 `DurableWorkPolicy(retention=None)`.
 
+## Let a business row own the work
+
+When a business row already represents exactly one durable obligation, it can
+inherit the appropriate work base and bind with `MyEffect.for_work(work=MyRow)`.
+It needs no `work_owner_field`, companion row, or missing-companion discovery.
+Integer keys remain the default; a UUID primary key works with the same attempts,
+worker transport, indexed recovery, and evidence rules.
+
+The producer inserts the business fields and coordination fields in the same
+transaction, including through `bulk_create`. Use Due's initial READY state and
+valid captured inputs. Register the capability and its recovery schedule before
+producing rows. A lost post-commit nudge is recovered from that row; rolling back
+the business transaction rolls back the work too. `capability.atomic(pk)` locks
+the existing row once for subsequent input changes. It cannot recover business
+intent that the producer never committed.
+
+Choose this layout when business retention and obligation retention agree.
+Deleting the row deletes the intent and can break recovery of unresolved effects.
+Provider operations still require retained work and evidence. Migrating a live
+companion table must preserve attempt correlation, receipts, pending progress,
+and fencing; changing the Python binding alone is insufficient.
+
+If another engine shares this table during a migration, declare each of its
+state choices in `work_external_states`, with the recovery owner and proof for
+that state. These declarations appear as exclusions in the generated lifecycle
+report and cannot exclude Due states. They do not migrate rows or transfer
+ownership. Each engine's selector and generated contract must cover its own
+states without claiming the other's rows.
+
+The [UUID business-row example](../tests/harness/self_work.py) and its
+[generated failure contract](../tests/bulk/test_self_work_contract.py) exercise
+lost notifications, stale workers, provider uncertainty, and late receipts using
+the ordinary Due lifecycle.
+
 ## Pick the external contract first
 
 | Contract | Public module and type | Executable example |
