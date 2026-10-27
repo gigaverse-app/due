@@ -368,7 +368,12 @@ class DurableBulkExternalOperation[
         # The last receipt still owes final work settlement. Keeping its repair
         # marker until finalize_success covers death after progress commits but
         # before the core completes the claim, without inventing another send.
-        EffectAttempt.objects.filter(pk=attempt.pk).update(repair_pending=state is not BulkOutcomeState.RETRYABLE)
+        repair_pending = state is not BulkOutcomeState.RETRYABLE
+        # Every caller holds a freshly loaded attempt lock. Successful and
+        # uncertain rounds already owe repair; only persist a real transition.
+        if attempt.repair_pending != repair_pending:
+            attempt.repair_pending = repair_pending
+            attempt.save(update_fields=["repair_pending"])
         self.receipt_model.objects.filter(attempt=attempt).update(settlement_pending=state is BulkOutcomeState.COMPLETE)
         return state
 

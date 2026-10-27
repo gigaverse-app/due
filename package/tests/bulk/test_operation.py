@@ -128,7 +128,7 @@ def test_death_after_member_progress_still_owes_work_completion(
     batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     work = record(batch_operation)
-    with monkeypatch.context() as fault:
+    with monkeypatch.context() as fault, CaptureQueriesContext(connection) as queries:
 
         def die_before_completion(*args: object, **kwargs: object) -> None:
             raise WorkerDied("progress committed before claim completion")
@@ -137,6 +137,14 @@ def test_death_after_member_progress_still_owes_work_completion(
         with pytest.raises(WorkerDied):
             batch_operation.attempt_execution(work.pk)
     assert attempts_for(work).get().repair_pending
+    # Preserve repair debt across this crash without rewriting the already-true
+    # attempt flag during member settlement. Evidence acceptance sets it once.
+    redundant = [
+        query["sql"]
+        for query in queries
+        if query["sql"].startswith('UPDATE "due_effectattempt" SET "repair_pending" = true')
+    ]
+    assert redundant == [], redundant
     expire_lease(work)
     batch_operation.recover()
     work.refresh_from_db()
