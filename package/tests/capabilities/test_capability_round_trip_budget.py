@@ -187,8 +187,7 @@ def test_a_worker_without_a_reservation_claims_runs_and_settles():
     work = record()
     assert _round_trips(lambda: primitive.attempt_execution(work.pk)) == [
         *CLAIM,
-        # The provider guard renews the lease before the call.
-        CLOCK,
+        # The provider guard renews with the UPDATE's database timestamp.
         UPDATE_WORK,
         # Settlement: owner before work, then the fenced write and the product callback.
         LOCK_OWNER,
