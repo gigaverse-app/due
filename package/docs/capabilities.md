@@ -236,6 +236,12 @@ table or change the receipt/settlement transaction boundaries.
 
 ### Calls that are not safe to repeat
 
+Both bulk capabilities measure the per-invocation elapsed retry budget with a
+local monotonic clock. Clock corrections on the database or worker do not extend
+or prematurely exhaust that duration. Lease validation, persisted retry deadlines
+and attempt timestamps still use database time. The framework-neutral `run_bulk`
+runner retains its explicit `now=` datetime clock override for existing callers.
+
 `DurableBulkExternalOperation` extends `DurableExternalOperation`: the ordinary
 claim, fenced `WorkExecutionContext`, `EffectAttempt`, retry budget and
 recovery path. Due commits the attempt and its captured membership, then calls

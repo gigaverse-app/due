@@ -499,7 +499,6 @@ class DurableBulkExternalOperation[
             resume=lambda: renew_work(context.claim, lease_duration=context.lease_duration),
             exhausted=exhausted,
             policy=self.bulk_policy,
-            now=database_now,
         )
         if continuation is not None:
             return continuation
@@ -722,7 +721,6 @@ class DurableBulkEffect[
             resume=lambda: renew_work(context.claim, lease_duration=context.lease_duration),
             exhausted=exhausted,
             policy=self.bulk_policy,
-            now=database_now,
         )
         if continuation is not None:
             return continuation
