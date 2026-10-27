@@ -43,6 +43,7 @@ from due.django.conformance.observations import OBSERVATION_HISTORIES
 from due.django.conformance.recovery_isolation import recovery_isolation_histories
 from due.django.conformance.recovery_steps import RecoveryStepBinding, validate_recovery_step_bindings
 from due.django.conformance.registrations import registered_capability, registration_of
+from due.django.conformance.regressions import regression_cases
 from due.django.conformance.scenarios import (
     EVIDENCE_RECOVERY_HISTORIES,
     RECEIPT_RECOVERY_HISTORIES,
@@ -122,6 +123,7 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         for outcome in ("poisoned", "control"):
             expected.add(f"test_one_poisoned_identity_does_not_stall_recovery[{history}-{outcome}]")
     examples = cls.__durable_work_examples__
+    expected.update(f"test_contract_detects_regression[{control.id}]" for control in regression_cases(examples))
     assert tuple(
         history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in contract.handoffs
     ) == tuple(history.model_copy(update={"arrange": unwrap(history.arrange)}) for history in examples.handoffs), (
