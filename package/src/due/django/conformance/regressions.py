@@ -7,7 +7,7 @@ resources, never alongside application workers in the same process.
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from enum import StrEnum
+from dataclasses import dataclass
 from functools import partial
 from typing import cast
 from unittest.mock import patch
@@ -18,6 +18,7 @@ from pytest_obligation.regression_controls import assert_detects_regression
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.conformance.binding import entered_binding
 from due.django.conformance.examples import EffectExamples
+from due.django.conformance.examples import EffectRegression as EffectRegression
 from due.django.conformance.scenarios import assert_receipt_repairs_product, assert_uncertainty_blocks_resend
 from due.django.conformance.suite import assert_lost_notification_reaches_domain_outcome
 from due.django.public import DurableWorkCapability, UniverseDurableWork
@@ -25,12 +26,31 @@ from due.django.testing import hold_nudges
 from due.observations import AppliedEffectEvidence
 
 
-class EffectRegression(StrEnum):
-    """The precise broken behavior a control proves observable, not a coverage grade."""
+@dataclass(frozen=True)
+class RegressionCase:
+    regression: EffectRegression
+    uncertainty: str | None = None
 
-    UNCERTAINTY_SETTLEMENT = "omit-uncertainty-settlement"
-    LOST_PUBLICATION = "disable-lost-publication-recovery"
-    DUPLICATE_EFFECT = "repeat-external-operation"
+    @property
+    def id(self) -> str:
+        return self.regression.value + (f"-{self.uncertainty}" if self.uncertainty is not None else "")
+
+
+def regression_cases[W: UniverseDurableWork](examples: EffectExamples[W]) -> tuple[RegressionCase, ...]:
+    """One case owner for suite generation and required collection/report evidence."""
+    if any(not isinstance(control, EffectRegression) for control in examples.regressions):
+        raise ValueError("regressions must contain EffectRegression declarations")
+    if len(set(examples.regressions)) != len(examples.regressions):
+        raise ValueError("regressions must not repeat a control")
+    cases = []
+    for control in examples.regressions:
+        if control == EffectRegression.UNCERTAINTY_SETTLEMENT:
+            if not examples.uncertainties:
+                raise ValueError("uncertainty-settlement control requires an uncertainty scenario")
+            cases.extend(RegressionCase(control, name) for name in examples.uncertainties)
+        else:
+            cases.append(RegressionCase(control))
+    return tuple(cases)
 
 
 def assert_effect_contract_detects_regression[W: UniverseDurableWork, ResultT](

@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import timedelta
+from enum import StrEnum
 from typing import Any
 
 from pytest_obligation.binding import is_real_reason
@@ -63,12 +64,21 @@ __all__ = [
     "CheckpointedReplay",
     "DeliveryExample",
     "EffectExamples",
+    "EffectRegression",
     "EligibilityExample",
     "FactExamples",
     "FailureExample",
     "RejectionExample",
     "TerminalExample",
 ]
+
+
+class EffectRegression(StrEnum):
+    """A specific production fault the generated contract must detect."""
+
+    UNCERTAINTY_SETTLEMENT = "omit-uncertainty-settlement"
+    LOST_PUBLICATION = "disable-lost-publication-recovery"
+    DUPLICATE_EFFECT = "repeat-external-operation"
 
 
 @dataclass(frozen=True)
@@ -205,6 +215,7 @@ class EffectExamples[W: UniverseDurableWork]:
     child setup. See ``docs/conformance-api.md`` for every field and its scope.
     """
 
+    regressions: tuple[EffectRegression, ...] = ()
     in_flight: Mapping[str, Scenario] = field(default_factory=dict)
     evidence_confluence: Mapping[str, Scenario] = field(default_factory=dict)
     make_work: Callable[[], W]

@@ -331,28 +331,28 @@ replay proof names; deleting a replay binding cannot shrink the required evidenc
 
 ## Prove the proof, and use exploration where it applies
 
-Use the opt-in `due.django.conformance.regressions` controls with the same
-`EffectExamples` passed to `effect_contract_suite`:
+Declare opt-in controls in the same `EffectExamples` passed to
+`effect_contract_suite`. The suite owns their generation, fixtures, production
+registration checks and required collection/report evidence:
 
 ```python
-from due.django.conformance.regressions import (
-    EffectRegression,
-    assert_effect_contract_detects_regression,
-)
+from dataclasses import replace
+
+from due.django.conformance.regressions import EffectRegression
+from due.django.conformance.suite import effect_contract_suite
 
 
-def test_recovery_contract_is_sensitive():
-    assert_effect_contract_detects_regression(
-        publish_document,
-        examples=EXAMPLES,
-        regression=EffectRegression.LOST_PUBLICATION,
-    )
+@effect_contract_suite(publish_document, examples=replace(EXAMPLES, regressions=(EffectRegression.LOST_PUBLICATION,)))
+class TestPublication:
+    pass
 ```
 
 Every check uses a fresh example scope for the passing baseline, the deliberately
 broken run, and the restored baseline. Existing observers, expectations and
-generated assertions remain unchanged. Run in the application's usual database,
-fixture and registration scope; the helper does not install pytest fixtures.
+generated assertions remain unchanged. Missing declared control cases fail
+collection just like other generated proofs. Adopters do not need handwritten
+proof calls or policy exceptions. The standalone assertion remains available
+for library self-tests and custom harness implementations.
 
 | Control | Existing binding / proof | Deliberate regression |
 | --- | --- | --- |
@@ -360,8 +360,8 @@ fixture and registration scope; the helper does not install pytest fixtures.
 | `UNCERTAINTY_SETTLEMENT` | Named `uncertainties` example and no-resend proof | Omit its product uncertainty finalizer |
 | `DUPLICATE_EFFECT` | `receipt_repair`, live receipt proof and independent provider-call count | Invoke its external operation twice |
 
-The latter two require `DurableExternalOperation`. Pass `uncertainty="name"`
-when multiple scenarios are declared. Mutations delegate normally for other
+The latter two require `DurableExternalOperation`. The uncertainty control
+generates a case for every named uncertainty scenario. Mutations delegate normally for other
 instances of the same capability class and are restored on failure. Use isolated
 test processes; these process-local patches are not safe beside live workers.
 

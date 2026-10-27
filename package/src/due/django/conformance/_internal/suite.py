@@ -1264,6 +1264,7 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
     profile list. Collection records origins and rejects missing selected proofs.
     Configure the host and Django before declaring the suite."""
     from due.django.conformance.collected_effects import enforce_proof_outcome
+    from due.django.conformance.regressions import assert_effect_contract_detects_regression, regression_cases
     from due.django.conformance.suite_collection import collect_suite
 
     validate_recovery_step_bindings(capability, examples.recovery_steps)
@@ -1302,6 +1303,15 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
         @proof
         def test_registered_producer_lost_notification(self):
             assert_lost_notification_reaches_domain_outcome(capability, examples)
+
+        if controls := regression_cases(examples):
+
+            @proof
+            @pytest.mark.parametrize("control", controls, ids=[control.id for control in controls])
+            def test_contract_detects_regression(self, control):
+                assert_effect_contract_detects_regression(
+                    capability, examples=examples, regression=control.regression, uncertainty=control.uncertainty
+                )
 
         def test_registered_effect_enrollment(self):
             assert registered_capability(entry.name) is capability

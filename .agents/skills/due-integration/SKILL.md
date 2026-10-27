@@ -34,6 +34,11 @@ use [Acme Printworks](../../../examples/acme_printworks/README.md) and its
    reports in CI. An empty, filtered, skipped, or deleted suite is not proof.
    Reuse Due's report checker in this repository. Run the real worker/scheduler
    path as well when changing wiring.
+6. Verify representative observers with `EffectExamples.regressions` and the
+   shared `EffectRegression` controls. Keep production commands and independent
+   observations unchanged; Due generates the fault tests and checks collection.
+   If a needed control lacks a declaration, extend Due's declaration and root
+   controls rather than adding handwritten adopter proof calls or exemptions.
 
 The Django Tasks shared runtime is not enrolled as an application-native effect.
 Always test each application's producer transaction, replay assumptions, and
