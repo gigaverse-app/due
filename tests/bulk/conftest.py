@@ -7,8 +7,13 @@ import pytest
 
 from tests.harness.bulk import registered_batch
 from tests.harness.replay_safe_bulk import registered_member_sync
+from tests.harness.self_work import registered_chunk
 
-_SUITE_HOSTS = {"test_contract.py": registered_batch, "test_replay_safe_contract.py": registered_member_sync}
+_SUITE_HOSTS = {
+    "test_contract.py": registered_batch,
+    "test_self_work_contract.py": registered_chunk,
+    "test_replay_safe_contract.py": registered_member_sync,
+}
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
