@@ -1,5 +1,21 @@
 # Prove your application's work tables
 
+Additional shared proofs belong in `EffectExamples.extras`, as `ExtraProof`
+declarations. They use the same generated suite, fixtures, reporting, and required
+collection as Due's built-in histories. For example, a Django selection with
+dependency subqueries can declare `IndexedSelectionDependencies` from
+`pytest_obligation.integrations.django.selection` with the production query
+callable and dependency table names. Profile sensitivity checks can declare
+`RegressionControl` from `pytest_obligation.regression_controls` with the existing
+harness proof, production binding, scoped fault, and expected diagnostic.
+
+Every sensitivity invocation needs fresh state, including database identities.
+Keep context-managed resources open through the proof. Setup and cleanup failures
+raise `BindingScopeError`; they cannot pass as behavioral regression detection.
+These controls require `pytest-obligation>=0.23.0`. Development uses the reviewed
+source pin until that release is available; release CI requires the testing extra
+to resolve from published packages before publishing Due.
+
 Common application bindings and fault controls are available from
 `due.django.conformance`: `EffectExamples`, `effect_contract_suite`,
 `work_table_host`, `ProviderSeam`, `seam_examples`, `WorkTableDelivery`,
@@ -636,9 +652,9 @@ applications do not copy the timing assertions. The proof checks one second
 before the declared wait, so choose an example longer than one second. An absent
 wait preserves the ordinary rejection proof.
 
-This requires pytest-obligation 0.22.0 containing the provider-wait binding
-(PR #178). Contributor CI pins that reviewed source; publish that dependency
-before releasing this Due testing extra. Native application
+This uses the shared provider-wait binding. The testing extra now requires
+pytest-obligation 0.23.0 for the full control set; contributor CI pins the
+reviewed source until publication. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.

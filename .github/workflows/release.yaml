@@ -164,6 +164,7 @@ jobs:
           wheel=(dist/*.whl)
           uv pip install --no-sources --default-index https://pypi.org/simple --python /tmp/wheel "${wheel[0]}[testing]"
           uv pip check --python /tmp/wheel
+          /tmp/wheel/bin/python -I scripts/check_testing_wheel.py
       - uses: actions/upload-artifact@v7
         with:
           name: dist

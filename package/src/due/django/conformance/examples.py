@@ -19,6 +19,7 @@ from typing import Any
 from pytest_obligation.binding import is_real_reason
 from pytest_obligation.completion import BoundedCompletion, DeliveryReplay
 from pytest_obligation.contract import (
+    ExtraProof,
     NotApplicable,
     ObligationContractDesignError,
 )
@@ -216,6 +217,7 @@ class EffectExamples[W: UniverseDurableWork]:
     """
 
     regressions: tuple[EffectRegression, ...] = ()
+    extras: tuple[ExtraProof, ...] = ()
     in_flight: Mapping[str, Scenario] = field(default_factory=dict)
     evidence_confluence: Mapping[str, Scenario] = field(default_factory=dict)
     make_work: Callable[[], W]

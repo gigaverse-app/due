@@ -39,6 +39,14 @@ use [Acme Printworks](../../../examples/acme_printworks/README.md) and its
    observations unchanged; Due generates the fault tests and checks collection.
    If a needed control lacks a declaration, extend Due's declaration and root
    controls rather than adding handwritten adopter proof calls or exemptions.
+   For another library-owned proof, use `EffectExamples.extras` with `ExtraProof`;
+   Due forwards it to the obligation generator and requires its collection.
+   Use `RegressionControl` for shared profile proofs and
+   `IndexedSelectionDependencies` for real Django dependency queries. Scope
+   fixtures across the proof and keep state fresh across sensitivity runs.
+   A matching setup or cleanup exception is infrastructure failure, never detection.
+   Raise the testing dependency floor when adding an upstream API, verify the
+   installed wheel with its testing extra, and release the provider first.
 
 The Django Tasks shared runtime is not enrolled as an application-native effect.
 Always test each application's producer transaction, replay assumptions, and

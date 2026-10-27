@@ -811,6 +811,7 @@ def effect_contract[W: UniverseDurableWork, ResultT](
 
     contract = ObligationContract(
         name=name,
+        extras=examples.extras,
         transactional=True,
         fixtures=examples.fixtures,
         profiles={

@@ -6,6 +6,7 @@ from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
+from pytest_obligation.helpers import BindingScopeError
 
 from due.django.conformance.regressions import EffectRegression, assert_effect_contract_detects_regression
 from due.django.conformance.scenarios import assert_uncertainty_blocks_resend
@@ -90,6 +91,29 @@ def test_control_restores_its_patch_when_example_cleanup_fails(publication: Publ
                 raise RuntimeError("provider fixture cleanup failed")
 
     with pytest.raises(RuntimeError, match="provider fixture cleanup failed"):
+        assert_effect_contract_detects_regression(
+            publication,
+            examples=EffectExamples(make_work=lambda: record(publication), delivery=example, receipt_repair=example),
+            regression=EffectRegression.DUPLICATE_EFFECT,
+        )
+    assert Publication.perform_effect is original
+
+
+def test_matching_cleanup_assertion_is_not_regression_evidence(publication: Publication) -> None:
+    original = Publication.perform_effect
+    runs = 0
+
+    @contextmanager
+    def example() -> Iterator[DeliveryExample[PublicationWork, str]]:
+        nonlocal runs
+        runs += 1
+        try:
+            yield delivery_example(record(publication), expected="applied")
+        finally:
+            if runs == 2:
+                raise AssertionError("receipt history skipped or repeated provider I/O: cleanup failed")
+
+    with pytest.raises(BindingScopeError, match="cleanup failed"):
         assert_effect_contract_detects_regression(
             publication,
             examples=EffectExamples(make_work=lambda: record(publication), delivery=example, receipt_repair=example),
