@@ -1,5 +1,6 @@
 """Root controls for the provider-neutral bulk reducers and round runner, independent of Django storage."""
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -34,6 +35,21 @@ def results(*items: BulkOutcome[Verdict]) -> BulkResult[Verdict]:
 
 
 COMPLETE, RETRYABLE, UNKNOWN = BulkOutcomeState.COMPLETE, BulkOutcomeState.RETRYABLE, BulkOutcomeState.UNKNOWN
+
+
+@pytest.mark.parametrize("elapsed,expected", [(90, ["step"]), (91, [RetryLimit.ELAPSED])])
+def test_default_bulk_budget_uses_monotonic_elapsed_time(monkeypatch, elapsed, expected):
+    ticks = iter([1000.0, 1000.0 + elapsed])
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+    events = []
+    run_bulk(
+        step=lambda: events.append("step") or BulkStep.STOP,
+        ready=lambda: True,
+        resume=lambda: True,
+        exhausted=events.append,
+        policy=BulkRetryPolicy(3, timedelta(seconds=90)),
+    )
+    assert events == expected
 
 
 def test_incremental_receipts_preserve_definite_results_and_unknowns():
