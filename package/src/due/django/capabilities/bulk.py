@@ -158,7 +158,7 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
         result: BulkResult[ResultT],
         *,
         complete: Callable[[BulkResult[ResultT]], bool] | None = None,
-    ) -> None:
+    ) -> BulkResult[ResultT] | None:
         if self.model is not None:
             return super().record_applied(attempt, result, complete=complete)
         retained, fields = self._stage_inline(attempt, result)
@@ -166,6 +166,7 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
             observe_locked_effect_outcome(attempt, EffectAttemptOutcome.APPLIED, extra_fields=fields)
         elif fields:
             attempt.save(update_fields=fields)
+        return retained
 
     def record(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
         self.record_and_read(attempt, result)
@@ -476,8 +477,10 @@ class DurableBulkExternalOperation[
     def finalize_applied(self, work: WorkT, result: BulkResult[ResultT]) -> None:
         self.finalize_batch(work, result)
 
-    def record_applied_effect_evidence(self, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
-        self._record_effect_evidence(attempt, result, complete=lambda retained: retained.complete)
+    def record_applied_effect_evidence(
+        self, attempt: EffectAttempt, result: BulkResult[ResultT]
+    ) -> BulkResult[ResultT] | None:
+        return self._record_effect_evidence(attempt, result, complete=lambda retained: retained.complete)
 
     def validate_rejection_evidence(self, attempt: EffectAttempt, rejection: EffectRejection) -> None:
         if any(item.state is BulkOutcomeState.COMPLETE for item in self.evidence_store.read(attempt).items):
@@ -561,18 +564,18 @@ class DurableBulkExternalOperation[
             # Reuse the scalar crossing: current claim guard, pre-I/O committed
             # EffectAttempt, classified rejection and canonical receipt commit.
             try:
-                crossing = super(DurableBulkExternalOperation, self).apply(work, context)
+                crossing, recorded = super(DurableBulkExternalOperation, self)._apply_with_evidence(work, context)
             except EffectNotAppliedError as rejected:
                 if rejected.rejection.disposition is WorkFailureDisposition.TERMINAL:
                     raise
                 return after_rejection(rejected)
-            assert isinstance(crossing, EffectAttempt), "scalar crossing must return its committed attempt"
             last = crossing
-            # This read is only a routing hint. Completion reloads both work and
-            # receipt under their locks before publishing any product progress.
+            # The writer's canonical snapshot is only a routing hint. Completion
+            # reloads work and receipt under locks before publishing progress.
             # The independently committed receipt remains recoverable if we die
             # before that single progress/completion transaction.
-            recorded = self.evidence_store.read(crossing)
+            if recorded is None:  # Legacy/custom writers need not return evidence.
+                recorded = self.evidence_store.read(crossing)
             predicted = advance_progress(work.bulk_keys, self._progress(work), recorded)
             if batch_state(work.bulk_keys, predicted) is BulkOutcomeState.COMPLETE:
                 return BulkStep.STOP
