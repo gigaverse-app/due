@@ -68,7 +68,7 @@ fallback_version = "0.1.0.dev0"
 
 
 [tool.uv.sources]
-# pytest-obligation #183 adds provider-wait budget and paced acknowledgement proofs.
+# pytest-obligation #186 adds baseline/regression/restoration controls on top of #183's retry proofs.
 # Replace with its release during publication; wheel metadata has no Git source.
 pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation.git", rev = "08d68eedabf0aea393ffd8917a7a872561f376ea", subdirectory = "package" }
 

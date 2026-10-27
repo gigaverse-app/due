@@ -331,6 +331,47 @@ replay proof names; deleting a replay binding cannot shrink the required evidenc
 
 ## Prove the proof, and use exploration where it applies
 
+Use the opt-in `due.django.conformance.regressions` controls with the same
+`EffectExamples` passed to `effect_contract_suite`:
+
+```python
+from due.django.conformance.regressions import (
+    EffectRegression,
+    assert_effect_contract_detects_regression,
+)
+
+
+def test_recovery_contract_is_sensitive():
+    assert_effect_contract_detects_regression(
+        publish_document,
+        examples=EXAMPLES,
+        regression=EffectRegression.LOST_PUBLICATION,
+    )
+```
+
+Every check uses a fresh example scope for the passing baseline, the deliberately
+broken run, and the restored baseline. Existing observers, expectations and
+generated assertions remain unchanged. Run in the application's usual database,
+fixture and registration scope; the helper does not install pytest fixtures.
+
+| Control | Existing binding / proof | Deliberate regression |
+| --- | --- | --- |
+| `LOST_PUBLICATION` | `delivery`, registered recovery and its product outcome | Omit the selected capability's recovery |
+| `UNCERTAINTY_SETTLEMENT` | Named `uncertainties` example and no-resend proof | Omit its product uncertainty finalizer |
+| `DUPLICATE_EFFECT` | `receipt_repair`, live receipt proof and independent provider-call count | Invoke its external operation twice |
+
+The latter two require `DurableExternalOperation`. Pass `uncertainty="name"`
+when multiple scenarios are declared. Mutations delegate normally for other
+instances of the same capability class and are restored on failure. Use isolated
+test processes; these process-local patches are not safe beside live workers.
+
+These are specific sensitivity checks. The uncertainty control establishes that
+the product update is observed, not that every possible resend defect is covered.
+The duplicate control establishes visibility of repeated external entries, not
+physical exactly-once delivery for every provider. A broken baseline, missing
+oracle, unexpected exception or failed cleanup is an error, never evidence of
+detection. Keep the normal generated suite and its enrollment/report checks.
+
 A positive case proves the bound workflow can finish. A negative control changes
 one production seam and must make the same generated assertion fail:
 
