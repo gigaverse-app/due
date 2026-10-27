@@ -49,15 +49,22 @@ class AppliedEffectEvidenceStore[ResultT](ABC):
 
     def record_applied(
         self, attempt: EffectAttempt, result: ResultT, *, complete: Callable[[ResultT], bool] | None = None
-    ) -> None:
-        """Accept evidence and its verdict inside the caller's attempt-lock transaction."""
+    ) -> ResultT | None:
+        """Accept evidence and return its canonical value when already read.
+
+        The caller owns the attempt-lock transaction. Existing stores returning
+        None remain supported; callers needing a routing hint then read normally.
+        """
+        retained = None
         if complete is None:
             self.record(attempt, result)
             finished = True
         else:
-            finished = complete(self.record_and_read(attempt, result))
+            retained = self.record_and_read(attempt, result)
+            finished = complete(retained)
         if finished:
             observe_locked_effect_outcome(attempt, EffectAttemptOutcome.APPLIED)
+        return retained
 
     def retains(self, stored: ResultT, received: ResultT) -> bool:
         """Whether ``stored`` is what this store keeps for ``received``; equality unless it canonicalizes."""

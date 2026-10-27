@@ -191,6 +191,13 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         )
 
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
+        attempt, _ = self._apply_with_evidence(work, context)
+        return attempt
+
+    def _apply_with_evidence(
+        self, work: WorkT, context: WorkExecutionContext[WorkT]
+    ) -> tuple[EffectAttempt, ResultT | None]:
+        """Run the scalar crossing and retain evidence already read by its writer."""
         with context.external_call():
             attempt = self._record_attempt(context.claim)
             try:
@@ -202,11 +209,11 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             except Exception as error:
                 raise EffectOutcomeUnknownError(type(error).__name__) from error
             try:
-                self.record_applied_effect_evidence(attempt, result)
+                retained = self.record_applied_effect_evidence(attempt, result)
             except Exception as error:
                 # Provider acceptance without committed evidence remains unknown.
                 raise EffectOutcomeUnknownError("provider receipt was not committed") from error
-        return attempt
+        return attempt, retained
 
     def _record_rejection_or_unknown(self, attempt: EffectAttempt, rejection: EffectRejection) -> EffectRejection:
         try:
@@ -245,9 +252,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             observe_locked_effect_outcome(locked, EffectAttemptOutcome.NOT_APPLIED, rejection=decision)
         return decision
 
-    def record_applied_effect_evidence(self, attempt: EffectAttempt, result: ResultT) -> None:
-        """Accept an exact late receipt without borrowing another worker's token."""
-        self._record_effect_evidence(attempt, result)
+    def record_applied_effect_evidence(self, attempt: EffectAttempt, result: ResultT) -> ResultT | None:
+        """Commit an exact late receipt; return canonical evidence when already read."""
+        return self._record_effect_evidence(attempt, result)
 
     def _record_effect_evidence(
         self,
@@ -255,7 +262,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         result: ResultT,
         *,
         complete: Callable[[ResultT], bool] | None = None,
-    ) -> None:
+    ) -> ResultT | None:
         """Commit validated evidence; a bulk receipt may still leave members unknown."""
         require_autocommit()
         with transaction.atomic():
@@ -265,7 +272,8 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if locked.outcome == EffectAttemptOutcome.NOT_APPLIED:
                 raise ValueError("applied receipt contradicts definite non-application")
             self.validate_applied_effect_evidence(result)
-            self.evidence_store.record_applied(locked, result, complete=complete)
+            retained = self.evidence_store.record_applied(locked, result, complete=complete)
+        return retained
 
     def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
         """
