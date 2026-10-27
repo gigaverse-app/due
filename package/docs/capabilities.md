@@ -223,6 +223,20 @@ call until exact-attempt evidence resolves it. Duplicate, foreign and
 contradictory receipts are rejected. Partial receipts merge monotonically in
 the canonical store and use the same settlement path as a live response.
 
+A fully completed batch publishes member progress and final work completion in
+one transaction, after the provider receipt has committed independently. Core
+completion reloads work and evidence under their locks before applying progress;
+an earlier complete-result read only chooses this path. Partial and retryable
+rounds still commit progress before another provider call.
+
+This changes failure visibility: if a final completion hook fails, that batch's
+progress and product callbacks roll back together with completion. The canonical
+receipt remains owed to recovery, which applies it without resending. Previously,
+progress could remain visible while the final completion hook failed separately.
+Applications whose UI or callbacks rely on that intermediate state must review
+this tradeoff before adopting the change. Hooks keep their prior order and state:
+`finalize_batch` sees the claimed row, then success hooks see the completed row.
+
 Extra hooks for this capability:
 
 | Hook | Application responsibility |

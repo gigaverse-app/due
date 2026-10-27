@@ -45,6 +45,7 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
         and "FOR UPDATE" not in query["sql"]
     ]
     assert unlocked_reads == [], unlocked_reads
+    assert sum(query["sql"] == "COMMIT" for query in queries) == 4
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision
@@ -53,6 +54,30 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     assert attempt.outcome == EffectAttemptOutcome.APPLIED
     assert not attempt.repair_pending
     assert BatchReceipt.objects.get(attempt=attempt).members == ["a", "b", "c"]
+
+
+def test_completion_failure_rolls_back_progress_but_keeps_provider_receipt(
+    batch_operation: BatchOperation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = record(batch_operation)
+
+    def fail_completion(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("product completion failed")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(BatchOperation, "finalize_success", fail_completion)
+        with pytest.raises(RuntimeError, match="product completion failed"):
+            batch_operation.attempt_execution(work.pk)
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.UNKNOWN
+    assert work.bulk_progress == []
+    attempt = attempts_for(work).get()
+    assert attempt.repair_pending
+    assert batch_operation.evidence_store.read(attempt) == result("a", "b", "c")
+    batch_operation.recover()
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.SUCCEEDED
+    assert BatchOperation.calls == [("a", "b", "c")]
 
 
 def test_only_definite_rejections_reenter_the_bulk_provider(batch_operation: BatchOperation) -> None:

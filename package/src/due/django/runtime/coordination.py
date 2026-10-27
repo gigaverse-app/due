@@ -357,6 +357,7 @@ def settle_locked_work[WorkT: DurableWork](
 def complete_work[WorkT: DurableWork](
     claim: WorkClaim[WorkT],
     *,
+    prepare: Callable[[WorkT], None] | None = None,
     finalize: Callable[[WorkT], ReopenAfter | None] | None = None,
     now: NowFn = database_now,
 ) -> bool:
@@ -365,11 +366,15 @@ def complete_work[WorkT: DurableWork](
 
     True means the claim's settlement was accepted, not that no future repair
     is owed. Stale claims cannot run the finalizer or change the current row.
+    Optional preparation runs under the same fence before the success state is
+    written; preparation, success and finalization share the transaction.
     """
     with transaction.atomic():
         lock_work_owner(claim.work)
         current = claim.owned_work().select_for_update().first()
         if current is not None:
+            if prepare is not None:
+                finalize_under_fence(current, prepare)
             settle_locked_work(current, revision=claim.desired_revision, finalize=finalize, now=now)
     if current is None:
         record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
@@ -1060,6 +1065,7 @@ def run_work[WorkT: DurableWork, ResultT](
     delivery_token: UUID | None = None,
     expected_revision: int | None = None,
     eligibility: ExecutionEligibility | None = None,
+    prepare_success: Callable[[WorkT, ResultT], None] | None = None,
     finalize_success: Callable[[WorkT, ResultT], ReopenAfter | None] | None = None,
     finalize_terminal: Callable[[WorkT, Exception], None] | None = None,
     finalize_unknown: Callable[[WorkT], None] | None = None,
@@ -1095,6 +1101,7 @@ def run_work[WorkT: DurableWork, ResultT](
             lease_duration=lease_duration,
             max_rearms=max_rearms,
             retry_delay=retry_delay,
+            prepare_success=prepare_success,
             finalize_success=finalize_success,
             finalize_terminal=finalize_terminal,
             finalize_unknown=finalize_unknown,
@@ -1113,6 +1120,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     lease_duration: timedelta,
     max_rearms: int | None,
     retry_delay: timedelta,
+    prepare_success: Callable[[WorkT, ResultT], None] | None,
     finalize_success: Callable[[WorkT, ResultT], ReopenAfter | None] | None,
     finalize_terminal: Callable[[WorkT, Exception], None] | None,
     finalize_unknown: Callable[[WorkT], None] | None,
@@ -1150,7 +1158,11 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
                 )
             else:
-                completed = complete_work(claim, finalize=_bind_finalizer(finalize_success, result))
+                completed = complete_work(
+                    claim,
+                    prepare=_bind_finalizer(prepare_success, result),
+                    finalize=_bind_finalizer(finalize_success, result),
+                )
             if database_only and not completed:
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
