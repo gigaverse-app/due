@@ -966,6 +966,7 @@ class OwnedDurableWorkCapability[
     discovery: Discovery[OwnerT, WorkT] | None = None
     capture: Capture | None = None
     input_fields: tuple[str, ...] | None = None
+    owner_prefetch: tuple[str | models.Prefetch, ...] = dataclass_field(default=(), kw_only=True)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -1021,6 +1022,7 @@ class OwnedDurableWorkCapability[
         discovery: Discovery[OwnerT, WorkT] | None = None,
         capture: Capture | None = None,
         input_fields: tuple[str, ...] | None = None,
+        owner_prefetch: tuple[str | models.Prefetch, ...] = (),
         eligibility: ExecutionEligibility | None = None,
         wakes: tuple[Dependent[WorkT], ...] = (),
     ) -> Self:
@@ -1049,6 +1051,7 @@ class OwnedDurableWorkCapability[
             discovery=discovery,
             capture=capture,
             input_fields=input_fields,
+            owner_prefetch=owner_prefetch,
             eligibility=eligibility,
             wakes=wakes,
             owner_model=owner,
@@ -1166,6 +1169,12 @@ class OwnedDurableWorkCapability[
                 if not wait_for_owner and isinstance(error.__cause__, LockNotAvailable):
                     raise WorkOwnerBusy(f"{self.model._meta.label_lower}:owner={owner_id}") from error
                 raise
+
+            # Read related snapshots only after owner/work locks are acquired.
+            # Joining them into SELECT FOR UPDATE would expand the lock scope
+            # (or fail for nullable joins) and read before a possible lock wait.
+            if self.owner_prefetch:
+                models.prefetch_related_objects([owner], *self.owner_prefetch)
 
             scheduled = _DurableWorkTransaction(
                 _capability=self,
