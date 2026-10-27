@@ -25,6 +25,7 @@ from due.django.evidence.attempts import (
     publish_pending_attempt_census,
     retire_repair_for_gone_target,
 )
+from due.django.identities import attempt_key_field
 from due.django.models import (
     TERMINAL_WORK_STATES,
     DurableWorkState,
@@ -57,7 +58,7 @@ def projections_with_stale_writes[WorkT: UniverseDurableWork](
     """
     stale = EffectAttempt.objects.filter(
         work_model=work.model._meta.label_lower,
-        work_id=OuterRef("pk"),
+        **{attempt_key_field(work.model): OuterRef("pk")},
         repair_pending=True,
         desired_revision__lt=OuterRef("desired_revision"),
     )

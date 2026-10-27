@@ -163,6 +163,7 @@ available when you need a more specialized interface.
 | Contract inventory | `due.django.conformance` | `discover_enrollment`, `assert_complete_enrollment` |
 | Provider bindings and controlled delivery | `due.django.conformance` | `ProviderSeam`, `seam_examples`, `ProviderProbe`, `WorkTableDelivery`, `WorkTableRecovery` |
 | Application fault controls | `due.django.conformance` | `hold_nudges`, `expire_lease`, `die_after`, `WorkerDied`, `applied_snapshot` |
+| Real Celery worker failures | `due.django.conformance` | `celery_worker_contract` |
 
 `due.django.public` also exports lower-level coordination functions such as
 `claim_work` and `complete_work`. Most integrations should use a capability's

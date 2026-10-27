@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 from django.db import connection, models, transaction
@@ -19,6 +19,7 @@ from django.db.models import Count, F, Min, Q, QuerySet
 
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.external_services import execution_external_services
+from due.django.identities import WorkId
 from due.django.integration import current_universe_scope, pin_after_write
 from due.django.models import (
     ATTENTION_WORK_STATES,
@@ -37,14 +38,24 @@ from due.django.runtime.metrics import (
     record_work_operation,
 )
 from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
-from due.errors import WorkFailureDisposition
+from due.errors import WorkDeferredError, WorkFailureDisposition, provider_wait_delay
 
 logger = logging.getLogger(__name__)
 
 WorkT = TypeVar("WorkT", bound=DurableWork)
 ResultT = TypeVar("ResultT")
 NowFn = Callable[[], datetime]
-Publisher = Callable[[int, UUID], object]
+Publisher = Callable[[int, UUID], object] | Callable[[UUID, UUID], object]
+
+
+def publish_work(publish: Publisher, identity: WorkId, token: UUID) -> object:
+    """Invoke the publisher bound to this model's selected primary-key type.
+
+    Preserve integer-only callback annotations for existing integer adopters.
+    The model determines which callback contract applies, not a text coercion.
+    """
+    return cast(Callable[[WorkId, UUID], object], publish)(identity, token)
+
 
 CLAIMABLE_STATES = (
     DurableWorkState.READY,
@@ -103,8 +114,8 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
     desired_revision: int
 
     @property
-    def work_id(self) -> int:
-        assert isinstance(self.work.pk, int), "durable-work work rows use integer primary keys"
+    def work_id(self) -> WorkId:
+        assert isinstance(self.work.pk, (int, UUID)), "work rows use integer or UUID primary keys"
         return self.work.pk
 
     @property
@@ -204,7 +215,7 @@ def _read_database_clock() -> datetime:
 
 def claim_work[WorkT: DurableWork](
     model: type[WorkT],
-    work_id: int,
+    work_id: WorkId,
     *,
     lease_duration: timedelta,
     now: NowFn = database_now,
@@ -370,18 +381,20 @@ def retry_locked_work[WorkT: DurableWork](
     *,
     retry_at: datetime,
     max_rearms: int | None,
+    consumes_budget: bool = True,
     retry_delay: timedelta,
     error_code: str,
     finalize: Callable[[WorkT], None] | None = None,
 ) -> None:
     """Shared retry/exhaustion transition; caller already owns this work row."""
-    if max_rearms is not None and current.rearm_count >= max_rearms:
+    if consumes_budget and max_rearms is not None and current.rearm_count >= max_rearms:
         current.state = DurableWorkState.EXHAUSTED
         current.completed_at = retry_at
     else:
         current.state = DurableWorkState.RETRYABLE
         # With no budget nothing retires the row first: a corrupt maximum must not fail every retry.
-        current.rearm_count = saturating_increment(current.rearm_count)
+        if consumes_budget:
+            current.rearm_count = saturating_increment(current.rearm_count)
         current.available_at = retry_at + retry_delay
     current.lease_expires_at = None
     current.last_error_code = error_code[:64]
@@ -405,6 +418,7 @@ def retry_work[WorkT: DurableWork](
     *,
     error_code: str,
     max_rearms: int | None,
+    consumes_budget: bool = True,
     retry_delay: timedelta,
     finalize: Callable[[WorkT], None] | None = None,
     now: NowFn = database_now,
@@ -428,6 +442,7 @@ def retry_work[WorkT: DurableWork](
             current,
             retry_at=retry_at,
             max_rearms=max_rearms,
+            consumes_budget=consumes_budget,
             retry_delay=retry_delay,
             error_code=error_code,
             finalize=finalize,
@@ -543,7 +558,7 @@ def lock_work_owner(work: DurableWork) -> models.Model | None:
     return None
 
 
-def lock_owner_of_work(model: type[DurableWork], work_id: int) -> None:
+def lock_owner_of_work(model: type[DurableWork], work_id: WorkId) -> None:
     """
     Lock the owner a stored work row names, before the caller locks that row: one statement.
 
@@ -598,7 +613,9 @@ def _rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn) -> No
     record_work_operation(current._meta.label_lower, DurableWorkOperation.CONTINUED)
 
 
-def resume_unapplied_work[WorkT: DurableWork](model: type[WorkT], work_id: int, *, reset_budget: bool = False) -> bool:
+def resume_unapplied_work[WorkT: DurableWork](
+    model: type[WorkT], work_id: WorkId, *, reset_budget: bool = False
+) -> bool:
     """Resume a paused or exhausted occurrence only with no unresolved effect.
 
     An operator may refresh the failure budget, never erase evidence or replace
@@ -631,7 +648,7 @@ def resume_unapplied_work[WorkT: DurableWork](model: type[WorkT], work_id: int, 
 
 def supersede_work[WorkT: DurableWork](
     model: type[WorkT],
-    work_id: int,
+    work_id: WorkId,
     *,
     now: NowFn = database_now,
     reset_budget: bool = True,
@@ -680,7 +697,7 @@ class WakeAction(StrEnum):
     """EXHAUSTED/TERMINAL_FAILED: new facts earn a new revision and a fresh budget."""
 
 
-def wake_work[WorkT: DurableWork](model: type[WorkT], work_id: int, *, now: NowFn = database_now) -> WakeAction:
+def wake_work[WorkT: DurableWork](model: type[WorkT], work_id: WorkId, *, now: NowFn = database_now) -> WakeAction:
     """
     Make an existing dependent read facts committing in this transaction.
 
@@ -776,7 +793,7 @@ def reap_expired_work[WorkT: DurableWork](
 
 def _reap_one[WorkT: DurableWork](
     model: type[WorkT],
-    work_id: int,
+    work_id: WorkId,
     *,
     reaped_at: datetime,
     max_rearms: int | None,
@@ -854,12 +871,12 @@ def dispatch_due_work[WorkT: DurableWork](
 
     require_autocommit()
 
-    def reserve_and_publish(work_id: int) -> bool:
+    def reserve_and_publish(work_id: WorkId) -> bool:
         claim = claim_work(model, work_id, lease_duration=lease_duration, now=now, queued=True, eligibility=eligibility)
         if claim is None:
             return False
         # Ambiguous sends retain their reservation until the lease expires.
-        publish(work_id, claim.token)
+        publish_work(publish, work_id, claim.token)
         return True
 
     with recovery_pass_for(model._meta.label_lower, recovery) as tick:
@@ -992,7 +1009,7 @@ def prune_completed_work[WorkT: DurableWork](
 
 def accept_delivery[WorkT: DurableWork](
     model: type[WorkT],
-    work_id: int,
+    work_id: WorkId,
     token: UUID,
     *,
     lease_duration: timedelta,
@@ -1033,7 +1050,7 @@ def accept_delivery[WorkT: DurableWork](
 
 def run_work[WorkT: DurableWork, ResultT](
     model: type[WorkT],
-    work_id: int,
+    work_id: WorkId,
     *,
     handler: Callable[[WorkT, WorkExecutionContext[WorkT]], ResultT | ContinueAfter],
     classify_error: Callable[[Exception], WorkFailureDisposition],
@@ -1138,17 +1155,29 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
-        disposition = WorkFailureDisposition.UNKNOWN if possible_attempt else classify_error(error)
+        disposition = (
+            WorkFailureDisposition.UNKNOWN
+            if possible_attempt
+            else WorkFailureDisposition.RETRYABLE
+            if isinstance(error, WorkDeferredError)
+            else classify_error(error)
+        )
         if disposition is WorkFailureDisposition.UNKNOWN:
             transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=finalize_unknown)
         elif disposition is WorkFailureDisposition.RETRYABLE:
             delay = retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay
+            wait = provider_wait_delay(
+                error,
+                fallback=delay,
+                provider_delay=provider_retry_after(error) if provider_retry_after is not None else timedelta(0),
+            )
             transitioned = retry_work(
                 claim,
                 error_code=type(error).__name__,
                 max_rearms=max_rearms,
                 # The provider's wait is a floor: a retry inside it is refused again.
-                retry_delay=max(delay, provider_retry_after(error)) if provider_retry_after is not None else delay,
+                retry_delay=wait if wait is not None else delay,
+                consumes_budget=wait is None,
                 finalize=_bind_finalizer(finalize_retry, error),
             )
         else:
@@ -1167,6 +1196,8 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     "disposition": disposition,
                 },
             )
+        if isinstance(error, WorkDeferredError) and disposition is WorkFailureDisposition.RETRYABLE:
+            return transitioned
         raise
     if not completed:
         logger.warning(

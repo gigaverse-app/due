@@ -151,6 +151,7 @@ from due.django.evidence.attempts import (
     observe_effect_outcome,
     record_effect_attempt,
 )
+from due.django.identities import work_id_from_wire
 from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
     DatabaseEffect,
@@ -340,7 +341,11 @@ def classified_failure_bindings[W: UniverseDurableWork, ResultT](
                 f"{name}: a classified rejection is one provider call per execution; "
                 f"expected_attempts={scenario.expected_attempts} describes a different shape"
             )
-        if scenario.disposition is WorkFailureDisposition.RETRYABLE and capability.policy.max_rearms == 0:
+        if (
+            scenario.disposition is WorkFailureDisposition.RETRYABLE
+            and capability.policy.max_rearms == 0
+            and scenario.provider_wait is None
+        ):
             raise ObligationContractDesignError(
                 f"{name}: max_rearms=0 exhausts on the first failure, so nothing is retryable"
             )
@@ -370,7 +375,12 @@ def classified_failure_bindings[W: UniverseDurableWork, ResultT](
             failure_attempt_count=lambda work: effect_calls(),
             observe=bindings.observe,
             identity_of=lambda work: work.pk,
-            waits=capability.policy.delay_at(0) > timedelta(0),
+            waits=scenario.provider_wait is not None or capability.policy.delay_at(0) > timedelta(0),
+            preserved_failure_budget=(
+                lambda work: capability.model.objects.values_list("rearm_count", flat=True).get(pk=work.pk)
+            )
+            if scenario.provider_wait is not None
+            else None,
             provider_wait=scenario.provider_wait,
             advance_by=bindings.age_by if scenario.provider_wait is not None else None,
             product_outcome=lambda work: delivery.observe(),
@@ -973,7 +983,9 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         if example.work.state == DurableWorkState.RETRYABLE:
             bindings.age(example.work)
             recover_durable_work_task(entry.name)
-        deliveries = [(args, options) for args, options in sent if args[1] == example.work.pk]
+        deliveries = [
+            (args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == example.work.pk
+        ]
         assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
         args, options = deliveries[0]
         assert_registered_worker_options(entry, options)
@@ -1036,14 +1048,14 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
         capability.enqueue_execution(work.pk)  # The broker accepts and then loses this message.
         work.refresh_from_db()
         assert work.state == DurableWorkState.QUEUED, "positive control: the reservation must be recorded"
-        lost = [args for args, _ in sent if args[1] == work.pk]
+        lost = [args for args, _ in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
         assert len(lost) == 1
         expire_lease(work)
         recover_durable_work_task(entry.name)
         work.refresh_from_db()
         assert work.rearm_count == 0, f"{entry.name}: an undelivered reservation spent the retry budget"
         assert work.state == DurableWorkState.QUEUED, f"{entry.name}: recovery did not redeliver lost work"
-        redelivered = [args for args, _ in sent if args[1] == work.pk]
+        redelivered = [args for args, _ in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
         assert len(redelivered) == 2, f"{entry.name}: recovery must publish exactly one replacement delivery"
         assert not run_durable_work_task(*lost[0]), "the lost token must not start execution later"
         assert run_durable_work_task(*redelivered[-1]), "the redelivery was not executable"
@@ -1202,7 +1214,9 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
             DurableWorkState.TERMINAL_FAILED
             if scenario.disposition == WorkFailureDisposition.TERMINAL
             else DurableWorkState.EXHAUSTED
-            if capability.policy.max_rearms is not None and initial_rearms >= capability.policy.max_rearms
+            if scenario.provider_wait is None
+            and capability.policy.max_rearms is not None
+            and initial_rearms >= capability.policy.max_rearms
             else DurableWorkState.RETRYABLE
         )
         assert work.state == expected_state, "recovery must preserve the rejection decision"
@@ -1218,8 +1232,8 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
         assert evidence.outcome == EffectAttemptOutcome.NOT_APPLIED
         decision = capability.rejection_type.model_validate(evidence.rejection)
         assert decision.disposition == scenario.disposition
-        rearms = initial_rearms + (expected_state == DurableWorkState.RETRYABLE)
-        assert work.rearm_count == rearms, "one rejection must consume exactly one available retry"
+        rearms = initial_rearms + (expected_state == DurableWorkState.RETRYABLE and scenario.provider_wait is None)
+        assert work.rearm_count == rearms, "ordinary rejections spend one retry; provider waits preserve the budget"
         capability.recover()
         work.refresh_from_db()
         assert work.rearm_count == rearms, "recovery must not spend the same rejection's budget twice"
@@ -1230,6 +1244,7 @@ def assert_rejection_survives_recovery[W: UniverseDurableWork, ResultT](
         )
         assert effect_calls() == scenario.expected_attempts
         if scenario.provider_wait is not None and expected_state == DurableWorkState.RETRYABLE:
+            assert work.rearm_count == initial_rearms, "recovered provider waiting spent the failure budget"
             bindings = DurableWorkBindings(capability, lambda: work)
             with classified_failure_bindings(bindings, lambda: scenario, outcome="recovered rejection") as failure:
                 assert_provider_wait_is_honored(failure, work)

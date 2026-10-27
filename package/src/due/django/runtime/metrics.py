@@ -201,6 +201,24 @@ _due_recovery_deferred_oldest_age_seconds = _gauge(
 )
 
 
+_due_recovery_waiting = _gauge(
+    f"{METRIC_NAMESPACE}_recovery_waiting",
+    "Owed identities waiting for a provider, without spending failure budget.",
+    labels={"effect": str, "phase": RecoveryPhase},
+)
+_due_recovery_waiting_oldest_age_seconds = _gauge(
+    f"{METRIC_NAMESPACE}_recovery_waiting_oldest_age_seconds",
+    "Age of the oldest retained provider wait, per phase.",
+    labels={"effect": str, "phase": RecoveryPhase},
+)
+
+
+@_optional_observation
+def record_recovery_waits(effect: str, phase: RecoveryPhase, *, count: int, oldest_age_seconds: float) -> None:
+    _due_recovery_waiting.labels(effect=effect, phase=phase).set(count)
+    _due_recovery_waiting_oldest_age_seconds.labels(effect=effect, phase=phase).set(oldest_age_seconds)
+
+
 @_optional_observation
 def record_recovery_deferrals(effect: str, phase: RecoveryPhase, *, count: int, oldest_age_seconds: float) -> None:
     _due_recovery_deferred.labels(effect=effect, phase=phase).set(count)

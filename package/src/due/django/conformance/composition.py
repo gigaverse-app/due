@@ -14,6 +14,7 @@ from due.django.capabilities.scheduled import CancellationResult, DurableSchedul
 from due.django.conformance.bindings import assert_registered_worker_options
 from due.django.conformance.registrations import registered_capability, registration_of
 from due.django.evidence.attempts import attempts_for, observe_effect_outcome
+from due.django.identities import work_id_from_wire
 from due.django.models import EffectAttemptOutcome
 from due.django.public import (
     DurableWorkCapability,
@@ -180,7 +181,7 @@ def recover_and_deliver(work: UniverseDurableWork) -> None:
     sent = []
 
     def capture(*, args, **options):
-        if args[0] == entry.name and args[1] == work.pk:
+        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) == work.pk:
             sent.append((args, options))
 
     # Advance eligibility/leases only. Reaping, retry and reservation remain production-owned.

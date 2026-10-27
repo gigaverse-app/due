@@ -95,5 +95,8 @@ def test_canonical_dataclass_receipt_retains_first_observation(
     else:
         with pytest.raises(ValueError, match="contradict"):
             store.record(attempt, later)
+    # Stores implementing only record/read retain the backward-compatible
+    # default, including canonicalization that keeps the first observation.
+    assert store.record_and_read(attempt, original) == original
     assert store.read(attempt) == original
     assert (Receipt if encoding == "json" else BinaryReceipt).objects.count() == 1

@@ -120,7 +120,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 | Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
-| Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; a stale delivery cannot call the provider or change the waiting state |
+| Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; stale delivery cannot call the provider; repeated waiting preserves the failure budget |
 | Replay-safe effect | `replay`; `delivery.effect_calls` | An actual second external execution leaves the same observable result; a lost acknowledgement replays through recovery to one settled outcome |
 | External operation | `applied_receipt`, `receipt_repair`, `rejections`, `uncertainties`; optional `evidence_entry` | UNKNOWN blocks resend; receipts repair publication through interruption histories; late evidence settles through the application's own receipt entry point when bound |
 | Read-only observation | `observation` | Inconclusive evidence, lost/stale observation delivery, competing receipt, no resend |
@@ -540,6 +540,51 @@ successful work row. See the [demo comparison](https://github.com/gigaverse-app/
 histories, deliberately incorrect provider replies and CI enrollment gates.
 
 
+### Every Celery failure, through a real worker
+
+`process_handoffs` above kill a child that runs the attempt directly. To check
+the whole path a deployment takes, through Celery's own worker, generate the
+histories with `due.django.conformance.celery_worker_contract()`. Each one sends the
+work with your producer, starts a real `celery worker` with a prefork child, and
+fails the delivery that runs it at each of Celery's stages: the pool child lost
+as the task starts, after the work ran or after the result was stored (each also
+by `SIGKILL`), and the task's `on_success` hook raising. The worker then starts
+again, the abandoned delivery's lease runs out, and the recovery tick your beat
+schedule publishes runs on the worker. Every history must reach the outcome a
+run with no failure reaches; nothing is declared.
+
+```python
+from due.django.conformance import celery_worker_contract
+from pytest_obligation import due_work_contract_suite
+
+PUBLICATION = celery_worker_contract(
+    "publish_document",
+    app="examples.celery_app:app",
+    send=lambda: request_publication(Document.objects.create().pk, f"revision {uuid4()}"),
+    effect=published,  # the document points at an object holding its text
+    initial_effect=False,
+    expected_effect=True,
+    env=worker_environment,  # the test database's name, which only the running test knows
+)
+
+
+@due_work_contract_suite(PUBLICATION)
+class TestPublicationThroughCelery:
+    pass
+```
+
+The worker is a separate process, so it needs the test database (`env`, a
+callable evaluated when each worker starts) and the Django settings your tests
+use. The work runs on a queue of its own, so other tests sharing the broker do
+not reach the worker and it does not take their messages. Test doubles installed in
+the test process do not reach it: pass `worker_setup="module:function"`, which
+the worker calls once its tasks are loaded, to install the fake provider or
+filesystem storage your work needs there. Cases commit for real.
+[The executable example](https://github.com/gigaverse-app/due/blob/main/integration_tests/conformance/test_document_celery_worker.py)
+also shows the control: the same histories without Due's recovery lose the
+publication whose delivery died as it started. Needs Linux or macOS.
+
+
 ### Provider-declared retry windows
 
 Declare the provider's expected wait independently of the resulting work row.
@@ -556,3 +601,11 @@ before releasing this Due testing extra. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.
+
+
+Provider-wait examples also bind the production failure counter to obligation's
+`preserved_failure_budget` observation. The generated history repeats waits
+beyond an ordinary small retry budget and verifies that no budget is consumed.
+Recovered-rejection histories make the same assertion against the pre-recovery
+counter. A declared waiting contract therefore proves pacing and budget
+preservation; the provider still must supply safe replay or completion evidence.

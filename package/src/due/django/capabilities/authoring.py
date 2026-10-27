@@ -23,6 +23,7 @@ from due.django.declarations.capture import Capture
 from due.django.declarations.dependents import Dependent
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.mirrors import Outcome
+from due.django.identities import WorkId, attempt_key_field, work_id_to_wire
 from due.django.models import (
     ACTIVE_WORK_STATES,
     DurableWork,
@@ -44,6 +45,7 @@ from due.django.runtime.coordination import (
     dispatch_due_work,
     due_work,
     prune_completed_work,
+    publish_work,
     publish_work_census,
     reap_expired_work,
     rearm_stopped_work,
@@ -228,7 +230,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     # PostgreSQL owns long deadlines, and recovery needs no hint receipts.
     deadline_wakeup_horizon: ClassVar[timedelta | None] = None
 
-    def _enqueue_deadline_hint(self, work_id: int) -> bool:
+    def _enqueue_deadline_hint(self, work_id: WorkId) -> bool:
         require_autocommit()
         if self.deadline_wakeup_horizon is not None:
             now = database_now()
@@ -253,7 +255,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
         registration = registration_for(self.model)
         wake_scheduled_work_task.apply_async(
-            args=(registration.name, work.pk, work.desired_revision, work.available_at.isoformat()),
+            args=(registration.name, work_id_to_wire(work.pk), work.desired_revision, work.available_at.isoformat()),
             eta=work.available_at,
             # Celery supports this Kombu publish option; celery-types omits it.
             delivery_mode=1,  # pyrefly: ignore [unexpected-keyword]
@@ -262,7 +264,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             soft_time_limit=registration.execution_soft_time_limit,
         )
 
-    def deliver_deadline_hint(self, work_id: int, revision: int, available_at: datetime) -> None:
+    def deliver_deadline_hint(self, work_id: WorkId, revision: int, available_at: datetime) -> None:
         require_autocommit()
         # A hint grants no authority. Even a matching hint must pass the ordinary
         # atomic due-time/eligibility claim and fenced delivery protocol below.
@@ -303,6 +305,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         return self.model.objects.filter(state__in=CLAIMABLE_STATES)
 
     def __post_init__(self) -> None:
+        attempt_key_field(self.model)
         if self.deadline_wakeup_horizon is not None and not (
             timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
         ):
@@ -413,7 +416,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             if dependent_id is not None:
                 _wake(dependent.work, dependent_id, partial(_enqueue_registered, dependent.work))
 
-    def wake(self, work_id: int, *, notify_worker: bool = True) -> WakeAction:
+    def wake(self, work_id: WorkId, *, notify_worker: bool = True) -> WakeAction:
         """
         Make this existing work read facts committing in the caller's transaction.
 
@@ -446,15 +449,17 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         refusal. The default reads ``EffectRejection.retry_after``. Override it
         to read a wait off another error, such as an SDK exception carrying an
         HTTP ``Retry-After``; return ``timedelta(0)`` when there is none. The
-        retry still spends one rearm, so ``max_rearms`` bounds throttled
-        windows, not seconds.
+        provider wait preserves the failure budget. Without a provider hint,
+        ordinary failures retain the configured delay and bounded rearms.
+        Use WorkDeferredError for unavailability without a hint; it selects
+        the configured delay without charging a failure.
         """
         if isinstance(error, EffectNotAppliedError) and error.rejection.retry_after is not None:
             return error.rejection.retry_after
         return timedelta(0)
 
     def attempt_execution(
-        self, work_id: int, delivery_token: UUID | None = None, *, expected_revision: int | None = None
+        self, work_id: WorkId, delivery_token: UUID | None = None, *, expected_revision: int | None = None
     ) -> bool:
         transitioned = run_work(
             self.model,
@@ -481,7 +486,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             transport.notify_after_commit(self.work_name, self._enqueue_deadline_hint, work_id)
         return transitioned
 
-    def enqueue_execution(self, work_id: int) -> None:
+    def enqueue_execution(self, work_id: WorkId) -> None:
         require_autocommit()
         if self._enqueue_deadline_hint(work_id):
             return
@@ -489,7 +494,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             self.model, work_id, lease_duration=self.policy.lease_duration, queued=True, eligibility=self.eligibility
         )
         if claim is not None:
-            self.nudge(work_id, claim.token)
+            publish_work(self.nudge, work_id, claim.token)
 
     def execute_now(self, work: WorkT) -> bool:
         """
@@ -733,8 +738,8 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
 def _wake(
     model: type[UniverseDurableWork],
-    work_id: int,
-    enqueue: Callable[[int], object],
+    work_id: WorkId,
+    enqueue: Callable[[WorkId], object],
     *,
     notify_worker: bool = True,
 ) -> WakeAction:
@@ -744,7 +749,7 @@ def _wake(
     return action
 
 
-def _enqueue_registered(model: type[UniverseDurableWork], work_id: int) -> None:
+def _enqueue_registered(model: type[UniverseDurableWork], work_id: WorkId) -> None:
     # Lazy import, as in registered_nudge: the registry and task modules import this one.
     from due.django.runtime.registry import registration_for
 
@@ -754,14 +759,14 @@ def _enqueue_registered(model: type[UniverseDurableWork], work_id: int) -> None:
 def registered_nudge(model: type[UniverseDurableWork]) -> Publisher:
     """Build the standard low-latency wake-up for a registered capability."""
 
-    def nudge(work_id: int, token: UUID) -> object:
+    def nudge(work_id: WorkId, token: UUID) -> object:
         # Lazy import: the registry and task modules import this one.
         from due.django.runtime.registry import registration_for
         from due.django.runtime.tasks import run_durable_work_task
 
         registration = registration_for(model)
         return run_durable_work_task.apply_async(
-            args=(registration.name, work_id, str(token)),
+            args=(registration.name, work_id_to_wire(work_id), str(token)),
             queue=registration.queue,
             time_limit=registration.execution_time_limit,
             soft_time_limit=registration.execution_soft_time_limit,
@@ -1188,7 +1193,11 @@ class OwnedDurableWorkCapability[
         owner: OwnerT,
         work: WorkT,
     ) -> WorkT:
-        if type(work) is not self.model or work.pk is not None or not work._state.adding:
+        if (
+            type(work) is not self.model
+            or not work._state.adding
+            or (work.pk is not None and not isinstance(self.model._meta.pk, models.UUIDField))
+        ):
             raise TypeError(f"request_work requires a new {self.model.__name__} input")
         for model_field in DurableWork._meta.concrete_fields:
             if model_field.primary_key or model_field.name in {"fencing_token", "available_at"}:

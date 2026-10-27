@@ -30,8 +30,8 @@ POLICY_DELAY = timedelta(minutes=1)  # DurableWorkPolicy's default retry_delay
     "retry_after,expected",
     [
         (timedelta(hours=1), timedelta(hours=1)),
-        # The provider's wait is a floor, never a replacement: a longer policy delay still wins.
-        (timedelta(seconds=5), POLICY_DELAY),
+        # Provider waiting is not a failed attempt: use its requested interval.
+        (timedelta(seconds=5), timedelta(seconds=5)),
         (None, POLICY_DELAY),
     ],
 )
@@ -41,13 +41,13 @@ def test_live_rejection_defers_the_retry_to_the_providers_wait(publication, monk
     monkeypatch.setattr(Publication, "failure", EffectNotAppliedError(decision))
     now = database_now()
 
-    with use_database_clock(lambda: now), pytest.raises(EffectNotAppliedError):
+    with use_database_clock(lambda now=now: now), pytest.raises(EffectNotAppliedError):
         publication.attempt_execution(work.pk)
 
     work.refresh_from_db()
     assert work.state == DurableWorkState.RETRYABLE
     assert work.available_at == now + expected
-    assert work.rearm_count == 1, "a throttled retry still spends one rearm: max_rearms bounds provider windows"
+    assert work.rearm_count == (1 if retry_after is None else 0), "provider waiting must not spend failure budget"
 
 
 def test_recovered_rejection_keeps_the_providers_wait(publication, monkeypatch):
@@ -71,6 +71,7 @@ def test_recovered_rejection_keeps_the_providers_wait(publication, monkeypatch):
     work.refresh_from_db()
     assert work.state == DurableWorkState.RETRYABLE
     assert work.available_at == settled + timedelta(hours=1), "recovery read the wait back from the evidence"
+    assert work.rearm_count == 0, "recovered provider waits preserve the failure budget"
     assert len(Publication.calls) == 1
 
 
@@ -118,10 +119,56 @@ def test_replay_safe_work_reads_the_wait_off_its_own_error(isolated_primitive, m
     work = record_primitive()
     now = database_now()
 
-    with use_database_clock(lambda: now), pytest.raises(_Throttled):
+    with use_database_clock(lambda now=now: now), pytest.raises(_Throttled):
         capability.attempt_execution(work.pk)
 
     work.refresh_from_db()
     assert work.state == DurableWorkState.RETRYABLE
     assert work.available_at == now + timedelta(minutes=10)
-    assert work.rearm_count == 1
+    assert work.rearm_count == 0
+
+
+@pytest.mark.parametrize("status", [429, 503])
+@pytest.mark.parametrize("hint", [None, timedelta(seconds=17)])
+def test_unavailability_waits_beyond_failure_budget_then_completes(isolated_primitive, monkeypatch, status, hint):
+    from due.errors import WorkDeferredError
+
+    capability = replace(primitive, policy=replace(primitive.policy, max_rearms=1, retry_delay=timedelta(seconds=3)))
+    work = record_primitive()
+    now = database_now()
+    calls = []
+
+    def unavailable(self, work):
+        calls.append(work.pk)
+        raise WorkDeferredError(f"HTTP {status}", retry_after=hint)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(PrimitiveEffect, "perform_effect", unavailable)
+        for execution in range(7):
+            with use_database_clock(lambda now=now: now):
+                assert capability.attempt_execution(work.pk)
+                work.refresh_from_db()
+                assert work.rearm_count == 0
+                assert work.state == DurableWorkState.RETRYABLE
+                assert work.available_at == now + (hint or timedelta(seconds=3))
+                assert not capability.attempt_execution(work.pk)
+                assert len(calls) == execution + 1
+            now = work.available_at
+    with use_database_clock(lambda now=now: now):
+        assert capability.attempt_execution(work.pk)
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.SUCCEEDED
+
+
+def test_a_503_does_not_authorize_replaying_a_possible_effect(publication, monkeypatch):
+    from due.errors import EffectOutcomeUnknownError, WorkDeferredError
+
+    work = record(publication)
+    monkeypatch.setattr(Publication, "failure", WorkDeferredError("HTTP 503", retry_after=timedelta(seconds=30)))
+    with pytest.raises(EffectOutcomeUnknownError):
+        publication.attempt_execution(work.pk)
+    work.refresh_from_db()
+    assert work.state == DurableWorkState.UNKNOWN
+    assert work.rearm_count == 0
+    assert not publication.attempt_execution(work.pk)
+    assert len(Publication.calls) == 1
