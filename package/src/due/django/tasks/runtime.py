@@ -11,6 +11,7 @@ from django.tasks.signals import task_finished, task_started
 from pydantic import JsonValue
 
 from due.django.capabilities.authoring import DurableWorkCapability
+from due.django.identities import WorkId
 from due.django.models import DurableWorkState
 from due.django.runtime.coordination import (
     WorkExecutionContext,
@@ -26,7 +27,7 @@ from .backend import DueBackend, json_value, result_for, task_for
 from .models import TaskWork
 
 
-def publish(work_id: int, token: UUID) -> None:
+def publish(work_id: WorkId, token: UUID) -> None:
     entry = registration_for(TaskWork)
     work = TaskWork.objects.only("queue_name").get(pk=work_id)
     # Normal delivery and recovery use the same persisted route.

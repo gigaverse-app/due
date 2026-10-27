@@ -12,6 +12,7 @@ from django.db import models
 from django.db.models.functions import Now
 
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
+from due.django.identities import WorkId, work_id_to_wire
 from due.django.integration import current_universe_scope
 from due.django.models import DurableWorkState
 from due.django.runtime._delivery import RecoveryLease as _RecoveryLease
@@ -85,7 +86,7 @@ class ObservedExternalOperation[OwnerT: models.Model, WorkT: ObservedExternalOpe
             phase=RecoveryPhase.OBSERVATION,
         )
 
-    def _publish_observation(self, work_id: int, token: datetime) -> None:
+    def _publish_observation(self, work_id: WorkId, token: datetime) -> None:
         from due.django.runtime.registry import registration_for
         from due.django.runtime.tasks import observe_durable_work_task
 
@@ -94,18 +95,18 @@ class ObservedExternalOperation[OwnerT: models.Model, WorkT: ObservedExternalOpe
         # Celery annotations may override task defaults; they must not let this
         # worker outlive the lease whose duration was validated above.
         observe_durable_work_task.apply_async(
-            args=(registration.name, work_id, token.isoformat()),
+            args=(registration.name, work_id_to_wire(work_id), token.isoformat()),
             queue=registration.queue,
             time_limit=EXECUTION_TIME_LIMIT_SECONDS,
             soft_time_limit=EXECUTION_SOFT_TIME_LIMIT_SECONDS,
         )
 
-    def attempt_observation(self, work_id: int, delivery_token: str) -> bool:
+    def attempt_observation(self, work_id: WorkId, delivery_token: str) -> bool:
         return self._observation_lease.attempt_execution(
             work_id, token=datetime.fromisoformat(delivery_token), run=self._observe
         )
 
-    def _observe(self, work_id: int) -> None:
+    def _observe(self, work_id: WorkId) -> None:
         queryset = self.model.objects.filter(pk=work_id, state=DurableWorkState.UNKNOWN)
         if self.observation_related:
             queryset = queryset.select_related(*self.observation_related)

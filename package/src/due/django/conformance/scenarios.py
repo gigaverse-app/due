@@ -21,7 +21,6 @@ from pytest_obligation.contract import ObligationContractDesignError
 # pytest-global: Generated histories record the observations they actually assert, without application values.
 from pytest_obligation.evidence.observation import assert_observation
 
-# pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.capabilities.compensation import IndependentCompensation
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
@@ -35,6 +34,9 @@ from due.django.conformance.bindings import (
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.evidence.attempts import attempts_for
+
+# pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
+from due.django.identities import WorkId, work_id_from_wire
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.models import EffectAttempt, EffectAttemptOutcome
@@ -132,7 +134,7 @@ def _interrupt_after_revision(model: type[UniverseDurableWork], checkpoint: Call
 
     supersede = authoring.supersede_work
 
-    def supersede_then_fail(work_model: type[UniverseDurableWork], work_id: int, **kwargs: Any) -> bool:
+    def supersede_then_fail(work_model: type[UniverseDurableWork], work_id: WorkId, **kwargs: Any) -> bool:
         superseded = supersede(work_model, work_id, **kwargs)
         if work_model is model:
             checkpoint()
@@ -290,9 +292,9 @@ def assert_producer_transaction[W: UniverseDurableWork, ResultT, ObservationT](
             run_durable_work_task(*args)
         sent.clear()
         recover_durable_work_task(entry.name)
-        assert not [args for args, _ in sent if args[0] == entry.name and args[1] in ids], (
-            "settled work was redispatched"
-        )
+        assert not [
+            args for args, _ in sent if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in ids
+        ], "settled work was redispatched"
         assert_observation(
             example.observe(), example.expected, because="duplicate delivery preserves the product outcome"
         )
@@ -591,7 +593,7 @@ def _assert_lost_response_is_not_blindly_resent[W: UniverseDurableWork, ResultT,
         sent.clear()
         recover_durable_work_task(entry.name)
         for args, _ in sent:
-            if args[0] == entry.name and args[1] in owed:
+            if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in owed:
                 with suppress(Exception):
                     run_durable_work_task(*args)
         states = set(model.objects.filter(pk__in=owed).values_list("state", flat=True))
@@ -628,7 +630,11 @@ def _settle_through_recovery(
             make_due(work)
         sent.clear()
         recover_durable_work_task(entry.name)
-        for args, options in [(args, options) for args, options in sent if args[0] == entry.name and args[1] in ids]:
+        for args, options in [
+            (args, options)
+            for args, options in sent
+            if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in ids
+        ]:
             assert_registered_worker_options(entry, options)
             with suppress(Exception):
                 run_durable_work_task(*args)
@@ -652,8 +658,14 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
             expire_lease(work)
         make_due(work)
     recover_durable_work_task(entry.name)
-    deliveries = [(args, options) for args, options in sent if args[0] == entry.name and args[1] in ids]
-    assert {args[1] for args, _ in deliveries} == ids, "recovery omitted a committed obligation"
+    deliveries = [
+        (args, options)
+        for args, options in sent
+        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in ids
+    ]
+    assert {work_id_from_wire(entry.model, args[1]) for args, _ in deliveries} == ids, (
+        "recovery omitted a committed obligation"
+    )
     for args, options in deliveries:
         assert_registered_worker_options(entry, options)
         assert run_durable_work_task(*args), "recovered delivery did not execute"
@@ -719,7 +731,7 @@ def assert_wake_rereads_facts[W: UniverseDurableWork, ResultT, ObservationT](
     original = authoring.wake_work
     sent: list[_SentTask] = []
 
-    def observed_wake(woken: type[W], work_id: int, **options: Any) -> WakeAction:
+    def observed_wake(woken: type[W], work_id: WorkId, **options: Any) -> WakeAction:
         action = original(woken, work_id, **options)
         if woken is model and work_id == work.pk:
             actions.append(action)

@@ -28,6 +28,7 @@ from pytest_obligation.profiles.automatic_recovery import (
 from pytest_obligation.profiles.bounded_ownership import FencedOwnership
 from pytest_obligation.profiles.durable_retention import Retention
 
+from due.django.identities import work_id_from_wire
 from due.django.models import DurableWorkState
 from due.django.public import (
     DurableWorkCapability,
@@ -230,9 +231,9 @@ class DurableWorkBindings[W: UniverseDurableWork, ResultT = None]:
             if args[0] != registration_name:
                 return Task.apply_async(run_durable_work_task, args=args, **options)
             # EXTERNAL SEAM: reserve in production, hold only the broker boundary.
-            refusals.check(args[1], f"broker refused work {args[1]}")
+            refusals.check(work_id_from_wire(self.capability.model, args[1]), f"broker refused work {args[1]}")
             deliveries.append(options)
-            counts[args[1]] += 1
+            counts[work_id_from_wire(self.capability.model, args[1])] += 1
             dispatched.append(self.identity_of(self.capability.model.objects.get(pk=args[1])))
 
         def run_tick():
