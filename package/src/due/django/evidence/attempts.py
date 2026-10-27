@@ -146,8 +146,12 @@ def record_effect_attempt[WorkT: DurableWork](
     with transaction.atomic():
         if before_commit is not None:
             lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().filter(lease_expires_at__gt=database_now()).first()
-        if current is None:
+        current = claim.owned_work().select_for_update().first()
+        # The lease can expire while SELECT FOR UPDATE waits. Sample the
+        # authoritative clock only after acquiring the row, and use that same
+        # instant for this attempt's start inside the protected transaction.
+        started_at = database_now()
+        if current is None or current.lease_expires_at is None or current.lease_expires_at <= started_at:
             raise WorkOwnershipLost("provider attempt requires the captured current claim")
         if current.requires_effect_evidence and current.has_possible_effect():
             raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
@@ -156,7 +160,7 @@ def record_effect_attempt[WorkT: DurableWork](
             **{attempt_key_field(claim.model): claim.work_id},
             claim_token=claim.token,
             desired_revision=claim.desired_revision,
-            started_at=database_now(),
+            started_at=started_at,
         )
         if before_commit is not None:
             before_commit(current, attempt)
