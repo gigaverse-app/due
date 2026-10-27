@@ -74,6 +74,12 @@ Ownership also gets checked immediately before external calls, outside the DB
 transaction. Configure provider timeouts below the worker soft limit, soft below
 hard, and hard below the lease.
 
+Ordinary claims return PostgreSQL's SELECT statement timestamp with the locked
+work row. The same timestamp checks availability and starts the lease, so lock
+waits still consume the lease. This saves a standalone clock read on both
+successful and missed claims. Explicit clocks and eligibility callbacks retain
+their concrete datetime read; callbacks never receive a database expression.
+
 Renewal uses PostgreSQL's UPDATE statement timestamp for both `updated_at` and
 the new lease deadline. Lock waits consume that lease; renewal does not start a
 fresh interval after acquiring the row. This avoids a separate clock query.

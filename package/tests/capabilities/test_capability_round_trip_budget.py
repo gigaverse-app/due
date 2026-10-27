@@ -5,7 +5,7 @@ Every statement is a round trip, and idle ticks dominate: each work-table
 effect runs one per cadence whether or not anything is owed. A tick reads the
 coordination clock once (``RecoveryPass.clock``) for its holds, reap, census and
 retention; only dispatch, which must see work earlier phases made due, and the
-heartbeat read their own. A claim reads it once. A reaped claim locks its owner
+heartbeat read their own. A claim returns it with its row. A reaped claim locks its owner
 by id in the same statement that names it, with no snapshot read first.
 
 The budgets are exact, so a returning redundant read fails here rather than
@@ -60,8 +60,8 @@ UPDATE_OWNER = "update owner"
 #: states, retention looks for expired successes, the tick publishes its holds
 #: and, being clean, stamps its heartbeat at a third clock read.
 IDLE_TICK = [CLOCK, HOLDS, READ_WORK, CLOCK, READ_WORK, COUNT_WORK, READ_WORK, HOLD_CENSUS, CLOCK]
-#: A claim: the clock judges the row due and starts its lease, then lock and write.
-CLAIM = [CLOCK, LOCK_WORK, UPDATE_WORK]
+#: A claim: one locked selection returns the availability/lease clock, then write.
+CLAIM = [LOCK_WORK, UPDATE_WORK]
 
 
 def _shape(sql: str) -> str:
@@ -177,7 +177,7 @@ def test_retention_deletes_without_a_clock_read_of_its_own():
     assert not PrimitiveWork.objects.exists()
 
 
-def test_a_fast_path_claim_reads_the_clock_once():
+def test_a_fast_path_claim_returns_the_clock_with_its_row():
     work = record()
     assert _round_trips(lambda: primitive.enqueue_execution(work.pk)) == CLAIM
     assert PrimitiveEffect.deliveries == [(work.pk, PrimitiveWork.objects.get(pk=work.pk).fencing_token)]
