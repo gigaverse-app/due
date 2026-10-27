@@ -11,6 +11,7 @@ from pytest_obligation.profiles.catalog import ConvergenceFamily
 from pytest_obligation.profiles.eventual_convergence import ConvergentWrite
 
 from due.bulk import BulkResult, merge_bulk_evidence
+from due.django.conformance.regressions import EffectRegression
 from due.django.conformance.suite import (
     DeliveryExample,
     EffectExamples,
@@ -118,6 +119,7 @@ def self_work_examples(capability: SendChunk, fixture: str) -> EffectExamples:
     )
 
     return EffectExamples(
+        regressions=(EffectRegression.UNCERTAINTY_SETTLEMENT, EffectRegression.DUPLICATE_EFFECT),
         make_work=make_work,
         delivery=delivery,
         retry=retry,
