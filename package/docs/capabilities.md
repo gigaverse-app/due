@@ -203,6 +203,7 @@ through the normal owned-work transaction or discovery.
 | `before_batch(work)` | Recheck product eligibility before each call; return `ContinueAfter` to pause without spending the failure budget |
 | `prepare_batch(work, batch)` | Build the request for the captured members with no provider I/O. An exception is a definite nonapplication, never an uncertain call |
 | `send_batch(work, batch, payload)` | Make exactly one provider call and return a verdict for every member |
+| `progress_updates(work, progress)` | Optionally return application fields to persist on the work row in the same UPDATE as accumulated member progress |
 | `finalize_batch(work, result)` | Publish one call's member consequences under the core fence |
 | `on_batch_rejected(work, rejection)` | After a retryable whole-call `EffectNotAppliedError`: `RETRY_LATER` (default, spends one retry), `RETRY_INLINE` (paced resend within this claim), or `ContinueAfter` (for example until a rate-limit reset, no budget spent) |
 | Ordinary finalizers | Publish uncertainty, exhaustion and permanent failure consequences |
@@ -210,6 +211,30 @@ through the normal owned-work transaction or discovery.
 A provider that definitely refuses the whole call raises `EffectNotAppliedError`
 from `send_batch`; it never returns every member as `RETRYABLE`, so attempt
 records stay truthful. A terminal rejection fails the work.
+
+Use `progress_updates` when the work row also stores product fields derived from
+member outcomes. It receives the validated, accumulated progress across all calls,
+including earlier completed members. Return a mapping of concrete, non-relation
+field names to values; those fields must be outside `input_fields` and Due's
+coordination fields. Do not save or perform I/O in this hook. Due writes the
+mapping and `bulk_progress` together under the current fence, then calls
+`finalize_batch` with the current call's canonical result. A constraint or later
+finalizer failure rolls back both. Live delivery and receipt recovery use the same
+hook; a stale claim cannot publish the projection. The default returns no extra
+fields, preserving existing finalizers.
+
+With an application `published_keys` JSON field on the work model:
+
+```python
+def progress_updates(self, work: BatchWork, progress: BulkResult[ItemResult]) -> dict[str, object]:
+    return {
+        "published_keys": [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]
+    }
+```
+
+Keep updates to other tables and other product consequences in `finalize_batch`.
+This hook coalesces a write on the existing row; it does not create another work
+table or change the receipt/settlement transaction boundaries.
 
 ### Calls that are not safe to repeat
 

@@ -33,14 +33,20 @@ def make_work() -> BatchWork:
     return record(batch)
 
 
-def delivery(expected: str = "a,b,c") -> DeliveryExample[BatchWork, str]:
+type PublishedBatch = tuple[str, tuple[str, ...]]
+
+
+def delivery(expected: str = "a,b,c") -> DeliveryExample[BatchWork, PublishedBatch]:
     # ARRANGE: one real admitted batch; provider calls remain independently observable.
     work = make_work()
     return DeliveryExample(
         work,
         # OBSERVE: product state, not a coordination-state proxy.
-        observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
-        expected=expected,
+        observe=lambda: (
+            PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            tuple(BatchWork.objects.get(pk=work.pk).published_keys),
+        ),
+        expected=(expected, () if expected in {"terminal", "retry", "unknown"} else tuple(expected.split(","))),
         effect_calls=lambda: sum(pk == work.pk for pk, _ in BatchOperation.requests),
     )
 
@@ -66,7 +72,7 @@ def applied_receipt(work: BatchWork) -> BulkResult[ItemResult]:
 
 
 @contextmanager
-def rejection() -> Iterator[RejectionExample[BatchWork, str]]:
+def rejection() -> Iterator[RejectionExample[BatchWork, PublishedBatch]]:
     # EXTERNAL SEAM: a provider-level rejection proves none of this call's members applied.
     decision = EffectRejection(message="permanent provider rejection", disposition=WorkFailureDisposition.TERMINAL)
     with patch.object(BatchOperation, "failure", EffectNotAppliedError(decision)):
@@ -74,7 +80,7 @@ def rejection() -> Iterator[RejectionExample[BatchWork, str]]:
 
 
 @contextmanager
-def provider_wait() -> Iterator[RejectionExample[BatchWork, str]]:
+def provider_wait() -> Iterator[RejectionExample[BatchWork, PublishedBatch]]:
     wait = timedelta(hours=1)
     decision = EffectRejection(message="429", retry_after=wait)
     with patch.object(BatchOperation, "failure", EffectNotAppliedError(decision)):
@@ -82,7 +88,7 @@ def provider_wait() -> Iterator[RejectionExample[BatchWork, str]]:
 
 
 @contextmanager
-def uncertainty() -> Iterator[DeliveryExample[BatchWork, str]]:
+def uncertainty() -> Iterator[DeliveryExample[BatchWork, PublishedBatch]]:
     # EXTERNAL SEAM: the reply is lost; the provider's outcome cannot authorize a resend.
     with patch.object(BatchOperation, "failure", TimeoutError("reply lost")):
         yield delivery("unknown")

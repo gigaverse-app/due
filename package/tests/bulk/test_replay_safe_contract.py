@@ -37,13 +37,16 @@ def make_work() -> MemberSyncWork:
     return record_sync()
 
 
-def delivery() -> DeliveryExample[MemberSyncWork, str]:
+def delivery() -> DeliveryExample[MemberSyncWork, tuple[str, tuple[str, ...]]]:
     work = make_work()
     return DeliveryExample(
         work,
         # OBSERVE: product state and the provider's own member set, not coordination state.
-        observe=lambda: PrimitiveOwner.objects.get(pk=work.owner_id).value,
-        expected="a,b,c",
+        observe=lambda: (
+            PrimitiveOwner.objects.get(pk=work.owner_id).value,
+            tuple(MemberSyncWork.objects.get(pk=work.pk).joined_members),
+        ),
+        expected=("a,b,c", ("a", "b", "c")),
         checkpoint=CheckpointedReplay(
             because="Each round commits its member verdicts under the fence before claim settlement; a replay sends only members still without a verdict.",
             applied=lambda row: not member_sync.pending_keys(row),
