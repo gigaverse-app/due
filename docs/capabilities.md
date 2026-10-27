@@ -365,3 +365,14 @@ The generated publication contract uses UUIDv7. Focused lifecycle, late-evidence
 deadline and real-worker tests run with UUIDv4, UUIDv7 and ULID-layout values. This proves
 the lifecycle does not depend on UUID version bits; it does not certify a
 third-party generator or promise a global generation order.
+
+
+### Attempt IDs
+
+Due generates new EffectAttempt primary keys with Python's UUIDv7 generator.
+Existing UUIDv4 attempts and their receipt foreign keys remain unchanged and
+readable by either version of the code. The migration changes the Python
+default only; it does not rewrite persisted IDs. Fencing tokens remain random
+UUIDv4 values. Evidence correlation still uses the exact attempt ID, claim and
+desired revision; UUID timestamp order never grants authority or resolves
+ambiguous effects. Attempt IDs now expose an approximate generation timestamp.
