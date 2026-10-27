@@ -178,15 +178,29 @@ def observe_effect_outcome(attempt: EffectAttempt, outcome: EffectAttemptOutcome
         raise ValueError("an observation must provide definite evidence")
     with transaction.atomic():
         current = EffectAttempt.objects.select_for_update().get(pk=attempt.pk)
-        if current.outcome == outcome:
-            return
-        if current.outcome != EffectAttemptOutcome.UNKNOWN:
-            raise ValueError("provider evidence contradicts a previous definite outcome")
-        current.outcome = outcome
-        current.observed_at = database_now()
-        current.repair_pending = outcome is EffectAttemptOutcome.APPLIED
-        current.repair_settled_by = RepairSettledBy.RECEIPT if not current.repair_pending else ""
-        current.save(update_fields=["outcome", "observed_at", "repair_pending", "repair_settled_by"])
+        observe_locked_effect_outcome(current, outcome)
+
+
+def observe_locked_effect_outcome(current: EffectAttempt, outcome: EffectAttemptOutcome) -> None:
+    """Internal transition for a freshly SELECT FOR UPDATE locked attempt.
+
+    The caller owns the transaction and lock, and must not pass a snapshot from
+    an earlier transaction. Keep acceptance in that transaction so the receipt,
+    rejection policy, and outcome either all commit or all roll back.
+    """
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError("evidence acceptance requires the attempt lock transaction")
+    if outcome is EffectAttemptOutcome.UNKNOWN:
+        raise ValueError("an observation must provide definite evidence")
+    if current.outcome == outcome:
+        return
+    if current.outcome != EffectAttemptOutcome.UNKNOWN:
+        raise ValueError("provider evidence contradicts a previous definite outcome")
+    current.outcome = outcome
+    current.observed_at = database_now()
+    current.repair_pending = outcome is EffectAttemptOutcome.APPLIED
+    current.repair_settled_by = RepairSettledBy.RECEIPT if not current.repair_pending else ""
+    current.save(update_fields=["outcome", "observed_at", "repair_pending", "repair_settled_by"])
 
 
 def resolve_confirmed_attempts(model: type[DurableWork], *, batch_size: int) -> int:

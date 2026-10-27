@@ -18,7 +18,7 @@ from due.django.evidence.attempts import (
     attempts_for_model,
     import_unknown_effect_attempt,
     initial_import_work,
-    observe_effect_outcome,
+    observe_locked_effect_outcome,
     record_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
@@ -234,7 +234,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 raise ValueError("rejection contradicts earlier evidence for this attempt")
             # Persist the decision in the SAME transaction as NOT_APPLIED. A
             # crash can leave neither or both, never replay permission without policy.
-            observe_effect_outcome(locked, EffectAttemptOutcome.NOT_APPLIED)
+            observe_locked_effect_outcome(locked, EffectAttemptOutcome.NOT_APPLIED)
             locked.rejection = payload
             locked.save(update_fields=["rejection"])
         return decision
@@ -265,7 +265,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             else:
                 finished = complete(self.evidence_store.record_and_read(locked, result))
             if finished:
-                observe_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
+                observe_locked_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
 
     def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
         """
