@@ -46,7 +46,7 @@ def test_ordered_id_migration_keeps_legacy_receipts_and_reverses(publication):
         assert current.pk.version == 7
         assert Receipt.objects.get(pk=legacy.pk).result == {"value": "legacy"}
         MigrationExecutor(connection).migrate(before)
-        assert EffectAttempt.objects.get(pk=current.pk).pk.version == 7
+        assert old.objects.get(pk=current.pk).pk.version == 7
         assert Receipt.objects.get(pk=legacy.pk).result == {"value": "legacy"}
     finally:
         MigrationExecutor(connection).migrate(latest)

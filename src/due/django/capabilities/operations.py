@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Q, QuerySet
+from pydantic import JsonValue
 
 from due.django.capabilities.authoring import OwnedDurableWorkCapability, ReplayContract
 from due.django.declarations.mirrors import Outcome
@@ -33,6 +34,7 @@ from due.django.models import (
 from due.django.runtime import transport
 from due.django.runtime.coordination import (
     ContinueAfter,
+    WorkClaim,
     WorkExecutionContext,
     WorkFailureDisposition,
     database_now,
@@ -179,9 +181,18 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
     def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> None:
         finalize_under_fence(work, self.finalize_started)
 
+    def _initial_effect_receipt(self, work: WorkT) -> JsonValue:
+        return None
+
+    def _record_attempt(self, claim: WorkClaim[WorkT]) -> EffectAttempt:
+        """One owner for crossing identity, initial evidence and the started hook."""
+        return record_effect_attempt(
+            claim, before_commit=self._before_attempt_commits, initial_receipt=self._initial_effect_receipt
+        )
+
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
         with context.external_call():
-            attempt = record_effect_attempt(context.claim, before_commit=self._before_attempt_commits)
+            attempt = self._record_attempt(context.claim)
             try:
                 result = effect_result(self.perform_effect(work))
             except EffectNotAppliedError as rejection:
@@ -254,13 +265,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             if locked.outcome == EffectAttemptOutcome.NOT_APPLIED:
                 raise ValueError("applied receipt contradicts definite non-application")
             self.validate_applied_effect_evidence(result)
-            if complete is None:
-                self.evidence_store.record(locked, result)
-                finished = True
-            else:
-                finished = complete(self.evidence_store.record_and_read(locked, result))
-            if finished:
-                observe_locked_effect_outcome(locked, EffectAttemptOutcome.APPLIED)
+            self.evidence_store.record_applied(locked, result, complete=complete)
 
     def record_observed_effect_evidence(self, work_id: WorkId, result: ResultT) -> bool:
         """
@@ -477,7 +482,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
                 return False
             # No timestamp-based latest-attempt selection. More than one possible
             # applied attempt is an invariant violation, not permission to guess.
-            result = self.evidence_store.read(attempt)
+            result = self.evidence_store.read_locked(attempt)
             self.validate_applied_effect_evidence(result)
             with current_universe_scope(work.work_universe()):
                 self._settle_evidence_locked(work, attempt, result)

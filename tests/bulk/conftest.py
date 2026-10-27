@@ -2,16 +2,18 @@
 
 from collections.abc import Iterator
 from contextlib import ExitStack
+from functools import partial
 
 import pytest
 
 from tests.harness.bulk import registered_batch
 from tests.harness.replay_safe_bulk import registered_member_sync
-from tests.harness.self_work import registered_chunk
+from tests.harness.self_work import inline_chunk_delivery, registered_chunk
 
 _SUITE_HOSTS = {
     "test_contract.py": registered_batch,
     "test_self_work_contract.py": registered_chunk,
+    "test_inline_work_contract.py": partial(registered_chunk, inline_chunk_delivery),
     "test_replay_safe_contract.py": registered_member_sync,
 }
 

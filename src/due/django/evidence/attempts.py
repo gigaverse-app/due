@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
+from pydantic import JsonValue
 
 from due.django.identities import attempt_key_field
 from due.django.models import (
@@ -140,6 +141,7 @@ def record_effect_attempt[WorkT: DurableWork](
     claim: WorkClaim[WorkT],
     *,
     before_commit: Callable[[WorkT, EffectAttempt], None] | None = None,
+    initial_receipt: Callable[[WorkT], JsonValue] | None = None,
 ) -> EffectAttempt:
     """Commit an UNKNOWN attempt under the current fence, before external I/O."""
     require_autocommit()
@@ -161,6 +163,7 @@ def record_effect_attempt[WorkT: DurableWork](
             claim_token=claim.token,
             desired_revision=claim.desired_revision,
             started_at=started_at,
+            receipt=initial_receipt(current) if initial_receipt is not None else None,
         )
         if before_commit is not None:
             before_commit(current, attempt)
@@ -182,7 +185,11 @@ def observe_effect_outcome(attempt: EffectAttempt, outcome: EffectAttemptOutcome
 
 
 def observe_locked_effect_outcome(
-    current: EffectAttempt, outcome: EffectAttemptOutcome, *, rejection: EffectRejection | None = None
+    current: EffectAttempt,
+    outcome: EffectAttemptOutcome,
+    *,
+    rejection: EffectRejection | None = None,
+    extra_fields: tuple[str, ...] = (),
 ) -> None:
     """Internal transition for a freshly SELECT FOR UPDATE locked attempt.
 
@@ -190,6 +197,8 @@ def observe_locked_effect_outcome(
     an earlier transaction. Keep acceptance in that transaction so the receipt,
     rejection policy, and outcome either all commit or all roll back. A typed
     rejection shares the outcome write; identical observations need no write.
+    extra_fields lets the locked inline store include changed receipt fields
+    in this same save, after the ordinary contradiction checks.
     """
     if not transaction.get_connection().in_atomic_block:
         raise RuntimeError("evidence acceptance requires the attempt lock transaction")
@@ -197,7 +206,7 @@ def observe_locked_effect_outcome(
         raise ValueError("an observation must provide definite evidence")
     if current.outcome not in (EffectAttemptOutcome.UNKNOWN, outcome):
         raise ValueError("provider evidence contradicts a previous definite outcome")
-    fields: list[str] = []
+    fields: list[str] = list(extra_fields)
     if rejection is not None:
         if outcome is not EffectAttemptOutcome.NOT_APPLIED:
             raise ValueError("a rejection requires definite nonapplication")
@@ -271,7 +280,9 @@ def prune_resolved_attempts(
     covered_before = later.filter(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False, observed_at__lt=before)
     candidates = (
         attempts_for_model(model)
-        .filter(repair_pending=False)
+        # Inline provider receipts are retained even if a caller accidentally
+        # invokes generic attempt compaction for an evidence-required operation.
+        .filter(repair_pending=False, receipt__isnull=True)
         # Policy-settled UNKNOWN stays as operator evidence, never a receipt.
         .exclude(repair_settled_by__in=(RepairSettledBy.POLICY_WINDOW, RepairSettledBy.TARGET_RETIRED))
         .filter(Q(observed_at__lt=before) | (Q(outcome=EffectAttemptOutcome.UNKNOWN) & Q(Exists(covered_before))))
@@ -282,7 +293,7 @@ def prune_resolved_attempts(
             | Q(Exists(later.exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)))
         )
     page = list(candidates.order_by("observed_at", "pk").values_list("pk", flat=True)[:batch_size])
-    count, _ = EffectAttempt.objects.filter(pk__in=page, repair_pending=False).delete()
+    count, _ = EffectAttempt.objects.filter(pk__in=page, repair_pending=False, receipt__isnull=True).delete()
     return count
 
 
