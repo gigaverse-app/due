@@ -7,6 +7,7 @@ import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 from django.db import transaction
@@ -22,6 +23,7 @@ from due.django.models import (
     EffectAttemptOutcome,
     RepairSettledBy,
 )
+from due.django.runtime import coordination
 from due.django.runtime.coordination import (
     WorkClaim,
     WorkExecutionContext,
@@ -218,7 +220,9 @@ def observe_locked_effect_outcome(
             fields.append("rejection")
     if current.outcome != outcome:
         current.outcome = outcome
-        current.observed_at = database_now()
+        # Django 6 returns expression values from PostgreSQL's UPDATE. Keep
+        # this timestamp in the outcome write, with no preceding clock read.
+        current.observed_at = cast(datetime, coordination._database_statement_clock())
         current.repair_pending = outcome is EffectAttemptOutcome.APPLIED
         current.repair_settled_by = RepairSettledBy.RECEIPT if not current.repair_pending else ""
         fields.extend(["outcome", "observed_at", "repair_pending", "repair_settled_by"])
