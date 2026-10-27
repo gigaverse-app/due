@@ -379,6 +379,9 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         """Optional declared product update, before the explicit hook."""
         return None
 
+    def _prepare_success(self, work: WorkT, result: ResultT) -> None:
+        """Internal completion preparation under the same owner/work locks and commit."""
+
     def _finalize_success(self, work: WorkT, result: ResultT) -> ReopenAfter | None:
         outcome = self.on_success
         if outcome is not None:
@@ -477,6 +480,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             max_rearms=self.policy.max_rearms,
             delivery_token=delivery_token,
             expected_revision=expected_revision,
+            prepare_success=self._prepare_success,
             finalize_success=self._finalize_success,
             finalize_terminal=self._finalize_terminal,
             finalize_unknown=self._finalize_unknown,
