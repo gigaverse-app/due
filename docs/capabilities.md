@@ -278,6 +278,19 @@ custom receipt models keep their own metadata API. Diagnostics are last-write-wi
 and are not used as evidence unless the adopter separately validates a typed
 result through `record_applied_effect_evidence`.
 
+Evidence writers may return the canonical result they already read while
+persisting it. Bulk delivery uses this committed snapshot only to route the
+next step; product settlement still reloads evidence under the work and attempt
+locks. Existing custom `record_applied` or `record_applied_effect_evidence` hooks
+returning `None` retain the ordinary read fallback. Return the merged canonical
+result, never the unmerged provider reply, when extending these hooks.
+
+This avoids one receipt read per live bulk crossing. A late fragment arriving
+after a partial snapshot may cause an extra progress transaction before final
+completion; settlement sees the newer receipt, and accepted members are not
+sent again. No transaction boundary, recovery obligation, or retry permission
+is removed.
+
 Apply Due's schema migrations before deploying inline writers. The added fields
 allow old writers to continue; existing receipts are not automatically moved.
 To switch a running capability, quiesce its workers and receipt consumers, copy

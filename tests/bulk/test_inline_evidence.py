@@ -43,6 +43,12 @@ def test_inline_evidence_delivers_without_a_companion_receipt(inline_chunk, retr
     assert [keys for _, keys in SendChunk.calls] == ([("a", "b"), ("b",)] if retry else [("a", "b")])
     assert not BatchReceipt.objects.exists()
     assert not [q for q in queries if BatchReceipt._meta.db_table in q["sql"]]
+    # No standalone receipt reload between acceptance and fenced settlement.
+    assert not [
+        q["sql"]
+        for q in queries
+        if q["sql"].startswith('SELECT "due_effectattempt"."id", "due_effectattempt"."receipt" FROM')
+    ]
     attempts = list(attempts_for(work).order_by("started_at"))
     assert all(attempt.outcome == EffectAttemptOutcome.APPLIED for attempt in attempts)
     assert all(not attempt.repair_pending and not attempt.receipt_pending for attempt in attempts)

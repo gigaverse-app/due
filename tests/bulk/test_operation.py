@@ -50,6 +50,12 @@ def test_one_bulk_call_completes_one_due_work(batch_operation: BatchOperation) -
     # evidence timestamps use database time. Claim and provider entry read it;
     # renewal, receipt observation and completion use their writes' timestamps.
     assert sum("clock_timestamp()" in query["sql"] for query in queries) == 2
+    # Ingestion and locked completion each read the receipt. Routing between
+    # them reuses the canonical value returned by the committed ingestion.
+    receipt_reads = [
+        query["sql"] for query in queries if query["sql"].startswith(f'SELECT "{BatchReceipt._meta.db_table}".')
+    ]
+    assert len(receipt_reads) == 2, receipt_reads
     work.refresh_from_db()
     assert work.state == DurableWorkState.SUCCEEDED
     assert work.applied_revision == work.desired_revision
