@@ -227,9 +227,7 @@ With an application `published_keys` JSON field on the work model:
 
 ```python
 def progress_updates(self, work: BatchWork, progress: BulkResult[ItemResult]) -> dict[str, object]:
-    return {
-        "published_keys": [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]
-    }
+    return {"published_keys": [item.key for item in progress.items if item.state is BulkOutcomeState.COMPLETE]}
 ```
 
 Keep updates to other tables and other product consequences in `finalize_batch`.
