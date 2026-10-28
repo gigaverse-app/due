@@ -149,17 +149,26 @@ def receipts(
             )
 
         def retry(replay):
-            original = operation.perform_effect
+            original = operation.send_batch
+            reached = False
+            calls_before = len(operation.calls)
 
-            def before_provider(operation, current):
+            def before_provider(instance, current, captured, payload):
+                nonlocal reached
+                reached = True
                 replay()  # The new EffectAttempt is already committed.
-                return original(operation, current)
+                return original(instance, current, captured, payload)
 
             make_due(work)
-            with patch.object(operation, "perform_effect", before_provider):
+            with patch.object(operation, "send_batch", before_provider):
                 batch.recover()
                 background.release()
                 background.hold()
+            # Partial evidence may correctly block a retry. If the provider
+            # was entered, however, the late-receipt fault must have run there.
+            assert reached == (len(operation.calls) > calls_before), (
+                "receipt turnover never reached the retry's provider boundary"
+            )
 
         def settled_evidence():
             assert original_attempt is not None

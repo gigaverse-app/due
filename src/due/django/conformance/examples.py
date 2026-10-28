@@ -80,6 +80,7 @@ class EffectRegression(StrEnum):
     UNCERTAINTY_SETTLEMENT = "omit-uncertainty-settlement"
     LOST_PUBLICATION = "disable-lost-publication-recovery"
     DUPLICATE_EFFECT = "repeat-external-operation"
+    BULK_PROGRESS = "omit-bulk-progress"
 
 
 @dataclass(frozen=True)

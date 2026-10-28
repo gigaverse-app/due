@@ -11,10 +11,13 @@ from pytest_obligation.helpers import BindingScopeError
 from due.django.conformance.regressions import EffectRegression, assert_effect_contract_detects_regression
 from due.django.conformance.scenarios import assert_uncertainty_blocks_resend
 from due.django.conformance.suite import DeliveryExample, EffectExamples
-from due.django.testing import WorkerDied
+from due.django.testing import WorkerDied, make_due
 from tests.harness.operation import Publication, PublicationWork, delivery_example, record
 from tests.harness.operation import operation_environment as operation_environment
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
+from tests.harness.self_work import SendChunk
+from tests.harness.self_work import chunk_environment as chunk_environment
+from tests.harness.self_work_contract import self_work_examples
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -130,3 +133,38 @@ def test_uncertainty_selection_requires_an_existing_scenario(publication: Public
         assert_effect_contract_detects_regression(
             publication, examples=examples, regression=EffectRegression.UNCERTAINTY_SETTLEMENT
         )
+
+
+def test_bulk_progress_control_rejects_scalar_operations(publication: Publication) -> None:
+    examples = EffectExamples(
+        make_work=lambda: record(publication), delivery=lambda: delivery_example(record(publication), "applied")
+    )
+    with pytest.raises(ValueError, match="requires a bulk external operation"):
+        assert_effect_contract_detects_regression(
+            publication, examples=examples, regression=EffectRegression.BULK_PROGRESS
+        )
+
+
+def test_bulk_progress_control_is_scoped_and_restores_the_write(self_chunk: SendChunk) -> None:
+    original = type(self_chunk)._record_progress
+    other = replace(self_chunk)
+    examples = self_work_examples(self_chunk, "self_chunk")
+    delivery = examples.receipt_repair
+    assert delivery is not None
+    runs = 0
+
+    def scoped():
+        nonlocal runs
+        runs += 1
+        work = other.model.objects.create(universe="acme", bulk_keys=["other"])
+        make_due(work)
+        assert other.attempt_execution(work.pk)
+        work.refresh_from_db()
+        assert work.delivered == ["other"]
+        return delivery()
+
+    assert_effect_contract_detects_regression(
+        self_chunk, examples=replace(examples, receipt_repair=scoped), regression=EffectRegression.BULK_PROGRESS
+    )
+    assert runs == 3
+    assert type(self_chunk)._record_progress is original

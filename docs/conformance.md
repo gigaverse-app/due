@@ -374,8 +374,13 @@ for library self-tests and custom harness implementations.
 | `LOST_PUBLICATION` | `delivery`, registered recovery and its product outcome | Omit the selected capability's recovery |
 | `UNCERTAINTY_SETTLEMENT` | Named `uncertainties` example and no-resend proof | Omit its product uncertainty finalizer |
 | `DUPLICATE_EFFECT` | `receipt_repair`, live receipt proof and independent provider-call count | Invoke its external operation twice |
+| `BULK_PROGRESS` | `receipt_repair`, live receipt proof and persisted product observation | Calculate bulk progress but omit its save |
 
-The latter two require `DurableExternalOperation`. The uncertainty control
+The uncertainty and duplicate controls require `DurableExternalOperation`;
+`BULK_PROGRESS` requires `DurableBulkExternalOperation`. Use it where the product
+observer reads fields projected by `progress_updates`, so a lost save is visible.
+It proves sensitivity to this omission, not every possible settlement failure.
+The uncertainty control
 generates a case for every named uncertainty scenario. Mutations delegate normally for other
 instances of the same capability class and are restored on failure. Use isolated
 test processes; these process-local patches are not safe beside live workers.
