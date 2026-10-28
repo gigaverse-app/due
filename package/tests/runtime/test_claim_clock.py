@@ -33,6 +33,7 @@ def test_static_eligibility_uses_the_claim_statement_clock(queued, eligible):
     after = database_now()
     assert (claim is not None) is eligible
     if claim is not None:
+        assert claim.work.lease_expires_at is not None
         assert before <= claim.work.lease_expires_at - LEASE <= after
     assert len([q for q in queries if q["sql"].startswith("SELECT")]) == 1
     assert gate.condition == condition

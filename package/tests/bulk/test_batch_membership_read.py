@@ -6,12 +6,88 @@ from django.test.utils import CaptureQueriesContext
 
 from due.django.evidence.attempts import record_effect_attempt
 from due.django.models import EffectAttempt
-from due.django.runtime.coordination import claim_work
+from due.django.runtime.coordination import WorkExecutionContext, claim_work
+from due.errors import EffectOutcomeUnknownError
 from tests.harness.bulk import BatchOperation, BatchReceipt, record
 from tests.harness.bulk import batch_environment as batch_environment
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
+from tests.harness.self_work import SendChunk
+from tests.harness.self_work import chunk_environment as chunk_environment
+from tests.harness.self_work import inline_chunk_environment as inline_chunk_environment
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_live_crossing_reuses_membership_without_a_select(request, layout):
+    operation = request.getfixturevalue(layout)
+    work = operation.model.objects.create(universe="acme", bulk_keys=["a", "b", "c"])
+    with CaptureQueriesContext(connection) as queries:
+        assert operation.attempt_execution(work.pk)
+    assert SendChunk.accepted_by_work[work.pk] == ["a", "b", "c"]
+    assert not [q["sql"] for q in queries if 'AS "captured_members"' in q["sql"]]
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_live_membership_comes_from_the_locked_row_not_the_input_snapshot(request, layout):
+    operation = request.getfixturevalue(layout)
+    work = operation.model.objects.create(universe="acme", bulk_keys=["a", "b"])
+    claim = claim_work(type(work), work.pk, lease_duration=operation.policy.lease_duration)
+    assert claim is not None
+    claim.work.bulk_keys = ["stale-worker-input"]
+    attempt, _ = operation._apply_with_evidence(
+        claim.work, WorkExecutionContext(claim, operation.policy.lease_duration)
+    )
+    assert SendChunk.accepted_by_work[work.pk] == ["a", "b"]
+    assert operation.evidence_store.members(attempt) == ("a", "b")
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_failed_started_hook_never_exposes_captured_members_to_the_provider(request, layout, monkeypatch):
+    operation = request.getfixturevalue(layout)
+    work = operation.model.objects.create(universe="acme", bulk_keys=["a", "b"])
+    reached = []
+
+    def fail(self, current):
+        # The attempt and membership exist inside this transaction, but are not committed.
+        reached.append(self.current_batch(current).keys)
+        raise RuntimeError("started hook failed")
+
+    monkeypatch.setattr(SendChunk, "finalize_started", fail)
+    with pytest.raises(RuntimeError, match="started hook failed"):
+        operation.attempt_execution(work.pk)
+    assert reached == [("a", "b")]
+    assert SendChunk.calls == []
+    assert not EffectAttempt.objects.exists()
+    assert not BatchReceipt.objects.exists()
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_existing_unknown_attempt_still_blocks_a_new_crossing(request, layout):
+    operation = request.getfixturevalue(layout)
+    work = operation.model.objects.create(universe="acme", bulk_keys=["a", "b"])
+    claim = claim_work(type(work), work.pk, lease_duration=operation.policy.lease_duration)
+    assert claim is not None
+    operation._record_attempt(claim)
+    with pytest.raises(EffectOutcomeUnknownError):
+        operation._apply_with_evidence(claim.work, WorkExecutionContext(claim, operation.policy.lease_duration))
+    assert SendChunk.calls == []
+    assert EffectAttempt.objects.count() == 1
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_nested_crossings_keep_their_own_membership(request, layout, monkeypatch):
+    operation = request.getfixturevalue(layout)
+    outer = operation.model.objects.create(universe="acme", bulk_keys=["outer"])
+    inner = operation.model.objects.create(universe="acme", bulk_keys=["inner"])
+
+    def prepare(self, work, batch):
+        if work.pk == outer.pk:
+            assert self.attempt_execution(inner.pk)
+
+    monkeypatch.setattr(SendChunk, "prepare_batch", prepare)
+    assert operation.attempt_execution(outer.pk)
+    assert SendChunk.accepted_by_work == {inner.pk: ["inner"], outer.pk: ["outer"]}
 
 
 def entered_batch(operation):

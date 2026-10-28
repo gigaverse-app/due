@@ -34,7 +34,7 @@ def owner_ready(now: datetime) -> Q:
 
 
 def gated(*, recheck_after: timedelta | None = None) -> PrimitiveEffect:
-    return replace(primitive, eligibility=ExecutionEligibility(owner_ready, recheck_after=recheck_after))
+    return replace(primitive, eligibility=ExecutionEligibility(Q(owner__value="ready"), recheck_after=recheck_after))
 
 
 @pytest.mark.parametrize("route", ["direct", "immediate", "enqueue", "recovery"])
