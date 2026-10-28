@@ -65,11 +65,11 @@
   "artifacts": [
     {
       "name": "adoption-benchmark-manifest.json",
-      "sha256": "ce9bb8b6084a4d2610d8ffd181c77573e571236c0cfc148558f81481a1589d3a"
+      "sha256": "5f894446107561cb360b4ca57b99f86baecb72c5fc2f07f6939f99edd36ecaaa"
     },
     {
       "name": "adoption-timing-control-manifest.json",
-      "sha256": "f3fe68cef170e0e8c52709ea116baa64a366aee7e86961872fd8bec7cf257cb8"
+      "sha256": "6e3d01e5d73018b45a3dc860ac875e91c4154008f97709422f1550e011421093"
     },
     {
       "name": "run_adoption_cost.py",
@@ -93,7 +93,7 @@
     },
     {
       "name": "static-adoption-effects.json",
-      "sha256": "56d5e697a17ef23cdae6f5d3f3f9f86bd8fef53b925f5589292832b6f7fcbfef"
+      "sha256": "7ce191bcaa5661a9267bfafacab3bfa108fd429124b97aa2debaa30a99e5cf56"
     },
     {
       "name": "composed-adoption-profiles.json",
@@ -101,7 +101,7 @@
     },
     {
       "name": "composed-adoption-effects.json",
-      "sha256": "e8159586d4ef304079f18d11965c8420cf78e83358fb5cd5190a8ad1a1f8c756"
+      "sha256": "64ffd9902fa2d01196ac458ee71bebc46308d2682e0d4cb15e55e390af864a0e"
     }
   ],
   "totals": [
