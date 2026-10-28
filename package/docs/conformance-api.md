@@ -7,6 +7,39 @@ the intended public imports, not a promise of API stability before 1.0.
 
 ## Public imports
 
+### Overlapping lifecycle paths
+
+Use `EffectExamples.extras` with obligation's `LifecycleProof` to declare
+overlapping lifecycle histories. This requires an obligation version providing
+`pytest_obligation.lifecycle`; during development pin the upstream candidate
+explicitly. Due's existing extra-proof API and collection guard are sufficient,
+so adopting the proof library does not require unrelated runtime upgrades.
+
+```python
+from pytest_obligation.contract import ExtraProof
+from pytest_obligation.lifecycle import LifecycleProof, assert_pending_admission_preserves_effects
+
+extra = ExtraProof(
+    name="pending_repair_then_full_request",
+    run=LifecycleProof(
+        binding=overlapping_producers,  # context yielding an AdmissionOverlap
+        proof=assert_pending_admission_preserves_effects,
+    ),
+    transactional=True,
+)
+# Include extra in EffectExamples(extras=(extra,), ...).
+```
+
+Also declare `assert_settled_admission_preserves_effects` for completed first
+requests and `assert_competing_transition_preserves_effects` with a
+`SettlementInterleaving` binding for the observation/settlement boundary.
+
+Bindings own their scopes, call real application commands and registered
+recovery, and observe product effects independently. See obligation's
+[lifecycle guide](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/lifecycle-histories.md).
+An undeclared history is outside coverage. Ordinary producer transaction or replay
+cases do not establish that different producers compose correctly.
+
 | Module | Interface and responsibility |
 | --- | --- |
 | [`suite`](../src/due/django/conformance/suite.py) | `effect_contract_suite` enrolls a pytest class; `effect_contract` builds a shared `ObligationContract` for advanced composition. Existing example-type imports remain supported. |
