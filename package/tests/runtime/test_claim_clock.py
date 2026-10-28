@@ -22,6 +22,53 @@ LEASE = timedelta(minutes=2)
 
 
 @pytest.mark.parametrize("queued", [False, True])
+@pytest.mark.parametrize("eligible", [False, True])
+def test_static_eligibility_uses_the_claim_statement_clock(queued, eligible):
+    work = record()
+    condition = Q(pk=work.pk if eligible else -1)
+    gate = ExecutionEligibility(condition=condition)
+    before = database_now()
+    with CaptureQueriesContext(connection) as queries:
+        claim = claim_work(PrimitiveWork, work.pk, lease_duration=LEASE, queued=queued, eligibility=gate)
+    after = database_now()
+    assert (claim is not None) is eligible
+    if claim is not None:
+        assert before <= claim.work.lease_expires_at - LEASE <= after
+    assert len([q for q in queries if q["sql"].startswith("SELECT")]) == 1
+    assert gate.condition == condition
+
+
+def test_static_fallback_does_not_accumulate_old_deadlines_or_bypass_backoff():
+    work = record()
+    condition = Q(pk=-1)
+    gate = ExecutionEligibility(condition=condition, recheck_after=timedelta(minutes=5))
+    now = database_now()
+    PrimitiveWork.objects.filter(pk=work.pk).update(available_at=now - timedelta(minutes=6))
+    assert gate.filter(PrimitiveWork.objects.all(), now=now).exists()
+    assert not gate.filter(PrimitiveWork.objects.all(), now=now - timedelta(minutes=2)).exists()
+    assert gate.condition == condition == Q(pk=-1)
+    PrimitiveWork.objects.filter(pk=work.pk).update(available_at=now + timedelta(minutes=1))
+    assert claim_work(PrimitiveWork, work.pk, lease_duration=LEASE, eligibility=gate, now=lambda: now) is None
+
+
+def test_static_eligibility_preserves_explicit_clock():
+    work = record()
+    now = database_now() + timedelta(days=1)
+    calls = []
+
+    def clock():
+        calls.append(now)
+        return now
+
+    claim = claim_work(
+        PrimitiveWork, work.pk, lease_duration=LEASE, now=clock, eligibility=ExecutionEligibility(Q(pk=work.pk))
+    )
+    assert claim is not None
+    assert claim.work.lease_expires_at == now + LEASE
+    assert calls == [now]
+
+
+@pytest.mark.parametrize("queued", [False, True])
 def test_claim_returns_database_time_without_an_extra_query(queued):
     work = record()
     before = database_now()
