@@ -1,0 +1,564 @@
+{
+  "scope": "Local serial persistence microbenchmark, fake SES, real PostgreSQL 15.19; no throughput or production latency claim",
+  "utc_start": "2026-10-28T16:35:28.352697+00:00",
+  "utc_end": "2026-10-28T16:38:39.263208+00:00",
+  "order": [
+    "entry-native-a",
+    "entry-current-a",
+    "entry-composed-a",
+    "entry-composed-b",
+    "entry-current-b",
+    "entry-native-b"
+  ],
+  "measured_per_arm_scenario": 10,
+  "warmup_per_block_scenario": 1,
+  "sources": {
+    "entry-native": [
+      "1ea8f661c2ae393f0dc3b1a43603d17af685c0ff"
+    ],
+    "entry-current": [
+      "94f6f416309b54b9a4a46a130175bcffcc969d48"
+    ],
+    "entry-composed": [
+      "3d50c5157b4f61194c15f4ee038d4741321470e2"
+    ]
+  },
+  "upstream_due": "33323b0440ec2c90576e77ac429981371fc581d5",
+  "imported_package_tree": "d16f9d0cfcfa88a509485f699795489acaa0d160",
+  "harness_source": "gigaverse-backend 13ea57040:perf/scripts/measure_bulk_mail_persistence.py",
+  "harness_sha256": "d4042ada33f11e164c86699bbe7b4fcb8fbbffa9d466ede9af6b712e01bb4d72",
+  "native_mail_unchanged_through": "b9608185163b6b0d43c5d167a3840455ef4f2a20",
+  "admission": "All arms persist the same real shortlinks. Shortlink creation is not batched.",
+  "delivery": "Composed arm uses the exact upstream package plus the mail flag and preclaim SDK warm-up.",
+  "limits": "Windows local PostgreSQL, provider responses are scripted; no production network, load or concurrency benchmark. Earlier disk-full test run was discarded; these runs completed serially after space recovery. Differences around a millisecond do not establish a latency win.",
+  "validation": {
+    "due_ci": "https://github.com/gigaverse-app/due/actions/runs/40726601228",
+    "due_ci_head": "33323b0440ec2c90576e77ac429981371fc581d5",
+    "due_ci_result": "Both Django variants: 2487 library, 1076 integration plus two declared xfails, and 286 tutorial checks pass. Standalone package: 2487 pass.",
+    "local_due": "60 focused checks and 278 generated contract checks passed; optional local worker cases deselected; real workers executed in CI.",
+    "local_mail": "1783 passed, four declared xfails, four optional worker cases deselected on 3d50c5157b4f61194c15f4ee038d4741321470e2."
+  },
+  "summary": [
+    {
+      "arm": "entry-composed",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 13.506650000636,
+        "sql_ms": 5.386149983678479,
+        "commit_ms": 0.7177000006777234
+      },
+      "delivery": {
+        "statements": 55.0,
+        "writes": 15.0,
+        "commits": 7.0,
+        "elapsed_ms": 48.26110000431072,
+        "sql_ms": 17.96714998636162,
+        "commit_ms": 1.4172499941196293
+      },
+      "total": {
+        "statements": 67.0,
+        "writes": 19.0,
+        "commits": 8.0,
+        "elapsed_ms": 63.226600002963096
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        44
+      ]
+    },
+    {
+      "arm": "entry-composed",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 13.889549998566508,
+        "sql_ms": 6.167799991089851,
+        "commit_ms": 0.6781999982194975
+      },
+      "delivery": {
+        "statements": 55.0,
+        "writes": 15.0,
+        "commits": 7.0,
+        "elapsed_ms": 48.3353499948862,
+        "sql_ms": 18.779949998133816,
+        "commit_ms": 1.4125999878160655
+      },
+      "total": {
+        "statements": 67.0,
+        "writes": 19.0,
+        "commits": 8.0,
+        "elapsed_ms": 61.761599987221416
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-composed",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 12.919250002596527,
+        "sql_ms": 5.062600008386653,
+        "commit_ms": 0.7553000032203272
+      },
+      "delivery": {
+        "statements": 73.0,
+        "writes": 22.0,
+        "commits": 10.0,
+        "elapsed_ms": 63.83079999795882,
+        "sql_ms": 25.15605000371579,
+        "commit_ms": 1.8788000088534318
+      },
+      "total": {
+        "statements": 85.0,
+        "writes": 26.0,
+        "commits": 11.0,
+        "elapsed_ms": 76.62900000286754
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-composed",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 16.645449999487028,
+        "sql_ms": 6.62910000392003,
+        "commit_ms": 0.8340999993379228
+      },
+      "delivery": {
+        "statements": 73.0,
+        "writes": 21.0,
+        "commits": 10.0,
+        "elapsed_ms": 67.6850999952876,
+        "sql_ms": 25.270050013205037,
+        "commit_ms": 2.1679499914171174
+      },
+      "total": {
+        "statements": 85.0,
+        "writes": 25.0,
+        "commits": 11.0,
+        "elapsed_ms": 85.01679999608314
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        101
+      ]
+    },
+    {
+      "arm": "entry-composed",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 25.14875000633765,
+        "sql_ms": 9.319749959104229,
+        "commit_ms": 1.0327999989385717
+      },
+      "delivery": {
+        "statements": 109.0,
+        "writes": 33.0,
+        "commits": 16.0,
+        "elapsed_ms": 109.75495000457158,
+        "sql_ms": 39.22660003445344,
+        "commit_ms": 3.786449997278396
+      },
+      "total": {
+        "statements": 121.0,
+        "writes": 37.0,
+        "commits": 17.0,
+        "elapsed_ms": 134.90370001090923
+      },
+      "provider_calls": [
+        5
+      ],
+      "accepted": [
+        201
+      ]
+    },
+    {
+      "arm": "entry-current",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 11.619249999057502,
+        "sql_ms": 4.459850024431944,
+        "commit_ms": 0.6318500018096529
+      },
+      "delivery": {
+        "statements": 59.0,
+        "writes": 17.0,
+        "commits": 9.0,
+        "elapsed_ms": 46.89049999433337,
+        "sql_ms": 17.77185000537429,
+        "commit_ms": 1.5447499899892136
+      },
+      "total": {
+        "statements": 71.0,
+        "writes": 21.0,
+        "commits": 10.0,
+        "elapsed_ms": 58.24314999335911
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        44
+      ]
+    },
+    {
+      "arm": "entry-current",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 12.733750008919742,
+        "sql_ms": 5.737749990657903,
+        "commit_ms": 0.5397999993874691
+      },
+      "delivery": {
+        "statements": 59.0,
+        "writes": 17.0,
+        "commits": 9.0,
+        "elapsed_ms": 47.74294999515405,
+        "sql_ms": 19.030100003874395,
+        "commit_ms": 1.4475999778369442
+      },
+      "total": {
+        "statements": 71.0,
+        "writes": 21.0,
+        "commits": 10.0,
+        "elapsed_ms": 60.85694999637781
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-current",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 11.37765000021318,
+        "sql_ms": 4.274300001270603,
+        "commit_ms": 0.6256000051507726
+      },
+      "delivery": {
+        "statements": 77.0,
+        "writes": 24.0,
+        "commits": 12.0,
+        "elapsed_ms": 61.4944499975536,
+        "sql_ms": 23.5521000213339,
+        "commit_ms": 1.9926500099245459
+      },
+      "total": {
+        "statements": 89.0,
+        "writes": 28.0,
+        "commits": 13.0,
+        "elapsed_ms": 73.34469999477733
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-current",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 14.880150003591552,
+        "sql_ms": 5.836000003910158,
+        "commit_ms": 0.7544999971287325
+      },
+      "delivery": {
+        "statements": 79.0,
+        "writes": 24.0,
+        "commits": 13.0,
+        "elapsed_ms": 67.96330000361195,
+        "sql_ms": 25.28250004252186,
+        "commit_ms": 2.193199994508177
+      },
+      "total": {
+        "statements": 91.0,
+        "writes": 28.0,
+        "commits": 14.0,
+        "elapsed_ms": 84.6492999990005
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        101
+      ]
+    },
+    {
+      "arm": "entry-current",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 23.404000006848946,
+        "sql_ms": 8.814699998765718,
+        "commit_ms": 0.9244499960914254
+      },
+      "delivery": {
+        "statements": 119.0,
+        "writes": 38.0,
+        "commits": 21.0,
+        "elapsed_ms": 108.35109999607084,
+        "sql_ms": 38.816649896034505,
+        "commit_ms": 3.8132499903440475
+      },
+      "total": {
+        "statements": 131.0,
+        "writes": 42.0,
+        "commits": 22.0,
+        "elapsed_ms": 131.25584999943385
+      },
+      "provider_calls": [
+        5
+      ],
+      "accepted": [
+        201
+      ]
+    },
+    {
+      "arm": "entry-native",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 11.691699997754768,
+        "sql_ms": 4.324649999034591,
+        "commit_ms": 0.7105000040610321
+      },
+      "delivery": {
+        "statements": 40.0,
+        "writes": 13.0,
+        "commits": 7.0,
+        "elapsed_ms": 28.47444999497384,
+        "sql_ms": 9.513700002571568,
+        "commit_ms": 1.2514499976532534
+      },
+      "total": {
+        "statements": 52.0,
+        "writes": 17.0,
+        "commits": 8.0,
+        "elapsed_ms": 40.69474999414524
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        44
+      ]
+    },
+    {
+      "arm": "entry-native",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 12.519600000814535,
+        "sql_ms": 5.493200027558487,
+        "commit_ms": 0.596800004132092
+      },
+      "delivery": {
+        "statements": 40.0,
+        "writes": 13.0,
+        "commits": 7.0,
+        "elapsed_ms": 30.88114999991376,
+        "sql_ms": 11.049449974962045,
+        "commit_ms": 1.4154999880702235
+      },
+      "total": {
+        "statements": 52.0,
+        "writes": 17.0,
+        "commits": 8.0,
+        "elapsed_ms": 43.44705000403337
+      },
+      "provider_calls": [
+        2
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-native",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 12.261799995030742,
+        "sql_ms": 4.653299984056503,
+        "commit_ms": 1.1449499943410046
+      },
+      "delivery": {
+        "statements": 49.0,
+        "writes": 18.0,
+        "commits": 9.0,
+        "elapsed_ms": 35.75614999863319,
+        "sql_ms": 12.365799986582715,
+        "commit_ms": 2.201449991844129
+      },
+      "total": {
+        "statements": 61.0,
+        "writes": 22.0,
+        "commits": 10.0,
+        "elapsed_ms": 48.4152500066557
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        51
+      ]
+    },
+    {
+      "arm": "entry-native",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 15.322049999667797,
+        "sql_ms": 5.706300027668476,
+        "commit_ms": 0.8394499964197166
+      },
+      "delivery": {
+        "statements": 51.0,
+        "writes": 18.0,
+        "commits": 10.0,
+        "elapsed_ms": 42.13869999512099,
+        "sql_ms": 14.121649990556762,
+        "commit_ms": 1.9868999952450395
+      },
+      "total": {
+        "statements": 63.0,
+        "writes": 22.0,
+        "commits": 11.0,
+        "elapsed_ms": 56.84949998976663
+      },
+      "provider_calls": [
+        3
+      ],
+      "accepted": [
+        101
+      ]
+    },
+    {
+      "arm": "entry-native",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "admission": {
+        "statements": 12.0,
+        "writes": 4.0,
+        "commits": 1.0,
+        "elapsed_ms": 22.27425000455696,
+        "sql_ms": 8.309049982926808,
+        "commit_ms": 0.9674500033725053
+      },
+      "delivery": {
+        "statements": 73.0,
+        "writes": 28.0,
+        "commits": 16.0,
+        "elapsed_ms": 63.00240000564372,
+        "sql_ms": 19.15370002097916,
+        "commit_ms": 3.133399994112551
+      },
+      "total": {
+        "statements": 85.0,
+        "writes": 32.0,
+        "commits": 17.0,
+        "elapsed_ms": 85.41074999811826
+      },
+      "provider_calls": [
+        5
+      ],
+      "accepted": [
+        201
+      ]
+    }
+  ],
+  "files": {
+    "claim-entry-final-boundaries.log": "fa09f3aa6c298adcaeca83f9f1cd455b16403f1d2fa748a96dcbadfb7e9ca7d1",
+    "claim-entry-final-contracts.log": "9c6910c8f1f62bc2231caab8ccb7d52c466a3c531acfea8c492aece2c1b55b3d",
+    "claim-entry-final-effects.json": "c7add080bf275c6a148f1c6f06b6bed61b2088561dd9745f9afa011e4dba2ea7",
+    "claim-entry-final-profiles.json": "0e3f68401b9624a08e390bf0a67ca9a1aae4d2db183803f2fd1a64c6cf9cf63e",
+    "mail-claim-entry-final-profiles.json": "a4c3e3d0ecf511ea9e4723e9a77fa0e76c7e3f8d1f8240d3f09da81e4f2a4ab8",
+    "mail-claim-entry-final-tests.log": "77baf11d8e89376a002afe845af90f3f247ec29bd208a1476e3bbace23941267",
+    "raw-samples.jsonl.gz": "69d2dacd41cb92a092fe09c5dc0f2e19e3d79b7eadb4208dab6755ee2db7691c",
+    "run_cost_arm.py": "7596cdd021839430e5e912652ccab882cd56ee9521c9d8e20ec3ef864a2f2501",
+    "run_mail_check.py": "37a47208e5c0ffecfd4002f09c477071a862db1e48b7de0f755277c980055651"
+  }
+}
