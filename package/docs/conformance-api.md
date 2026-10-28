@@ -466,3 +466,19 @@ This binding covers two complete evidence sources for one occurrence. Partial
 receipts, conflicting resource identities and retry turnover need application
 `EvidenceConfluence` bindings with their own reviewed outcomes. It adds no runtime
 batching behavior and does not claim the other profile E families automatically.
+
+
+## Partial-progress recovery
+
+For multi-effect workflows, inventory each definite failure boundary, including
+preparation before a once-only claim. Use obligation's PartialProgress through
+LifecycleProof in extras: the shared proof requires the external fault to be
+reached, observes the partial product result, removes the fault, then drives real
+registered recovery. A manual second call to apply cannot establish recovery
+ownership. Supply completed_effects call counts when successful groups must be
+checkpointed; the proof rejects repeated successful work and runs recovery once
+more after completion. Bind separate cases for preparation and ambiguous
+publication. Do not turn an ambiguous publish into a definite retry to satisfy
+this proof. Use RegressionControl to verify dropped remaining work and repeated
+completed groups are detected. Inventory every effect observed by the scenario;
+groups absent from its data remain outside coverage.

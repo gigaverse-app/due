@@ -70,3 +70,11 @@ The benefit is reusable, runnable failure histories and semantic assertions afte
 the application supplies meaningful bindings. Report actual counts, applicable
 coverage and limitations. Never describe generated tests as proof of an unmodeled
 provider guarantee, physical fulfillment, or universal correctness.
+
+
+For multi-effect workflows, follow the
+[partial-progress recovery guidance](../../../package/docs/conformance-api.md#partial-progress-recovery):
+inventory preparation and publication separately, drive registered recovery,
+observe each promised effect, and mutation-check retained obligations and
+completed-group call counts. Reuse obligation's PartialProgress through extras;
+do not add another runner or treat a manual callback retry as recovery evidence.
