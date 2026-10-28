@@ -37,7 +37,7 @@ from due.bulk import (
 )
 from due.django.capabilities.authoring import OwnedDurableWorkCapability
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
-from due.django.evidence.attempts import attempts_for, observe_locked_effect_outcome
+from due.django.evidence.attempts import attempts_for, locked_effect_attempt, observe_locked_effect_outcome
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore, StoredAppliedEffectEvidence
 from due.django.identities import WorkId
 from due.django.models import DurableWork, DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
@@ -606,7 +606,7 @@ class DurableBulkExternalOperation[
                     # Match scalar execution: the core completion declines this
                     # stale claim; the committed receipt remains owed to recovery.
                     return BulkStep.STOP
-                attempt = EffectAttempt.objects.select_for_update().get(pk=last.pk)
+                attempt = locked_effect_attempt(last.pk)
                 result = self.evidence_store.read_locked(attempt)
                 state = finalize_under_fence(current, lambda row: self._consume_evidence(row, attempt, result))
             # Finished batches return to core completion, which reacquires the
@@ -647,7 +647,7 @@ class DurableBulkExternalOperation[
         require_fenced_settlement(work)
         if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
             return
-        attempt = EffectAttempt.objects.select_for_update().get(pk=result.pk)
+        attempt = locked_effect_attempt(result.pk)
         recorded = self.evidence_store.read_locked(attempt)
         if self.combine_completed_progress:
             return self._prepare_completed_progress(work, recorded)
