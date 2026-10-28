@@ -339,11 +339,13 @@ class DurableWork(models.Model):
         request or settled repair can still have produced an irreversible effect;
         neither elapsed time nor repair_pending=False grants resend permission.
         """
-        return (
-            EffectAttempt.objects.filter(work_model=self._meta.label_lower, **{attempt_key_field(type(self)): self.pk})
-            .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
-            .exists()
-        )
+        return self._possible_effect_attempts().exists()
+
+    def _possible_effect_attempts(self) -> models.QuerySet[EffectAttempt]:
+        """Shared predicate for replay permission and the provider-entry check."""
+        return EffectAttempt.objects.filter(
+            work_model=self._meta.label_lower, **{attempt_key_field(type(self)): self.pk}
+        ).exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
 
     def work_beneficiary_user_id(self) -> int | None:
         """Return the user whose next read must observe terminal settlement."""
