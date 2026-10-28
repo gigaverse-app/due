@@ -328,6 +328,32 @@ Applications whose UI or callbacks rely on that intermediate state must review
 this tradeoff before adopting the change. Hooks keep their prior order and state:
 `finalize_batch` sees the claimed row, then success hooks see the completed row.
 
+##### Combining the completion write
+
+`DurableBulkExternalOperation` may declare `combine_completed_progress = True`
+when its applied hooks can use the in-memory projection. This is off by default.
+For a fully completed batch, Due includes `bulk_progress` and `progress_updates`
+fields in the existing completion UPDATE, saving one work-row write. Live
+execution and receipt recovery use the same preparation and completion functions.
+Partial, uncertain and retryable rounds retain their existing progress save.
+
+The opt-in is a hook contract: `on_applied`, `finalize_batch` and their dependent
+selectors run before this combined save. They receive current in-memory progress
+but must not query or change its projected fields before completion. Model save
+overrides, signals and triggers must tolerate one combined write instead of two;
+there is no intermediate saved-progress event. Success hooks still run after
+the saved projection and `SUCCEEDED` state. Existing adopters keep the original
+save-before-applied-hooks behavior unless they explicitly opt in.
+
+Receipt commit, locks, fencing, hook order, retry rules and the rollback boundary
+remain unchanged. A failed applied hook, completion write or success hook leaves
+the durable receipt available to recovery without another provider call. This
+reduces one UPDATE, not one commit. Run the same generated obligation contract
+with persisted product and independent provider observers after opting in, and
+include `EffectRegression.BULK_PROGRESS` to verify that missing persistence is
+actually detected. Ordinary hook-visibility tests complement those generated
+proofs.
+
 Extra hooks for this capability:
 
 | Hook | Application responsibility |

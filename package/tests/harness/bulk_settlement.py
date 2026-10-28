@@ -39,7 +39,7 @@ def outside_transaction(work: ChunkFields) -> SettlementSnapshot:
         close_old_connections()
 
 
-def assert_settlement_boundaries(capability: SendChunk, *, fail_at: str) -> None:
+def assert_settlement_boundaries(capability: SendChunk, *, fail_at: str, combined: bool = False) -> None:
     """Observe real writes from hooks and another connection, then recover."""
     work = capability.model.objects.create(universe="acme", bulk_keys=["a", "b"])
     make_due(work)
@@ -52,7 +52,10 @@ def assert_settlement_boundaries(capability: SendChunk, *, fail_at: str) -> None
     def observe(current: ChunkFields, phase: str) -> None:
         expected_state = expected_before if phase == "batch" else DurableWorkState.SUCCEEDED
         inside = snapshot(current)
-        assert inside == SettlementSnapshot(expected_state, ("a", "b"), ("a", "b"), EffectAttemptOutcome.APPLIED), (
+        saved_progress = () if combined and phase == "batch" else ("a", "b")
+        assert inside == SettlementSnapshot(
+            expected_state, saved_progress, saved_progress, EffectAttemptOutcome.APPLIED
+        ), (
             "settlement hook lost persisted progress or state ordering",
             phase,
             inside,

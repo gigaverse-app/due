@@ -28,9 +28,12 @@ pytestmark = pytest.mark.django_db(transaction=True)
         "missing",
     ],
 )
+@pytest.mark.parametrize("combined", [False, True])
 def test_progress_projection_cannot_write_identity_inputs_or_coordination(
-    batch_operation: BatchOperation, field_name: str
+    batch_operation: BatchOperation, field_name: str, combined: bool, monkeypatch
 ) -> None:
+    monkeypatch.setattr(BatchOperation, "combine_completed_progress", combined)
+
     class InvalidProjection(BatchOperation):
         def progress_updates(self, work: BatchWork, progress: BulkResult[ItemResult]) -> dict[str, object]:
             return {field_name: None}
@@ -57,9 +60,13 @@ def test_progress_projection_cannot_write_identity_inputs_or_coordination(
     assert BatchOperation.calls == [("a", "b", "c")]
 
 
+@pytest.mark.parametrize("combined", [False, True])
 def test_a_product_constraint_failure_rolls_back_progress_and_recovery_reapplies_the_receipt(
     batch_operation: BatchOperation,
+    combined: bool,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setattr(BatchOperation, "combine_completed_progress", combined)
     work = record(batch_operation)
     table = connection.ops.quote_name(BatchWork._meta.db_table)
     with connection.cursor() as cursor:

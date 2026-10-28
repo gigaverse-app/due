@@ -40,6 +40,7 @@ from due.django.runtime.coordination import (
     WakeAction,
     WorkExecutionContext,
     WorkFailureDisposition,
+    _PreparedWorkUpdates,
     claim_work,
     database_now,
     dispatch_due_work,
@@ -379,7 +380,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         """Optional declared product update, before the explicit hook."""
         return None
 
-    def _prepare_success(self, work: WorkT, result: ResultT) -> None:
+    def _prepare_success(self, work: WorkT, result: ResultT) -> _PreparedWorkUpdates | None:
         """Internal completion preparation under the same owner/work locks and commit."""
 
     def _finalize_success(self, work: WorkT, result: ResultT) -> ReopenAfter | None:
