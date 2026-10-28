@@ -55,3 +55,17 @@ def test_locked_read_uses_primary_write_routing():
     attempt = EffectAttempt.objects.create(work_model="tests.work", work_id=18, claim_token=uuid7(), desired_revision=1)
     with override_settings(DATABASE_ROUTERS=[RejectReplicaRead()]), transaction.atomic():
         assert locked_effect_attempt(attempt.pk).pk == attempt.pk
+
+
+def test_locked_read_survives_a_newer_schema_with_an_unmodeled_column():
+    """Old workers must select their own fields during a rolling migration."""
+    attempt = EffectAttempt.objects.create(work_model="tests.work", work_id=19, claim_token=uuid7(), desired_revision=1)
+    table = connection.ops.quote_name(EffectAttempt._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN work_identity bigint")
+    try:
+        with transaction.atomic():
+            assert locked_effect_attempt(attempt.pk).work_identity == 19
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute(f"ALTER TABLE {table} DROP COLUMN work_identity")

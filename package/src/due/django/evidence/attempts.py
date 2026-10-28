@@ -50,9 +50,14 @@ def locked_effect_attempt(attempt_id: UUID) -> EffectAttempt:
     if not db.in_atomic_block:
         raise transaction.TransactionManagementError("attempt locking requires a transaction")
     table = db.ops.quote_name(EffectAttempt._meta.db_table)
-    # Both identifiers come from the library model. The external identity is
+    # Select only this worker's known fields. A newer deployment may have
+    # added columns that an older Django model must not treat as annotations.
+    columns = ", ".join(db.ops.quote_name(field.column) for field in EffectAttempt._meta.concrete_fields)
+    # Identifiers come from the library model. The external identity is
     # a bound parameter, and FOR UPDATE retains serialization with late writers.
-    rows = list(EffectAttempt.objects.raw(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", [attempt_id], using=alias))
+    rows = list(
+        EffectAttempt.objects.raw(f"SELECT {columns} FROM {table} WHERE id = %s FOR UPDATE", [attempt_id], using=alias)
+    )
     if not rows:
         raise EffectAttempt.DoesNotExist("the provider attempt no longer exists")
     return rows[0]
