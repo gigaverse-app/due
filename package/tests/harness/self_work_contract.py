@@ -119,7 +119,11 @@ def self_work_examples(capability: SendChunk, fixture: str) -> EffectExamples:
     )
 
     return EffectExamples(
-        regressions=(EffectRegression.UNCERTAINTY_SETTLEMENT, EffectRegression.DUPLICATE_EFFECT),
+        regressions=(
+            EffectRegression.UNCERTAINTY_SETTLEMENT,
+            EffectRegression.DUPLICATE_EFFECT,
+            EffectRegression.BULK_PROGRESS,
+        ),
         make_work=make_work,
         delivery=delivery,
         retry=retry,

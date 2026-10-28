@@ -13,8 +13,11 @@ from typing import cast
 from unittest.mock import patch
 
 from django.db.models import Model
+from pydantic import BaseModel
 from pytest_obligation.regression_controls import assert_detects_regression
 
+from due.bulk import BulkOutcomeState, BulkResult, batch_state
+from due.django.capabilities.bulk import BulkExternalOperationWork, DurableBulkExternalOperation
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.conformance.binding import entered_binding
 from due.django.conformance.examples import EffectExamples
@@ -67,7 +70,8 @@ def assert_effect_contract_detects_regression[W: UniverseDurableWork, ResultT](
     Lost publication uses ``delivery`` and the registered production sweep.
     The other controls require an evidence-backed external operation:
     ``uncertainties`` observes the product's uncertainty settlement, while
-    ``receipt_repair`` counts real external entries. Select ``uncertainty`` when
+    ``receipt_repair`` observes persisted product progress and real external entries.
+    Select ``uncertainty`` when
     more than one named scenario exists. No extra assertions are invented here.
 
     This does not prove all uncertainty policies or physical exactly-once
@@ -101,6 +105,14 @@ def assert_effect_contract_detects_regression[W: UniverseDurableWork, ResultT](
             factory = choices[uncertainty]
             mutation = partial(_without_uncertainty_settlement, operation)
             match = "uncertainty preserves the required product outcome"
+        elif regression == EffectRegression.BULK_PROGRESS:
+            if not isinstance(capability, DurableBulkExternalOperation):
+                raise ValueError("bulk-progress control requires a bulk external operation")
+            if examples.receipt_repair is None:
+                raise ValueError("bulk-progress control requires receipt_repair")
+            factory = examples.receipt_repair
+            mutation = partial(_without_bulk_progress, capability)
+            match = "receipt recovery reaches the required product outcome"
         else:
             if examples.receipt_repair is None:
                 raise ValueError("duplicate-entry control requires receipt_repair")
@@ -117,6 +129,32 @@ def assert_effect_contract_detects_regression[W: UniverseDurableWork, ResultT](
 
     # One owner validates the baseline, exact failure and restored baseline.
     assert_detects_regression(check, regression=mutation, match=match)
+
+
+@contextmanager
+def _without_bulk_progress[OwnerT: Model, W: BulkExternalOperationWork, ResultT: BaseModel](
+    capability: DurableBulkExternalOperation[OwnerT, W, ResultT],
+) -> Iterator[None]:
+    original = type(capability)._record_progress
+    reached = False
+
+    def omitted(
+        instance: DurableBulkExternalOperation[OwnerT, W, ResultT],
+        work: W,
+        result: BulkResult[ResultT],
+        *,
+        input_fields: tuple[str, ...] | None,
+    ) -> BulkOutcomeState:
+        nonlocal reached
+        if instance is not capability:
+            return original(instance, work, result, input_fields=input_fields)
+        reached = True
+        current, _fields = instance._prepare_progress(work, result, input_fields=input_fields)
+        return batch_state(work.bulk_keys, current)
+
+    with patch.object(type(capability), "_record_progress", omitted):
+        yield
+    assert reached, "regression control never reached the selected bulk progress write"
 
 
 @contextmanager

@@ -285,6 +285,15 @@ class _BatchProgress[WorkT: BulkEffectWork | BulkExternalOperationWork, ResultT:
         self, work: WorkT, result: BulkResult[ResultT], *, input_fields: tuple[str, ...] | None
     ) -> BulkOutcomeState:
         """Commit one call's verdicts to the cohort; the caller holds the fenced transaction."""
+        current, fields = self._prepare_progress(work, result, input_fields=input_fields)
+        # Preserve the write barrier: finalizers can query the saved projection.
+        work.save(update_fields=fields)
+        return batch_state(work.bulk_keys, current)
+
+    def _prepare_progress(
+        self, work: WorkT, result: BulkResult[ResultT], *, input_fields: tuple[str, ...] | None
+    ) -> tuple[BulkResult[ResultT], tuple[str, ...]]:
+        """Validate and apply the transition in memory under the caller's fence."""
         require_fenced_settlement(work)
         current = advance_progress(work.bulk_keys, self._progress(work), result)
         work.bulk_progress = self.progress_adapter.dump_python(current, mode="json")["items"]
@@ -303,10 +312,7 @@ class _BatchProgress[WorkT: BulkEffectWork | BulkExternalOperationWork, ResultT:
                 raise ValueError(f"progress_updates must name application progress fields: {sorted(invalid)}")
             for name, value in updates.items():
                 setattr(work, name, value)
-        # One write owns both canonical progress and its application projection.
-        # A later finalizer failure still rolls back this entire transaction.
-        work.save(update_fields=["bulk_progress", "updated_at", *updates])
-        return batch_state(work.bulk_keys, current)
+        return current, ("bulk_progress", "updated_at", *updates)
 
     @staticmethod
     def _check_declaration(
