@@ -4,13 +4,15 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
+import sys
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
+from types import TracebackType
 from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
@@ -183,6 +185,20 @@ class WorkExecutionContext[ClaimedWorkT: DurableWork]:
 
     claim: WorkClaim[ClaimedWorkT]
     lease_duration: timedelta
+    _entry: _ClaimEntry[ClaimedWorkT] | None = None
+
+    @contextmanager
+    def _external_entry[EntryT](
+        self, prepare: Callable[[WorkClaim[ClaimedWorkT], ClaimedWorkT | None], EntryT]
+    ) -> Iterator[EntryT]:
+        """Commit a composed first crossing, or use the ordinary renewed entry."""
+        if self._entry is not None and self._entry.active:
+            result = prepare(self.claim, self.claim.work)
+            self._entry.commit()
+            yield result
+        else:
+            with self.external_call():
+                yield prepare(self.claim, None)
 
     @contextmanager
     def external_call(self) -> Iterator[None]:
@@ -199,6 +215,57 @@ class WorkExecutionContext[ClaimedWorkT: DurableWork]:
                 f"lost {self.claim.model._meta.label_lower} claim {self.claim.work_id} before provider I/O"
             )
         yield
+
+
+class _ClaimEntry[ClaimedWorkT: DurableWork]:
+    """One claim transaction whose first external entry ends local preparation.
+
+    A failed local preparation rolls back before the ordinary acquisition and
+    retry classifier account for the failure. That uncommon path pays for a
+    second claim, rather than every successful crossing paying for a savepoint.
+    No provider is called until commit returns.
+    """
+
+    def __init__(self, reacquire: Callable[[], WorkClaim[ClaimedWorkT] | None]) -> None:
+        self._claim = ExitStack()
+        self.reacquire = reacquire
+        self.active = True
+        self.failed = False
+
+    def __enter__(self) -> _ClaimEntry[ClaimedWorkT]:
+        self._claim.enter_context(transaction.atomic())
+        return self
+
+    def commit(self) -> None:
+        if self.active:
+            try:
+                self._claim.close()
+            except BaseException:
+                self.failed = True
+                raise
+            finally:
+                self.active = False
+
+    @contextmanager
+    def handling(self) -> Iterator[None]:
+        try:
+            yield
+        except BaseException:
+            if self.active:
+                try:
+                    self._claim.__exit__(*sys.exc_info())
+                finally:
+                    self.active = False
+                    self.failed = True
+            raise
+        else:
+            self.commit()
+
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        self._claim.__exit__(exc_type, exc, traceback)
+        self.active = False
 
 
 def require_autocommit() -> None:
@@ -240,6 +307,32 @@ def claim_work[WorkT: DurableWork](
     expected_revision: int | None = None,
     eligibility: ExecutionEligibility | None = None,
 ) -> WorkClaim[WorkT] | None:
+    """Commit one claim through the shared locked acquisition."""
+    with transaction.atomic():
+        claim = _claim_work_locked(
+            model,
+            work_id,
+            lease_duration=lease_duration,
+            now=now,
+            queued=queued,
+            expected_revision=expected_revision,
+            eligibility=eligibility,
+        )
+    if claim is not None:
+        record_work_operation(model._meta.label_lower, DurableWorkOperation.CLAIMED)
+    return claim
+
+
+def _claim_work_locked[WorkT: DurableWork](
+    model: type[WorkT],
+    work_id: WorkId,
+    *,
+    lease_duration: timedelta,
+    now: NowFn = database_now,
+    queued: bool = False,
+    expected_revision: int | None = None,
+    eligibility: ExecutionEligibility | None = None,
+) -> WorkClaim[WorkT] | None:
     """
     Claim one due row and return the exact in-memory fenced instance.
 
@@ -249,51 +342,48 @@ def claim_work[WorkT: DurableWork](
     callers' expected revision is checked here before any claim mutation.
     """
 
-    with transaction.atomic():
-        # Eligibility callbacks and explicit clocks require a concrete datetime.
-        # Ordinary claims obtain one statement-stable time with the row itself;
-        # the same value authorizes availability and anchors the lease.
-        needs_time = eligibility is not None and eligibility.requires_time
-        claimed_at = now() if needs_time or now is not database_now else None
-        selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
-        candidates = (
-            model.objects.select_for_update(of=("self",))
-            .annotate(_due_claimed_at=selection_time)
-            .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
+    if not connection.in_atomic_block:
+        raise RuntimeError("claim acquisition requires a transaction")
+    # Eligibility callbacks and explicit clocks require a concrete datetime.
+    # Ordinary claims obtain one statement-stable time with the row itself;
+    # the same value authorizes availability and anchors the lease.
+    needs_time = eligibility is not None and eligibility.requires_time
+    claimed_at = now() if needs_time or now is not database_now else None
+    selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
+    candidates = (
+        model.objects.select_for_update(of=("self",))
+        .annotate(_due_claimed_at=selection_time)
+        .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
+    )
+    if eligibility is not None:
+        candidates = eligibility.filter(candidates, now=claimed_at)
+    work = candidates.first()
+    if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
+        record_work_operation(
+            model._meta.label_lower,
+            DurableWorkOperation.CLAIM_MISSED,
         )
-        if eligibility is not None:
-            candidates = eligibility.filter(candidates, now=claimed_at)
-        work = candidates.first()
-        if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
-            record_work_operation(
-                model._meta.label_lower,
-                DurableWorkOperation.CLAIM_MISSED,
-            )
-            return None
-        work.state = DurableWorkState.QUEUED if queued else DurableWorkState.CLAIMED
-        work.fencing_token = uuid4()
-        # Both counters saturate: neither fences anything (the token does).
-        work.claim_generation = saturating_increment(work.claim_generation)
-        work.attempt_count = saturating_increment(work.attempt_count)
-        # Statement time precedes the row lock, so any lock wait still consumes
-        # the lease. Provider-entry validation separately reads a fresh clock.
-        selected_at = cast(datetime, vars(work).pop("_due_claimed_at"))
-        work.lease_expires_at = selected_at + lease_duration
-        work.last_error_code = ""
-        work.save(
-            update_fields=[
-                "state",
-                "fencing_token",
-                "claim_generation",
-                "attempt_count",
-                "lease_expires_at",
-                "last_error_code",
-                "updated_at",
-            ]
-        )
-    record_work_operation(
-        model._meta.label_lower,
-        DurableWorkOperation.CLAIMED,
+        return None
+    work.state = DurableWorkState.QUEUED if queued else DurableWorkState.CLAIMED
+    work.fencing_token = uuid4()
+    # Both counters saturate: neither fences anything (the token does).
+    work.claim_generation = saturating_increment(work.claim_generation)
+    work.attempt_count = saturating_increment(work.attempt_count)
+    # Statement time precedes the row lock, so any lock wait still consumes
+    # the lease. Provider-entry validation separately reads a fresh clock.
+    selected_at = cast(datetime, vars(work).pop("_due_claimed_at"))
+    work.lease_expires_at = selected_at + lease_duration
+    work.last_error_code = ""
+    work.save(
+        update_fields=[
+            "state",
+            "fencing_token",
+            "claim_generation",
+            "attempt_count",
+            "lease_expires_at",
+            "last_error_code",
+            "updated_at",
+        ]
     )
     return WorkClaim(
         work=work,
@@ -1060,35 +1150,54 @@ def accept_delivery[WorkT: DurableWork](
     expected_revision: int | None = None,
     eligibility: ExecutionEligibility | None = None,
 ) -> WorkClaim[WorkT] | None:
-    """A duplicated broker message cannot start a second executor."""
+    """Commit one claim through the shared locked acquisition."""
     with transaction.atomic():
-        work = (
-            model.objects.select_for_update()
-            .filter(
-                pk=work_id,
-                state=DurableWorkState.QUEUED,
-                fencing_token=token,
-            )
-            .first()
+        return _accept_delivery_locked(
+            model,
+            work_id,
+            token,
+            lease_duration=lease_duration,
+            expected_revision=expected_revision,
+            eligibility=eligibility,
         )
-        if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
-            return None
-        accepted_at = database_now()
-        if (
-            eligibility is not None
-            and not eligibility.filter(model.objects.filter(pk=work.pk), now=accepted_at).exists()
-        ):
-            # A queued message is only a hint. Revoke this exact reservation if
-            # its prerequisite disappeared; preserve intent, revision and budget.
-            work.state = DurableWorkState.READY
-            work.fencing_token = uuid4()
-            work.lease_expires_at = None
-            work.save(update_fields=["state", "fencing_token", "lease_expires_at", "updated_at"])
-            record_work_operation(model._meta.label_lower, DurableWorkOperation.INELIGIBLE_DELIVERY)
-            return None
-        work.state = DurableWorkState.CLAIMED
-        work.lease_expires_at = accepted_at + lease_duration
-        work.save(update_fields=["state", "lease_expires_at", "updated_at"])
+
+
+def _accept_delivery_locked[WorkT: DurableWork](
+    model: type[WorkT],
+    work_id: WorkId,
+    token: UUID,
+    *,
+    lease_duration: timedelta,
+    expected_revision: int | None = None,
+    eligibility: ExecutionEligibility | None = None,
+) -> WorkClaim[WorkT] | None:
+    """A duplicated broker message cannot start a second executor."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("claim acquisition requires a transaction")
+    work = (
+        model.objects.select_for_update()
+        .filter(
+            pk=work_id,
+            state=DurableWorkState.QUEUED,
+            fencing_token=token,
+        )
+        .first()
+    )
+    if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
+        return None
+    accepted_at = database_now()
+    if eligibility is not None and not eligibility.filter(model.objects.filter(pk=work.pk), now=accepted_at).exists():
+        # A queued message is only a hint. Revoke this exact reservation if
+        # its prerequisite disappeared; preserve intent, revision and budget.
+        work.state = DurableWorkState.READY
+        work.fencing_token = uuid4()
+        work.lease_expires_at = None
+        work.save(update_fields=["state", "fencing_token", "lease_expires_at", "updated_at"])
+        record_work_operation(model._meta.label_lower, DurableWorkOperation.INELIGIBLE_DELIVERY)
+        return None
+    work.state = DurableWorkState.CLAIMED
+    work.lease_expires_at = accepted_at + lease_duration
+    work.save(update_fields=["state", "lease_expires_at", "updated_at"])
     return WorkClaim(work, token, work.claim_generation, work.desired_revision)
 
 
@@ -1112,43 +1221,66 @@ def run_work[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None = None,
     provider_retry_after: Callable[[Exception], timedelta] | None = None,
     database_only: bool = False,
+    combine_claim_and_entry: bool = False,
 ) -> bool:
-    """Claim, run outside transactions in-domain, and fenced-finalize."""
+    """Claim and fenced-finalize through one engine; provider I/O follows commit.
+
+    Opted-in local entry preparation shares the claim transaction. Defaults keep
+    the existing committed claim before invoking application code.
+    """
 
     require_autocommit()
-    claim = (
-        claim_work(
-            model, work_id, lease_duration=lease_duration, expected_revision=expected_revision, eligibility=eligibility
+    if combine_claim_and_entry and database_only:
+        raise ValueError("claim/entry composition requires an external capability")
+
+    def acquire(*, locked: bool = False) -> WorkClaim[WorkT] | None:
+        claim_fn = _claim_work_locked if locked else claim_work
+        accept_fn = _accept_delivery_locked if locked else accept_delivery
+        return (
+            claim_fn(
+                model,
+                work_id,
+                lease_duration=lease_duration,
+                expected_revision=expected_revision,
+                eligibility=eligibility,
+            )
+            if delivery_token is None
+            else accept_fn(
+                model,
+                work_id,
+                delivery_token,
+                lease_duration=lease_duration,
+                expected_revision=expected_revision,
+                eligibility=eligibility,
+            )
         )
-        if delivery_token is None
-        else accept_delivery(
-            model,
-            work_id,
-            delivery_token,
-            lease_duration=lease_duration,
-            expected_revision=expected_revision,
-            eligibility=eligibility,
-        )
-    )
-    if claim is None:
-        return False
-    with current_universe_scope(claim.work.work_universe()), execution_external_services():
-        return _execute_claim(
-            claim,
-            handler=handler,
-            classify_error=classify_error,
-            lease_duration=lease_duration,
-            max_rearms=max_rearms,
-            retry_delay=retry_delay,
-            prepare_success=prepare_success,
-            finalize_success=finalize_success,
-            finalize_terminal=finalize_terminal,
-            finalize_unknown=finalize_unknown,
-            finalize_retry=finalize_retry,
-            retry_delay_for=retry_delay_for,
-            provider_retry_after=provider_retry_after,
-            database_only=database_only,
-        )
+
+    with _ClaimEntry(acquire) if combine_claim_and_entry else nullcontext(None) as entry:
+        if entry is not None:
+            lock_owner_of_work(model, work_id)
+        claim = acquire(locked=entry is not None)
+        if claim is None:
+            return False
+        if entry is not None and delivery_token is None:
+            transaction.on_commit(partial(record_work_operation, model._meta.label_lower, DurableWorkOperation.CLAIMED))
+        with current_universe_scope(claim.work.work_universe()), execution_external_services():
+            return _execute_claim(
+                claim,
+                handler=handler,
+                classify_error=classify_error,
+                lease_duration=lease_duration,
+                max_rearms=max_rearms,
+                retry_delay=retry_delay,
+                prepare_success=prepare_success,
+                finalize_success=finalize_success,
+                finalize_terminal=finalize_terminal,
+                finalize_unknown=finalize_unknown,
+                finalize_retry=finalize_retry,
+                retry_delay_for=retry_delay_for,
+                provider_retry_after=provider_retry_after,
+                database_only=database_only,
+                entry=entry,
+            )
 
 
 def _execute_claim[WorkT: DurableWork, ResultT](
@@ -1167,9 +1299,10 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None,
     provider_retry_after: Callable[[Exception], timedelta] | None,
     database_only: bool,
+    entry: _ClaimEntry[WorkT] | None = None,
 ) -> bool:
     model = claim.model
-    context = WorkExecutionContext(claim=claim, lease_duration=lease_duration)
+    context = WorkExecutionContext(claim=claim, lease_duration=lease_duration, _entry=entry)
     try:
         # Database callbacks and their settlement share one commit. Acquire the
         # producer's owner-before-work locks and revalidate authority before any
@@ -1184,7 +1317,10 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                 field = _owner_relation(type(current))
                 if field is not None:
                     setattr(current, field.name, owner)
-            with current_universe_scope(current.work_universe()):
+            with (
+                entry.handling() if entry is not None else nullcontext(),
+                current_universe_scope(current.work_universe()),
+            ):
                 result = (
                     finalize_under_fence(current, lambda work: handler(work, context))
                     if database_only
@@ -1205,6 +1341,15 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             if database_only and not completed:
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
+        if entry is not None and entry.failed:
+            # Preparation had no committed crossing and never called the
+            # provider. Reacquire through the ordinary claim API to charge its
+            # existing retry policy once. A competing executor may already own
+            # or finish the row; its authority must never absorb this failure.
+            restored = entry.reacquire()
+            if restored is None:
+                raise
+            claim = restored
         possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
         disposition = (
             WorkFailureDisposition.UNKNOWN
