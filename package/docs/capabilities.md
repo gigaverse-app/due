@@ -244,9 +244,13 @@ runner retains its explicit `now=` datetime clock override for existing callers.
 
 `DurableBulkExternalOperation` extends `DurableExternalOperation`: the ordinary
 claim, fenced `WorkExecutionContext`, `EffectAttempt`, retry budget and
-recovery path. Due commits the attempt and its captured membership, then calls
-`prepare_batch` and `send_batch` with `current_batch(work)` (exact members and
-the attempt id to correlate). `COMPLETE` members never reenter a later call.
+recovery path. Due captures an immutable `CapturedBatch` under the work lock,
+commits the attempt and membership, then passes that same batch to `prepare_batch`
+and `send_batch`. This saves one membership SELECT per live provider round for
+both inline and separate receipts. No captured batch escapes a failed commit;
+each invocation keeps its own value. `current_batch(work)` remains a validated
+database lookup for callers that need to load an open crossing. Recovery still
+loads durable evidence. `COMPLETE` members never reenter a later call.
 Only definite `RETRYABLE` members may retry; any `UNKNOWN` member blocks another
 call until exact-attempt evidence resolves it. Duplicate, foreign and
 contradictory receipts are rejected. Partial receipts merge monotonically in

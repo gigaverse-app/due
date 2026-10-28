@@ -1,7 +1,7 @@
 """Reserved work stays owed while ineligible; every execution route honors the gate."""
 
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from django.db import connection
@@ -29,12 +29,8 @@ from tests.harness.primitive import (
 pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("isolated_primitive")]
 
 
-def owner_ready(now: datetime) -> Q:
-    return Q(owner__value="ready")
-
-
 def gated(*, recheck_after: timedelta | None = None) -> PrimitiveEffect:
-    return replace(primitive, eligibility=ExecutionEligibility(owner_ready, recheck_after=recheck_after))
+    return replace(primitive, eligibility=ExecutionEligibility(Q(owner__value="ready"), recheck_after=recheck_after))
 
 
 @pytest.mark.parametrize("route", ["direct", "immediate", "enqueue", "recovery"])

@@ -367,10 +367,17 @@ class DurableBulkExternalOperation[
         self._check_new_batch(work)
         return super()._desired_work(owner=owner, work=work)
 
-    def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> None:
+    def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> Callable[[WorkT], BulkResult[ResultT]]:
         if self.receipt_model is not None:
-            self.receipt_model.objects.create(attempt=attempt, members=self._crossing_members(work))
+            receipt = self.receipt_model.objects.create(attempt=attempt, members=self._crossing_members(work))
+            members = receipt.members
+        else:
+            if attempt.receipt is None:
+                raise EffectAttempt.DoesNotExist("the crossing has no captured inline receipt")
+            members = attempt.receipt["members"]
+        batch = CapturedBatch(attempt.pk, tuple(members))
         super()._before_attempt_commits(work, attempt)
+        return lambda current: self._perform_batch(current, batch)
 
     def _crossing_members(self, work: WorkT) -> list[str]:
         members = self.pending_keys(work)
@@ -436,7 +443,9 @@ class DurableBulkExternalOperation[
 
     @final
     def perform_effect(self, work: WorkT) -> BulkResult[ResultT]:
-        batch = self.current_batch(work)
+        return self._perform_batch(work, self.current_batch(work))
+
+    def _perform_batch(self, work: WorkT, batch: CapturedBatch) -> BulkResult[ResultT]:
         try:
             payload = self.prepare_batch(work, batch)
         except EffectNotAppliedError:
