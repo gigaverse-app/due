@@ -1,0 +1,21 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_entry_combines_clock_and_existing_evidence_without_an_extra_read ____
+
+inline_chunk = InlineSendChunk(model=<class 'tests.harness.self_work.InlineChunk'>, nudge=<function registered_nudge.<locals>.nudge a....ItemResult'>, bulk_policy=BulkRetryPolicy(max_rounds=1, wall_clock_budget=datetime.timedelta(seconds=60), delay=None))
+
+    def test_entry_combines_clock_and_existing_evidence_without_an_extra_read(inline_chunk):
+        claim = prepare_claim(inline_chunk)
+        with transaction.atomic():
+            current = claim.owned_work().select_for_update().get()
+            with CaptureQueriesContext(connection) as queries:
+                attempt = record_locked_effect_attempt(claim, current)
+>       assert len(queries) == 2  # One clock/evidence read and one UNKNOWN insert.
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert 3 == 2
+E        +  where 3 = len(<django.test.utils.CaptureQueriesContext object at 0x0000024661536900>)
+
+..\due-claim-entry\package\tests\evidence\test_gap_entry_check.py:35: AssertionError
+=========================== short test summary info ===========================
+FAILED ..\due-claim-entry\package\tests\evidence\test_gap_entry_check.py::test_entry_combines_clock_and_existing_evidence_without_an_extra_read
+1 failed, 2 deselected in 1.88s

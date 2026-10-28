@@ -1,0 +1,2363 @@
+{
+  "gigaverse.core.mail.reminders.engine.tests.test_bulk_delivery_due_work_contract.TestEmailBulkDeliveryContract": {
+    "name": "email_bulk_delivery",
+    "profiles": {
+      "G": {
+        "title": "Gated Execution",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {},
+        "cases": {
+          "eligibility-assert_gate_bindings_are_production_bound": {
+            "family": "eligibility",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001023800010443665,
+              0.018485799999325536,
+              0.01893920000293292
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "eligibility-assert_blocked_gate_preserves_intent": {
+            "family": "eligibility",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010937000042758882,
+              0.043916800001170486,
+              0.018984599999384955
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "eligibility-assert_eligible_gate_recovers_lost_notification": {
+            "family": "eligibility",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0014155999961076304,
+              0.11995439999736845,
+              0.018953000006149523
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "eligibility-assert_periodic_inspection_is_bounded": {
+            "family": "eligibility",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011075000074924901,
+              0.07195149999461137,
+              0.018411199998809025
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "eligibility-assert_gate_is_recovered_by_the_contract_sweep": {
+            "family": "recovery-composition",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011602000013226643,
+              0.06267369999841321,
+              0.020019799994770437
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      },
+      "I": {
+        "title": "Indivisible Admission",
+        "assessment": {
+          "state": "not applicable",
+          "because": "Campaign construction inserts the immutable manifest and work in the same UUID rows; campaign_admission binds atomicity. There is no separate work admission or discovery."
+        },
+        "families": {},
+        "cases": {},
+        "verified": false
+      },
+      "A": {
+        "title": "Automatic Recovery",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {},
+        "cases": {
+          "A-assert_sweep_bindings_are_production_bound": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012411999923642725,
+              0.003062299991142936,
+              0.007835099997464567
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_the_adapter_does_not_author_the_selection": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001041099996655248,
+              0.0018707999988691881,
+              0.008553599996957928
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_the_adapter_does_not_author_the_tick": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010884999937843531,
+              0.0024012000067159534,
+              0.008441199999651872
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_the_tick_selects_what_the_adapter_describes": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001084700008505024,
+              0.21532550000119954,
+              0.039508600006229244
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_recovers_stranded_work": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.00111270000343211,
+              0.03553960000863299,
+              0.01952089999394957
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_all_owed_variants_are_recovered": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011857999925268814,
+              0.04418109999096487,
+              0.024898799994844012
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_terminal_rows_are_never_selected": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011243000044487417,
+              0.08257579999917652,
+              0.026474700003745966
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_in_flight_work_is_not_duplicated": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011412000021664426,
+              0.03309070000250358,
+              0.01893500000005588
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_tick_is_bounded": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011726000084308907,
+              0.12283710000338033,
+              0.03608449999592267
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_oldest_work_is_recovered_first": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010882000060519204,
+              0.03152099999715574,
+              0.02441839998937212
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_selection_is_stable": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001242899990756996,
+              0.04192039999179542,
+              0.02857709999079816
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_one_poisoned_identity_does_not_stall_the_tick": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011516999948071316,
+              0.042459700009203516,
+              0.02382779998879414
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_a_poisoned_page_does_not_starve_or_abandon_work": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011110999912489206,
+              0.1507385000004433,
+              0.04059350000170525
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_a_soft_time_limit_ends_the_tick": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011598999990383163,
+              0.03638930000306573,
+              0.02434220000577625
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_selection_is_index_served": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011644999904092401,
+              0.007068899998557754,
+              0.008378800004720688
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_the_tick_is_actually_scheduled": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012830000050598755,
+              0.005307600004016422,
+              0.008404699998209253
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_outstanding_work_is_observable": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0009984999924199656,
+              0.056551200003013946,
+              0.0262673000106588
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_selection_does_not_read_the_replica": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011840000079246238,
+              0.0028968999977223575,
+              0.008324100010213442
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_every_lifecycle_state_is_declared": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0009971999970730394,
+              0.11508709999907296,
+              0.03182350000133738
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_terminal_states_owe_nothing_further": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011165000032633543,
+              0.3307608000031905,
+              0.03788639999402221
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "A-assert_the_tick_restores_the_ambient_context": {
+            "family": "sweep",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011423999967519194,
+              0.02560500000254251,
+              0.020854599992162548
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "eligibility-assert_gate_is_recovered_by_the_contract_sweep": {
+            "family": "recovery-composition",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011602000013226643,
+              0.06267369999841321,
+              0.020019799994770437
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      },
+      "B": {
+        "title": "Bounded Ownership",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {},
+        "cases": {
+          "B-assert_ownership_bindings_are_production_bound": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011232000106247142,
+              0.002819500004989095,
+              0.008600299988756888
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_ownership_transitions_are_production_bound": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010551000013947487,
+              0.0016519000055268407,
+              0.00827910000225529
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_claim_is_exclusive": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010668000031728297,
+              0.01790900000196416,
+              0.018747699999948964
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_fence_rotates_through_recovery": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011192999954801053,
+              0.023692300004768185,
+              0.01873140000679996
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_current_token_write_is_accepted": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001116100000217557,
+              0.09566969999286812,
+              0.03219630000239704
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_stale_token_is_rejected": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011673999979393557,
+              0.12470380000013392,
+              0.03170930000487715
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_current_token_renewal_is_accepted": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011335999879520386,
+              0.021492600004421547,
+              0.019697600000654347
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_live_lease_blocks_reclaim": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011201000015717,
+              0.019956900010583922,
+              0.020075400010682642
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_expired_lease_permits_reclaim": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001120400003856048,
+              0.022166700000525452,
+              0.0195157999987714
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_lease_renewal_is_fenced": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012761999969370663,
+              0.026066100006573834,
+              0.01945479999994859
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_release_returns_the_row_unspent": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011100999981863424,
+              0.002198400004999712,
+              0.008053500001551583
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "B-assert_claim_is_exclusive_across_connections": {
+            "family": "ownership",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001019200004520826,
+              0.04260970000177622,
+              0.01975190000666771
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      },
+      "C": {
+        "title": "Crash Ambiguity",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {},
+        "cases": {
+          "C-assert_ambiguity_bindings_are_production_bound": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001138299994636327,
+              0.0024390999897150323,
+              0.007805300003383309
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_ambiguity_transitions_are_production_bound": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010597999935271218,
+              0.0020666000054916367,
+              0.008402499996009283
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_ordinary_due_work_is_production_bound": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010034000006271526,
+              0.0015767000004416332,
+              0.007855799995013513
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_attempt_is_recorded_before_the_provider_call": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010289999918313697,
+              0.02070589999493677,
+              0.01900729999761097
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_dead_claim_with_open_attempt_is_ambiguous": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012855000095441937,
+              0.030472099999315105,
+              0.019756399997277185
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_dead_claim_without_attempt_is_retryable": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011997000110568479,
+              0.029624500006320886,
+              0.01952140001230873
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_ambiguity_is_not_resolved_by_blind_retry": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011296000011498109,
+              0.03197870000440162,
+              0.018890200008172542
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_late_evidence_resolves_ambiguity": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011255999997956678,
+              0.036007500006235205,
+              0.019436799993854947
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "C-assert_terminal_is_monotonic": {
+            "family": "ambiguity",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011437999928602949,
+              0.04134199999680277,
+              0.01926459999231156
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      },
+      "D": {
+        "title": "Durable Retention",
+        "assessment": {
+          "state": "not applicable",
+          "because": "Registered policy retains work and evidence indefinitely."
+        },
+        "families": {},
+        "cases": {},
+        "verified": false
+      },
+      "E": {
+        "title": "Eventual Convergence",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {
+          "STALE_SNAPSHOTS": {
+            "state": "not applicable",
+            "because": "The campaign manifest and Due cohort are immutable; no replacement desired snapshot exists."
+          },
+          "MONOTONIC_RESULTS": {
+            "state": "claimed",
+            "because": null
+          },
+          "IN_FLIGHT": {
+            "state": "not applicable",
+            "because": "The fixed occurrence has no competing desired-state writer; receipt races use the shared bulk evidence contract."
+          },
+          "EVIDENCE_CONFLUENCE": {
+            "state": "claimed",
+            "because": null
+          }
+        },
+        "cases": {
+          "E-assert_convergence_bindings_are_production_bound": {
+            "family": "convergence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011506000009831041,
+              0.0020647000055760145,
+              0.008360899999388494
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "E-assert_evidence_application_is_production_bound": {
+            "family": "convergence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011593999952310696,
+              0.002083900006255135,
+              0.008804299999610521
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "E-assert_settled_state_is_not_downgraded": {
+            "family": "convergence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001026300000376068,
+              0.0017372000002069399,
+              0.008702699997229502
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "E-assert_reapplication_is_a_no_op": {
+            "family": "convergence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010437000019010156,
+              0.0018961000023409724,
+              0.008113599993521348
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "E-assert_unsettled_state_converges": {
+            "family": "convergence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001029999999445863,
+              0.001553900001454167,
+              0.007507100002840161
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.control/canonical": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012331999896559864,
+              0.07058230000257026,
+              0.02247959999658633
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-first-receipt-second/receipt-first@0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001168100003269501,
+              0.08634409999649506,
+              0.019109999993816018
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-first-receipt-second/receipt-first@2": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011222000030102208,
+              0.16843130000052042,
+              0.018687000003410503
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.late-after-settlement/receipt-first-receipt-second/receipt-first": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011304000072414055,
+              0.08997659999295138,
+              0.019403999991482124
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-first-receipt-second/receipt-second@0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001142900000559166,
+              0.08290839999972377,
+              0.019107999993138947
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-first-receipt-second/receipt-second@1": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011397000052966177,
+              0.08057510000071488,
+              0.01934169999731239
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.late-after-settlement/receipt-first-receipt-second/receipt-second": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011383000091882423,
+              0.0940827000013087,
+              0.018546299994341098
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-first-receipt-second/0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011054000060539693,
+              0.0767826000083005,
+              0.019313299999339506
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-first-receipt-second/1": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011506000009831041,
+              0.0772170999989612,
+              0.019144599995343015
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-first-receipt-second/2": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.00118530000327155,
+              0.08157779999601189,
+              0.01912830000219401
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-first-receipt-second/every": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011624999897321686,
+              0.08952609999687411,
+              0.02061130000220146
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.permutations/receipt-second-receipt-first": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011669999948935583,
+              0.07556130000739358,
+              0.02169510000385344
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-second-receipt-first/receipt-first@1": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011596999975154176,
+              0.0817889999889303,
+              0.018959900000481866
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.late-after-settlement/receipt-second-receipt-first/receipt-first": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0013887999957660213,
+              0.09704090000013821,
+              0.02087740000570193
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.duplicates/receipt-second-receipt-first/receipt-second@0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0016990000003715977,
+              0.08606570000119973,
+              0.019371999995200895
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.late-after-settlement/receipt-second-receipt-first/receipt-second": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001213900002767332,
+              0.10003949998645112,
+              0.021646099994541146
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-second-receipt-first/0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0013682999997399747,
+              0.0886233000055654,
+              0.021292200006428175
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-second-receipt-first/1": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012220000062370673,
+              0.08720809999795165,
+              0.02092550000816118
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-second-receipt-first/2": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012014000094495714,
+              0.07736490000388585,
+              0.018676799998502247
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.recovery-gaps/receipt-second-receipt-first/every": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011174999963259324,
+              0.08580860000802204,
+              0.021146800005226396
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.batching/receipt-first-receipt-second/0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011799999920185655,
+              0.05999740000697784,
+              0.02135939999425318
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.batching/receipt-second-receipt-first/0": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0012167999957455322,
+              0.06513680001080502,
+              0.022416500010876916
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.owner-reconciler/receipt-first-first": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0013260999985504895,
+              0.14732569998886902,
+              0.023039899999275804
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "interleaving-email-bulk-receipts-EC.owner-reconciler/receipt-second-first": {
+            "family": "evidence_confluence",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011947000020882115,
+              0.1324105999956373,
+              0.019030600000405684
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      },
+      "F": {
+        "title": "Fact-Derived Obligations",
+        "assessment": {
+          "state": "not applicable",
+          "because": "No canonical discovery is registered."
+        },
+        "families": {},
+        "cases": {},
+        "verified": false
+      },
+      "H": {
+        "title": "Harmless Replay",
+        "assessment": {
+          "state": "declined",
+          "because": "Production requires definite provider evidence; another call can duplicate an occurrence."
+        },
+        "families": {},
+        "cases": {},
+        "verified": false
+      },
+      "J": {
+        "title": "Job Retry Limits",
+        "assessment": {
+          "state": "claimed",
+          "because": null
+        },
+        "families": {},
+        "cases": {
+          "BOUNDED_RETRY-assert_retry_selection_is_production_bound": {
+            "family": "retry",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0013476000021910295,
+              0.0021354000054998323,
+              0.008212699991418049
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "BOUNDED_RETRY-assert_retry_runner_is_production_bound": {
+            "family": "retry",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.001032799991662614,
+              0.001761200008331798,
+              0.008252200001152232
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "BOUNDED_RETRY-assert_retryable_failures_reach_terminal_at_the_bound": {
+            "family": "retry",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0010519000061322004,
+              0.16630460000305902,
+              0.022209400005522184
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          },
+          "BOUNDED_RETRY-assert_terminal_retry_is_a_no_op": {
+            "family": "retry",
+            "declaration": null,
+            "debt": null,
+            "collected": true,
+            "selected": true,
+            "outcomes": {
+              "setup": [
+                "passed"
+              ],
+              "call": [
+                "passed"
+              ],
+              "teardown": [
+                "passed"
+              ]
+            },
+            "failures": [],
+            "durations": [
+              0.0011423999967519194,
+              0.17981789998884778,
+              0.02054899999347981
+            ],
+            "passed": true,
+            "declaration_recorded": false
+          }
+        },
+        "verified": true
+      }
+    },
+    "additional_cases": {
+      "D-not_applicable": {
+        "family": "",
+        "declaration": "Registered policy retains work and evidence indefinitely.",
+        "debt": null,
+        "collected": true,
+        "selected": true,
+        "outcomes": {
+          "setup": [
+            "passed"
+          ],
+          "call": [
+            "passed"
+          ],
+          "teardown": [
+            "passed"
+          ]
+        },
+        "failures": [],
+        "durations": [
+          0.0014436999917961657,
+          0.00013449999096337706,
+          0.0008706999942660332
+        ],
+        "passed": false,
+        "declaration_recorded": true
+      },
+      "F-not_applicable": {
+        "family": "",
+        "declaration": "No canonical discovery is registered.",
+        "debt": null,
+        "collected": true,
+        "selected": true,
+        "outcomes": {
+          "setup": [
+            "passed"
+          ],
+          "call": [
+            "passed"
+          ],
+          "teardown": [
+            "passed"
+          ]
+        },
+        "failures": [],
+        "durations": [
+          0.0010714000090956688,
+          0.00010620000830385834,
+          0.0008209000079659745
+        ],
+        "passed": false,
+        "declaration_recorded": true
+      },
+      "REPLAY_SAFE_EXECUTION-declined": {
+        "family": "",
+        "declaration": "Production requires definite provider evidence; another call can duplicate an occurrence.",
+        "debt": null,
+        "collected": true,
+        "selected": true,
+        "outcomes": {
+          "setup": [
+            "passed"
+          ],
+          "call": [
+            "passed"
+          ],
+          "teardown": [
+            "passed"
+          ]
+        },
+        "failures": [],
+        "durations": [
+          0.0010026999952970073,
+          0.00010380000458098948,
+          0.0006984000065131113
+        ],
+        "passed": false,
+        "declaration_recorded": true
+      },
+      "I-not_applicable": {
+        "family": "",
+        "declaration": "Campaign construction inserts the immutable manifest and work in the same UUID rows; campaign_admission binds atomicity. There is no separate work admission or discovery.",
+        "debt": null,
+        "collected": true,
+        "selected": true,
+        "outcomes": {
+          "setup": [
+            "passed"
+          ],
+          "call": [
+            "passed"
+          ],
+          "teardown": [
+            "passed"
+          ]
+        },
+        "failures": [],
+        "durations": [
+          0.0009799999970709905,
+          0.00009879999561235309,
+          0.0008635999984107912
+        ],
+        "passed": false,
+        "declaration_recorded": true
+      }
+    },
+    "source": {
+      "path": "gigaverse/core/mail/reminders/engine/tests/test_bulk_delivery_due_work_contract.py",
+      "line": 522,
+      "kind": "suite"
+    },
+    "session_seconds": 23.169416899996577,
+    "exploration": {
+      "hypothesis-email-bulk-receipts": {
+        "family": "email-bulk-receipts",
+        "declaration": null,
+        "debt": null,
+        "collected": true,
+        "selected": false,
+        "outcomes": {},
+        "failures": [],
+        "durations": [],
+        "passed": false,
+        "declaration_recorded": false
+      }
+    },
+    "verified": false
+  }
+}

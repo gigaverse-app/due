@@ -1,0 +1,218 @@
+{
+  "lookup": {
+    "G": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "I": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Campaign construction inserts the immutable manifest and work in the same UUID rows; campaign_admission binds atomicity. There is no separate work admission or discovery."
+      },
+      "verified": false
+    },
+    "A": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "B": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "C": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "D": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Registered policy retains work and evidence indefinitely."
+      },
+      "verified": false
+    },
+    "E": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "F": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "No canonical discovery is registered."
+      },
+      "verified": false
+    },
+    "H": {
+      "assessment": {
+        "state": "declined",
+        "because": "Production requires definite provider evidence; another call can duplicate an occurrence."
+      },
+      "verified": false
+    },
+    "J": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    }
+  },
+  "guard": {
+    "G": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "I": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Campaign construction inserts the immutable manifest and work in the same UUID rows; campaign_admission binds atomicity. There is no separate work admission or discovery."
+      },
+      "verified": false
+    },
+    "A": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "B": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "C": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "D": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Registered policy retains work and evidence indefinitely."
+      },
+      "verified": false
+    },
+    "E": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "F": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "No canonical discovery is registered."
+      },
+      "verified": false
+    },
+    "H": {
+      "assessment": {
+        "state": "declined",
+        "because": "Production requires definite provider evidence; another call can duplicate an occurrence."
+      },
+      "verified": false
+    },
+    "J": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    }
+  },
+  "combined": {
+    "G": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "I": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Campaign construction inserts the immutable manifest and work in the same UUID rows; campaign_admission binds atomicity. There is no separate work admission or discovery."
+      },
+      "verified": false
+    },
+    "A": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "B": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "C": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "D": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "Registered policy retains work and evidence indefinitely."
+      },
+      "verified": false
+    },
+    "E": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    },
+    "F": {
+      "assessment": {
+        "state": "not applicable",
+        "because": "No canonical discovery is registered."
+      },
+      "verified": false
+    },
+    "H": {
+      "assessment": {
+        "state": "declined",
+        "because": "Production requires definite provider evidence; another call can duplicate an occurrence."
+      },
+      "verified": false
+    },
+    "J": {
+      "assessment": {
+        "state": "claimed",
+        "because": null
+      },
+      "verified": true
+    }
+  }
+}

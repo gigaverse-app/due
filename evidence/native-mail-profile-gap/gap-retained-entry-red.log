@@ -1,0 +1,19 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_entry_combines_clock_and_existing_evidence_without_an_extra_read ____
+
+inline_chunk = InlineSendChunk(model=<class 'tests.harness.self_work.InlineChunk'>, nudge=<function registered_nudge.<locals>.nudge a....ItemResult'>, bulk_policy=BulkRetryPolicy(max_rounds=1, wall_clock_budget=datetime.timedelta(seconds=60), delay=None))
+
+    def test_entry_combines_clock_and_existing_evidence_without_an_extra_read(inline_chunk):
+        claim = prepare_claim(inline_chunk)
+        with CaptureQueriesContext(connection) as queries:
+            attempt = record_effect_attempt(claim)
+        # Work lock plus combined clock/evidence read, then the UNKNOWN insert.
+>       assert sum(query["sql"].startswith("SELECT") for query in queries) == 2
+E       assert 3 == 2
+E        +  where 3 = sum(<generator object test_entry_combines_clock_and_existing_evidence_without_an_extra_read.<locals>.<genexpr> at 0x0000022282260820>)
+
+package\tests\evidence\test_entry_check.py:34: AssertionError
+=========================== short test summary info ===========================
+FAILED package\tests\evidence\test_entry_check.py::test_entry_combines_clock_and_existing_evidence_without_an_extra_read
+1 failed, 2 deselected in 0.84s

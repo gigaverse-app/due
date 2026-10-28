@@ -1,0 +1,106 @@
+diff --git a/libraries/due/src/due/django/capabilities/bulk.py b/libraries/due/src/due/django/capabilities/bulk.py
+index fc8002e91..cdccee8cd 100644
+--- a/libraries/due/src/due/django/capabilities/bulk.py
++++ b/libraries/due/src/due/django/capabilities/bulk.py
+@@ -37,7 +37,7 @@ from due.bulk import (
+ )
+ from due.django.capabilities.authoring import OwnedDurableWorkCapability
+ from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
+-from due.django.evidence.attempts import attempts_for, observe_locked_effect_outcome
++from due.django.evidence.attempts import attempts_for, locked_effect_attempt, observe_locked_effect_outcome
+ from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore, StoredAppliedEffectEvidence
+ from due.django.identities import WorkId
+ from due.django.models import DurableWork, DurableWorkState, EffectAttempt, EffectAttemptOutcome, UniverseDurableWork
+@@ -606,7 +606,7 @@ class DurableBulkExternalOperation[
+                     # Match scalar execution: the core completion declines this
+                     # stale claim; the committed receipt remains owed to recovery.
+                     return BulkStep.STOP
+-                attempt = EffectAttempt.objects.select_for_update().get(pk=last.pk)
++                attempt = locked_effect_attempt(last.pk)
+                 result = self.evidence_store.read_locked(attempt)
+                 state = finalize_under_fence(current, lambda row: self._consume_evidence(row, attempt, result))
+             # Finished batches return to core completion, which reacquires the
+@@ -647,7 +647,7 @@ class DurableBulkExternalOperation[
+         require_fenced_settlement(work)
+         if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
+             return
+-        attempt = EffectAttempt.objects.select_for_update().get(pk=result.pk)
++        attempt = locked_effect_attempt(result.pk)
+         recorded = self.evidence_store.read_locked(attempt)
+         if self.combine_completed_progress:
+             return self._prepare_completed_progress(work, recorded)
+diff --git a/libraries/due/src/due/django/capabilities/operations.py b/libraries/due/src/due/django/capabilities/operations.py
+index cd13b4759..7ecc9c76e 100644
+--- a/libraries/due/src/due/django/capabilities/operations.py
++++ b/libraries/due/src/due/django/capabilities/operations.py
+@@ -19,6 +19,7 @@ from due.django.evidence.attempts import (
+     attempts_for_model,
+     import_unknown_effect_attempt,
+     initial_import_work,
++    locked_effect_attempt,
+     observe_locked_effect_outcome,
+     record_effect_attempt,
+     record_locked_effect_attempt,
+@@ -253,7 +254,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
+         """Positive and negative writers validate the same immutable crossing identity."""
+         if attempt.work_model != self.model._meta.label_lower:
+             raise ValueError("evidence belongs to another operation model")
+-        locked = EffectAttempt.objects.select_for_update().get(pk=attempt.pk)
++        locked = locked_effect_attempt(attempt.pk)
+         if (locked.work_model, locked.work_identity, locked.desired_revision, locked.claim_token) != (
+             attempt.work_model,
+             attempt.work_identity,
+diff --git a/libraries/due/src/due/django/evidence/attempts.py b/libraries/due/src/due/django/evidence/attempts.py
+index 7e3b7d27a..8861e42d7 100644
+--- a/libraries/due/src/due/django/evidence/attempts.py
++++ b/libraries/due/src/due/django/evidence/attempts.py
+@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
+ from typing import cast
+ from uuid import UUID
+ 
+-from django.db import transaction
++from django.db import connections, transaction
+ from django.db.models import Count, Exists, OuterRef, Q, QuerySet
+ from pydantic import JsonValue
+ 
+@@ -38,6 +38,31 @@ from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectR
+ logger = logging.getLogger(__name__)
+ 
+ 
++def locked_effect_attempt(attempt_id: UUID) -> EffectAttempt:
++    """Read current evidence under its row lock without rebuilding a fixed ORM query.
++
++    This is always a database read, never a cached row. Django's raw queryset
++    retains field conversion and model construction; only this library-owned
++    primary-key lookup bypasses query compilation.
++    """
++    alias = EffectAttempt.objects.select_for_update().db
++    db = connections[alias]
++    if not db.in_atomic_block:
++        raise transaction.TransactionManagementError("attempt locking requires a transaction")
++    table = db.ops.quote_name(EffectAttempt._meta.db_table)
++    # Select only this worker's known fields. A newer deployment may have
++    # added columns that an older Django model must not treat as annotations.
++    columns = ", ".join(db.ops.quote_name(cast(str, field.column)) for field in EffectAttempt._meta.concrete_fields)
++    # Identifiers come from the library model. The external identity is
++    # a bound parameter, and FOR UPDATE retains serialization with late writers.
++    rows = list(
++        EffectAttempt.objects.raw(f"SELECT {columns} FROM {table} WHERE id = %s FOR UPDATE", [attempt_id], using=alias)
++    )
++    if not rows:
++        raise EffectAttempt.DoesNotExist("the provider attempt no longer exists")
++    return rows[0]
++
++
+ def attempts_for_model(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
+     """Typed model scope lets PostgreSQL use the matching sparse history/repair index.
+ 
+@@ -208,7 +233,7 @@ def observe_effect_outcome(attempt: EffectAttempt, outcome: EffectAttemptOutcome
+     if outcome is EffectAttemptOutcome.UNKNOWN:
+         raise ValueError("an observation must provide definite evidence")
+     with transaction.atomic():
+-        current = EffectAttempt.objects.select_for_update().get(pk=attempt.pk)
++        current = locked_effect_attempt(attempt.pk)
+         observe_locked_effect_outcome(current, outcome)
+ 
+ 

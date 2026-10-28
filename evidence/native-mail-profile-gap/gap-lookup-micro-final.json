@@ -1,0 +1,142 @@
+[
+  {
+    "block": 0,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 365.00140000134706,
+    "cpu_ms": 218.75
+  },
+  {
+    "block": 0,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 228.26530000020284,
+    "cpu_ms": 187.5
+  },
+  {
+    "block": 1,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 228.35550000309013,
+    "cpu_ms": 156.25
+  },
+  {
+    "block": 1,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 342.6247999886982,
+    "cpu_ms": 312.5
+  },
+  {
+    "block": 2,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 379.58210000942927,
+    "cpu_ms": 312.5
+  },
+  {
+    "block": 2,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 236.28159999498166,
+    "cpu_ms": 140.625
+  },
+  {
+    "block": 3,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 230.92840000754222,
+    "cpu_ms": 187.5
+  },
+  {
+    "block": 3,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 342.12630000547506,
+    "cpu_ms": 265.625
+  },
+  {
+    "block": 4,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 350.09269999864046,
+    "cpu_ms": 281.25
+  },
+  {
+    "block": 4,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 250.77349999628495,
+    "cpu_ms": 156.25
+  },
+  {
+    "block": 5,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 249.27519999619108,
+    "cpu_ms": 125.0
+  },
+  {
+    "block": 5,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 351.79950000019744,
+    "cpu_ms": 296.875
+  },
+  {
+    "block": 6,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 357.81250000582077,
+    "cpu_ms": 250.0
+  },
+  {
+    "block": 6,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 254.68469999032095,
+    "cpu_ms": 187.5
+  },
+  {
+    "block": 7,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 306.33610000950284,
+    "cpu_ms": 203.125
+  },
+  {
+    "block": 7,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 349.1530000028433,
+    "cpu_ms": 265.625
+  },
+  {
+    "block": 8,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 357.6638999948045,
+    "cpu_ms": 296.875
+  },
+  {
+    "block": 8,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 242.06170000252314,
+    "cpu_ms": 234.375
+  },
+  {
+    "block": 9,
+    "arm": "fixed",
+    "reads": 1000,
+    "wall_ms": 245.77370000770316,
+    "cpu_ms": 140.625
+  },
+  {
+    "block": 9,
+    "arm": "orm",
+    "reads": 1000,
+    "wall_ms": 354.36420000041835,
+    "cpu_ms": 328.125
+  }
+]

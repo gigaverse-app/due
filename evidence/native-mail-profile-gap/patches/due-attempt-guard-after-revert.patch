@@ -1,0 +1,201 @@
+diff --git a/docs/work-in-progress/tickets/entry-evidence-read-test-plan.md b/docs/work-in-progress/tickets/entry-evidence-read-test-plan.md
+new file mode 100644
+index 0000000..ba33930
+--- /dev/null
++++ b/docs/work-in-progress/tickets/entry-evidence-read-test-plan.md
+@@ -0,0 +1,7 @@
++# Entry evidence read cost
++
++Preserve the locked-row lease, unresolved-effect rejection, custom evidence methods, and controlled-clock behavior. Share the existing scalar/bulk query with the fresh database-clock read inside the ordinary attempt transaction.
++
++The focused controls in `package/tests/evidence/test_entry_check.py` check two SELECTs (work lock and combined clock/evidence) plus one UNKNOWN insert, expired-lease refusal, custom policy overrides and duplicate-crossing rejection. Existing scalar/bulk generated obligation suites cover evidence history and both receipt layouts. Claim/entry composition is not required and has been removed upstream.
++
++[PR #166](https://github.com/gigaverse-app/due/pull/166) records executed CI and counterbalanced native-mail measurements, independently and with #165. Fewer queries do not establish a latency, database CPU or throughput improvement.
+diff --git a/package/src/due/django/capabilities/bulk.py b/package/src/due/django/capabilities/bulk.py
+index fc8002e..673e045 100644
+--- a/package/src/due/django/capabilities/bulk.py
++++ b/package/src/due/django/capabilities/bulk.py
+@@ -84,7 +84,7 @@ class BulkExternalOperationWork(BulkWork, ExternalOperationWork):
+     class Meta:
+         abstract = True
+ 
+-    def has_possible_effect(self) -> bool:
++    def _possible_effect_attempts(self) -> QuerySet[EffectAttempt]:
+         # Unlike a scalar occurrence, a batch may make progress over several
+         # calls. An APPLIED attempt stops blocking ONLY when its per-item
+         # progress commits in the same transaction as repair_pending=False.
+@@ -93,7 +93,6 @@ class BulkExternalOperationWork(BulkWork, ExternalOperationWork):
+             attempts_for(self)
+             .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
+             .exclude(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False)
+-            .exists()
+         )
+ 
+ 
+diff --git a/package/src/due/django/evidence/attempts.py b/package/src/due/django/evidence/attempts.py
+index d1d3a87..d3144f7 100644
+--- a/package/src/due/django/evidence/attempts.py
++++ b/package/src/due/django/evidence/attempts.py
+@@ -36,6 +36,7 @@ from due.django.runtime.metrics import record_pending_effect_attempts
+ from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
+ 
+ logger = logging.getLogger(__name__)
++_BUILTIN_POSSIBLE_EFFECT_CHECK = DurableWork.has_possible_effect
+ 
+ 
+ def attempts_for_model(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
+@@ -154,10 +155,20 @@ def record_effect_attempt[WorkT: DurableWork](
+         # The lease can expire while SELECT FOR UPDATE waits. Sample the
+         # authoritative clock only after acquiring the row, and use that same
+         # instant for this attempt's start inside the protected transaction.
+-        started_at = database_now()
++        # Built-in scalar and bulk policies share their existing query with
++        # this clock read. Adopter overrides retain their method and call order.
++        possible = None
++        if (
++            current is not None
++            and current.requires_effect_evidence
++            and cast(type[DurableWork], type(current)).has_possible_effect is _BUILTIN_POSSIBLE_EFFECT_CHECK
++        ):
++            started_at, possible = coordination._database_now_with_exists(current._possible_effect_attempts())
++        else:
++            started_at = database_now()
+         if current is None or current.lease_expires_at is None or current.lease_expires_at <= started_at:
+             raise WorkOwnershipLost("provider attempt requires the captured current claim")
+-        if current.requires_effect_evidence and current.has_possible_effect():
++        if current.requires_effect_evidence and (current.has_possible_effect() if possible is None else possible):
+             raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
+         attempt = EffectAttempt.objects.create(
+             work_model=claim.model._meta.label_lower,
+diff --git a/package/src/due/django/models.py b/package/src/due/django/models.py
+index 45c6fcd..5613c1b 100644
+--- a/package/src/due/django/models.py
++++ b/package/src/due/django/models.py
+@@ -339,11 +339,13 @@ class DurableWork(models.Model):
+         request or settled repair can still have produced an irreversible effect;
+         neither elapsed time nor repair_pending=False grants resend permission.
+         """
+-        return (
+-            EffectAttempt.objects.filter(work_model=self._meta.label_lower, **{attempt_key_field(type(self)): self.pk})
+-            .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
+-            .exists()
+-        )
++        return self._possible_effect_attempts().exists()
++
++    def _possible_effect_attempts(self) -> models.QuerySet[EffectAttempt]:
++        """Shared predicate for replay permission and the provider-entry check."""
++        return EffectAttempt.objects.filter(
++            work_model=self._meta.label_lower, **{attempt_key_field(type(self)): self.pk}
++        ).exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
+ 
+     def work_beneficiary_user_id(self) -> int | None:
+         """Return the user whose next read must observe terminal settlement."""
+diff --git a/package/src/due/django/runtime/coordination.py b/package/src/due/django/runtime/coordination.py
+index 5816b29..7ca88d7 100644
+--- a/package/src/due/django/runtime/coordination.py
++++ b/package/src/due/django/runtime/coordination.py
+@@ -225,6 +225,25 @@ def _read_database_clock() -> datetime:
+     return value
+ 
+ 
++def _database_now_with_exists(query: QuerySet) -> tuple[datetime, bool]:
++    """Sample the live database clock and an evidence predicate in one round trip.
++
++    Entry callers already hold the work lock. Compile the existing predicate so
++    its semantics have one owner; no predicate or evidence is cached.
++    """
++    if query.db != connection.alias:
++        # A custom evidence router keeps its existing cross-database behavior.
++        return database_now(), query.exists()
++    compiler = query.query.exists().get_compiler(using=query.db)
++    sql, params = compiler.as_sql()
++    with connection.cursor() as cursor:
++        # The subquery is generated by Django, and all values remain bound.
++        cursor.execute(f"SELECT clock_timestamp(), EXISTS ({sql})", params)
++        row = cursor.fetchone()
++    assert row is not None and isinstance(row[0], datetime) and isinstance(row[1], bool)
++    return row[0], row[1]
++
++
+ def _database_statement_clock() -> models.Expression:
+     """One statement-stable database time, replaceable by the public test clock."""
+     return Now()
+diff --git a/package/src/due/django/testing.py b/package/src/due/django/testing.py
+index 644a18d..d7e4516 100644
+--- a/package/src/due/django/testing.py
++++ b/package/src/due/django/testing.py
+@@ -106,6 +106,7 @@ def use_database_clock(now: Callable[[], datetime]) -> Iterator[None]:
+     """
+     with (
+         patch("due.django.runtime.coordination._read_database_clock", new=now),
++        patch("due.django.runtime.coordination._database_now_with_exists", new=lambda query: (now(), query.exists())),
+         patch("due.django.runtime.coordination._database_statement_clock", new=lambda: Value(now())),
+     ):
+         yield
+diff --git a/package/tests/evidence/test_entry_check.py b/package/tests/evidence/test_entry_check.py
+new file mode 100644
+index 0000000..1043147
+--- /dev/null
++++ b/package/tests/evidence/test_entry_check.py
+@@ -0,0 +1,61 @@
++"""Entry samples database time and existing evidence under the same work lock."""
++
++from datetime import timedelta
++from unittest.mock import patch
++
++import pytest
++from django.db import connection
++from django.test.utils import CaptureQueriesContext
++
++from due.django.evidence.attempts import attempts_for, record_effect_attempt
++from due.django.models import EffectAttemptOutcome
++from due.django.runtime.coordination import WorkOwnershipLost, claim_work
++from due.django.testing import make_due, use_database_clock
++from due.errors import EffectOutcomeUnknownError
++from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
++from tests.harness.self_work import inline_chunk_environment as inline_chunk_environment
++
++pytestmark = pytest.mark.django_db(transaction=True)
++
++
++def prepare_claim(capability):
++    work = capability.model.objects.create(universe="acme", bulk_keys=["a"])
++    make_due(work)
++    claim = claim_work(capability.model, work.pk, lease_duration=timedelta(minutes=1))
++    assert claim is not None
++    return claim
++
++
++def test_entry_combines_clock_and_existing_evidence_without_an_extra_read(inline_chunk):
++    claim = prepare_claim(inline_chunk)
++    with CaptureQueriesContext(connection) as queries:
++        attempt = record_effect_attempt(claim)
++    # Work lock plus combined clock/evidence read, then the UNKNOWN insert.
++    assert sum(query["sql"].startswith("SELECT") for query in queries) == 2
++    assert sum(query["sql"].startswith("INSERT") for query in queries) == 1
++    assert attempt.outcome == EffectAttemptOutcome.UNKNOWN
++    assert attempt.started_at < claim.work.lease_expires_at
++    with pytest.raises(EffectOutcomeUnknownError):
++        record_effect_attempt(claim)
++    assert attempts_for(claim.work).count() == 1
++
++
++def test_entry_preserves_controlled_clock_and_refuses_expired_lease(inline_chunk):
++    claim = prepare_claim(inline_chunk)
++    boundary = claim.work.lease_expires_at
++    with use_database_clock(lambda: boundary), pytest.raises(WorkOwnershipLost):
++        record_effect_attempt(claim)
++    assert not attempts_for(claim.work).exists()
++    earlier = boundary - timedelta(seconds=1)
++    with use_database_clock(lambda: earlier):
++        attempt = record_effect_attempt(claim)
++    assert attempt.started_at == earlier
++
++
++def test_adopter_evidence_override_remains_authoritative(inline_chunk):
++    claim = prepare_claim(inline_chunk)
++    with patch.object(type(claim.work), "has_possible_effect", return_value=True) as custom:
++        with pytest.raises(EffectOutcomeUnknownError):
++            record_effect_attempt(claim)
++    custom.assert_called_once()
++    assert not attempts_for(claim.work).exists()

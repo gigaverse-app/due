@@ -1,0 +1,74 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+______ test_locked_read_survives_a_newer_schema_with_an_unmodeled_column ______
+
+    def test_locked_read_survives_a_newer_schema_with_an_unmodeled_column():
+        """Old workers must select their own fields during a rolling migration."""
+        attempt = EffectAttempt.objects.create(work_model="tests.work", work_id=19, claim_token=uuid7(), desired_revision=1)
+        table = connection.ops.quote_name(EffectAttempt._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(f'ALTER TABLE {table} ADD COLUMN work_identity bigint')
+        try:
+            with transaction.atomic():
+>               assert locked_effect_attempt(attempt.pk).work_identity == 19
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+package\tests\evidence\test_locked_read.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+package\src\due\django\evidence\attempts.py:55: in locked_effect_attempt
+    rows = list(EffectAttempt.objects.raw(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", [attempt_id], using=alias))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\django\db\models\query.py:2203: in __iter__
+    self._fetch_all()
+.venv\Lib\site-packages\django\db\models\query.py:2190: in _fetch_all
+    self._result_cache = list(self.iterator())
+                         ^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\django\db\models\query.py:2217: in iterator
+    yield from RawModelIterable(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <django.db.models.query.RawModelIterable object at 0x00000194F698BA10>
+
+    def __iter__(self):
+        # Cache some things for performance reasons outside the loop.
+        db = self.queryset.db
+        query = self.queryset.query
+        connection = connections[db]
+        compiler = connection.ops.compiler("SQLCompiler")(query, connection, db)
+        query_iterator = iter(query)
+    
+        try:
+            (
+                model_init_names,
+                model_init_pos,
+                annotation_fields,
+            ) = self.queryset.resolve_model_init_order()
+            model_cls = self.queryset.model
+            if any(
+                f.attname not in model_init_names for f in model_cls._meta.pk_fields
+            ):
+                raise exceptions.FieldDoesNotExist(
+                    "Raw query must include the primary key"
+                )
+            fields = [self.queryset.model_fields.get(c) for c in self.queryset.columns]
+            cols = [f.get_col(f.model._meta.db_table) if f else None for f in fields]
+            converters = compiler.get_converters(cols)
+            if converters:
+                query_iterator = compiler.apply_converters(query_iterator, converters)
+            if compiler.has_composite_fields(cols):
+                query_iterator = compiler.composite_fields_to_tuples(
+                    query_iterator, cols
+                )
+            for values in query_iterator:
+                # Associate fields to values
+                model_init_values = [values[pos] for pos in model_init_pos]
+                instance = model_cls.from_db(db, model_init_names, model_init_values)
+                if annotation_fields:
+                    for column, pos in annotation_fields:
+>                       setattr(instance, column, values[pos])
+E                       AttributeError: property 'work_identity' of 'EffectAttempt' object has no setter
+
+.venv\Lib\site-packages\django\db\models\query.py:194: AttributeError
+=========================== short test summary info ===========================
+FAILED package\tests\evidence\test_locked_read.py::test_locked_read_survives_a_newer_schema_with_an_unmodeled_column
+1 failed, 4 deselected in 0.92s
