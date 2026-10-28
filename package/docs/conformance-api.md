@@ -468,6 +468,8 @@ receipts, conflicting resource identities and retry turnover need application
 batching behavior and does not claim the other profile E families automatically.
 
 
+## Partial-progress recovery
+
 For multi-effect workflows, inventory each definite failure boundary, including
 preparation before a once-only claim. Use obligation's PartialProgress through
 LifecycleProof in extras: the shared proof requires the external fault to be

@@ -72,15 +72,9 @@ coverage and limitations. Never describe generated tests as proof of an unmodele
 provider guarantee, physical fulfillment, or universal correctness.
 
 
-For multi-effect workflows, inventory each definite failure boundary, including
-preparation before a once-only claim. Use obligation's PartialProgress through
-LifecycleProof in extras: the shared proof requires the external fault to be
-reached, observes the partial product result, removes the fault, then drives real
-registered recovery. A manual second call to apply cannot establish recovery
-ownership. Supply completed_effects call counts when successful groups must be
-checkpointed; the proof rejects repeated successful work and runs recovery once
-more after completion. Bind separate cases for preparation and ambiguous
-publication. Do not turn an ambiguous publish into a definite retry to satisfy
-this proof. Use RegressionControl to verify dropped remaining work and repeated
-completed groups are detected. Inventory every effect observed by the scenario;
-groups absent from its data remain outside coverage.
+For multi-effect workflows, follow the
+[partial-progress recovery guidance](../../../package/docs/conformance-api.md#partial-progress-recovery):
+inventory preparation and publication separately, drive registered recovery,
+observe each promised effect, and mutation-check retained obligations and
+completed-group call counts. Reuse obligation's PartialProgress through extras;
+do not add another runner or treat a manual callback retry as recovery evidence.
