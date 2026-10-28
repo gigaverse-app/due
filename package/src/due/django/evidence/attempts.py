@@ -52,7 +52,7 @@ def locked_effect_attempt(attempt_id: UUID) -> EffectAttempt:
     table = db.ops.quote_name(EffectAttempt._meta.db_table)
     # Select only this worker's known fields. A newer deployment may have
     # added columns that an older Django model must not treat as annotations.
-    columns = ", ".join(db.ops.quote_name(field.column) for field in EffectAttempt._meta.concrete_fields)
+    columns = ", ".join(db.ops.quote_name(cast(str, field.column)) for field in EffectAttempt._meta.concrete_fields)
     # Identifiers come from the library model. The external identity is
     # a bound parameter, and FOR UPDATE retains serialization with late writers.
     rows = list(
