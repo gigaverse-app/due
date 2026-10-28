@@ -19,6 +19,7 @@ from due.django.evidence.attempts import (
     attempts_for_model,
     import_unknown_effect_attempt,
     initial_import_work,
+    locked_effect_attempt,
     observe_locked_effect_outcome,
     record_effect_attempt,
     record_locked_effect_attempt,
@@ -253,7 +254,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         """Positive and negative writers validate the same immutable crossing identity."""
         if attempt.work_model != self.model._meta.label_lower:
             raise ValueError("evidence belongs to another operation model")
-        locked = EffectAttempt.objects.select_for_update().get(pk=attempt.pk)
+        locked = locked_effect_attempt(attempt.pk)
         if (locked.work_model, locked.work_identity, locked.desired_revision, locked.claim_token) != (
             attempt.work_model,
             attempt.work_identity,
