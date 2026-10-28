@@ -8,7 +8,12 @@ import pytest
 
 from tests.harness.bulk import registered_batch
 from tests.harness.replay_safe_bulk import registered_member_sync
-from tests.harness.self_work import inline_chunk_delivery, registered_chunk
+from tests.harness.self_work import (
+    composed_chunk_delivery,
+    composed_inline_chunk_delivery,
+    inline_chunk_delivery,
+    registered_chunk,
+)
 
 _SUITE_HOSTS = {
     "test_contract.py": registered_batch,
@@ -29,8 +34,6 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> Iterator[None]:
             if name in collected:
                 hosts.enter_context(host())
         if "test_composed_work_contract.py" in collected:
-            if "test_self_work_contract.py" not in collected:
-                hosts.enter_context(registered_chunk())
-            if "test_inline_work_contract.py" not in collected:
-                hosts.enter_context(registered_chunk(inline_chunk_delivery))
+            hosts.enter_context(registered_chunk(composed_chunk_delivery))
+            hosts.enter_context(registered_chunk(composed_inline_chunk_delivery))
         return (yield)
