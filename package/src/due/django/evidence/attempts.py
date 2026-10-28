@@ -36,6 +36,7 @@ from due.django.runtime.metrics import record_pending_effect_attempts
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 logger = logging.getLogger(__name__)
+_BUILTIN_POSSIBLE_EFFECT_CHECK = DurableWork.has_possible_effect
 
 
 def attempts_for_model(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
@@ -172,7 +173,17 @@ def record_locked_effect_attempt[WorkT: DurableWork](
         raise RuntimeError("recording a locked attempt requires a transaction")
     # The lease can expire while waiting for the row lock or preparing entry.
     # This fresh database clock remains the final pre-attempt authority check.
-    started_at = database_now()
+    # Built-in scalar and bulk policies share their existing query with the
+    # fresh clock read. Adopter overrides retain their method and call order.
+    possible = None
+    if (
+        current is not None
+        and current.requires_effect_evidence
+        and cast(type[DurableWork], type(current)).has_possible_effect is _BUILTIN_POSSIBLE_EFFECT_CHECK
+    ):
+        started_at, possible = coordination._database_now_with_exists(current._possible_effect_attempts())
+    else:
+        started_at = database_now()
     if (
         current is None
         or current.pk != claim.work_id
@@ -183,7 +194,7 @@ def record_locked_effect_attempt[WorkT: DurableWork](
         or current.lease_expires_at <= started_at
     ):
         raise WorkOwnershipLost("provider attempt requires the captured current claim")
-    if current.requires_effect_evidence and current.has_possible_effect():
+    if current.requires_effect_evidence and (current.has_possible_effect() if possible is None else possible):
         raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
     attempt = EffectAttempt.objects.create(
         work_model=claim.model._meta.label_lower,

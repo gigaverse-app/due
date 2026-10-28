@@ -84,7 +84,7 @@ class BulkExternalOperationWork(BulkWork, ExternalOperationWork):
     class Meta:
         abstract = True
 
-    def has_possible_effect(self) -> bool:
+    def _possible_effect_attempts(self) -> QuerySet[EffectAttempt]:
         # Unlike a scalar occurrence, a batch may make progress over several
         # calls. An APPLIED attempt stops blocking ONLY when its per-item
         # progress commits in the same transaction as repair_pending=False.
@@ -93,7 +93,6 @@ class BulkExternalOperationWork(BulkWork, ExternalOperationWork):
             attempts_for(self)
             .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
             .exclude(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False)
-            .exists()
         )
 
 
