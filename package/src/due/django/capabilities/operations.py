@@ -22,7 +22,6 @@ from due.django.evidence.attempts import (
     locked_effect_attempt,
     observe_locked_effect_outcome,
     record_effect_attempt,
-    record_locked_effect_attempt,
 )
 from due.django.evidence.effect_evidence import AppliedEffectEvidenceStore
 from due.django.identities import WorkId, attempt_key_field
@@ -78,13 +77,6 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
 ):
     execution_contract: ClassVar[ReplayContract] = ReplayContract.EVIDENCE_REQUIRED
     rejection_type: ClassVar[type[EffectRejection]] = EffectRejection
-    # Opt-in: all local work before the first crossing runs under owner/work
-    # locks and may roll back. Provider entry still follows a successful commit.
-    combine_claim_and_entry: ClassVar[bool] = False
-
-    @property
-    def _combine_claim_and_entry(self) -> bool:
-        return self.combine_claim_and_entry
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -200,7 +192,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         return self._record_crossing(claim)[0]
 
     def _record_crossing(
-        self, claim: WorkClaim[WorkT], current: WorkT | None = None
+        self, claim: WorkClaim[WorkT]
     ) -> tuple[EffectAttempt, Callable[[WorkT], ResultT | AppliedEffectEvidence[ResultT]]]:
         """One owner for crossing identity, initial evidence and the started hook."""
         perform = self.perform_effect
@@ -209,12 +201,8 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
             nonlocal perform
             perform = self._before_attempt_commits(work, attempt)
 
-        attempt = (
-            record_effect_attempt(claim, before_commit=before_commit, initial_receipt=self._initial_effect_receipt)
-            if current is None
-            else record_locked_effect_attempt(
-                claim, current, before_commit=before_commit, initial_receipt=self._initial_effect_receipt
-            )
+        attempt = record_effect_attempt(
+            claim, before_commit=before_commit, initial_receipt=self._initial_effect_receipt
         )
         # The callable is invocation-local and cannot escape a failed commit.
         # Scalar operations use their ordinary hook; bulk binds immutable members.
@@ -228,7 +216,8 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         self, work: WorkT, context: WorkExecutionContext[WorkT]
     ) -> tuple[EffectAttempt, ResultT | None]:
         """Run the scalar crossing and retain evidence already read by its writer."""
-        with context._external_entry(self._record_crossing) as (attempt, perform):
+        with context.external_call():
+            attempt, perform = self._record_crossing(context.claim)
             try:
                 result = effect_result(perform(work))
             except EffectNotAppliedError as rejection:

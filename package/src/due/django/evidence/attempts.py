@@ -176,51 +176,25 @@ def record_effect_attempt[WorkT: DurableWork](
         if before_commit is not None:
             lock_work_owner(claim.work)
         current = claim.owned_work().select_for_update().first()
-        return record_locked_effect_attempt(
-            claim, current, before_commit=before_commit, initial_receipt=initial_receipt
+        # The lease can expire while SELECT FOR UPDATE waits. Sample the
+        # authoritative clock only after acquiring the row, and use that same
+        # instant for this attempt's start inside the protected transaction.
+        started_at = database_now()
+        if current is None or current.lease_expires_at is None or current.lease_expires_at <= started_at:
+            raise WorkOwnershipLost("provider attempt requires the captured current claim")
+        if current.requires_effect_evidence and current.has_possible_effect():
+            raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
+        attempt = EffectAttempt.objects.create(
+            work_model=claim.model._meta.label_lower,
+            **{attempt_key_field(claim.model): claim.work_id},
+            claim_token=claim.token,
+            desired_revision=claim.desired_revision,
+            started_at=started_at,
+            receipt=initial_receipt(current) if initial_receipt is not None else None,
         )
-
-
-def record_locked_effect_attempt[WorkT: DurableWork](
-    claim: WorkClaim[WorkT],
-    current: WorkT | None,
-    *,
-    before_commit: Callable[[WorkT, EffectAttempt], None] | None = None,
-    initial_receipt: Callable[[WorkT], JsonValue] | None = None,
-) -> EffectAttempt:
-    """Shared entry checks; caller holds owner/work locks through commit.
-
-    ``current`` is the locked row, never an earlier unlocked snapshot. Composed
-    preparation must not mutate its authority, inputs or persisted progress.
-    """
-    if not transaction.get_connection().in_atomic_block:
-        raise RuntimeError("recording a locked attempt requires a transaction")
-    # The lease can expire while waiting for the row lock or preparing entry.
-    # This fresh database clock remains the final pre-attempt authority check.
-    started_at = database_now()
-    if (
-        current is None
-        or current.pk != claim.work_id
-        or current.state != DurableWorkState.CLAIMED
-        or current.fencing_token != claim.token
-        or current.desired_revision != claim.desired_revision
-        or current.lease_expires_at is None
-        or current.lease_expires_at <= started_at
-    ):
-        raise WorkOwnershipLost("provider attempt requires the captured current claim")
-    if current.requires_effect_evidence and current.has_possible_effect():
-        raise EffectOutcomeUnknownError("this occurrence already has a possible or applied provider attempt")
-    attempt = EffectAttempt.objects.create(
-        work_model=claim.model._meta.label_lower,
-        **{attempt_key_field(claim.model): claim.work_id},
-        claim_token=claim.token,
-        desired_revision=claim.desired_revision,
-        started_at=started_at,
-        receipt=initial_receipt(current) if initial_receipt is not None else None,
-    )
-    if before_commit is not None:
-        before_commit(current, attempt)
-    return attempt
+        if before_commit is not None:
+            before_commit(current, attempt)
+        return attempt
 
 
 def observe_effect_outcome(attempt: EffectAttempt, outcome: EffectAttemptOutcome) -> None:

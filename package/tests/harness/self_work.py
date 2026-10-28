@@ -71,18 +71,6 @@ with isolate_apps("tests"):
             indexes = durable_work_schema("composed_inline")[0]
             constraints = chunk_constraints("composed_inline")
 
-    class EntryChunk(ChunkFields):
-        class Meta:
-            app_label = "tests"
-            indexes = durable_work_schema("entry_chunk")[0]
-            constraints = chunk_constraints("entry_chunk")
-
-    class EntryInlineChunk(ChunkFields):
-        class Meta:
-            app_label = "tests"
-            indexes = durable_work_schema("entry_inline")[0]
-            constraints = chunk_constraints("entry_inline")
-
 
 @dataclass(frozen=True)
 class SendChunk(DurableBulkExternalOperation[ChunkFields, ChunkFields, ItemResult]):
@@ -162,22 +150,6 @@ composed_inline_chunk_delivery = ComposedInlineSendChunk.for_work(
 )
 
 
-class EntrySendChunk(ComposedSendChunk):
-    combine_claim_and_entry = True
-
-
-class EntryInlineSendChunk(EntrySendChunk):
-    receipt_model = None
-
-
-entry_chunk_delivery = EntrySendChunk.for_work(
-    work=EntryChunk, input_fields=chunk_delivery.input_fields, policy=chunk_delivery.policy
-)
-entry_inline_chunk_delivery = EntryInlineSendChunk.for_work(
-    work=EntryInlineChunk, input_fields=chunk_delivery.input_fields, policy=chunk_delivery.policy
-)
-
-
 @contextmanager
 def registered_chunk(capability: SendChunk = chunk_delivery) -> Iterator[None]:
     names: dict[type[ChunkFields], str] = {
@@ -185,8 +157,6 @@ def registered_chunk(capability: SendChunk = chunk_delivery) -> Iterator[None]:
         InlineChunk: "inline_chunk_self_test",
         ComposedChunk: "composed_chunk_self_test",
         ComposedInlineChunk: "composed_inline_chunk_self_test",
-        EntryChunk: "entry_chunk_self_test",
-        EntryInlineChunk: "entry_inline_chunk_self_test",
     }
     entry = DurableWorkRegistration(
         name=names[capability.model],
@@ -241,16 +211,4 @@ def composed_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
 @pytest.fixture(name="composed_inline_chunk")
 def composed_inline_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
     with _chunk_environment(composed_inline_chunk_delivery) as capability:
-        yield capability
-
-
-@pytest.fixture(name="entry_chunk")
-def entry_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
-    with _chunk_environment(entry_chunk_delivery) as capability:
-        yield capability
-
-
-@pytest.fixture(name="entry_inline_chunk")
-def entry_inline_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
-    with _chunk_environment(entry_inline_chunk_delivery) as capability:
         yield capability

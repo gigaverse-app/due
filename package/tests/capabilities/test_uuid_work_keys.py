@@ -27,11 +27,6 @@ def key_default(request, monkeypatch):
 pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("key_default")]
 
 
-@pytest.fixture(autouse=True, params=[False, True], ids=["separate-entry", "composed-entry"])
-def entry_mode(request, monkeypatch):
-    monkeypatch.setattr(UUIDPublication, "combine_claim_and_entry", request.param)
-
-
 def test_uuid_admission_executes_once_and_correlates_receipt(uuid_publication: UUIDPublication) -> None:
     work = admit(uuid_publication)
     assert isinstance(work.pk, UUID)
