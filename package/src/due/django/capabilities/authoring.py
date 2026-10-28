@@ -224,11 +224,6 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     execution_contract: ClassVar[ReplayContract] = ReplayContract.REPLAY_SAFE
     supports_repair_window: ClassVar[bool] = False
     _database_only: ClassVar[bool] = False
-
-    @property
-    def _combine_claim_and_entry(self) -> bool:
-        return False
-
     #: Whether other code may wake this work; a capability whose rows are claimed by another's protocol opts out.
     wakeable: ClassVar[bool] = True
 
@@ -494,7 +489,6 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             retry_delay_for=self.retry_delay_for,
             provider_retry_after=self.provider_retry_after,
             database_only=self._database_only,
-            combine_claim_and_entry=self._combine_claim_and_entry,
             eligibility=self.eligibility,
         )
         if transitioned and self.deadline_wakeup_horizon is not None:
