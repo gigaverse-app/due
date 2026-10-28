@@ -100,6 +100,17 @@ class ReopenAfter:
 
 
 @dataclass(frozen=True, slots=True)
+class _PreparedWorkUpdates:
+    """Validated in-memory fields to include in this transaction's completion save.
+
+    Internal preparation owns validation and hook compatibility. This value is
+    scoped to one locked row and invocation; it never carries replay authority.
+    """
+
+    fields: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class WorkClaim[ClaimedWorkT: DurableWork]:
     """
     Immutable ownership facts committed by one successful claim.
@@ -343,6 +354,7 @@ def settle_locked_work[WorkT: DurableWork](
     revision: int,
     finalize: Callable[[WorkT], ReopenAfter | None] | None = None,
     now: NowFn = database_now,
+    prepared: _PreparedWorkUpdates | None = None,
 ) -> None:
     """
     Settle admitted evidence under caller-held locks, then publish local state.
@@ -362,9 +374,10 @@ def settle_locked_work[WorkT: DurableWork](
     # An explicitly supplied clock retains its existing sampling behavior.
     current.completed_at = cast(datetime, _database_statement_clock()) if now is database_now else now()
     current.last_error_code = ""
-    current.save(
-        update_fields=["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
-    )
+    fields = ["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
+    if prepared is not None:
+        fields.extend(prepared.fields)
+    current.save(update_fields=fields)
     completed_at = current.completed_at
     assert isinstance(completed_at, datetime), "completion must return its persisted timestamp"
     followup = finalize_under_fence(current, finalize) if finalize is not None else None
@@ -378,7 +391,7 @@ def settle_locked_work[WorkT: DurableWork](
 def complete_work[WorkT: DurableWork](
     claim: WorkClaim[WorkT],
     *,
-    prepare: Callable[[WorkT], None] | None = None,
+    prepare: Callable[[WorkT], _PreparedWorkUpdates | None] | None = None,
     finalize: Callable[[WorkT], ReopenAfter | None] | None = None,
     now: NowFn = database_now,
 ) -> bool:
@@ -394,9 +407,14 @@ def complete_work[WorkT: DurableWork](
         lock_work_owner(claim.work)
         current = claim.owned_work().select_for_update().first()
         if current is not None:
-            if prepare is not None:
-                finalize_under_fence(current, prepare)
-            settle_locked_work(current, revision=claim.desired_revision, finalize=finalize, now=now)
+            prepared = finalize_under_fence(current, prepare) if prepare is not None else None
+            settle_locked_work(
+                current,
+                revision=claim.desired_revision,
+                finalize=finalize,
+                now=now,
+                prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
+            )
     if current is None:
         record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
     return current is not None
@@ -1086,7 +1104,7 @@ def run_work[WorkT: DurableWork, ResultT](
     delivery_token: UUID | None = None,
     expected_revision: int | None = None,
     eligibility: ExecutionEligibility | None = None,
-    prepare_success: Callable[[WorkT, ResultT], None] | None = None,
+    prepare_success: Callable[[WorkT, ResultT], _PreparedWorkUpdates | None] | None = None,
     finalize_success: Callable[[WorkT, ResultT], ReopenAfter | None] | None = None,
     finalize_terminal: Callable[[WorkT, Exception], None] | None = None,
     finalize_unknown: Callable[[WorkT], None] | None = None,
@@ -1141,7 +1159,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     lease_duration: timedelta,
     max_rearms: int | None,
     retry_delay: timedelta,
-    prepare_success: Callable[[WorkT, ResultT], None] | None,
+    prepare_success: Callable[[WorkT, ResultT], _PreparedWorkUpdates | None] | None,
     finalize_success: Callable[[WorkT, ResultT], ReopenAfter | None] | None,
     finalize_terminal: Callable[[WorkT, Exception], None] | None,
     finalize_unknown: Callable[[WorkT], None] | None,

@@ -28,4 +28,9 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> Iterator[None]:
         for name, host in _SUITE_HOSTS.items():
             if name in collected:
                 hosts.enter_context(host())
+        if "test_composed_work_contract.py" in collected:
+            if "test_self_work_contract.py" not in collected:
+                hosts.enter_context(registered_chunk())
+            if "test_inline_work_contract.py" not in collected:
+                hosts.enter_context(registered_chunk(inline_chunk_delivery))
         return (yield)

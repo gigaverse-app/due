@@ -16,7 +16,7 @@ from django.db.models import Model
 from pydantic import BaseModel
 from pytest_obligation.regression_controls import assert_detects_regression
 
-from due.bulk import BulkOutcomeState, BulkResult, batch_state
+from due.bulk import BulkResult
 from due.django.capabilities.bulk import BulkExternalOperationWork, DurableBulkExternalOperation
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.conformance.binding import entered_binding
@@ -135,7 +135,7 @@ def assert_effect_contract_detects_regression[W: UniverseDurableWork, ResultT](
 def _without_bulk_progress[OwnerT: Model, W: BulkExternalOperationWork, ResultT: BaseModel](
     capability: DurableBulkExternalOperation[OwnerT, W, ResultT],
 ) -> Iterator[None]:
-    original = type(capability)._record_progress
+    original = type(capability)._prepare_progress
     reached = False
 
     def omitted(
@@ -144,15 +144,15 @@ def _without_bulk_progress[OwnerT: Model, W: BulkExternalOperationWork, ResultT:
         result: BulkResult[ResultT],
         *,
         input_fields: tuple[str, ...] | None,
-    ) -> BulkOutcomeState:
+    ) -> tuple[BulkResult[ResultT], tuple[str, ...]]:
         nonlocal reached
         if instance is not capability:
             return original(instance, work, result, input_fields=input_fields)
         reached = True
-        current, _fields = instance._prepare_progress(work, result, input_fields=input_fields)
-        return batch_state(work.bulk_keys, current)
+        current, _fields = original(instance, work, result, input_fields=input_fields)
+        return current, ()
 
-    with patch.object(type(capability), "_record_progress", omitted):
+    with patch.object(type(capability), "_prepare_progress", omitted):
         yield
     assert reached, "regression control never reached the selected bulk progress write"
 
