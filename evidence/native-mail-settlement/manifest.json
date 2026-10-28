@@ -1,0 +1,85 @@
+{
+  "warning": "Evidence only. Close this PR unmerged. Never cherry-pick these files into source branches.",
+  "database": "PostgreSQL 15.19, local Windows",
+  "native": "1ea8f661c2ae393f0dc3b1a43603d17af685c0ff",
+  "harness_source": "13ea57040:perf/scripts/measure_bulk_mail_persistence.py",
+  "harness_sha256": "d4042ada33f11e164c86699bbe7b4fcb8fbbffa9d466ede9af6b712e01bb4d72",
+  "samples": [
+    {
+      "name": "mail-cost-composed-0-native.jsonl",
+      "sha256": "11221532b347c9ab08b3154e5f26368f12e6e6839192c859a02c57089530f657",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-1-baseline.jsonl",
+      "sha256": "19ce889bccd578c0c590e968a095d7607ea5b644f2470004cb7224f4791cbd62",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-2-disabled.jsonl",
+      "sha256": "c8a41e752860d1d5c6b91b79af3505046a1a41adec992d0dcba9b34757c19be7",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-3-combined.jsonl",
+      "sha256": "8ac5c95bddc0ec7331824def3b738edf6de164df696e11d15bc0223a9e7f6332",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-4-combined.jsonl",
+      "sha256": "a52e19d57a7d3c57b40e42ecd79287923a2cde8286616d1276380516cc5bf8a0",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-5-disabled.jsonl",
+      "sha256": "2567a44ce97e9cf9063cfea3fbd9bd161d3e291098ea7ee2c1e8abb76cd7d74a",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-6-baseline.jsonl",
+      "sha256": "9a4db7bc386f333aad284dce25573cf82146cd93c60efa8861d9b7cccb04a8be",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-composed-7-native.jsonl",
+      "sha256": "3dcd560de55031bfe8fef5618c25ecdd4a4d3c4742b12491c47dc551b0304478",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-0-native.jsonl",
+      "sha256": "394c1c7ec529e8c81fe375344c700eabf44c24200150e890dc001d24dd2e6027",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-1-baseline.jsonl",
+      "sha256": "257cc22f096b87c911915ef19662b0fc689164b12f2dcf2f021c1bb9d29af261",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-2-prepared.jsonl",
+      "sha256": "e4d303a182ffc42e585508b0e577ca437678f0303d816126899ab4d3d26d3c11",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-3-prepared.jsonl",
+      "sha256": "6cfdfc5d4c9c00a223a511aec9e35c4230d0361df6d39815a068a39d927a1187",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-4-baseline.jsonl",
+      "sha256": "15a2ce5edecdcf20f3ee7c640621d9a267c48ef0b0527636b2c84e12eacedb39",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-settlement-5-native.jsonl",
+      "sha256": "68ea6fdb901b5936bbdce08336b5f0971cb9578fc737caacca78abb2fea39153",
+      "records": 30
+    }
+  ],
+  "limitations": [
+    "Synthetic SES provider; real local PostgreSQL",
+    "Serial campaign execution; no throughput or contention claim",
+    "Timing noise prevents a consistent latency claim",
+    "Same shortlink implementation in all arms"
+  ]
+}
