@@ -1,0 +1,439 @@
+{
+  "warning": "Evidence only. Keep this branch closed and unmerged.",
+  "samples": [
+    {
+      "name": "mail-cost-adoption-0-native.jsonl",
+      "sha256": "99b3f6549f24775ee6ab28543f26e40483d1de7e47f73b82e516b943e389fb42",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-1-shared.jsonl",
+      "sha256": "f115ed93da4074b5186a709a1767a8aa2746f42c7eabe4c024fc28ebe3097256",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-2-static.jsonl",
+      "sha256": "25d1ad4baab4a7c80f2c6a4dd8f6d73af4b9eaf460c7ec3a88323295c820c860",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-3-composed.jsonl",
+      "sha256": "586e0b49bf0ed7f1fd500b713f8243d366954a944d934df6630f1f9242dca71c",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-4-composed.jsonl",
+      "sha256": "b54a850e0b8f32715ea694760c5f86c9e618e1e62a11408b006b61f3d3946aad",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-5-static.jsonl",
+      "sha256": "65e033ce6e6707a22789ac91fb345eff4cfa8d640c1d3f24e55d4ae6d04136b1",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-6-shared.jsonl",
+      "sha256": "2fe38d9a14547f2bcb814d2a8eae7e74897288625702a1f0c6d5a1b47a684d4b",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-7-native.jsonl",
+      "sha256": "9c802faa3ac06e9416cdd37f84a39c82bc4d1dc3b01eaac763cb0981e9334ac3",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-control-0-static.jsonl",
+      "sha256": "e7eed4a6f6e11c8832f8126adc8c0cf24c80779b2edb1abea46ef809df3cbe8d",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-control-1-composed.jsonl",
+      "sha256": "63214b231dc7a05a6b52089db28144d8a3c3f10c71d2604cc8683aa0f2465a6f",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-control-2-composed.jsonl",
+      "sha256": "a9780f7e190e0a2836df10d18b7e02910355a7f3ac175004e6c3d1063956e0e2",
+      "records": 30
+    },
+    {
+      "name": "mail-cost-adoption-control-3-static.jsonl",
+      "sha256": "8e5b8c99ef57c4ba621ad44734ede08110465f90a097fd82d755074526c36bff",
+      "records": 30
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "adoption-benchmark-manifest.json",
+      "sha256": "ce9bb8b6084a4d2610d8ffd181c77573e571236c0cfc148558f81481a1589d3a"
+    },
+    {
+      "name": "adoption-timing-control-manifest.json",
+      "sha256": "f3fe68cef170e0e8c52709ea116baa64a366aee7e86961872fd8bec7cf257cb8"
+    },
+    {
+      "name": "run_adoption_cost.py",
+      "sha256": "e0c79683592e68ea376838bb76b205d3cde2da67ace641aad1e4fae40bd11cb2"
+    },
+    {
+      "name": "run_adoption_timing_control.py",
+      "sha256": "77ad26832aa6b29f6908db1976a9468e8211fa73978c258f36c40fd3e9d0c777"
+    },
+    {
+      "name": "run_cost_arm.py",
+      "sha256": "7596cdd021839430e5e912652ccab882cd56ee9521c9d8e20ec3ef864a2f2501"
+    },
+    {
+      "name": "run_mail_check.py",
+      "sha256": "37a47208e5c0ffecfd4002f09c477071a862db1e48b7de0f755277c980055651"
+    },
+    {
+      "name": "static-adoption-profiles.json",
+      "sha256": "d091508fe5559a6aa8b0ea0fcf499618ded547f7cba6fc97c76d1fc835f5f029"
+    },
+    {
+      "name": "static-adoption-effects.json",
+      "sha256": "56d5e697a17ef23cdae6f5d3f3f9f86bd8fef53b925f5589292832b6f7fcbfef"
+    },
+    {
+      "name": "composed-adoption-profiles.json",
+      "sha256": "c0511dddbe0c888a3f5f13cea8fbaad13b0dd127408b2f5e0a3f5db7f353974c"
+    },
+    {
+      "name": "composed-adoption-effects.json",
+      "sha256": "e8159586d4ef304079f18d11965c8420cf78e83358fb5cd5190a8ad1a1f8c756"
+    }
+  ],
+  "totals": [
+    {
+      "arm": "composed",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 71.0,
+      "dml": 21.0,
+      "commits": 10.0,
+      "elapsed_ms": 56.989
+    },
+    {
+      "arm": "composed",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 71.0,
+      "dml": 21.0,
+      "commits": 10.0,
+      "elapsed_ms": 66.143
+    },
+    {
+      "arm": "composed",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 89.0,
+      "dml": 28.0,
+      "commits": 13.0,
+      "elapsed_ms": 74.198
+    },
+    {
+      "arm": "composed",
+      "comparison": "control",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 91.0,
+      "dml": 28.0,
+      "commits": 14.0,
+      "elapsed_ms": 91.825
+    },
+    {
+      "arm": "composed",
+      "comparison": "control",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 131.0,
+      "dml": 42.0,
+      "commits": 22.0,
+      "elapsed_ms": 142.43
+    },
+    {
+      "arm": "composed",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 71.0,
+      "dml": 21.0,
+      "commits": 10.0,
+      "elapsed_ms": 71.326
+    },
+    {
+      "arm": "composed",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 71.0,
+      "dml": 21.0,
+      "commits": 10.0,
+      "elapsed_ms": 117.589
+    },
+    {
+      "arm": "composed",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 89.0,
+      "dml": 28.0,
+      "commits": 13.0,
+      "elapsed_ms": 123.108
+    },
+    {
+      "arm": "composed",
+      "comparison": "full",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 91.0,
+      "dml": 28.0,
+      "commits": 14.0,
+      "elapsed_ms": 151.442
+    },
+    {
+      "arm": "composed",
+      "comparison": "full",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 131.0,
+      "dml": 42.0,
+      "commits": 22.0,
+      "elapsed_ms": 202.204
+    },
+    {
+      "arm": "native",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 52.0,
+      "dml": 17.0,
+      "commits": 8.0,
+      "elapsed_ms": 43.082
+    },
+    {
+      "arm": "native",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 52.0,
+      "dml": 17.0,
+      "commits": 8.0,
+      "elapsed_ms": 45.723
+    },
+    {
+      "arm": "native",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 61.0,
+      "dml": 22.0,
+      "commits": 10.0,
+      "elapsed_ms": 48.078
+    },
+    {
+      "arm": "native",
+      "comparison": "full",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 63.0,
+      "dml": 22.0,
+      "commits": 11.0,
+      "elapsed_ms": 63.738
+    },
+    {
+      "arm": "native",
+      "comparison": "full",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 85.0,
+      "dml": 32.0,
+      "commits": 17.0,
+      "elapsed_ms": 87.746
+    },
+    {
+      "arm": "shared",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 75.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 70.894
+    },
+    {
+      "arm": "shared",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 75.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 84.183
+    },
+    {
+      "arm": "shared",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 93.0,
+      "dml": 30.0,
+      "commits": 13.0,
+      "elapsed_ms": 90.511
+    },
+    {
+      "arm": "shared",
+      "comparison": "full",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 97.0,
+      "dml": 31.0,
+      "commits": 14.0,
+      "elapsed_ms": 104.907
+    },
+    {
+      "arm": "shared",
+      "comparison": "full",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 141.0,
+      "dml": 47.0,
+      "commits": 22.0,
+      "elapsed_ms": 159.489
+    },
+    {
+      "arm": "static",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 73.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 67.166
+    },
+    {
+      "arm": "static",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 73.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 62.889
+    },
+    {
+      "arm": "static",
+      "comparison": "control",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 91.0,
+      "dml": 30.0,
+      "commits": 13.0,
+      "elapsed_ms": 85.616
+    },
+    {
+      "arm": "static",
+      "comparison": "control",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 94.0,
+      "dml": 31.0,
+      "commits": 14.0,
+      "elapsed_ms": 85.301
+    },
+    {
+      "arm": "static",
+      "comparison": "control",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 136.0,
+      "dml": 47.0,
+      "commits": 22.0,
+      "elapsed_ms": 140.675
+    },
+    {
+      "arm": "static",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "permanent",
+      "measured_samples": 10,
+      "sql": 73.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 67.483
+    },
+    {
+      "arm": "static",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 73.0,
+      "dml": 23.0,
+      "commits": 10.0,
+      "elapsed_ms": 73.931
+    },
+    {
+      "arm": "static",
+      "comparison": "full",
+      "recipients": 51,
+      "outcome": "throttle",
+      "measured_samples": 10,
+      "sql": 91.0,
+      "dml": 30.0,
+      "commits": 13.0,
+      "elapsed_ms": 84.986
+    },
+    {
+      "arm": "static",
+      "comparison": "full",
+      "recipients": 101,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 94.0,
+      "dml": 31.0,
+      "commits": 14.0,
+      "elapsed_ms": 103.453
+    },
+    {
+      "arm": "static",
+      "comparison": "full",
+      "recipients": 201,
+      "outcome": "success",
+      "measured_samples": 10,
+      "sql": 136.0,
+      "dml": 47.0,
+      "commits": 22.0,
+      "elapsed_ms": 166.459
+    }
+  ]
+}

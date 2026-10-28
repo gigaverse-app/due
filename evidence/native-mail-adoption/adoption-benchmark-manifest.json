@@ -1,0 +1,39 @@
+{
+  "start": "2026-10-28T12:39:25.636262+00:00",
+  "arms": {
+    "native": {
+      "checkout": "mail-flatten-main",
+      "engine": "native",
+      "sha": "1ea8f661c2ae393f0dc3b1a43603d17af685c0ff"
+    },
+    "shared": {
+      "checkout": "mail-shared-baseline",
+      "engine": "due",
+      "sha": "e2c86078080da814486784e617c0cdeaeb1fe160"
+    },
+    "static": {
+      "checkout": "mail-static-adoption",
+      "engine": "due",
+      "sha": "177ef2ba07b26921d572f52df7ba7709cae67172"
+    },
+    "composed": {
+      "checkout": "mail-composed-adoption",
+      "engine": "due",
+      "sha": "dc4a17fcea41bcdd3130958df4b04ae747dd78a4"
+    }
+  },
+  "sequence": [
+    "native",
+    "shared",
+    "static",
+    "composed",
+    "composed",
+    "static",
+    "shared",
+    "native"
+  ],
+  "samples_per_block_scenario": 5,
+  "warmups_per_block_scenario": 1,
+  "end": "2026-10-28T12:41:42.358857+00:00",
+  "driver_sha256": "e0c79683592e68ea376838bb76b205d3cde2da67ace641aad1e4fae40bd11cb2"
+}

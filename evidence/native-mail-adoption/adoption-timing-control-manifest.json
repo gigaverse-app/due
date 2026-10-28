@@ -1,0 +1,23 @@
+{
+  "start": "2026-10-28T12:43:16.537899+00:00",
+  "database": "test_cost_adoption_control",
+  "arms": [
+    {
+      "block": "adoption-control-0-static",
+      "sha": "177ef2ba07b26921d572f52df7ba7709cae67172"
+    },
+    {
+      "block": "adoption-control-1-composed",
+      "sha": "dc4a17fcea41bcdd3130958df4b04ae747dd78a4"
+    },
+    {
+      "block": "adoption-control-2-composed",
+      "sha": "dc4a17fcea41bcdd3130958df4b04ae747dd78a4"
+    },
+    {
+      "block": "adoption-control-3-static",
+      "sha": "177ef2ba07b26921d572f52df7ba7709cae67172"
+    }
+  ],
+  "end": "2026-10-28T12:44:12.205655+00:00"
+}
