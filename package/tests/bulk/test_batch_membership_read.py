@@ -1,7 +1,7 @@
 """Read committed membership with one round trip, retaining fail-closed identity checks."""
 
 import pytest
-from django.db import connection
+from django.db import DatabaseError, connection
 from django.test.utils import CaptureQueriesContext
 
 from due.django.evidence.attempts import record_effect_attempt
@@ -56,6 +56,28 @@ def test_failed_started_hook_never_exposes_captured_members_to_the_provider(requ
     monkeypatch.setattr(SendChunk, "finalize_started", fail)
     with pytest.raises(RuntimeError, match="started hook failed"):
         operation.attempt_execution(work.pk)
+    assert reached == [("a", "b")]
+    assert SendChunk.calls == []
+    assert not EffectAttempt.objects.exists()
+    assert not BatchReceipt.objects.exists()
+
+
+@pytest.mark.parametrize("layout", ["self_chunk", "inline_chunk"])
+def test_failed_commit_discards_the_prepared_provider_call(request, layout, monkeypatch):
+    operation = request.getfixturevalue(layout)
+    work = operation.model.objects.create(universe="acme", bulk_keys=["a", "b"])
+    claim = claim_work(type(work), work.pk, lease_duration=operation.policy.lease_duration)
+    assert claim is not None
+    reached = []
+
+    def fail_commit():
+        reached.append(operation.current_batch(claim.work).keys)
+        raise DatabaseError("attempt commit failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(connection, "commit", fail_commit)
+        with pytest.raises(DatabaseError, match="attempt commit failed"):
+            operation._apply_with_evidence(claim.work, WorkExecutionContext(claim, operation.policy.lease_duration))
     assert reached == [("a", "b")]
     assert SendChunk.calls == []
     assert not EffectAttempt.objects.exists()

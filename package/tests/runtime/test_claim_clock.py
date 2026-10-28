@@ -153,7 +153,8 @@ def test_eligibility_callback_still_receives_a_concrete_clock_value(eligible):
         assert claim.work.lease_expires_at == controlled + LEASE
 
 
-def test_lock_wait_consumes_claim_lease():
+@pytest.mark.parametrize("static", [False, True])
+def test_lock_wait_consumes_claim_lease(static):
     work = record()
     ready = Event()
     backend_pid = []
@@ -165,7 +166,12 @@ def test_lock_wait_consumes_claim_lease():
                 cursor.execute("SELECT pg_backend_pid()")
                 backend_pid.append(cursor.fetchone()[0])
             ready.set()
-            return claim_work(PrimitiveWork, work.pk, lease_duration=LEASE)
+            return claim_work(
+                PrimitiveWork,
+                work.pk,
+                lease_duration=LEASE,
+                eligibility=ExecutionEligibility(Q(pk=work.pk)) if static else None,
+            )
         finally:
             close_old_connections()
 

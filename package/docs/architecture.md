@@ -77,7 +77,12 @@ hard, and hard below the lease.
 Ordinary claims return PostgreSQL's SELECT statement timestamp with the locked
 work row. The same timestamp checks availability and starts the lease, so lock
 waits still consume the lease. This saves a standalone clock read on both
-successful and missed claims. Explicit clocks and eligibility callbacks retain
+successful and missed claims, including static eligibility predicates without a
+fallback. Declare these as `ExecutionEligibility(Q(...))` instead of wrapping a
+time-independent Q in a lambda. Time-dependent predicates still use
+`ExecutionEligibility(lambda now: Q(...))`; predicates with `recheck_after` also
+require a concrete timestamp. This changes clock-read cost, not lease duration,
+retry backoff or eligibility semantics. Explicit clocks and eligibility callbacks retain
 their concrete datetime read; callbacks never receive a database expression.
 
 Renewal uses PostgreSQL's UPDATE statement timestamp for both `updated_at` and

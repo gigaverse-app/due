@@ -576,7 +576,7 @@ def test_perturb_inputs_is_refused_where_the_library_cannot_move_inputs(monkeypa
         )
 
 
-def _gated_contract(monkeypatch: pytest.MonkeyPatch):
+def _gated_contract(monkeypatch: pytest.MonkeyPatch, *, static: bool = False):
     from datetime import timedelta
 
     from django.db.models import Q
@@ -588,7 +588,10 @@ def _gated_contract(monkeypatch: pytest.MonkeyPatch):
 
     capability = replace(
         GatedPrimitiveEffect.for_owner(owner=PrimitiveOwner, work=primitive.model, policy=primitive.policy),
-        eligibility=ExecutionEligibility(lambda now: Q(owner__value="ready"), recheck_after=timedelta(seconds=30)),
+        eligibility=ExecutionEligibility(
+            Q(owner__value="ready") if static else lambda now: Q(owner__value="ready"),
+            recheck_after=timedelta(seconds=30),
+        ),
     )
     entry = installed.get()["primitive_self_test"]
     monkeypatch.setitem(installed.get(), entry.name, replace(entry, capability=capability))
@@ -679,23 +682,29 @@ def test_generated_gate_proof_detects_writes_hidden_by_unchanged_snapshots(
         "assert_eligible_gate_recovers_lost_notification",
     ],
 )
-def test_generated_gate_proofs_accept_the_unmodified_runtime(monkeypatch: pytest.MonkeyPatch, proof: str) -> None:
+@pytest.mark.parametrize("static", [False, True])
+def test_generated_gate_proofs_accept_the_unmodified_runtime(
+    monkeypatch: pytest.MonkeyPatch, proof: str, static: bool
+) -> None:
     from pytest_obligation.contract import contract_cases
 
-    contract = _gated_contract(monkeypatch)
+    contract = _gated_contract(monkeypatch, static=static)
     case = next(param.values[0] for param in contract_cases(contract) if param.id == f"eligibility-{proof}")
     case.run()
 
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("isolated_primitive")
-def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("static", [False, True])
+def test_gate_binding_guard_rejects_the_test_authored_readiness_transition(
+    monkeypatch: pytest.MonkeyPatch, static: bool
+) -> None:
     from pytest_obligation.contract import contract_cases
 
     # This reference fixture deliberately writes readiness directly. An application
     # must instead bind its real readiness command; never certify this fixture as
     # a production-bound application merely because its behavioral proofs pass.
-    contract = _gated_contract(monkeypatch)
+    contract = _gated_contract(monkeypatch, static=static)
     case = next(
         param.values[0]
         for param in contract_cases(contract)
