@@ -206,9 +206,9 @@ def _with_duplicate_effect[OwnerT: Model, W: ExternalOperationWork, ResultT](
     reached = False
 
     def repeated(
-        instance: DurableExternalOperation[OwnerT, W, ResultT], claim: WorkClaim[W]
+        instance: DurableExternalOperation[OwnerT, W, ResultT], claim: WorkClaim[W], current: W | None = None
     ) -> tuple[EffectAttempt, Callable[[W], ResultT | AppliedEffectEvidence[ResultT]]]:
-        attempt, perform = original(instance, claim)
+        attempt, perform = original(instance, claim, current)
         if instance is not capability:
             return attempt, perform
 
