@@ -146,7 +146,7 @@ def test_bulk_progress_control_rejects_scalar_operations(publication: Publicatio
 
 
 def test_bulk_progress_control_is_scoped_and_restores_the_write(self_chunk: SendChunk) -> None:
-    original = type(self_chunk)._record_progress
+    original = type(self_chunk)._prepare_progress
     other = replace(self_chunk)
     examples = self_work_examples(self_chunk, "self_chunk")
     delivery = examples.receipt_repair
@@ -167,4 +167,4 @@ def test_bulk_progress_control_is_scoped_and_restores_the_write(self_chunk: Send
         self_chunk, examples=replace(examples, receipt_repair=scoped), regression=EffectRegression.BULK_PROGRESS
     )
     assert runs == 3
-    assert type(self_chunk)._record_progress is original
+    assert type(self_chunk)._prepare_progress is original

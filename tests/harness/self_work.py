@@ -20,6 +20,17 @@ from due.django.runtime.registry import DurableWorkRegistration, recovery_schedu
 from tests.harness.bulk import BatchReceipt, ItemResult, result
 from tests.harness.registrations import durable_work_installed
 
+
+def chunk_constraints(prefix: str) -> list[models.CheckConstraint]:
+    return [
+        models.CheckConstraint(
+            name=constraint.name,
+            condition=models.Q(state="legacy") | models.Q(cast(models.CheckConstraint, constraint).condition),
+        )
+        for constraint in durable_work_schema(prefix)[1]
+    ]
+
+
 with isolate_apps("tests"):
 
     class ChunkFields(BulkExternalOperationWork):
@@ -40,25 +51,25 @@ with isolate_apps("tests"):
         class Meta:
             app_label = "tests"
             indexes = durable_work_schema("self_chunk")[0]
-            constraints = [
-                models.CheckConstraint(
-                    name=constraint.name,
-                    condition=models.Q(state="legacy") | models.Q(cast(models.CheckConstraint, constraint).condition),
-                )
-                for constraint in durable_work_schema("self_chunk")[1]
-            ]
+            constraints = chunk_constraints("self_chunk")
 
     class InlineChunk(ChunkFields):
         class Meta:
             app_label = "tests"
             indexes = durable_work_schema("inline_chunk")[0]
-            constraints = [
-                models.CheckConstraint(
-                    name=constraint.name,
-                    condition=models.Q(state="legacy") | models.Q(cast(models.CheckConstraint, constraint).condition),
-                )
-                for constraint in durable_work_schema("inline_chunk")[1]
-            ]
+            constraints = chunk_constraints("inline_chunk")
+
+    class ComposedChunk(ChunkFields):
+        class Meta:
+            app_label = "tests"
+            indexes = durable_work_schema("composed_chunk")[0]
+            constraints = chunk_constraints("composed_chunk")
+
+    class ComposedInlineChunk(ChunkFields):
+        class Meta:
+            app_label = "tests"
+            indexes = durable_work_schema("composed_inline")[0]
+            constraints = chunk_constraints("composed_inline")
 
 
 @dataclass(frozen=True)
@@ -123,10 +134,32 @@ inline_chunk_delivery = InlineSendChunk.for_work(
 )
 
 
+class ComposedSendChunk(SendChunk):
+    combine_completed_progress = True
+
+
+class ComposedInlineSendChunk(ComposedSendChunk):
+    receipt_model = None
+
+
+composed_chunk_delivery = ComposedSendChunk.for_work(
+    work=ComposedChunk, input_fields=chunk_delivery.input_fields, policy=chunk_delivery.policy
+)
+composed_inline_chunk_delivery = ComposedInlineSendChunk.for_work(
+    work=ComposedInlineChunk, input_fields=chunk_delivery.input_fields, policy=chunk_delivery.policy
+)
+
+
 @contextmanager
 def registered_chunk(capability: SendChunk = chunk_delivery) -> Iterator[None]:
+    names: dict[type[ChunkFields], str] = {
+        Chunk: "chunk_self_test",
+        InlineChunk: "inline_chunk_self_test",
+        ComposedChunk: "composed_chunk_self_test",
+        ComposedInlineChunk: "composed_inline_chunk_self_test",
+    }
     entry = DurableWorkRegistration(
-        name="chunk_self_test" if capability.model is Chunk else "inline_chunk_self_test",
+        name=names[capability.model],
         capability=capability,
         cadence_seconds=60,
         queue="celery",
@@ -166,4 +199,16 @@ def chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
 @pytest.fixture(name="inline_chunk")
 def inline_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
     with _chunk_environment(inline_chunk_delivery) as capability:
+        yield capability
+
+
+@pytest.fixture(name="composed_chunk")
+def composed_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
+    with _chunk_environment(composed_chunk_delivery) as capability:
+        yield capability
+
+
+@pytest.fixture(name="composed_inline_chunk")
+def composed_inline_chunk_environment(isolated_primitive: None) -> Iterator[SendChunk]:
+    with _chunk_environment(composed_inline_chunk_delivery) as capability:
         yield capability

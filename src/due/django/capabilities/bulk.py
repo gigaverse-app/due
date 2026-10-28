@@ -46,6 +46,7 @@ from due.django.runtime.coordination import (
     WorkExecutionContext,
     WorkFailureDisposition,
     WorkOwnershipLost,
+    _PreparedWorkUpdates,
     database_now,
     finalize_under_fence,
     lock_work_owner,
@@ -356,6 +357,10 @@ class DurableBulkExternalOperation[
 
     receipt_model: ClassVar[type[StoredBulkEffectEvidence] | None]
     observation_key: ClassVar[str] = "bulk_observation"
+    # Opt-in: applied hooks/dependents use the in-memory projection, without
+    # querying or writing its fields before the completion save. Success hooks
+    # still observe the persisted projection and SUCCEEDED state.
+    combine_completed_progress: ClassVar[bool] = False
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -631,13 +636,23 @@ class DurableBulkExternalOperation[
             raise WorkOwnershipLost("bulk execution stopped without a settled crossing")
         return last
 
-    def _prepare_success(self, work: WorkT, result: EffectAttempt) -> None:
+    def _prepare_completed_progress(self, work: WorkT, result: BulkResult[ResultT]) -> _PreparedWorkUpdates:
+        current, fields = self._prepare_progress(work, result, input_fields=self.input_fields)
+        if batch_state(work.bulk_keys, current) is not BulkOutcomeState.COMPLETE:
+            raise ValueError("bulk work cannot complete with unfinished members")
+        self._finalize_applied(work, result)
+        return _PreparedWorkUpdates(fields)
+
+    def _prepare_success(self, work: WorkT, result: EffectAttempt) -> _PreparedWorkUpdates | None:
         require_fenced_settlement(work)
         if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
             return
         attempt = EffectAttempt.objects.select_for_update().get(pk=result.pk)
         recorded = self.evidence_store.read_locked(attempt)
+        if self.combine_completed_progress:
+            return self._prepare_completed_progress(work, recorded)
         self._consume_evidence(work, attempt, recorded, completing=True)
+        return None
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         if batch_state(work.bulk_keys, self._progress(work)) is not BulkOutcomeState.COMPLETE:
@@ -725,12 +740,24 @@ class DurableBulkExternalOperation[
         return 1
 
     def _settle_evidence_locked(self, work: WorkT, attempt: EffectAttempt, result: BulkResult[ResultT]) -> None:
-        state = finalize_under_fence(work, lambda row: self._consume_evidence(row, attempt, result))
+        prepared = None
+        if (
+            self.combine_completed_progress
+            and batch_state(work.bulk_keys, advance_progress(work.bulk_keys, self._progress(work), result))
+            is BulkOutcomeState.COMPLETE
+        ):
+            prepared = finalize_under_fence(work, lambda row: self._prepare_completed_progress(row, result))
+            state = BulkOutcomeState.COMPLETE
+        else:
+            state = finalize_under_fence(work, lambda row: self._consume_evidence(row, attempt, result))
         if state is BulkOutcomeState.UNKNOWN:
             unknown_locked_work(work, error_code="bulk_members_unknown", finalize=self._finalize_unknown)
         elif state is BulkOutcomeState.COMPLETE:
             settle_locked_work(
-                work, revision=work.desired_revision, finalize=lambda row: self._finalize_success(row, attempt)
+                work,
+                revision=work.desired_revision,
+                finalize=lambda row: self._finalize_success(row, attempt),
+                prepared=prepared,
             )
         else:
             retry_locked_work(
