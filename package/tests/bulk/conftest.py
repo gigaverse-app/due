@@ -11,8 +11,6 @@ from tests.harness.replay_safe_bulk import registered_member_sync
 from tests.harness.self_work import (
     composed_chunk_delivery,
     composed_inline_chunk_delivery,
-    entry_chunk_delivery,
-    entry_inline_chunk_delivery,
     inline_chunk_delivery,
     registered_chunk,
 )
@@ -38,7 +36,4 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> Iterator[None]:
         if "test_composed_work_contract.py" in collected:
             hosts.enter_context(registered_chunk(composed_chunk_delivery))
             hosts.enter_context(registered_chunk(composed_inline_chunk_delivery))
-        if "test_claim_entry_contract.py" in collected:
-            hosts.enter_context(registered_chunk(entry_chunk_delivery))
-            hosts.enter_context(registered_chunk(entry_inline_chunk_delivery))
         return (yield)
