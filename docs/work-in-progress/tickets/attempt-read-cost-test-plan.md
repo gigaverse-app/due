@@ -2,7 +2,6 @@
 
 Preserve current evidence, row-lock serialization, database routing, JSON/UUID/time conversion, and all claim/receipt recovery semantics while reducing fixed lookup compilation.
 
-- [x] Real PostgreSQL receipt/diagnostics writer overlap and claim/entry boundary controls.
-- [ ] Fixed lookup: primary routing, complete field round trip, no cached row, missing identity, transaction enforcement.
-- [ ] Existing generated obligation suites with composition off/on and inline/separate receipts; mutation sensitivity remains required.
-- [ ] Full library and integration CI; frozen native mail A/B/C/C/B/A, profile separately from latency.
+The focused controls in `package/tests/evidence/test_locked_read.py` cover known-field round trips, fresh rows, write routing, missing identities, transaction enforcement and a newer schema during a rolling deployment. Existing bulk and generated obligation suites cover receipt recovery and overlapping writers. The optimization uses the ordinary engine after the claim/entry option was reverted.
+
+[PR #165](https://github.com/gigaverse-app/due/pull/165) records executed CI, separate and combined native-mail measurements and raw evidence. A focused lookup CPU improvement does not establish a campaign latency improvement.
