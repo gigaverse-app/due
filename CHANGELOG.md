@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.1](https://github.com/gigaverse-app/due/compare/v0.12.0...v0.12.1) (2026-10-28)
+
+
+### Performance
+
+* **bulk:** compose completed progress with core settlement ([#160](https://github.com/gigaverse-app/due/issues/160)) ([0e0df4a](https://github.com/gigaverse-app/due/commit/0e0df4a6c1777dc47ea40e5f6143ee1299c5867e))
+* **bulk:** reuse canonical evidence for live routing ([#156](https://github.com/gigaverse-app/due/issues/156)) ([47c377c](https://github.com/gigaverse-app/due/commit/47c377c1b38e989d8d3e3811152415ad0a4de948))
+* **runtime:** persist transition timestamps without clock reads ([#153](https://github.com/gigaverse-app/due/issues/153)) ([4253fc2](https://github.com/gigaverse-app/due/commit/4253fc2b67726979c77c2d9748bf0aec8404ac36))
+* **runtime:** read the claim clock with the locked row ([#157](https://github.com/gigaverse-app/due/issues/157)) ([5e32999](https://github.com/gigaverse-app/due/commit/5e329997a270418880fc88746bcf970d54075453))
+* **runtime:** reuse static eligibility and captured bulk membership ([#158](https://github.com/gigaverse-app/due/issues/158)) ([aeb2922](https://github.com/gigaverse-app/due/commit/aeb2922346c48ff5432c4e9c7b51ce72c6cd61a9))
+
 ## [0.12.0](https://github.com/gigaverse-app/due/compare/v0.11.0...v0.12.0) (2026-10-27)
 
 
