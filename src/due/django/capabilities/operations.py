@@ -178,17 +178,34 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         current.save(update_fields=["state", "last_error_code", "updated_at"])
         finalize_under_fence(current, self._finalize_unknown)
 
-    def _before_attempt_commits(self, work: WorkT, attempt: EffectAttempt) -> None:
+    def _before_attempt_commits(
+        self, work: WorkT, attempt: EffectAttempt
+    ) -> Callable[[WorkT], ResultT | AppliedEffectEvidence[ResultT]]:
         finalize_under_fence(work, self.finalize_started)
+        return self.perform_effect
 
     def _initial_effect_receipt(self, work: WorkT) -> JsonValue:
         return None
 
     def _record_attempt(self, claim: WorkClaim[WorkT]) -> EffectAttempt:
+        return self._record_crossing(claim)[0]
+
+    def _record_crossing(
+        self, claim: WorkClaim[WorkT]
+    ) -> tuple[EffectAttempt, Callable[[WorkT], ResultT | AppliedEffectEvidence[ResultT]]]:
         """One owner for crossing identity, initial evidence and the started hook."""
-        return record_effect_attempt(
-            claim, before_commit=self._before_attempt_commits, initial_receipt=self._initial_effect_receipt
+        perform = self.perform_effect
+
+        def before_commit(work: WorkT, attempt: EffectAttempt) -> None:
+            nonlocal perform
+            perform = self._before_attempt_commits(work, attempt)
+
+        attempt = record_effect_attempt(
+            claim, before_commit=before_commit, initial_receipt=self._initial_effect_receipt
         )
+        # The callable is invocation-local and cannot escape a failed commit.
+        # Scalar operations use their ordinary hook; bulk binds immutable members.
+        return attempt, perform
 
     def apply(self, work: WorkT, context: WorkExecutionContext[WorkT]) -> EffectAttempt | ContinueAfter:
         attempt, _ = self._apply_with_evidence(work, context)
@@ -199,9 +216,9 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
     ) -> tuple[EffectAttempt, ResultT | None]:
         """Run the scalar crossing and retain evidence already read by its writer."""
         with context.external_call():
-            attempt = self._record_attempt(context.claim)
+            attempt, perform = self._record_crossing(context.claim)
             try:
-                result = effect_result(self.perform_effect(work))
+                result = effect_result(perform(work))
             except EffectNotAppliedError as rejection:
                 decision = self._record_rejection_or_unknown(attempt, rejection.rejection)
                 # Live settlement uses exactly the validated contract recovery reads.

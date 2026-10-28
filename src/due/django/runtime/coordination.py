@@ -242,7 +242,8 @@ def claim_work[WorkT: DurableWork](
         # Eligibility callbacks and explicit clocks require a concrete datetime.
         # Ordinary claims obtain one statement-stable time with the row itself;
         # the same value authorizes availability and anchors the lease.
-        claimed_at = now() if eligibility is not None or now is not database_now else None
+        needs_time = eligibility is not None and eligibility.requires_time
+        claimed_at = now() if needs_time or now is not database_now else None
         selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
         candidates = (
             model.objects.select_for_update(of=("self",))
@@ -250,7 +251,6 @@ def claim_work[WorkT: DurableWork](
             .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
         )
         if eligibility is not None:
-            assert claimed_at is not None
             candidates = eligibility.filter(candidates, now=claimed_at)
         work = candidates.first()
         if work is None or (expected_revision is not None and work.desired_revision != expected_revision):

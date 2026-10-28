@@ -5,7 +5,7 @@ never change an example's observer or expectations. Run them with isolated test
 resources, never alongside application workers in the same process.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -21,7 +21,9 @@ from due.django.conformance.examples import EffectExamples
 from due.django.conformance.examples import EffectRegression as EffectRegression
 from due.django.conformance.scenarios import assert_receipt_repairs_product, assert_uncertainty_blocks_resend
 from due.django.conformance.suite import assert_lost_notification_reaches_domain_outcome
+from due.django.models import EffectAttempt
 from due.django.public import DurableWorkCapability, UniverseDurableWork
+from due.django.runtime.coordination import WorkClaim
 from due.django.testing import hold_nudges
 from due.observations import AppliedEffectEvidence
 
@@ -159,18 +161,27 @@ def _without_uncertainty_settlement[OwnerT: Model, W: ExternalOperationWork, Res
 def _with_duplicate_effect[OwnerT: Model, W: ExternalOperationWork, ResultT](
     capability: DurableExternalOperation[OwnerT, W, ResultT],
 ) -> Iterator[None]:
-    original = type(capability).perform_effect
+    # Repeat the live call returned by the committed crossing. Bulk execution
+    # binds exact membership here; patching its loading entry point would no
+    # longer exercise the fault. Scalar operations use this same boundary.
+    original = type(capability)._record_crossing
     reached = False
 
     def repeated(
-        instance: DurableExternalOperation[OwnerT, W, ResultT], work: W
-    ) -> ResultT | AppliedEffectEvidence[ResultT]:
-        nonlocal reached
-        if instance is capability:
-            reached = True
-            original(instance, work)
-        return original(instance, work)
+        instance: DurableExternalOperation[OwnerT, W, ResultT], claim: WorkClaim[W]
+    ) -> tuple[EffectAttempt, Callable[[W], ResultT | AppliedEffectEvidence[ResultT]]]:
+        attempt, perform = original(instance, claim)
+        if instance is not capability:
+            return attempt, perform
 
-    with patch.object(type(capability), "perform_effect", repeated):
+        def repeat(work: W) -> ResultT | AppliedEffectEvidence[ResultT]:
+            nonlocal reached
+            reached = True
+            perform(work)
+            return perform(work)
+
+        return attempt, repeat
+
+    with patch.object(type(capability), "_record_crossing", repeated):
         yield
     assert reached, "regression control never reached the selected external operation"

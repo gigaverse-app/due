@@ -53,10 +53,11 @@ def test_background_driver_captures_restored_instance_method(monkeypatch: pytest
 
     task = celery_app.task(name="tests.durable.restored_transport", lazy=False)(identity)
     try:
-        # MonkeyPatch restores the bound inherited method on the instance.
-        # A subsequent patch of Task.apply_async alone no longer intercepts it.
-        with monkeypatch.context() as previous_test:
-            previous_test.setattr(task, "apply_async", lambda **kwargs: None)
+        # Reproduce an instance override left by earlier instrumentation.
+        # Do not depend on pytest's inherited-attribute restoration behavior:
+        # versions differ on whether undo restores a bound method or deletes it.
+        # A subsequent patch of Task.apply_async alone must not let this escape.
+        monkeypatch.setattr(task, "apply_async", task.apply_async)
         assert "apply_async" in task.__dict__
 
         def escaped(*args: object, **kwargs: object) -> None:
