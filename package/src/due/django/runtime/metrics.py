@@ -3,7 +3,9 @@
 See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from enum import Enum, StrEnum
 from functools import wraps
 from types import MappingProxyType
@@ -256,6 +258,29 @@ def record_outstanding(effect: str, count: int) -> None:
     _due_outstanding.labels(effect=effect).set(count)
 
 
+_held_operations: ContextVar[list[tuple[str, DurableWorkOperation, int]] | None] = ContextVar(
+    "due_held_operations", default=None
+)
+
+
+@contextmanager
+def operations_counted_on_success() -> Iterator[None]:
+    """
+    Count work operations recorded in this scope only if it exits normally.
+
+    A grouped settlement that rolls back is retried row by row; without this its
+    transitions would be counted twice, once for the discarded group.
+    """
+    held: list[tuple[str, DurableWorkOperation, int]] = []
+    token = _held_operations.set(held)
+    try:
+        yield
+    finally:
+        _held_operations.reset(token)
+    for effect, operation, count in held:
+        record_work_operation(effect, operation, count=count)
+
+
 @_optional_observation
 def record_work_operation(
     effect: str,
@@ -263,6 +288,10 @@ def record_work_operation(
     *,
     count: int = 1,
 ) -> None:
+    held = _held_operations.get()
+    if held is not None:
+        held.append((effect, operation, count))
+        return
     _due_operations_total.labels(**DurableWorkLabels(effect=effect, operation=operation)).inc(count)
 
 

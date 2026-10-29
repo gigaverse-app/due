@@ -9,7 +9,7 @@ recovery remain core-owned. Verdict semantics and reducers live in ``due.bulk``.
 """
 
 from abc import abstractmethod
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property, partial
@@ -17,7 +17,7 @@ from typing import ClassVar, final
 from uuid import UUID
 
 from django.contrib.postgres.fields import ArrayField
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models import F, Func, OuterRef, Q, QuerySet, Subquery, Value
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
@@ -35,6 +35,7 @@ from due.bulk import (
     pending_members,
     run_bulk,
 )
+from due.django._overrides import inherits_unchanged
 from due.django.capabilities.authoring import OwnedDurableWorkCapability
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.evidence.attempts import attempts_for, locked_effect_attempt, observe_locked_effect_outcome
@@ -51,13 +52,16 @@ from due.django.runtime.coordination import (
     finalize_under_fence,
     lock_work_owner,
     renew_work,
+    require_autocommit,
     require_fenced_settlement,
     retry_locked_work,
     settle_locked_work,
     unknown_locked_work,
 )
 from due.django.runtime.metrics import RecoveryPhase
-from due.django.runtime.recovery_pass import RecoveryStep
+from due.django.runtime.recovery_pass import RecoveryStep, ends_the_tick
+from due.django.runtime.settlement_batch import _SettlementBatch
+from due.django.runtime.settlement_writes import finish_receipt
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 
@@ -248,12 +252,7 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
     def finish(self, attempt: EffectAttempt) -> None:
         # Core completion owns the work fence; never trust a pre-I/O snapshot
         # of the attempt's markers when completing its retained evidence.
-        updates = {"repair_pending": False}
-        if self.model is None:
-            updates["receipt_pending"] = False
-        EffectAttempt.objects.filter(pk=attempt.pk).update(**updates)
-        if self.model is not None:
-            self.model.objects.filter(attempt=attempt).update(settlement_pending=False)
+        finish_receipt(attempt, self.model)
 
 
 @dataclass(frozen=True)
@@ -375,6 +374,68 @@ class DurableBulkExternalOperation[
     # querying or writing its fields before the completion save. Success hooks
     # still observe the persisted projection and SUCCEEDED state.
     combine_completed_progress: ClassVar[bool] = False
+
+    def attempt_many(
+        self, work_ids: Iterable[WorkId], *, settlement_batch_size: int = 8, set_based: bool = False
+    ) -> dict[WorkId, bool]:
+        """Attempt independent self-owned rows, sharing bounded settlement commits.
+
+        Experimental opt-in: successful receipts commit separately before local
+        completion is buffered. Progress becomes visible at a batch boundary or
+        when the iterable ends. The bound counts rows, not elapsed time.
+
+        Existing model saves, signals and completion hooks still run per row.
+        Hooks must be transaction-local/replay-safe and must not mutate another
+        row in this batch. A failed group rolls back and retries settlement per
+        row; failed rows keep their receipts for ordinary recovery, without a
+        provider resend. Ordinary provider failures stop iteration after flushing
+        earlier receipts. Process death leaves those receipts for recovery.
+
+        No claim, provider call, evidence commit or retry policy is batched. The
+        returned booleans have attempt_execution's meaning after all flushes.
+        Existing single-row APIs keep their synchronous behavior.
+
+        set_based additionally combines work updates and receipt-debt clearing.
+        Opt in only for independent transaction-local hooks: preparation cannot
+        rely on a peer's completion, and finalizers must not read receipt-debt
+        markers or peer progress. Success timestamps share a statement instant.
+        Custom model persistence, fields or save signals retain ordinary saves.
+        This changes neither receipt durability nor permission to resend.
+        """
+        require_autocommit()
+        if isinstance(settlement_batch_size, bool) or not isinstance(settlement_batch_size, int):
+            raise TypeError("settlement_batch_size must be an integer")
+        if not 1 <= settlement_batch_size <= 64:
+            raise ValueError("settlement_batch_size must be between 1 and 64")
+        if self.model.work_owner_field is not None or self.deadline_wakeup_horizon is not None:
+            raise ValueError("bounded settlement requires self-owned work without deadline notifications")
+        if self.wakes and settlement_batch_size > 1:
+            # Waking takes each dependent row's lock last in its transaction. A group
+            # would interleave several rows' dependent locks in arrival order, so two
+            # groups sharing dependents could deadlock.
+            raise ValueError("bounded settlement cannot group work that wakes dependents")
+        if self.model.objects.db != connection.alias:
+            raise ValueError("bounded settlement requires the default database")
+        if not isinstance(set_based, bool):
+            raise TypeError("set_based must be a boolean")
+        batch = _SettlementBatch[WorkT](settlement_batch_size, set_based=set_based)
+        outcomes: dict[WorkId, bool] = {}
+        try:
+            for identity in work_ids:
+                outcomes[identity] = self._attempt_execution(identity, completion=batch.add)
+                if batch.full:
+                    batch.flush()
+        except Exception as error:
+            if ends_the_tick(error):
+                raise
+            try:
+                batch.flush()
+            except Exception as settlement_error:
+                raise ExceptionGroup("execution and bounded settlement failed", [error, settlement_error]) from None
+            raise
+        batch.flush()
+        outcomes.update(batch.outcomes)
+        return outcomes
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -616,9 +677,12 @@ class DurableBulkExternalOperation[
                     and retained.complete
                     and self.combine_completed_progress
                     and type(self.evidence_store) is BulkEvidenceStore
-                    and type(self).record_applied_effect_evidence
-                    is DurableBulkExternalOperation.record_applied_effect_evidence
-                    and type(self)._prepare_success is DurableBulkExternalOperation._prepare_success
+                    and inherits_unchanged(
+                        type(self),
+                        DurableBulkExternalOperation,
+                        "record_applied_effect_evidence",
+                        "_prepare_success",
+                    )
                 ):
                     # Definite outcomes for this exact membership cannot change:
                     # the store rejects contradictions. Keep an independent copy
@@ -747,7 +811,7 @@ class DurableBulkExternalOperation[
 
     def derivation_steps(self) -> tuple[RecoveryStep, ...]:
         steps = super().derivation_steps()
-        if type(self).observe_batch is DurableBulkExternalOperation.observe_batch:
+        if inherits_unchanged(type(self), DurableBulkExternalOperation, "observe_batch"):
             return steps
         observation = RecoveryStep.paged(
             RecoveryPhase.OBSERVATION,

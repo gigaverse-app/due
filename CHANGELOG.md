@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.1](https://github.com/gigaverse-app/due/compare/v0.13.0...v0.13.1) (2026-10-29)
+
+
+### Performance
+
+* **bulk:** avoid constructing discarded unknown verdicts ([15af91f](https://github.com/gigaverse-app/due/commit/15af91f0995c5c48004cbc8f0ec4d83a978ce77a))
+* **bulk:** combine independent completion writes in bounded batches ([#173](https://github.com/gigaverse-app/due/issues/173)) ([6ed03a3](https://github.com/gigaverse-app/due/commit/6ed03a37e1073cf7056baa9bafc50ca13f387a77))
+* **eligibility:** judge time predicates at the claim statement with DatabaseTime ([#179](https://github.com/gigaverse-app/due/issues/179)) ([6a68131](https://github.com/gigaverse-app/due/commit/6a68131774a25b6a7b6a192ca578be9b7ab5e1d4))
+* **runtime:** sample the clock inside continuation and deadline-hint statements ([#178](https://github.com/gigaverse-app/due/issues/178)) ([2258415](https://github.com/gigaverse-app/due/commit/225841597fed28aab9c154a4d62c3f2b0a26afec))
+
 ## [0.13.0](https://github.com/gigaverse-app/due/compare/v0.12.2...v0.13.0) (2026-10-29)
 
 

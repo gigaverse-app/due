@@ -4,19 +4,21 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 from django.db import connection, connections, models, transaction
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import Count, F, Min, Q, QuerySet
 from django.db.models.functions import Now
+from django.db.models.sql.compiler import SQLCompiler
 
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.external_services import execution_external_services
@@ -40,6 +42,9 @@ from due.django.runtime.metrics import (
 )
 from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
 from due.errors import WorkDeferredError, WorkFailureDisposition, provider_wait_delay
+
+if TYPE_CHECKING:
+    from django.db.models.sql.compiler import _AsSqlType
 
 logger = logging.getLogger(__name__)
 
@@ -146,37 +151,60 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
             "desired_revision": self.desired_revision,
         }
 
+    def owns_locked(self, current: ClaimedWorkT) -> bool:
+        """Check the same predicate on a freshly locked row, never a claim snapshot."""
+        return type(current) is self.model and all(
+            getattr(current, name) == value for name, value in self._authority().items()
+        )
+
     def locked_work(self) -> ClaimedWorkT | None:
         """Read current ownership without rebuilding a fixed ORM query.
 
         Custom managers and multi-table models keep their ordinary query path.
-        RawQuerySet retains field conversion, from_db and model init signals.
         No model data, authority decision or database clock is cached.
         """
         manager = self.model.objects
         if type(manager) is not models.Manager or self.model._meta.parents:
             return self.owned_work().select_for_update().first()
-        alias = manager.select_for_update().db
-        db = connections[alias]
-        if not db.in_atomic_block:
-            raise transaction.TransactionManagementError("work locking requires a transaction")
-        quote = db.ops.quote_name
-        columns = ", ".join(quote(cast(str, field.column)) for field in self.model._meta.concrete_fields)
-        authority = self._authority()
-        predicates = []
-        for name in authority:
-            column = self.model._meta.pk if name == "pk" else self.model._meta.get_field(name)
-            assert isinstance(column, models.Field)
-            predicates.append(f"{quote(cast(str, column.column))} = %s")
-        predicate = " AND ".join(predicates)
-        rows = list(
-            manager.raw(
-                f"SELECT {columns} FROM {quote(self.model._meta.db_table)} WHERE {predicate} FOR UPDATE",
-                list(authority.values()),
-                using=alias,
-            )
+        return locked_row(manager, self._authority(), subject="work")
+
+
+def locked_row[RowT: models.Model](
+    manager: models.Manager[RowT], lookup: Mapping[str, object], *, subject: str
+) -> RowT | None:
+    """Lock and read the one row matching exact column equalities, without query compilation.
+
+    This is always a database read, never a cached row. RawQuerySet retains
+    field conversion, from_db and model init signals. Locking uses the
+    manager's write routing and requires the caller's transaction. Callers own
+    the decision that the manager's plain table read is the authoritative
+    visibility; custom managers and multi-table models must use the ORM.
+    """
+    model = manager.model
+    alias = manager.select_for_update().db
+    db = connections[alias]
+    if not db.in_atomic_block:
+        raise transaction.TransactionManagementError(f"{subject} locking requires a transaction")
+    quote = db.ops.quote_name
+    # Select only this worker's known fields. A newer deployment may have
+    # added columns that an older Django model must not treat as annotations.
+    columns = ", ".join(quote(cast(str, field.column)) for field in model._meta.concrete_fields)
+    predicates = []
+    for name in lookup:
+        column = model._meta.pk if name == "pk" else model._meta.get_field(name)
+        assert isinstance(column, models.Field)
+        predicates.append(f"{quote(cast(str, column.column))} = %s")
+    predicate = " AND ".join(predicates)
+    # Identifiers come from the model; every value is a bound parameter, and
+    # FOR UPDATE retains serialization with late writers.
+    rows = list(
+        manager.raw(
+            f"SELECT {columns} FROM {quote(model._meta.db_table)} WHERE {predicate} FOR UPDATE",
+            list(lookup.values()),
+            using=alias,
         )
-        return rows[0] if rows else None
+    )
+    return rows[0] if rows else None
 
 
 class WorkOwnershipLost(RuntimeError):
@@ -262,44 +290,74 @@ def require_autocommit() -> None:
 
 def database_now() -> datetime:
     """Read the coordination clock from PostgreSQL, the lease authority."""
-    return _read_database_clock()
+    return _read_database_clock()[0]
 
 
-def _read_database_clock() -> datetime:
-    """Clock transport seam owned by the public testing control."""
+ClockReading = tuple[datetime, bool | None]
+"""The live database instant, and whether the optional ``exists`` query matched (``None`` when not asked)."""
+
+
+def _read_database_clock(exists: QuerySet | None = None) -> ClockReading:
+    """Post-lock clock transport: the one seam ``use_database_clock`` replaces.
+
+    ``clock_timestamp()`` is the live instant, so a sample taken after a row
+    lock counts any lock wait. Given ``exists``, its predicate is answered in
+    the same round trip; Django compiles it, so its semantics keep one owner.
+    No predicate, evidence or timestamp is cached. The statement-stable
+    ``_database_statement_clock`` is a different instant and stays separate.
+    """
+    if exists is not None and exists.db != connection.alias:
+        # A custom evidence router keeps its existing cross-database behavior.
+        return _read_database_clock()[0], exists.exists()
+    sql, params = "SELECT clock_timestamp()", None
+    if exists is not None:
+        subquery, params = exists.query.exists().get_compiler(using=exists.db).as_sql()
+        sql = f"SELECT clock_timestamp(), EXISTS ({subquery})"
     with connection.cursor() as cursor:
-        # Static coordination query; no request or domain data reaches SQL.
+        # Static coordination SQL around a Django-generated subquery; no request
+        # or domain data reaches the SQL text, and all values remain bound.
         # nosemgrep: python.django.security.audit.raw-query.raw-query
-        cursor.execute("SELECT clock_timestamp()")
+        cursor.execute(sql, params)
         row = cursor.fetchone()
     assert row is not None, "PostgreSQL must return its current timestamp"
     value = row[0]
     assert isinstance(value, datetime), "PostgreSQL timestamp must decode to datetime"
-    return value
-
-
-def _database_now_with_exists(query: QuerySet) -> tuple[datetime, bool]:
-    """Sample the live database clock and an evidence predicate in one round trip.
-
-    Entry callers already hold the work lock. Compile the existing predicate so
-    its semantics have one owner; no predicate or evidence is cached.
-    """
-    if query.db != connection.alias:
-        # A custom evidence router keeps its existing cross-database behavior.
-        return database_now(), query.exists()
-    compiler = query.query.exists().get_compiler(using=query.db)
-    sql, params = compiler.as_sql()
-    with connection.cursor() as cursor:
-        # The subquery is generated by Django, and all values remain bound.
-        cursor.execute(f"SELECT clock_timestamp(), EXISTS ({sql})", params)
-        row = cursor.fetchone()
-    assert row is not None and isinstance(row[0], datetime) and isinstance(row[1], bool)
-    return row[0], row[1]
+    if exists is None:
+        return value, None
+    matched = row[1]
+    assert isinstance(matched, bool), "PostgreSQL EXISTS must decode to bool"
+    return value, matched
 
 
 def _database_statement_clock() -> models.Expression:
     """One statement-stable database time, replaceable by the public test clock."""
     return Now()
+
+
+def statement_time(now: NowFn) -> datetime:
+    """
+    The time a write or filter uses, without a separate clock round trip.
+
+    The default database clock is evaluated by the statement that uses it, so a
+    lock wait still counts against that instant. Explicitly supplied clocks keep
+    their callable contract. Django writes the expression and filters by it.
+    """
+    return cast(datetime, _database_statement_clock()) if now is database_now else now()
+
+
+class DatabaseTime(Now):
+    """
+    The coordination clock as part of a query, for static predicates such as eligibility.
+
+    ``Q(owner__expires_at__lte=DatabaseTime())`` lets an ``ExecutionEligibility``
+    stay static, so a claim judges it with the time it selects the row at instead
+    of a separate clock read. It compiles to the current coordination clock each
+    time a query is compiled, so ``use_database_clock`` controls it like every
+    other coordination read, even in a predicate built before the clock changed.
+    """
+
+    def as_postgresql(self, compiler: SQLCompiler, connection: BaseDatabaseWrapper, **extra_context: Any) -> _AsSqlType:
+        return compiler.compile(_database_statement_clock())
 
 
 def claim_work[WorkT: DurableWork](
@@ -385,7 +443,7 @@ def renew_work[WorkT: DurableWork](
     # the row lock. Keep that wait inside the lease, and use the same instant
     # for both fields, without a separate clock round trip. Explicit clocks
     # retain their callable contract; use_database_clock controls both paths.
-    renewed_at = _database_statement_clock() if now is database_now else now()
+    renewed_at = statement_time(now)
     updated = claim.owned_work().update(
         lease_expires_at=renewed_at + lease_duration,
         updated_at=renewed_at,
@@ -435,6 +493,15 @@ def settle_locked_work[WorkT: DurableWork](
     revision. Callers with a product finalizer also lock the owner first. This
     helper does not infer permission from a receipt, cancellation or claim.
     """
+    fields = prepare_locked_completion(current, revision=revision, now=now, prepared=prepared)
+    current.save(update_fields=fields)
+    finalize_locked_completion(current, finalize=finalize)
+
+
+def prepare_locked_completion[WorkT: DurableWork](
+    current: WorkT, *, revision: int, now: NowFn, prepared: _PreparedWorkUpdates | None
+) -> list[str]:
+    """The shared success transition; persistence is owned by its locked caller."""
     if not connection.in_atomic_block:
         raise RuntimeError("settling locked work requires a transaction")
     if current.desired_revision != revision:
@@ -444,12 +511,18 @@ def settle_locked_work[WorkT: DurableWork](
     current.lease_expires_at = None
     # Django 6 returns the persisted expression value before the finalizer.
     # An explicitly supplied clock retains its existing sampling behavior.
-    current.completed_at = cast(datetime, _database_statement_clock()) if now is database_now else now()
+    current.completed_at = statement_time(now)
     current.last_error_code = ""
     fields = ["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
     if prepared is not None:
         fields.extend(prepared.fields)
-    current.save(update_fields=fields)
+    return fields
+
+
+def finalize_locked_completion[WorkT: DurableWork](
+    current: WorkT, *, finalize: Callable[[WorkT], ReopenAfter | None] | None
+) -> None:
+    """Publish after the success write, with the ordinary fence and follow-up policy."""
     completed_at = current.completed_at
     assert isinstance(completed_at, datetime), "completion must return its persisted timestamp"
     followup = finalize_under_fence(current, finalize) if finalize is not None else None
@@ -458,6 +531,33 @@ def settle_locked_work[WorkT: DurableWork](
         reopen_locked_work(current, available_at=completed_at + followup.delay, reason=followup.reason)
     else:
         record_work_operation(current._meta.label_lower, DurableWorkOperation.SUCCEEDED)
+
+
+@dataclass(frozen=True, slots=True)
+class _WorkCompletion[WorkT: DurableWork]:
+    """One captured completion; authority is always rechecked under a fresh lock."""
+
+    claim: WorkClaim[WorkT]
+    prepare: Callable[[WorkT], _PreparedWorkUpdates | None] | None = None
+    finalize: Callable[[WorkT], ReopenAfter | None] | None = None
+    now: NowFn = database_now
+
+    def settle(self, current: WorkT) -> None:
+        fields = self.prepare_changes(current)
+        current.save(update_fields=fields)
+        finalize_locked_completion(current, finalize=self.finalize)
+
+    def prepare_changes(self, current: WorkT) -> list[str]:
+        prepared = finalize_under_fence(current, self.prepare) if self.prepare is not None else None
+        return prepare_locked_completion(
+            current,
+            revision=self.claim.desired_revision,
+            now=self.now,
+            prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
+        )
+
+    def complete(self) -> bool:
+        return complete_work(self.claim, prepare=self.prepare, finalize=self.finalize, now=self.now)
 
 
 def complete_work[WorkT: DurableWork](
@@ -479,14 +579,7 @@ def complete_work[WorkT: DurableWork](
         lock_work_owner(claim.work)
         current = claim.locked_work()
         if current is not None:
-            prepared = finalize_under_fence(current, prepare) if prepare is not None else None
-            settle_locked_work(
-                current,
-                revision=claim.desired_revision,
-                finalize=finalize,
-                now=now,
-                prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
-            )
+            _WorkCompletion(claim, prepare, finalize, now).settle(current)
     if current is None:
         record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
     return current is not None
@@ -1184,6 +1277,7 @@ def run_work[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None = None,
     provider_retry_after: Callable[[Exception], timedelta] | None = None,
     database_only: bool = False,
+    _completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
 ) -> bool:
     """Claim, run outside transactions in-domain, and fenced-finalize."""
 
@@ -1220,6 +1314,7 @@ def run_work[WorkT: DurableWork, ResultT](
             retry_delay_for=retry_delay_for,
             provider_retry_after=provider_retry_after,
             database_only=database_only,
+            completion=_completion,
         )
 
 
@@ -1239,6 +1334,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None,
     provider_retry_after: Callable[[Exception], timedelta] | None,
     database_only: bool,
+    completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
 ) -> bool:
     model = claim.model
     context = WorkExecutionContext(claim=claim, lease_duration=lease_duration)
@@ -1269,11 +1365,12 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
                 )
             else:
-                completed = complete_work(
+                pending = _WorkCompletion(
                     claim,
                     prepare=context._success.for_result(result) or _bind_finalizer(prepare_success, result),
                     finalize=_bind_finalizer(finalize_success, result),
                 )
+                completed = pending.complete() if completion is None else completion(pending)
             if database_only and not completed:
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
@@ -1341,12 +1438,17 @@ def continue_work[WorkT: DurableWork](
     finalize_expired: Callable[[WorkT], None] | None = None,
 ) -> bool:
     """Release this claim for a later check, preserving revisions and failure history."""
-    now = database_now()
-    expired = continuation.until is not None and now >= continuation.until
-    available_at = now + continuation.delay
-    if continuation.until is not None:
-        available_at = min(available_at, continuation.until)
-    with transaction.atomic():
+    if continuation.until is None:
+        # Nothing to judge in Python: the release statement samples its own time.
+        now = statement_time(database_now)
+        expired = False
+        available_at = now + continuation.delay
+    else:
+        now = database_now()
+        expired = now >= continuation.until
+        available_at = min(now + continuation.delay, continuation.until)
+    # A release is one UPDATE; only an expiry adds owner locks and a finalizer.
+    with transaction.atomic() if expired else nullcontext():
         if expired:
             lock_work_owner(claim.work)
         updated = claim.owned_work().update(

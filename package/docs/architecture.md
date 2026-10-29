@@ -81,7 +81,10 @@ successful and missed claims, including static eligibility predicates without a
 fallback. Declare these as `ExecutionEligibility(Q(...))` instead of wrapping a
 time-independent Q in a lambda. Time-dependent predicates still use
 `ExecutionEligibility(lambda now: Q(...))`; predicates with `recheck_after` also
-require a concrete timestamp. This changes clock-read cost, not lease duration,
+require a concrete timestamp. A predicate that compares a column with the
+current time can stay static with `DatabaseTime()`, for example
+`Q(owner__expires_at__lte=DatabaseTime())`: the claim judges it at the same
+statement timestamp, and `use_database_clock` still controls it. This changes clock-read cost, not lease duration,
 retry backoff or eligibility semantics. Explicit clocks and eligibility callbacks retain
 their concrete datetime read; callbacks never receive a database expression.
 

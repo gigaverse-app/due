@@ -19,6 +19,7 @@ from django.db import OperationalError, connection, models, transaction
 from django.utils.timezone import is_naive
 from psycopg.errors import LockNotAvailable
 
+from due.django._overrides import inherits_unchanged
 from due.django.declarations.capture import Capture
 from due.django.declarations.dependents import Dependent
 from due.django.declarations.eligibility import ExecutionEligibility
@@ -41,6 +42,7 @@ from due.django.runtime.coordination import (
     WorkExecutionContext,
     WorkFailureDisposition,
     _PreparedWorkUpdates,
+    _WorkCompletion,
     claim_work,
     database_now,
     dispatch_due_work,
@@ -53,6 +55,7 @@ from due.django.runtime.coordination import (
     require_autocommit,
     require_fenced_settlement,
     run_work,
+    statement_time,
     supersede_work,
     wake_work,
 )
@@ -234,7 +237,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def _enqueue_deadline_hint(self, work_id: WorkId) -> bool:
         require_autocommit()
         if self.deadline_wakeup_horizon is not None:
-            now = database_now()
+            now = statement_time(database_now)
             work = (
                 self._deadline_candidates()
                 .filter(
@@ -275,7 +278,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
                 pk=work_id,
                 desired_revision=revision,
                 available_at=available_at,
-                available_at__lte=database_now(),
+                available_at__lte=statement_time(database_now),
             )
             .exists()
         ):
@@ -283,7 +286,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
         assert self.deadline_wakeup_horizon is not None
-        now = database_now()
+        now = statement_time(database_now)
         upcoming = (
             self._deadline_candidates()
             .filter(
@@ -471,6 +474,16 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def attempt_execution(
         self, work_id: WorkId, delivery_token: UUID | None = None, *, expected_revision: int | None = None
     ) -> bool:
+        return self._attempt_execution(work_id, delivery_token, expected_revision=expected_revision)
+
+    def _attempt_execution(
+        self,
+        work_id: WorkId,
+        delivery_token: UUID | None = None,
+        *,
+        expected_revision: int | None = None,
+        completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
+    ) -> bool:
         transitioned = run_work(
             self.model,
             work_id,
@@ -490,6 +503,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             provider_retry_after=self.provider_retry_after,
             database_only=self._database_only,
             eligibility=self.eligibility,
+            _completion=completion,
         )
         if transitioned and self.deadline_wakeup_horizon is not None:
             # Settlement committed before this disposable notification. Failure
@@ -1341,7 +1355,7 @@ def _validate_simple_callbacks(
 ) -> None:
     """Reject accidental use of rich hooks on a product-callback capability."""
     for method in ("apply", "finalize_success", "_finalize_success", "on_success"):
-        if getattr(type(capability), method) is not getattr(mode, method):
+        if not inherits_unchanged(type(capability), mode, method):
             raise TypeError(f"{method} is runtime-owned on {mode.__name__}; use its product callback or the rich mode")
     if capability.input_fields is None:
         raise TypeError(f"{mode.__name__} requires explicit input_fields")
