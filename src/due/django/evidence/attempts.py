@@ -10,10 +10,11 @@ from datetime import datetime, timedelta
 from typing import cast
 from uuid import UUID
 
-from django.db import connections, transaction
+from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 from pydantic import JsonValue
 
+from due.django._overrides import inherits_unchanged
 from due.django.identities import attempt_key_field
 from due.django.models import (
     ACTIVE_WORK_STATES,
@@ -30,38 +31,24 @@ from due.django.runtime.coordination import (
     WorkOwnershipLost,
     database_now,
     lock_work_owner,
+    locked_row,
     require_autocommit,
 )
 from due.django.runtime.metrics import record_pending_effect_attempts
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 logger = logging.getLogger(__name__)
-_BUILTIN_POSSIBLE_EFFECT_CHECK = DurableWork.has_possible_effect
 
 
 def locked_effect_attempt(attempt_id: UUID) -> EffectAttempt:
     """Read current evidence under its row lock without rebuilding a fixed ORM query.
 
-    This is always a database read, never a cached row. Django's raw queryset
-    retains field conversion and model construction; only this library-owned
-    primary-key lookup bypasses query compilation.
+    This is always a database read, never a cached row; see ``locked_row``.
     """
-    alias = EffectAttempt.objects.select_for_update().db
-    db = connections[alias]
-    if not db.in_atomic_block:
-        raise transaction.TransactionManagementError("attempt locking requires a transaction")
-    table = db.ops.quote_name(EffectAttempt._meta.db_table)
-    # Select only this worker's known fields. A newer deployment may have
-    # added columns that an older Django model must not treat as annotations.
-    columns = ", ".join(db.ops.quote_name(cast(str, field.column)) for field in EffectAttempt._meta.concrete_fields)
-    # Identifiers come from the library model. The external identity is
-    # a bound parameter, and FOR UPDATE retains serialization with late writers.
-    rows = list(
-        EffectAttempt.objects.raw(f"SELECT {columns} FROM {table} WHERE id = %s FOR UPDATE", [attempt_id], using=alias)
-    )
-    if not rows:
+    attempt = locked_row(EffectAttempt.objects, {"pk": attempt_id}, subject="attempt")
+    if attempt is None:
         raise EffectAttempt.DoesNotExist("the provider attempt no longer exists")
-    return rows[0]
+    return attempt
 
 
 def attempts_for_model(model: type[DurableWork]) -> QuerySet[EffectAttempt]:
@@ -182,15 +169,14 @@ def record_effect_attempt[WorkT: DurableWork](
         # instant for this attempt's start inside the protected transaction.
         # Built-in scalar and bulk policies share their existing query with
         # this clock read. Adopter overrides retain their method and call order.
-        possible = None
+        evidence = None
         if (
             current is not None
             and current.requires_effect_evidence
-            and cast(type[DurableWork], type(current)).has_possible_effect is _BUILTIN_POSSIBLE_EFFECT_CHECK
+            and inherits_unchanged(type(current), DurableWork, "has_possible_effect")
         ):
-            started_at, possible = coordination._database_now_with_exists(current._possible_effect_attempts())
-        else:
-            started_at = database_now()
+            evidence = current._possible_effect_attempts()
+        started_at, possible = coordination._read_database_clock(evidence)
         if current is None or current.lease_expires_at is None or current.lease_expires_at <= started_at:
             raise WorkOwnershipLost("provider attempt requires the captured current claim")
         if current.requires_effect_evidence and (current.has_possible_effect() if possible is None else possible):

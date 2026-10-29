@@ -4,7 +4,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -161,33 +161,50 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
         """Read current ownership without rebuilding a fixed ORM query.
 
         Custom managers and multi-table models keep their ordinary query path.
-        RawQuerySet retains field conversion, from_db and model init signals.
         No model data, authority decision or database clock is cached.
         """
         manager = self.model.objects
         if type(manager) is not models.Manager or self.model._meta.parents:
             return self.owned_work().select_for_update().first()
-        alias = manager.select_for_update().db
-        db = connections[alias]
-        if not db.in_atomic_block:
-            raise transaction.TransactionManagementError("work locking requires a transaction")
-        quote = db.ops.quote_name
-        columns = ", ".join(quote(cast(str, field.column)) for field in self.model._meta.concrete_fields)
-        authority = self._authority()
-        predicates = []
-        for name in authority:
-            column = self.model._meta.pk if name == "pk" else self.model._meta.get_field(name)
-            assert isinstance(column, models.Field)
-            predicates.append(f"{quote(cast(str, column.column))} = %s")
-        predicate = " AND ".join(predicates)
-        rows = list(
-            manager.raw(
-                f"SELECT {columns} FROM {quote(self.model._meta.db_table)} WHERE {predicate} FOR UPDATE",
-                list(authority.values()),
-                using=alias,
-            )
+        return locked_row(manager, self._authority(), subject="work")
+
+
+def locked_row[RowT: models.Model](
+    manager: models.Manager[RowT], lookup: Mapping[str, object], *, subject: str
+) -> RowT | None:
+    """Lock and read the one row matching exact column equalities, without query compilation.
+
+    This is always a database read, never a cached row. RawQuerySet retains
+    field conversion, from_db and model init signals. Locking uses the
+    manager's write routing and requires the caller's transaction. Callers own
+    the decision that the manager's plain table read is the authoritative
+    visibility; custom managers and multi-table models must use the ORM.
+    """
+    model = manager.model
+    alias = manager.select_for_update().db
+    db = connections[alias]
+    if not db.in_atomic_block:
+        raise transaction.TransactionManagementError(f"{subject} locking requires a transaction")
+    quote = db.ops.quote_name
+    # Select only this worker's known fields. A newer deployment may have
+    # added columns that an older Django model must not treat as annotations.
+    columns = ", ".join(quote(cast(str, field.column)) for field in model._meta.concrete_fields)
+    predicates = []
+    for name in lookup:
+        column = model._meta.pk if name == "pk" else model._meta.get_field(name)
+        assert isinstance(column, models.Field)
+        predicates.append(f"{quote(cast(str, column.column))} = %s")
+    predicate = " AND ".join(predicates)
+    # Identifiers come from the model; every value is a bound parameter, and
+    # FOR UPDATE retains serialization with late writers.
+    rows = list(
+        manager.raw(
+            f"SELECT {columns} FROM {quote(model._meta.db_table)} WHERE {predicate} FOR UPDATE",
+            list(lookup.values()),
+            using=alias,
         )
-        return rows[0] if rows else None
+    )
+    return rows[0] if rows else None
 
 
 class WorkOwnershipLost(RuntimeError):
@@ -273,39 +290,43 @@ def require_autocommit() -> None:
 
 def database_now() -> datetime:
     """Read the coordination clock from PostgreSQL, the lease authority."""
-    return _read_database_clock()
+    return _read_database_clock()[0]
 
 
-def _read_database_clock() -> datetime:
-    """Clock transport seam owned by the public testing control."""
+ClockReading = tuple[datetime, bool | None]
+"""The live database instant, and whether the optional ``exists`` query matched (``None`` when not asked)."""
+
+
+def _read_database_clock(exists: QuerySet | None = None) -> ClockReading:
+    """Post-lock clock transport: the one seam ``use_database_clock`` replaces.
+
+    ``clock_timestamp()`` is the live instant, so a sample taken after a row
+    lock counts any lock wait. Given ``exists``, its predicate is answered in
+    the same round trip; Django compiles it, so its semantics keep one owner.
+    No predicate, evidence or timestamp is cached. The statement-stable
+    ``_database_statement_clock`` is a different instant and stays separate.
+    """
+    if exists is not None and exists.db != connection.alias:
+        # A custom evidence router keeps its existing cross-database behavior.
+        return _read_database_clock()[0], exists.exists()
+    sql, params = "SELECT clock_timestamp()", None
+    if exists is not None:
+        subquery, params = exists.query.exists().get_compiler(using=exists.db).as_sql()
+        sql = f"SELECT clock_timestamp(), EXISTS ({subquery})"
     with connection.cursor() as cursor:
-        # Static coordination query; no request or domain data reaches SQL.
+        # Static coordination SQL around a Django-generated subquery; no request
+        # or domain data reaches the SQL text, and all values remain bound.
         # nosemgrep: python.django.security.audit.raw-query.raw-query
-        cursor.execute("SELECT clock_timestamp()")
+        cursor.execute(sql, params)
         row = cursor.fetchone()
     assert row is not None, "PostgreSQL must return its current timestamp"
     value = row[0]
     assert isinstance(value, datetime), "PostgreSQL timestamp must decode to datetime"
-    return value
-
-
-def _database_now_with_exists(query: QuerySet) -> tuple[datetime, bool]:
-    """Sample the live database clock and an evidence predicate in one round trip.
-
-    Entry callers already hold the work lock. Compile the existing predicate so
-    its semantics have one owner; no predicate or evidence is cached.
-    """
-    if query.db != connection.alias:
-        # A custom evidence router keeps its existing cross-database behavior.
-        return database_now(), query.exists()
-    compiler = query.query.exists().get_compiler(using=query.db)
-    sql, params = compiler.as_sql()
-    with connection.cursor() as cursor:
-        # The subquery is generated by Django, and all values remain bound.
-        cursor.execute(f"SELECT clock_timestamp(), EXISTS ({sql})", params)
-        row = cursor.fetchone()
-    assert row is not None and isinstance(row[0], datetime) and isinstance(row[1], bool)
-    return row[0], row[1]
+    if exists is None:
+        return value, None
+    matched = row[1]
+    assert isinstance(matched, bool), "PostgreSQL EXISTS must decode to bool"
+    return value, matched
 
 
 def _database_statement_clock() -> models.Expression:

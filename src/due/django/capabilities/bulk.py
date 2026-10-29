@@ -35,6 +35,7 @@ from due.bulk import (
     pending_members,
     run_bulk,
 )
+from due.django._overrides import inherits_unchanged
 from due.django.capabilities.authoring import OwnedDurableWorkCapability
 from due.django.capabilities.operations import DurableExternalOperation, ExternalOperationWork
 from due.django.evidence.attempts import attempts_for, locked_effect_attempt, observe_locked_effect_outcome
@@ -676,9 +677,12 @@ class DurableBulkExternalOperation[
                     and retained.complete
                     and self.combine_completed_progress
                     and type(self.evidence_store) is BulkEvidenceStore
-                    and type(self).record_applied_effect_evidence
-                    is DurableBulkExternalOperation.record_applied_effect_evidence
-                    and type(self)._prepare_success is DurableBulkExternalOperation._prepare_success
+                    and inherits_unchanged(
+                        type(self),
+                        DurableBulkExternalOperation,
+                        "record_applied_effect_evidence",
+                        "_prepare_success",
+                    )
                 ):
                     # Definite outcomes for this exact membership cannot change:
                     # the store rejects contradictions. Keep an independent copy
@@ -807,7 +811,7 @@ class DurableBulkExternalOperation[
 
     def derivation_steps(self) -> tuple[RecoveryStep, ...]:
         steps = super().derivation_steps()
-        if type(self).observe_batch is DurableBulkExternalOperation.observe_batch:
+        if inherits_unchanged(type(self), DurableBulkExternalOperation, "observe_batch"):
             return steps
         observation = RecoveryStep.paged(
             RecoveryPhase.OBSERVATION,

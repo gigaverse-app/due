@@ -12,6 +12,7 @@ from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Q, QuerySet
 from pydantic import JsonValue
 
+from due.django._overrides import inherits_unchanged
 from due.django.capabilities.authoring import OwnedDurableWorkCapability, ReplayContract
 from due.django.declarations.mirrors import Outcome
 from due.django.evidence.attempts import (
@@ -82,7 +83,7 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         super().__post_init__()
         if self.policy.retention is not None:
             raise ValueError("provider operations retain their occurrence and evidence")
-        if self.on_applied is None and type(self).finalize_applied is DurableExternalOperation.finalize_applied:
+        if self.on_applied is None and inherits_unchanged(type(self), DurableExternalOperation, "finalize_applied"):
             raise TypeError("declare on_applied or implement finalize_applied")
 
     @abstractmethod
