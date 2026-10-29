@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 from pydantic import JsonValue
 
+from due.django._overrides import inherits_unchanged
 from due.django.identities import attempt_key_field
 from due.django.models import (
     ACTIVE_WORK_STATES,
@@ -37,7 +38,6 @@ from due.django.runtime.metrics import record_pending_effect_attempts
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 logger = logging.getLogger(__name__)
-_BUILTIN_POSSIBLE_EFFECT_CHECK = DurableWork.has_possible_effect
 
 
 def locked_effect_attempt(attempt_id: UUID) -> EffectAttempt:
@@ -173,7 +173,7 @@ def record_effect_attempt[WorkT: DurableWork](
         if (
             current is not None
             and current.requires_effect_evidence
-            and cast(type[DurableWork], type(current)).has_possible_effect is _BUILTIN_POSSIBLE_EFFECT_CHECK
+            and inherits_unchanged(type(current), DurableWork, "has_possible_effect")
         ):
             started_at, possible = coordination._database_now_with_exists(current._possible_effect_attempts())
         else:

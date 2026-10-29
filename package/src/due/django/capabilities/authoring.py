@@ -19,6 +19,7 @@ from django.db import OperationalError, connection, models, transaction
 from django.utils.timezone import is_naive
 from psycopg.errors import LockNotAvailable
 
+from due.django._overrides import inherits_unchanged
 from due.django.declarations.capture import Capture
 from due.django.declarations.dependents import Dependent
 from due.django.declarations.eligibility import ExecutionEligibility
@@ -1341,7 +1342,7 @@ def _validate_simple_callbacks(
 ) -> None:
     """Reject accidental use of rich hooks on a product-callback capability."""
     for method in ("apply", "finalize_success", "_finalize_success", "on_success"):
-        if getattr(type(capability), method) is not getattr(mode, method):
+        if not inherits_unchanged(type(capability), mode, method):
             raise TypeError(f"{method} is runtime-owned on {mode.__name__}; use its product callback or the rich mode")
     if capability.input_fields is None:
         raise TypeError(f"{mode.__name__} requires explicit input_fields")
