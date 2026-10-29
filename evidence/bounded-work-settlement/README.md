@@ -135,3 +135,23 @@ backend/.venv/Scripts/python.exe summarize_bounded.py
 Raw traces are gzip-compressed JSONL. The harness records source SHA, dirty-diff
 hash, harness hash, statement text without parameters, CPU and database counters.
 This branch is evidence-only and must not be merged into the shipping package.
+
+## Final CI and fixture repair
+
+Exact reviewed head `45450da1a310c8859ad1575568d411f602b8e58c` is green in
+[CI run 40797668016](https://github.com/gigaverse-app/due/actions/runs/40797668016).
+Both locked and minimum dependencies passed 2,192 library tests, 1,076 integration
+tests (plus two existing expected failures), and 286 Acme/tutorial tests. The
+standalone package export, lint, types, title check and validation gate also pass.
+CI-esta's sticky report names this exact head and reports required checks passed.
+
+The first full CI run exposed an older fault fixture that patched Django's
+connection proxy and restored a bound `commit()` method onto the connection.
+That instance attribute hid later class-level crash instrumentation. The shared
+pytest-obligation proof refused to pass with zero observed commits. Running the
+old fixture immediately before the new history reproduced two failures; patching
+the connection class fixed the fixture, and the same order passed all four cases.
+No shared invariant was removed or weakened. The red/green logs are archived here.
+
+This final change affects tests only. The runtime used by the benchmark is
+unchanged from the measured public prototype at `4873f97`.

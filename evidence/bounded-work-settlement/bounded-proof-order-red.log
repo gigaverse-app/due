@@ -1,0 +1,130 @@
+..FF                                                                     [100%]
+================================== FAILURES ===================================
+_ TestComposedSeparateReceiptContract.test_due_work_contract[extra-bounded_completion_commit_histories] _
+
+self = <tests.bulk.test_composed_work_contract.TestComposedSeparateReceiptContract object at 0x000001EE8CC7AEE0>
+case = extra-bounded_completion_commit_histories
+request = <FixtureRequest for <Function test_due_work_contract[extra-bounded_completion_commit_histories]>>
+
+    @pytest.mark.due_work
+    @pytest.mark.parametrize("case", params)
+    def run_case(self: Any, case: ContractCase, request: pytest.FixtureRequest) -> None:
+        if case.declaration is not None:
+            # Complete the declaration normally for consumer execution guards.
+            # Coverage and the optional summary distinguish it from behavioral proof.
+            request.node.user_properties.append(("obligation_declaration", case.declaration))
+            return
+        for fixture in case.fixtures:
+            request.getfixturevalue(fixture)
+>       case.run()
+
+.venv\Lib\site-packages\pytest_obligation\contract.py:1621: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+package\tests\harness\bounded_settlement.py:122: in prove_settlement_commit_histories
+    assert_crash_at_every_commit_converges(WorkTableDelivery(capability), history)
+.venv\Lib\site-packages\pytest_obligation\crash_histories.py:924: in assert_crash_at_every_commit_converges
+    runs = crash_histories(delivery, history)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+delivery = WorkTableDelivery(capability=ComposedSendChunk(model=<class 'tests.harness.self_work.ComposedChunk'>, nudge=<function ...e.timedelta(seconds=60), delay=None)), rounds=3, round_delay=datetime.timedelta(seconds=3600), app=None, lost_tasks=())
+history = HandoffHistory(name='bounded completion commit', expected=((('0',), ('0',)), (('1',), ('1',)), (('2',), ('2',))), arra...ttlement_commit_histories.<locals>.observe at 0x000001EE8D05ADA0>, external_calls=(), recovery_ticks=(), findings=None)
+
+    def crash_histories(delivery: Delivery, history: HandoffHistory[Any, Any]) -> list[HistoryRun]:
+        """Run normal operation and every interrupted history; normal operation first."""
+        assert_handoff_bindings_are_production_bound(delivery, history)
+        # Required, so that "every commit" can never quietly mean "none".
+        current_host().require("worker_killer")
+        delivered = _run(delivery, history, label="normal operation")
+        assert delivered.after != delivered.before, (
+            f"{delivery.name}: handoff {history.name!r} — positive control failed: normal operation left the "
+            f"observation unchanged ({delivered.before!r}), so no history could diverge"
+        )
+        assert_declared_outcome(f"{delivery.name}: handoff {history.name!r}", delivered)
+        assert_normal_operation_repeats(
+            f"{delivery.name}: handoff {history.name!r}",
+            delivered,
+            _run(delivery, history, label="normal operation, again"),
+        )
+        runs = [delivered]
+        with delivery.session() as probe:
+            can_lose = probe.can_lose
+        counted = delivered
+        if can_lose:
+            counted = _run(delivery, history, label="notifications lost", lose=True)
+            runs.append(counted)
+>       assert counted.commits, (
+            f"{delivery.name}: handoff {history.name!r} committed nothing the host's worker killer saw, so there is "
+            f"no boundary to crash after. Bind a transition that commits on the connection the killer watches"
+        )
+E       AssertionError: composed_chunk_self_test: handoff 'bounded completion commit' committed nothing the host's worker killer saw, so there is no boundary to crash after. Bind a transition that commits on the connection the killer watches
+E       assert 0
+E        +  where 0 = HistoryRun(label='notifications lost', before=(((), ('0',)), ((), ('1',)), ((), ('2',))), midway=((('0',), ('0',)), ((...',), ('2',))), commits=0, calls=0, exercised=(), callbacks=0, publications=0, receivers=0, replies=0, interrupted=True).commits
+
+.venv\Lib\site-packages\pytest_obligation\crash_histories.py:826: AssertionError
+_ TestComposedInlineReceiptContract.test_due_work_contract[extra-bounded_completion_commit_histories] _
+
+self = <tests.bulk.test_composed_work_contract.TestComposedInlineReceiptContract object at 0x000001EE8CCEBDE0>
+case = extra-bounded_completion_commit_histories
+request = <FixtureRequest for <Function test_due_work_contract[extra-bounded_completion_commit_histories]>>
+
+    @pytest.mark.due_work
+    @pytest.mark.parametrize("case", params)
+    def run_case(self: Any, case: ContractCase, request: pytest.FixtureRequest) -> None:
+        if case.declaration is not None:
+            # Complete the declaration normally for consumer execution guards.
+            # Coverage and the optional summary distinguish it from behavioral proof.
+            request.node.user_properties.append(("obligation_declaration", case.declaration))
+            return
+        for fixture in case.fixtures:
+            request.getfixturevalue(fixture)
+>       case.run()
+
+.venv\Lib\site-packages\pytest_obligation\contract.py:1621: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+package\tests\harness\bounded_settlement.py:122: in prove_settlement_commit_histories
+    assert_crash_at_every_commit_converges(WorkTableDelivery(capability), history)
+.venv\Lib\site-packages\pytest_obligation\crash_histories.py:924: in assert_crash_at_every_commit_converges
+    runs = crash_histories(delivery, history)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+delivery = WorkTableDelivery(capability=ComposedInlineSendChunk(model=<class 'tests.harness.self_work.ComposedInlineChunk'>, nudg...e.timedelta(seconds=60), delay=None)), rounds=3, round_delay=datetime.timedelta(seconds=3600), app=None, lost_tasks=())
+history = HandoffHistory(name='bounded completion commit', expected=((('0',), ('0',)), (('1',), ('1',)), (('2',), ('2',))), arra...ttlement_commit_histories.<locals>.observe at 0x000001EE8D059D20>, external_calls=(), recovery_ticks=(), findings=None)
+
+    def crash_histories(delivery: Delivery, history: HandoffHistory[Any, Any]) -> list[HistoryRun]:
+        """Run normal operation and every interrupted history; normal operation first."""
+        assert_handoff_bindings_are_production_bound(delivery, history)
+        # Required, so that "every commit" can never quietly mean "none".
+        current_host().require("worker_killer")
+        delivered = _run(delivery, history, label="normal operation")
+        assert delivered.after != delivered.before, (
+            f"{delivery.name}: handoff {history.name!r} — positive control failed: normal operation left the "
+            f"observation unchanged ({delivered.before!r}), so no history could diverge"
+        )
+        assert_declared_outcome(f"{delivery.name}: handoff {history.name!r}", delivered)
+        assert_normal_operation_repeats(
+            f"{delivery.name}: handoff {history.name!r}",
+            delivered,
+            _run(delivery, history, label="normal operation, again"),
+        )
+        runs = [delivered]
+        with delivery.session() as probe:
+            can_lose = probe.can_lose
+        counted = delivered
+        if can_lose:
+            counted = _run(delivery, history, label="notifications lost", lose=True)
+            runs.append(counted)
+>       assert counted.commits, (
+            f"{delivery.name}: handoff {history.name!r} committed nothing the host's worker killer saw, so there is "
+            f"no boundary to crash after. Bind a transition that commits on the connection the killer watches"
+        )
+E       AssertionError: composed_inline_chunk_self_test: handoff 'bounded completion commit' committed nothing the host's worker killer saw, so there is no boundary to crash after. Bind a transition that commits on the connection the killer watches
+E       assert 0
+E        +  where 0 = HistoryRun(label='notifications lost', before=(((), ('0',)), ((), ('1',)), ((), ('2',))), midway=((('0',), ('0',)), ((...',), ('2',))), commits=0, calls=0, exercised=(), callbacks=0, publications=0, receivers=0, replies=0, interrupted=True).commits
+
+.venv\Lib\site-packages\pytest_obligation\crash_histories.py:826: AssertionError
+=========================== short test summary info ===========================
+FAILED package\tests\bulk\test_composed_work_contract.py::TestComposedSeparateReceiptContract::test_due_work_contract[extra-bounded_completion_commit_histories]
+FAILED package\tests\bulk\test_composed_work_contract.py::TestComposedInlineReceiptContract::test_due_work_contract[extra-bounded_completion_commit_histories]
+2 failed, 2 passed, 301 deselected in 7.70s
