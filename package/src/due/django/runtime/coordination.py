@@ -11,12 +11,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 from django.db import connection, connections, models, transaction
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import Count, F, Min, Q, QuerySet
 from django.db.models.functions import Now
+from django.db.models.sql.compiler import SQLCompiler
 
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.external_services import execution_external_services
@@ -40,6 +42,9 @@ from due.django.runtime.metrics import (
 )
 from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
 from due.errors import WorkDeferredError, WorkFailureDisposition, provider_wait_delay
+
+if TYPE_CHECKING:
+    from django.db.models.sql.compiler import _AsSqlType
 
 logger = logging.getLogger(__name__)
 
@@ -313,20 +318,19 @@ def statement_time(now: NowFn) -> datetime:
     return cast(datetime, _database_statement_clock()) if now is database_now else now()
 
 
-class DatabaseTime(models.Expression):
+class DatabaseTime(Now):
     """
     The coordination clock as part of a query, for static predicates such as eligibility.
 
     ``Q(owner__expires_at__lte=DatabaseTime())`` lets an ``ExecutionEligibility``
     stay static, so a claim judges it with the time it selects the row at instead
-    of a separate clock read. It resolves when each query is built, so
-    ``use_database_clock`` controls it like every other coordination read.
+    of a separate clock read. It compiles to the current coordination clock each
+    time a query is compiled, so ``use_database_clock`` controls it like every
+    other coordination read, even in a predicate built before the clock changed.
     """
 
-    output_field = models.DateTimeField()
-
-    def resolve_expression(self, *args: Any, **kwargs: Any) -> models.Expression:
-        return _database_statement_clock().resolve_expression(*args, **kwargs)
+    def as_postgresql(self, compiler: SQLCompiler, connection: BaseDatabaseWrapper, **extra_context: Any) -> _AsSqlType:
+        return compiler.compile(_database_statement_clock())
 
 
 def claim_work[WorkT: DurableWork](
