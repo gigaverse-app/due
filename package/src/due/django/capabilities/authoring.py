@@ -41,6 +41,7 @@ from due.django.runtime.coordination import (
     WorkExecutionContext,
     WorkFailureDisposition,
     _PreparedWorkUpdates,
+    _WorkCompletion,
     claim_work,
     database_now,
     dispatch_due_work,
@@ -471,6 +472,16 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def attempt_execution(
         self, work_id: WorkId, delivery_token: UUID | None = None, *, expected_revision: int | None = None
     ) -> bool:
+        return self._attempt_execution(work_id, delivery_token, expected_revision=expected_revision)
+
+    def _attempt_execution(
+        self,
+        work_id: WorkId,
+        delivery_token: UUID | None = None,
+        *,
+        expected_revision: int | None = None,
+        completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
+    ) -> bool:
         transitioned = run_work(
             self.model,
             work_id,
@@ -490,6 +501,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             provider_retry_after=self.provider_retry_after,
             database_only=self._database_only,
             eligibility=self.eligibility,
+            _completion=completion,
         )
         if transitioned and self.deadline_wakeup_horizon is not None:
             # Settlement committed before this disposable notification. Failure

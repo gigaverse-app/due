@@ -9,7 +9,7 @@ recovery remain core-owned. Verdict semantics and reducers live in ``due.bulk``.
 """
 
 from abc import abstractmethod
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
@@ -17,7 +17,7 @@ from typing import ClassVar, final
 from uuid import UUID
 
 from django.contrib.postgres.fields import ArrayField
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models import F, Func, OuterRef, Q, QuerySet, Subquery, Value
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
@@ -51,6 +51,7 @@ from due.django.runtime.coordination import (
     finalize_under_fence,
     lock_work_owner,
     renew_work,
+    require_autocommit,
     require_fenced_settlement,
     retry_locked_work,
     settle_locked_work,
@@ -58,6 +59,7 @@ from due.django.runtime.coordination import (
 )
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryStep
+from due.django.runtime.settlement_batch import _SettlementBatch
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 
@@ -360,6 +362,50 @@ class DurableBulkExternalOperation[
     # querying or writing its fields before the completion save. Success hooks
     # still observe the persisted projection and SUCCEEDED state.
     combine_completed_progress: ClassVar[bool] = False
+
+    def attempt_many(self, work_ids: Iterable[WorkId], *, settlement_batch_size: int = 8) -> dict[WorkId, bool]:
+        """Attempt independent self-owned rows, sharing bounded settlement commits.
+
+        Experimental opt-in: successful receipts commit separately before local
+        completion is buffered. Progress becomes visible at a batch boundary or
+        when the iterable ends. The bound counts rows, not elapsed time.
+
+        Existing model saves, signals and completion hooks still run per row.
+        Hooks must be transaction-local/replay-safe and must not mutate another
+        row in this batch. A failed group rolls back and retries settlement per
+        row; failed rows keep their receipts for ordinary recovery, without a
+        provider resend. Ordinary provider failures stop iteration after flushing
+        earlier receipts. Process death leaves those receipts for recovery.
+
+        No claim, provider call, evidence commit or retry policy is batched. The
+        returned booleans have attempt_execution's meaning after all flushes.
+        Existing single-row APIs keep their synchronous behavior.
+        """
+        require_autocommit()
+        if isinstance(settlement_batch_size, bool) or not isinstance(settlement_batch_size, int):
+            raise TypeError("settlement_batch_size must be an integer")
+        if not 1 <= settlement_batch_size <= 64:
+            raise ValueError("settlement_batch_size must be between 1 and 64")
+        if self.model.work_owner_field is not None or self.deadline_wakeup_horizon is not None:
+            raise ValueError("bounded settlement requires self-owned work without deadline notifications")
+        if self.model.objects.db != connection.alias:
+            raise ValueError("bounded settlement requires the default database")
+        batch = _SettlementBatch[WorkT](settlement_batch_size)
+        outcomes: dict[WorkId, bool] = {}
+        try:
+            for identity in work_ids:
+                outcomes[identity] = self._attempt_execution(identity, completion=batch.add)
+                if batch.full:
+                    batch.flush()
+        except Exception as error:
+            try:
+                batch.flush()
+            except Exception as settlement_error:
+                raise ExceptionGroup("execution and bounded settlement failed", [error, settlement_error]) from None
+            raise
+        batch.flush()
+        outcomes.update(batch.outcomes)
+        return outcomes
 
     def __post_init__(self) -> None:
         super().__post_init__()
