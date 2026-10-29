@@ -1,0 +1,23 @@
+{
+  "pins": {
+    "native": "1ea8f661c2ae393f0dc3b1a43603d17af685c0ff",
+    "ordinary": "fd48b442460014179815fd953d14642f7ec93d93",
+    "bounded": "a9ca7d95fd8f702c001f23f816839644a04f10ad",
+    "due": "f0e1122325224ecd77f95745ad7dabd57748da04",
+    "verified_backend_main": "804a23ffdd21121504e4ceff17d0f5e93f53d593"
+  },
+  "python": "3.14.7",
+  "system": "Windows-11-10.0.26300-SP0",
+  "packages": {
+    "Django": "6.0.8",
+    "psycopg": "3.3.4",
+    "psutil": "7.2.2",
+    "pytest": "8.4.2"
+  },
+  "postgres": "15.19",
+  "fsync": true,
+  "synchronous_commit": true,
+  "full_page_writes": true,
+  "pg_stat_statements_track_planning": true,
+  "track_io_timing": true
+}

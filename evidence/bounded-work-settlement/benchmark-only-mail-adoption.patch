@@ -1,0 +1,29 @@
+diff --git a/gigaverse/core/mail/reminders/engine/bulk_delivery.py b/gigaverse/core/mail/reminders/engine/bulk_delivery.py
+index 825ceed3c..d80fdd9b0 100644
+--- a/gigaverse/core/mail/reminders/engine/bulk_delivery.py
++++ b/gigaverse/core/mail/reminders/engine/bulk_delivery.py
+@@ -483,15 +483,13 @@ email_bulk_delivery = replace(
+ 
+ def dispatch_due_chunks(campaign_id: str, *, delivery: EmailBulkDelivery) -> int:
+     """An inline fast path; indexed recovery and delivery cover every lost message."""
+-    count = 0
++    # Benchmark-only adoption of the success path; not a shipping migration.
+     chunks = pending_bulk_chunks().filter(campaign_id=campaign_id).order_by("seq")
+-    for chunk_id in chunks.values_list("pk", flat=True).iterator(chunk_size=100):
+-        if not EmailCampaign.objects.filter(pk=campaign_id, status=CampaignStatus.RUNNING).exists():
+-            break
+-        try:
+-            count += int(delivery.attempt_execution(chunk_id))
+-        except EffectOutcomeUnknownError, EffectNotAppliedError, BulkRetryNeeded:
+-            # Due has already committed the corresponding state; its registered
+-            # recovery owns continuation. Do not implement an email retry here.
+-            count += 1
+-    return count
++
++    def eligible_ids():
++        for chunk_id in chunks.values_list("pk", flat=True).iterator(chunk_size=100):
++            if not EmailCampaign.objects.filter(pk=campaign_id, status=CampaignStatus.RUNNING).exists():
++                break
++            yield chunk_id
++
++    return sum(delivery.attempt_many(eligible_ids(), settlement_batch_size=8).values())
