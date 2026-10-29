@@ -166,7 +166,7 @@ jobs:
         env:
           WIDGET_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           WIDGET_REDIS_CONTAINER: ${{ job.services.redis.id }}
-        run: uv run python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5 --browser ${{ matrix.reverse && '--reverse' || '' }}
+        run: uv run python -m scripts.widget_benchmark --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 15 --browser ${{ matrix.reverse && '--reverse' || '' }}
       - name: Capture a quality-gated CPU profile separately from timing
         if: startsWith(matrix.capture, 'cpu-')
         run: uv run python -m scripts.widget_profile --mode cpu --output "test-results/widgets/profile/${{ matrix.capture }}" -- --due-source "$DUE_COMPARE_SOURCE" --upstream .widget-upstream --samples 5
