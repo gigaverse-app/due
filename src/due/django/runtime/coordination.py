@@ -146,6 +146,12 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
             "desired_revision": self.desired_revision,
         }
 
+    def owns_locked(self, current: ClaimedWorkT) -> bool:
+        """Check the same predicate on a freshly locked row, never a claim snapshot."""
+        return type(current) is self.model and all(
+            getattr(current, name) == value for name, value in self._authority().items()
+        )
+
     def locked_work(self) -> ClaimedWorkT | None:
         """Read current ownership without rebuilding a fixed ORM query.
 
@@ -460,6 +466,29 @@ def settle_locked_work[WorkT: DurableWork](
         record_work_operation(current._meta.label_lower, DurableWorkOperation.SUCCEEDED)
 
 
+@dataclass(frozen=True, slots=True)
+class _WorkCompletion[WorkT: DurableWork]:
+    """One captured completion; authority is always rechecked under a fresh lock."""
+
+    claim: WorkClaim[WorkT]
+    prepare: Callable[[WorkT], _PreparedWorkUpdates | None] | None = None
+    finalize: Callable[[WorkT], ReopenAfter | None] | None = None
+    now: NowFn = database_now
+
+    def settle(self, current: WorkT) -> None:
+        prepared = finalize_under_fence(current, self.prepare) if self.prepare is not None else None
+        settle_locked_work(
+            current,
+            revision=self.claim.desired_revision,
+            finalize=self.finalize,
+            now=self.now,
+            prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
+        )
+
+    def complete(self) -> bool:
+        return complete_work(self.claim, prepare=self.prepare, finalize=self.finalize, now=self.now)
+
+
 def complete_work[WorkT: DurableWork](
     claim: WorkClaim[WorkT],
     *,
@@ -479,14 +508,7 @@ def complete_work[WorkT: DurableWork](
         lock_work_owner(claim.work)
         current = claim.locked_work()
         if current is not None:
-            prepared = finalize_under_fence(current, prepare) if prepare is not None else None
-            settle_locked_work(
-                current,
-                revision=claim.desired_revision,
-                finalize=finalize,
-                now=now,
-                prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
-            )
+            _WorkCompletion(claim, prepare, finalize, now).settle(current)
     if current is None:
         record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
     return current is not None
@@ -1184,6 +1206,7 @@ def run_work[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None = None,
     provider_retry_after: Callable[[Exception], timedelta] | None = None,
     database_only: bool = False,
+    _completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
 ) -> bool:
     """Claim, run outside transactions in-domain, and fenced-finalize."""
 
@@ -1220,6 +1243,7 @@ def run_work[WorkT: DurableWork, ResultT](
             retry_delay_for=retry_delay_for,
             provider_retry_after=provider_retry_after,
             database_only=database_only,
+            completion=_completion,
         )
 
 
@@ -1239,6 +1263,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
     retry_delay_for: Callable[[WorkT], timedelta] | None,
     provider_retry_after: Callable[[Exception], timedelta] | None,
     database_only: bool,
+    completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
 ) -> bool:
     model = claim.model
     context = WorkExecutionContext(claim=claim, lease_duration=lease_duration)
@@ -1269,11 +1294,12 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                     finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
                 )
             else:
-                completed = complete_work(
+                pending = _WorkCompletion(
                     claim,
                     prepare=context._success.for_result(result) or _bind_finalizer(prepare_success, result),
                     finalize=_bind_finalizer(finalize_success, result),
                 )
+                completed = pending.complete() if completion is None else completion(pending)
             if database_only and not completed:
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
