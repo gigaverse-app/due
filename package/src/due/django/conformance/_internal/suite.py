@@ -5,10 +5,12 @@ shared pytest-obligation runners and production behavior in Due's runtime;
 this module only binds them and adds work-table assertions and collection marks.
 """
 
+from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from datetime import timedelta
 from functools import wraps
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -27,6 +29,7 @@ from pytest_obligation.contract import (
     Profile,
     due_work_contract_suite,
 )
+from pytest_obligation.costs import assert_statement_cost, marginal_statement_shapes, statement_shapes
 from pytest_obligation.evidence.observation import assert_observation
 from pytest_obligation.integrations.django.edge_values import CandidateEdge
 from pytest_obligation.integrations.django.lock_order import recording_against_the_ledger
@@ -162,7 +165,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import outstanding_work
+from due.django.runtime.coordination import CLAIMABLE_STATES, outstanding_work
 from due.django.runtime.registry import DurableWorkRegistration
 from due.django.runtime.tasks import (
     recover_durable_work_task,
@@ -946,6 +949,97 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
         )
 
 
+def _recovered_delivery[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT],
+    bindings: DurableWorkBindings[W, ResultT],
+    work: W,
+    sent: list[tuple[tuple[Any, ...], dict[str, Any]]],
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Lose ``work``'s notification, run the registered recovery task, and return its one published delivery."""
+    entry = bindings.registration
+    bindings.age(work)
+    # Compensation producers reserve cleanup before I/O. Losing that worker
+    # includes lease expiry; this is clock fault injection, not settlement.
+    capability.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
+        lease_expires_at=database_now() - timedelta(seconds=1)
+    )
+    recover_durable_work_task(entry.name)
+    # Reaping preserves the configured retry delay. Advance only its clock.
+    work.refresh_from_db()
+    if work.state == DurableWorkState.RETRYABLE:
+        bindings.age(work)
+        recover_durable_work_task(entry.name)
+    deliveries = [(args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
+    assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
+    return deliveries[0]
+
+
+#: The recurring database costs every capability's contract holds to the committed baseline.
+COST_PATHS = ("idle tick", "per owed row", "one delivery")
+
+
+def assert_statement_costs[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W], *, path: str, root: Path
+) -> None:
+    """
+    Hold one recurring path's database statements to the committed cost baseline.
+
+    A recovery tick runs every cadence, mostly with nothing to do, and a delivery
+    runs once per row, so each statement on them is paid indefinitely. ``idle
+    tick`` is the registered recovery task with nothing owed; ``per owed row`` is
+    exactly what one more due row adds to it; ``one delivery`` is the worker task
+    recovery publishes, from accepting the reservation to settlement.
+
+    The real database clock is used, never the frozen scheduler clock, which would
+    turn every clock read into a Python value and hide it. Each path runs once
+    unmeasured first, so a process's first-use caches belong to no contract.
+    """
+    bindings = _effect_bindings(capability, examples)
+    entry = bindings.registration
+    sent: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def capture(*, args, **options):
+        if args[0] == entry.name:
+            sent.append((args, options))
+
+    def tick() -> None:
+        recover_durable_work_task(entry.name)
+
+    made: list[Any] = []
+
+    def make_owed() -> None:
+        work = examples.make_work()
+        bindings.age(work)
+        made.append(work.pk)
+
+    def waiting() -> int:
+        # A tick that left its rows due measured nothing; every one must be taken.
+        return capability.model.objects.filter(pk__in=made, state__in=CLAIMABLE_STATES).count()
+
+    def deliver() -> Counter[str]:
+        # Inside the example's scope: its provider seam must be live while the worker runs.
+        sent.clear()
+        with _binding(examples.delivery) as example:
+            args, _ = _recovered_delivery(capability, bindings, example.work, sent)
+            return Counter(statement_shapes(lambda: run_durable_work_task(*args)))
+
+    with (
+        _binding(examples.environment),
+        hold_nudges(),
+        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
+    ):
+        tick()
+        if path == "idle tick":
+            shapes = Counter(statement_shapes(tick))
+        elif path == "per owed row":
+            shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick, remaining=waiting)
+        else:
+            assert path == "one delivery", f"unknown cost path {path!r}"
+            deliver()
+            shapes = deliver()
+    assert_statement_cost(f"{entry.name}: {path}", shapes, root=root)
+
+
 def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
 ) -> None:
@@ -972,23 +1066,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         assert not sent, "producer must record intent without inline worker execution"
         example.work.refresh_from_db()
         never_executed = example.work.state in (DurableWorkState.READY, DurableWorkState.QUEUED)
-        bindings.age(example.work)
-        # Compensation producers reserve cleanup before I/O. Losing that worker
-        # includes lease expiry; this is clock fault injection, not settlement.
-        capability.model.objects.filter(pk=example.work.pk, lease_expires_at__isnull=False).update(
-            lease_expires_at=database_now() - timedelta(seconds=1)
-        )
-        recover_durable_work_task(entry.name)
-        # Reaping preserves the configured retry delay. Advance only its clock.
-        example.work.refresh_from_db()
-        if example.work.state == DurableWorkState.RETRYABLE:
-            bindings.age(example.work)
-            recover_durable_work_task(entry.name)
-        deliveries = [
-            (args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == example.work.pk
-        ]
-        assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
-        args, options = deliveries[0]
+        args, options = _recovered_delivery(capability, bindings, example.work, sent)
         assert_registered_worker_options(entry, options)
         assert run_durable_work_task(*args), "captured production delivery was not executable"
         assert_observation(example.observe(), example.expected, because="worker reaches the required domain outcome")
@@ -1304,6 +1382,11 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
         @proof
         def test_registered_producer_lost_notification(self):
             assert_lost_notification_reaches_domain_outcome(capability, examples)
+
+        @proof
+        @pytest.mark.parametrize("path", COST_PATHS)
+        def test_statement_cost(self, request, path):
+            assert_statement_costs(capability, examples, path=path, root=request.config.rootpath)
 
         if controls := regression_cases(examples):
 

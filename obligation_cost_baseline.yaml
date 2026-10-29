@@ -1,0 +1,214 @@
+# Cost contracts: the database statements each named path sends, by shape.
+#
+# A test fails when a path sends a statement its entry does not list (a regression) or no
+# longer sends one it does (a saving the entry must keep). Record or lower entries with
+# `OBLIGATION_COST_BASELINE=update pytest -p no:xdist <tests>` and review the diff: it is
+# the cost change of the PR.
+#
+# Canonical doc: https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/cost-contracts.md
+
+costs:
+- contract: 'calculate_number: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count numbers_calculationwork: 1
+    read due_recoverydeferral: 1
+    read numbers_calculationwork: 3
+    select clock_timestamp(): 3
+- contract: 'calculate_number: one delivery'
+  statements:
+    begin: 2
+    commit: 2
+    lock numbers_calculation: 1
+    lock numbers_calculationwork: 2
+    select clock_timestamp(): 1
+    update numbers_calculation: 1
+    update numbers_calculationwork: 3
+- contract: 'calculate_number: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock numbers_calculationwork: 1
+    update numbers_calculationwork: 1
+- contract: 'checkout_order: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count widget_store_checkoutwork: 2
+    read due_recoverydeferral: 1
+    read widget_store_checkoutwork: 3
+    select clock_timestamp(): 3
+- contract: 'checkout_order: one delivery'
+  statements:
+    begin: 2
+    commit: 2
+    lock widget_store_checkoutwork: 2
+    lock widget_store_order: 1
+    read widget_store_checkoutwork: 1
+    select clock_timestamp(): 1
+    update widget_store_checkoutwork: 2
+    update widget_store_order: 1
+- contract: 'checkout_order: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock widget_store_checkoutwork: 1
+    update widget_store_checkoutwork: 1
+- contract: 'index_book: idle tick'
+  statements:
+    count books_indexbookwork: 1
+    count due_recoverydeferral: 1
+    read books_indexbookwork: 3
+    read due_recoverydeferral: 1
+    select clock_timestamp(): 3
+- contract: 'index_book: one delivery'
+  statements:
+    begin: 2
+    commit: 2
+    insert books_publishbookwork: 1
+    lock books_book: 2
+    lock books_indexbookwork: 2
+    lock books_publishbookwork: 1
+    release savepoint: 1
+    savepoint: 1
+    select clock_timestamp(): 2
+    update books_indexbookwork: 3
+- contract: 'index_book: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock books_indexbookwork: 1
+    update books_indexbookwork: 1
+- contract: 'print_order: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count orders_printwork: 1
+    read due_recoverydeferral: 1
+    read orders_printwork: 5
+    select clock_timestamp(): 5
+- contract: 'print_order: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    insert orders_printevidence: 1
+    lock due_effectattempt: 1
+    lock orders_printorder: 2
+    lock orders_printwork: 3
+    read orders_printevidence: 2
+    release savepoint: 1
+    savepoint: 1
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update orders_printorder: 1
+    update orders_printwork: 3
+- contract: 'print_order: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock orders_printwork: 1
+    update orders_printwork: 1
+- contract: 'project_catalog: idle tick'
+  statements:
+    begin: 2
+    commit: 2
+    count catalog_catalogwork: 1
+    count due_effectattempt: 1
+    count due_recoverydeferral: 1
+    lock catalog_catalogwork: 1
+    read catalog_catalogwork: 2
+    read due_effectattempt: 2
+    read due_recoverydeferral: 1
+    select clock_timestamp(): 5
+- contract: 'project_catalog: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    lock catalog_catalogentry: 1
+    lock catalog_catalogwork: 3
+    lock due_effectattempt: 1
+    read catalog_catalogwork: 1
+    select clock_timestamp(): 2
+    update catalog_catalogentry: 1
+    update catalog_catalogwork: 3
+    update due_effectattempt: 2
+- contract: 'project_catalog: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock catalog_catalogwork: 1
+    update catalog_catalogwork: 1
+- contract: 'publish_at_deadline: idle tick'
+  statements:
+    begin: 1
+    commit: 1
+    count due_recoverydeferral: 1
+    count scheduled_publicationdeadline: 1
+    read due_effectattempt: 2
+    read due_recoverydeferral: 1
+    read scheduled_publicationdeadline: 3
+    select clock_timestamp(): 4
+- contract: 'publish_at_deadline: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    lock due_effectattempt: 1
+    lock scheduled_publication: 1
+    lock scheduled_publicationdeadline: 3
+    read scheduled_publication: 1
+    select clock_timestamp(): 2
+    update due_effectattempt: 2
+    update scheduled_publication: 1
+    update scheduled_publicationdeadline: 3
+- contract: 'publish_at_deadline: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock scheduled_publicationdeadline: 1
+    update scheduled_publicationdeadline: 1
+- contract: 'publish_book: idle tick'
+  statements:
+    count books_publishbookwork: 1
+    count due_recoverydeferral: 1
+    read books_publishbookwork: 3
+    read due_recoverydeferral: 1
+    select clock_timestamp(): 3
+- contract: 'publish_book: one delivery'
+  statements:
+    begin: 2
+    commit: 2
+    lock books_book: 1
+    lock books_publishbookwork: 2
+    select clock_timestamp(): 1
+    update books_book: 1
+    update books_publishbookwork: 3
+- contract: 'publish_book: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock books_publishbookwork: 1
+    update books_publishbookwork: 1
+- contract: 'publish_document: idle tick'
+  statements:
+    count documents_publicationwork: 1
+    count due_recoverydeferral: 1
+    read documents_publicationwork: 3
+    read due_recoverydeferral: 1
+    select clock_timestamp(): 3
+- contract: 'publish_document: one delivery'
+  statements:
+    begin: 2
+    commit: 2
+    lock documents_document: 1
+    lock documents_publicationwork: 2
+    select clock_timestamp(): 1
+    update documents_document: 1
+    update documents_publicationwork: 3
+- contract: 'publish_document: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock documents_publicationwork: 1
+    update documents_publicationwork: 1
