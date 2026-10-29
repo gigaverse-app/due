@@ -36,7 +36,7 @@ costs:
     count widget_store_checkoutwork: 2
     read due_recoverydeferral: 1
     read widget_store_checkoutwork: 3
-    select clock_timestamp(): 4
+    select clock_timestamp(): 3
 - contract: 'checkout_order: one delivery'
   statements:
     begin: 2
@@ -44,9 +44,7 @@ costs:
     lock widget_store_checkoutwork: 2
     lock widget_store_order: 1
     read widget_store_checkoutwork: 1
-    release savepoint: 1
-    savepoint: 1
-    select clock_timestamp(): 2
+    select clock_timestamp(): 1
     update widget_store_checkoutwork: 2
     update widget_store_order: 1
 - contract: 'checkout_order: per owed row'
@@ -54,7 +52,6 @@ costs:
     begin: 1
     commit: 1
     lock widget_store_checkoutwork: 1
-    select clock_timestamp(): 1
     update widget_store_checkoutwork: 1
 - contract: 'index_book: idle tick'
   statements:
@@ -151,7 +148,7 @@ costs:
     read due_effectattempt: 2
     read due_recoverydeferral: 1
     read scheduled_publicationdeadline: 3
-    select clock_timestamp(): 5
+    select clock_timestamp(): 4
 - contract: 'publish_at_deadline: one delivery'
   statements:
     begin: 4
