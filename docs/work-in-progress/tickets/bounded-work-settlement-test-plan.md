@@ -14,13 +14,18 @@ separate evidence branch, not this shipping change.
 - [x] Generated pytest-obligation convergence: crash before flush, run registered
   recovery, prove exact product results and one provider acceptance per member.
 - [x] Shared sensitivity controls detect disabled recovery and duplicate effects.
-- [ ] Process death during group settlement rolls back all product writes while
+- [x] Process death during group settlement rolls back all product writes while
   preserving separately committed receipts; registered recovery finishes them.
-- [ ] A competing fencing token prevents an old buffered completion from writing.
-- [ ] Provider failure flushes prior receipts and stops further provider calls.
-- [ ] Invalid bounds reject before any external effect.
+- [x] A competing fencing token prevents an old buffered completion from writing.
+- [x] Provider failure flushes prior receipts and stops further provider calls.
+- [x] Invalid bounds reject before any external effect.
+- [x] Soft worker limits stop without entering per-row fallback (red before fix).
+- [x] Generated commit-death histories across two settlement groups prove that
+  the registered recovery finishes the remaining receipts after each interruption.
+- [x] Token, revision and state replacement each refuse stale publication; saves
+  and post-save signals still run with their persisted completion timestamp.
 - [ ] Existing bulk/runtime regression suites, lint, typing, CI and exported package.
-- [ ] Source-pinned native, ordinary Due and prototype mail benchmarks: CPU, wall
+- [x] Source-pinned native, ordinary Due and prototype mail benchmarks: CPU, wall
   latency, queries, DML, transactions, database planning/execution, buffers and WAL.
 
 Limitations to expose: shared visibility, longer lock span, replay-safe local

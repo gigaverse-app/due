@@ -13,7 +13,8 @@ outcomes = delivery.attempt_many(ids, settlement_batch_size=8)
 Every successful provider receipt still commits before local product settlement.
 At most 64 completions can share a transaction; the default is eight. The final
 partial group flushes when iteration ends. The batch locks owned work rows in
-primary-key order with one query, then uses each row's existing preparation,
+primary-key order with one query, checks the captured token, state and revision
+on each freshly locked row, then uses each row's existing preparation,
 `save()`, signals, completion hooks, timestamps and evidence finalization. This
 shares commits and lock reads. It does not combine the per-row UPDATE statements.
 
@@ -28,6 +29,7 @@ shares commits and lock reads. It does not combine the per-row UPDATE statements
 | Limit | One row | Number of successful completions, not elapsed time; a later provider call can delay visibility |
 | Provider failure | Propagates to caller | Earlier receipts flush, then failure propagates; later IDs are not attempted |
 | Process death | Existing recovery | Existing recovery consumes durable receipts; no in-memory buffer is needed |
+| Worker soft limit / configured fatal error | Stops execution | Stops without trying the per-row fallback; receipts remain recoverable |
 
 Booleans retain `attempt_execution`'s transition meaning and include the final
 fence check. They are not a substitute for the completion-status API. Partial,
@@ -40,6 +42,11 @@ default database. Hooks must perform transaction-local changes or register safe
 after-commit work. They must not rely on an earlier row's commit being visible to
 another connection before the next row executes. Existing code that needs those
 boundaries should continue calling `attempt_execution`.
+
+The bulk lookup can briefly lock a row whose ownership has changed; it then
+refuses that completion. Hook logs and counters can reflect rolled-back attempts
+as well as retries. Use committed work state and provider evidence to determine
+whether delivery completed.
 
 This prototype is not a new worker, queue, work table or recovery loop. Its value
 must be established against the native application path as well as ordinary Due.

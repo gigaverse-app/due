@@ -9,6 +9,10 @@ product and completion must publish only the current requested result. For
 remote-state repair or uncertain provider outcomes, choose the capabilities
 below. All use the same PostgreSQL/Celery recovery runtime.
 
+For existing bulk-operation adopters, the [bounded settlement prototype](bounded-settlement.md)
+describes an explicit multi-row API and its visibility and hook-replay tradeoffs.
+It is experimental; ordinary single-row execution remains the default.
+
 Most Due imports come from two entry points:
 
 ```python

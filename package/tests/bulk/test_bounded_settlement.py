@@ -1,10 +1,12 @@
 """Independent provider acceptances survive bounded, shared settlement commits."""
 
+from datetime import datetime
 from uuid import uuid7
 
 import pytest
 from billiard.exceptions import SoftTimeLimitExceeded
 from django.db import connection
+from django.db.models.signals import post_save
 from django.test.utils import CaptureQueriesContext
 from pytest_obligation.worker_death import WorkerDied
 
@@ -108,14 +110,20 @@ def test_death_during_group_rolls_back_all_product_writes_and_recovers(composed_
             assert SendChunk.accepted_by_work[row.pk] == [str(i)]
 
 
-def test_replaced_fence_cannot_publish_buffered_completion(composed_inline_chunk):
+@pytest.mark.parametrize("changed", ["token", "revision", "state"])
+def test_replaced_fence_cannot_publish_buffered_completion(composed_inline_chunk, changed):
     capability = composed_inline_chunk
     rows = chunks(capability, 2)
 
     def identities():
         yield rows[0].pk
         # FAULT: a competing owner replaces this captured claim before flush.
-        capability.model.objects.filter(pk=rows[0].pk).update(fencing_token=uuid7())
+        changes = {
+            "token": {"fencing_token": uuid7()},
+            "revision": {"desired_revision": rows[0].desired_revision + 1},
+            "state": {"state": DurableWorkState.UNKNOWN, "lease_expires_at": None},
+        }
+        capability.model.objects.filter(pk=rows[0].pk).update(**changes[changed])
         yield rows[1].pk
 
     outcomes = capability.attempt_many(identities(), settlement_batch_size=2)
@@ -160,3 +168,30 @@ def test_soft_time_limit_does_not_start_per_row_settlement_fallback(composed_inl
         capability.attempt_many([row.pk for row in rows], settlement_batch_size=3)
     assert reached == [rows[0].pk]
     assert list(capability.model.objects.values_list("delivered", flat=True)) == [[], [], []]
+
+
+def test_grouped_completion_preserves_model_saves_and_signals(composed_inline_chunk, monkeypatch):
+    capability = composed_inline_chunk
+    rows = chunks(capability)
+    saves = []
+    signals = []
+    save = capability.model.save
+
+    def record_save(instance, *args, **kwargs):
+        if instance.state == DurableWorkState.SUCCEEDED:
+            saves.append(instance.pk)
+        return save(instance, *args, **kwargs)
+
+    def observe(sender, instance, **kwargs):
+        if instance.state == DurableWorkState.SUCCEEDED:
+            assert isinstance(instance.completed_at, datetime)
+            assert connection.in_atomic_block
+            signals.append(instance.pk)
+
+    monkeypatch.setattr(capability.model, "save", record_save)
+    post_save.connect(observe, sender=capability.model)
+    try:
+        capability.attempt_many([row.pk for row in rows], settlement_batch_size=3)
+    finally:
+        post_save.disconnect(observe, sender=capability.model)
+    assert saves == signals == [row.pk for row in rows]
