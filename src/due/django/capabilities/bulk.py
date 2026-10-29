@@ -579,7 +579,7 @@ class DurableBulkExternalOperation[
                 raise rejected
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     # The NOT_APPLIED decision is committed; recovery settles it
                     # through the same rejection path, exactly once.
@@ -630,7 +630,7 @@ class DurableBulkExternalOperation[
                 return BulkStep.STOP
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     # Match scalar execution: the core completion declines this
                     # stale claim; the committed receipt remains owed to recovery.
@@ -888,7 +888,7 @@ class DurableBulkEffect[
                 raise ValueError("replay-safe batches raise for uncertainty instead of returning UNKNOWN")
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     raise WorkOwnershipLost("bulk progress lost its claim; recovery resends pending members")
                 state = finalize_under_fence(current, lambda row: self._commit_round(row, result))

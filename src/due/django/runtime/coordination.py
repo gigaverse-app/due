@@ -14,7 +14,7 @@ from functools import partial
 from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
-from django.db import connection, models, transaction
+from django.db import connection, connections, models, transaction
 from django.db.models import Count, F, Min, Q, QuerySet
 from django.db.models.functions import Now
 
@@ -136,12 +136,47 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
 
     def owned_work(self) -> QuerySet[ClaimedWorkT]:
         """Select this captured claim's authority; callers own locking and lease checks."""
-        return self.model.objects.filter(
-            pk=self.work_id,
-            state=DurableWorkState.CLAIMED,
-            fencing_token=self.token,
-            desired_revision=self.desired_revision,
+        return self.model.objects.filter(**self._authority())
+
+    def _authority(self) -> dict[str, object]:
+        return {
+            "pk": self.work_id,
+            "state": DurableWorkState.CLAIMED,
+            "fencing_token": self.token,
+            "desired_revision": self.desired_revision,
+        }
+
+    def locked_work(self) -> ClaimedWorkT | None:
+        """Read current ownership without rebuilding a fixed ORM query.
+
+        Custom managers and multi-table models keep their ordinary query path.
+        RawQuerySet retains field conversion, from_db and model init signals.
+        No model data, authority decision or database clock is cached.
+        """
+        manager = self.model.objects
+        if type(manager) is not models.Manager or self.model._meta.parents:
+            return self.owned_work().select_for_update().first()
+        alias = manager.select_for_update().db
+        db = connections[alias]
+        if not db.in_atomic_block:
+            raise transaction.TransactionManagementError("work locking requires a transaction")
+        quote = db.ops.quote_name
+        columns = ", ".join(quote(cast(str, field.column)) for field in self.model._meta.concrete_fields)
+        authority = self._authority()
+        predicates = []
+        for name in authority:
+            column = self.model._meta.pk if name == "pk" else self.model._meta.get_field(name)
+            assert isinstance(column, models.Field)
+            predicates.append(f"{quote(cast(str, column.column))} = %s")
+        predicate = " AND ".join(predicates)
+        rows = list(
+            manager.raw(
+                f"SELECT {columns} FROM {quote(self.model._meta.db_table)} WHERE {predicate} FOR UPDATE",
+                list(authority.values()),
+                using=alias,
+            )
         )
+        return rows[0] if rows else None
 
 
 class WorkOwnershipLost(RuntimeError):
@@ -442,7 +477,7 @@ def complete_work[WorkT: DurableWork](
     """
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is not None:
             prepared = finalize_under_fence(current, prepare) if prepare is not None else None
             settle_locked_work(
@@ -510,7 +545,7 @@ def retry_work[WorkT: DurableWork](
         if finalize is not None:
             lock_work_owner(claim.work)
         retry_at = now()
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is None:
             record_work_operation(
                 claim.model._meta.label_lower,
@@ -568,7 +603,7 @@ def terminal_work[WorkT: DurableWork](
     failed_at = now()
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is not None:
             terminal_locked_work(current, failed_at=failed_at, error_code=error_code, finalize=finalize)
             pin_work_beneficiary(current)
@@ -608,7 +643,7 @@ def unknown_work[WorkT: DurableWork](
     """Release local ownership while retaining unresolved, non-dispatchable debt."""
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         updated = current is not None
         if current is not None:
             unknown_locked_work(current, error_code=error_code, finalize=finalize)
@@ -1215,7 +1250,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             current = claim.work
             if database_only:
                 owner = lock_work_owner(current)
-                current = claim.owned_work().select_for_update().first()
+                current = claim.locked_work()
                 if current is None:
                     return False
                 field = _owner_relation(type(current))
