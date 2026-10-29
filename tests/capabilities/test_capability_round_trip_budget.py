@@ -21,11 +21,8 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from django.db import connection
 from django.db.models import F
-from django.test.utils import CaptureQueriesContext
 
-from due.django.models import RecoveryDeferral
 from due.django.public import AppliedEvidenceContract, Discovery, DurableWorkState
 from due.django.runtime.coordination import claim_work, database_now
 from due.django.testing import expire_lease
@@ -39,21 +36,23 @@ from tests.harness.primitive import (
 from tests.harness.primitive import (
     isolated_primitive_fixture as isolated_primitive_fixture,
 )
+from tests.harness.round_trips import (
+    CLOCK,
+    COUNT_OWNER,
+    COUNT_WORK,
+    DELETE_WORK,
+    HOLD_CENSUS,
+    HOLDS,
+    LOCK_OWNER,
+    LOCK_WORK,
+    READ_OWNER,
+    READ_WORK,
+    UPDATE_OWNER,
+    UPDATE_WORK,
+    RoundTrips,
+)
 
 pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("isolated_primitive")]
-
-CLOCK = "clock"
-HOLDS = "read holds"
-HOLD_CENSUS = "count holds"
-READ_WORK = "read work"
-COUNT_WORK = "count work"
-LOCK_WORK = "lock work"
-UPDATE_WORK = "update work"
-DELETE_WORK = "delete work"
-READ_OWNER = "read owner"
-COUNT_OWNER = "count owner"
-LOCK_OWNER = "lock owner"
-UPDATE_OWNER = "update owner"
 
 #: An idle tick: reap pages (reading the tick's clock and its holds once),
 #: dispatch pages at a clock of its own, the census groups the attention
@@ -64,35 +63,7 @@ IDLE_TICK = [CLOCK, HOLDS, READ_WORK, CLOCK, READ_WORK, COUNT_WORK, READ_WORK, H
 CLAIM = [LOCK_WORK, UPDATE_WORK]
 
 
-def _shape(sql: str) -> str:
-    """What a statement does, by the table it targets: enough to name every round trip of these paths."""
-    work, owner, holds = (model._meta.db_table for model in (PrimitiveWork, PrimitiveOwner, RecoveryDeferral))
-    if sql == "SELECT clock_timestamp()":
-        return CLOCK
-    for verb, table, shape in (
-        ("UPDATE", work, UPDATE_WORK),
-        ("UPDATE", owner, UPDATE_OWNER),
-        ("DELETE FROM", work, DELETE_WORK),
-    ):
-        if sql.startswith(f'{verb} "{table}"'):
-            return shape
-    # The outermost FROM: an owner lock names the work table only in its sub-select.
-    target = sql.split(" FROM ", 1)[1].split()[0].strip('"') if sql.startswith("SELECT ") else ""
-    counted = "GROUP BY" in sql or "COUNT(" in sql
-    if target == holds:
-        return HOLD_CENSUS if counted else HOLDS
-    if target == work:
-        return LOCK_WORK if " FOR UPDATE" in sql else COUNT_WORK if counted else READ_WORK
-    if target == owner:
-        return LOCK_OWNER if " FOR UPDATE" in sql else COUNT_OWNER if counted else READ_OWNER
-    raise AssertionError(f"unclassified statement: {sql}")
-
-
-def _round_trips(run: Callable[[], object]) -> list[str]:
-    """Every statement ``run`` sends, in order; transaction control is the same before and after and left out."""
-    with CaptureQueriesContext(connection) as captured:
-        run()
-    return [_shape(query["sql"]) for query in captured.captured_queries if query["sql"] not in ("BEGIN", "COMMIT")]
+_round_trips = RoundTrips(work=PrimitiveWork, owner=PrimitiveOwner).of
 
 
 def _per_row(seed: Callable[[int], object], small: int = 1, large: int = 3) -> Counter[str]:
