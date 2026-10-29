@@ -31,7 +31,7 @@ class BatchSnapshot:
 
 
 @contextmanager
-def buffered_convergence(capability: SendChunk) -> Iterator[ConvergentWrite]:
+def buffered_convergence(capability: SendChunk, *, set_based: bool = False) -> Iterator[ConvergentWrite]:
     # EXTERNAL SEAM: SendChunk's provider records acceptances independently of SQL.
     with WorkTableDelivery(capability).session() as delivery:
 
@@ -57,7 +57,7 @@ def buffered_convergence(capability: SendChunk) -> Iterator[ConvergentWrite]:
                     raise WorkerDied("buffer lost before settlement")
 
             try:
-                capability.attempt_many(identities(), settlement_batch_size=4)
+                capability.attempt_many(identities(), settlement_batch_size=4, set_based=set_based)
             except WorkerDied:
                 pass
             return snapshot(tuple(row.pk for row in rows))
@@ -80,21 +80,21 @@ def buffered_convergence(capability: SendChunk) -> Iterator[ConvergentWrite]:
         )
 
 
-def prove_buffered_convergence(capability: SendChunk) -> None:
+def prove_buffered_convergence(capability: SendChunk, *, set_based: bool = False) -> None:
     # ARRANGE: fresh real rows and buffered receipts, through buffered_convergence.
     # REAL PRODUCTION: attempt_many and registered WorkTableDelivery recovery.
     # EXTERNAL SEAM: the SendChunk provider ledger and a death before batch flush.
     # OBSERVE: persisted delivered members and exact per-work provider acceptances.
-    with buffered_convergence(capability) as binding:
+    with buffered_convergence(capability, set_based=set_based) as binding:
         assert_convergent_write_contract(binding)
 
 
-def prove_settlement_commit_histories(capability: SendChunk) -> None:
+def prove_settlement_commit_histories(capability: SendChunk, *, set_based: bool = False) -> None:
     # ARRANGE: the real engine captures completions after durable provider receipts.
     # EXTERNAL SEAM: SendChunk's independent provider acceptance ledger.
     def arrange():
         rows = [capability.model.objects.create(universe="acme", bulk_keys=[str(i)]) for i in range(3)]
-        batches = [_SettlementBatch(2), _SettlementBatch(2)]
+        batches = [_SettlementBatch(2, set_based=set_based), _SettlementBatch(2, set_based=set_based)]
         for index, row in enumerate(rows):
             make_due(row)
             capability._attempt_execution(row.pk, completion=batches[index // 2].add)
@@ -122,21 +122,24 @@ def prove_settlement_commit_histories(capability: SendChunk) -> None:
     assert_crash_at_every_commit_converges(WorkTableDelivery(capability), history)
 
 
-def bounded_settlement_proofs(capability: SendChunk) -> tuple[ExtraProof, ...]:
+def _proofs(capability: SendChunk, *, set_based: bool) -> tuple[ExtraProof, ...]:
+    mode = "set_based" if set_based else "bounded"
     return (
         ExtraProof(
-            name="bounded_completion_commit_histories",
-            run=partial(prove_settlement_commit_histories, capability),
+            name=f"{mode}_completion_commit_histories",
+            run=partial(prove_settlement_commit_histories, capability, set_based=set_based),
             transactional=True,
         ),
         ExtraProof(
-            name="bounded_receipt_recovery", run=partial(prove_buffered_convergence, capability), transactional=True
+            name=f"{mode}_receipt_recovery",
+            run=partial(prove_buffered_convergence, capability, set_based=set_based),
+            transactional=True,
         ),
         *(
             ExtraProof(
-                name=f"bounded_receipt_detects_{name}",
+                name=f"{mode}_receipt_detects_{name}",
                 run=RegressionControl(
-                    binding=partial(buffered_convergence, capability),
+                    binding=partial(buffered_convergence, capability, set_based=set_based),
                     proof=assert_unsettled_state_converges,
                     regression=partial(fault, capability),
                     match="did not settle",
@@ -146,3 +149,7 @@ def bounded_settlement_proofs(capability: SendChunk) -> tuple[ExtraProof, ...]:
             for name, fault in (("lost_recovery", _without_recovery), ("duplicate_effect", _with_duplicate_effect))
         ),
     )
+
+
+def bounded_settlement_proofs(capability: SendChunk) -> tuple[ExtraProof, ...]:
+    return (*_proofs(capability, set_based=False), *_proofs(capability, set_based=True))

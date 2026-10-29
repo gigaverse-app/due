@@ -115,7 +115,8 @@ def test_death_during_group_rolls_back_all_product_writes_and_recovers(composed_
 
 
 @pytest.mark.parametrize("changed", ["token", "revision", "state"])
-def test_replaced_fence_cannot_publish_buffered_completion(composed_inline_chunk, changed):
+@pytest.mark.parametrize("set_based", [False, True])
+def test_replaced_fence_cannot_publish_buffered_completion(composed_inline_chunk, changed, set_based):
     capability = composed_inline_chunk
     rows = chunks(capability, 2)
 
@@ -130,7 +131,7 @@ def test_replaced_fence_cannot_publish_buffered_completion(composed_inline_chunk
         capability.model.objects.filter(pk=rows[0].pk).update(**changes[changed])
         yield rows[1].pk
 
-    outcomes = capability.attempt_many(identities(), settlement_batch_size=2)
+    outcomes = capability.attempt_many(identities(), settlement_batch_size=2, set_based=set_based)
     rows[0].refresh_from_db()
     rows[1].refresh_from_db()
     assert outcomes == {rows[0].pk: False, rows[1].pk: True}
@@ -174,7 +175,8 @@ def test_soft_time_limit_does_not_start_per_row_settlement_fallback(composed_inl
     assert list(capability.model.objects.values_list("delivered", flat=True)) == [[], [], []]
 
 
-def test_grouped_completion_preserves_model_saves_and_signals(composed_inline_chunk, monkeypatch):
+@pytest.mark.parametrize("set_based", [False, True])
+def test_grouped_completion_preserves_model_saves_and_signals(composed_inline_chunk, monkeypatch, set_based):
     capability = composed_inline_chunk
     rows = chunks(capability)
     saves = []
@@ -195,7 +197,7 @@ def test_grouped_completion_preserves_model_saves_and_signals(composed_inline_ch
     monkeypatch.setattr(capability.model, "save", record_save)
     post_save.connect(observe, sender=capability.model)
     try:
-        capability.attempt_many([row.pk for row in rows], settlement_batch_size=3)
+        capability.attempt_many([row.pk for row in rows], settlement_batch_size=3, set_based=set_based)
     finally:
         post_save.disconnect(observe, sender=capability.model)
     assert saves == signals == [row.pk for row in rows]
