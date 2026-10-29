@@ -24,7 +24,7 @@ separate evidence branch, not this shipping change.
   the registered recovery finishes the remaining receipts after each interruption.
 - [x] Token, revision and state replacement each refuse stale publication; saves
   and post-save signals still run with their persisted completion timestamp.
-- [ ] Existing bulk/runtime regression suites, lint, typing, CI and exported package.
+- [x] Existing bulk/runtime regression suites, lint, typing, CI and exported package.
 - [x] Source-pinned native, ordinary Due and prototype mail benchmarks: CPU, wall
   latency, queries, DML, transactions, database planning/execution, buffers and WAL.
 

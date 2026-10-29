@@ -6,6 +6,7 @@ import pytest
 
 from due.django.conformance.suite import effect_contract_suite
 from tests.harness.bounded_settlement import bounded_settlement_proofs
+from tests.harness.committed_evidence import committed_evidence_proofs
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 from tests.harness.self_work import composed_chunk_delivery, composed_inline_chunk_delivery, registered_chunk
 from tests.harness.self_work import composed_chunk_environment as composed_chunk_environment
@@ -19,7 +20,8 @@ with registered_chunk(composed_chunk_delivery):
         composed_chunk_delivery,
         examples=replace(
             self_work_examples(composed_chunk_delivery, "composed_chunk"),
-            extras=bounded_settlement_proofs(composed_chunk_delivery),
+            extras=bounded_settlement_proofs(composed_chunk_delivery)
+            + committed_evidence_proofs(composed_chunk_delivery),
         ),
     )
     class TestComposedSeparateReceiptContract:
@@ -33,7 +35,8 @@ with registered_chunk(composed_inline_chunk_delivery):
         composed_inline_chunk_delivery,
         examples=replace(
             self_work_examples(composed_inline_chunk_delivery, "composed_inline_chunk"),
-            extras=bounded_settlement_proofs(composed_inline_chunk_delivery),
+            extras=bounded_settlement_proofs(composed_inline_chunk_delivery)
+            + committed_evidence_proofs(composed_inline_chunk_delivery),
         ),
     )
     class TestComposedInlineReceiptContract:

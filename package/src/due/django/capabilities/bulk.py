@@ -12,7 +12,7 @@ from abc import abstractmethod
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
-from functools import cached_property
+from functools import cached_property, partial
 from typing import ClassVar, final
 from uuid import UUID
 
@@ -148,11 +148,21 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
             attempt.receipt["members"], self._read_inline(attempt), self.adapter.validate_python(result)
         )
         encoded = self.adapter.dump_python(retained, mode="json")["items"]
-        if encoded == attempt.receipt["result"]:
-            return retained, ()
-        attempt.receipt = {**attempt.receipt, "result": encoded}
-        attempt.receipt_pending = True
-        return retained, ("receipt", "receipt_pending")
+        fields: list[str] = []
+        receipt = dict(attempt.receipt)
+        if encoded != receipt["result"]:
+            receipt["result"] = encoded
+            attempt.receipt_pending = True
+            fields.extend(("receipt", "receipt_pending"))
+        if result.diagnostics is not None and result.diagnostics != receipt.get("diagnostics"):
+            # The attempt lock serializes diagnostic and late-evidence writers.
+            # Metadata never changes replay permission or settlement debt.
+            receipt["diagnostics"] = result.diagnostics
+            if "receipt" not in fields:
+                fields.append("receipt")
+        if fields:
+            attempt.receipt = receipt
+        return retained, tuple(fields)
 
     def record_applied(
         self,
@@ -162,6 +172,10 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
         complete: Callable[[BulkResult[ResultT]], bool] | None = None,
     ) -> BulkResult[ResultT] | None:
         if self.model is not None:
+            if result.diagnostics is not None:
+                raise ValueError(
+                    "BulkResult diagnostics require inline receipts; use the custom receipt's metadata API"
+                )
             return super().record_applied(attempt, result, complete=complete)
         retained, fields = self._stage_inline(attempt, result)
         if complete is None or complete(retained):
@@ -613,7 +627,7 @@ class DurableBulkExternalOperation[
                 raise rejected
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     # The NOT_APPLIED decision is committed; recovery settles it
                     # through the same rejection path, exactly once.
@@ -637,18 +651,34 @@ class DurableBulkExternalOperation[
                     raise
                 return after_rejection(rejected)
             last = crossing
-            # The writer's canonical snapshot is only a routing hint. Completion
-            # reloads work and receipt under locks before publishing progress.
-            # The independently committed receipt remains recoverable if we die
-            # before that single progress/completion transaction.
+            # The writer returns only after committing its canonical merge.
+            # Unknown members can still gain late evidence and must be reloaded.
+            retained = recorded
             if recorded is None:  # Legacy/custom writers need not return evidence.
                 recorded = self.evidence_store.read(crossing)
             predicted = advance_progress(work.bulk_keys, self._progress(work), recorded)
             if batch_state(work.bulk_keys, predicted) is BulkOutcomeState.COMPLETE:
+                if (
+                    retained is not None
+                    and retained.complete
+                    and self.combine_completed_progress
+                    and type(self.evidence_store) is BulkEvidenceStore
+                    and type(self).record_applied_effect_evidence
+                    is DurableBulkExternalOperation.record_applied_effect_evidence
+                    and type(self)._prepare_success is DurableBulkExternalOperation._prepare_success
+                ):
+                    # Definite outcomes for this exact membership cannot change:
+                    # the store rejects contradictions. Keep an independent copy
+                    # so provider-owned mutable models cannot alter committed facts.
+                    # This replaces only preparation, never the fresh work fence.
+                    context._success.result = crossing
+                    context._success.prepare = partial(
+                        self._prepare_committed_success, result=retained.model_copy(deep=True)
+                    )
                 return BulkStep.STOP
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     # Match scalar execution: the core completion declines this
                     # stale claim; the committed receipt remains owed to recovery.
@@ -700,6 +730,12 @@ class DurableBulkExternalOperation[
             return self._prepare_completed_progress(work, recorded)
         self._consume_evidence(work, attempt, recorded, completing=True)
         return None
+
+    def _prepare_committed_success(self, work: WorkT, *, result: BulkResult[ResultT]) -> _PreparedWorkUpdates | None:
+        require_fenced_settlement(work)
+        if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
+            return None
+        return self._prepare_completed_progress(work, result)
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         if batch_state(work.bulk_keys, self._progress(work)) is not BulkOutcomeState.COMPLETE:
@@ -900,7 +936,7 @@ class DurableBulkEffect[
                 raise ValueError("replay-safe batches raise for uncertainty instead of returning UNKNOWN")
             with transaction.atomic():
                 lock_work_owner(work)
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 if current is None:
                     raise WorkOwnershipLost("bulk progress lost its claim; recovery resends pending members")
                 state = finalize_under_fence(current, lambda row: self._commit_round(row, result))

@@ -43,7 +43,7 @@ class TaskCapability(DurableWorkCapability[TaskWork, JsonValue]):
     def apply(self, work: TaskWork, context: WorkExecutionContext[TaskWork]) -> JsonValue:
         with context.external_call():
             with transaction.atomic():
-                current = context.claim.owned_work().select_for_update().first()
+                current = context.claim.locked_work()
                 now = database_now()
                 if current is None or current.lease_expires_at is None or current.lease_expires_at <= now:
                     raise WorkOwnershipLost("Task claim expired before execution")
