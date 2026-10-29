@@ -114,7 +114,7 @@ jobs:
         if: matrix.revision == 'baseline'
         with:
           repository: gigaverse-app/due
-          ref: 1f1562416a0c0bc62f6c429dad88a2d7d84728f3
+          ref: af25fdccb7b180a0832ca17e382ad4b395e00410
           path: .widget-baseline
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
         with:
