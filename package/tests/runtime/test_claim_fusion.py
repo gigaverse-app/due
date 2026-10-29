@@ -133,7 +133,8 @@ def test_always_trades_the_attempt_count_of_every_death():
     work = on_time(record())
     Advance.fault = WorkerDied()
     for lateness in (0, 10, 100):
-        with use_database_clock(lambda: work.available_at + timedelta(seconds=lateness)), pytest.raises(WorkerDied):
+        at = work.available_at + timedelta(seconds=lateness)
+        with use_database_clock(lambda at=at: at), pytest.raises(WorkerDied):
             effect.attempt_execution(work.pk)
     work.refresh_from_db()
     assert (work.state, work.attempt_count, len(Advance.entered)) == (DurableWorkState.READY, 0, 3)
