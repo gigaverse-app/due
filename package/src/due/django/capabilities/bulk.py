@@ -146,11 +146,21 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
             attempt.receipt["members"], self._read_inline(attempt), self.adapter.validate_python(result)
         )
         encoded = self.adapter.dump_python(retained, mode="json")["items"]
-        if encoded == attempt.receipt["result"]:
-            return retained, ()
-        attempt.receipt = {**attempt.receipt, "result": encoded}
-        attempt.receipt_pending = True
-        return retained, ("receipt", "receipt_pending")
+        fields: list[str] = []
+        receipt = dict(attempt.receipt)
+        if encoded != receipt["result"]:
+            receipt["result"] = encoded
+            attempt.receipt_pending = True
+            fields.extend(("receipt", "receipt_pending"))
+        if result.diagnostics is not None and result.diagnostics != receipt.get("diagnostics"):
+            # The attempt lock serializes diagnostic and late-evidence writers.
+            # Metadata never changes replay permission or settlement debt.
+            receipt["diagnostics"] = result.diagnostics
+            if "receipt" not in fields:
+                fields.append("receipt")
+        if fields:
+            attempt.receipt = receipt
+        return retained, tuple(fields)
 
     def record_applied(
         self,
@@ -160,6 +170,10 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
         complete: Callable[[BulkResult[ResultT]], bool] | None = None,
     ) -> BulkResult[ResultT] | None:
         if self.model is not None:
+            if result.diagnostics is not None:
+                raise ValueError(
+                    "BulkResult diagnostics require inline receipts; use the custom receipt's metadata API"
+                )
             return super().record_applied(attempt, result, complete=complete)
         retained, fields = self._stage_inline(attempt, result)
         if complete is None or complete(retained):
