@@ -53,6 +53,7 @@ from due.django.runtime.coordination import (
     require_autocommit,
     require_fenced_settlement,
     run_work,
+    statement_time,
     supersede_work,
     wake_work,
 )
@@ -234,7 +235,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     def _enqueue_deadline_hint(self, work_id: WorkId) -> bool:
         require_autocommit()
         if self.deadline_wakeup_horizon is not None:
-            now = database_now()
+            now = statement_time(database_now)
             work = (
                 self._deadline_candidates()
                 .filter(
@@ -275,7 +276,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
                 pk=work_id,
                 desired_revision=revision,
                 available_at=available_at,
-                available_at__lte=database_now(),
+                available_at__lte=statement_time(database_now),
             )
             .exists()
         ):
@@ -283,7 +284,7 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
 
     def _wake_near_deadlines(self, recovery: RecoveryPass) -> int:
         assert self.deadline_wakeup_horizon is not None
-        now = database_now()
+        now = statement_time(database_now)
         upcoming = (
             self._deadline_candidates()
             .filter(

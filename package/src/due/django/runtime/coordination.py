@@ -302,6 +302,17 @@ def _database_statement_clock() -> models.Expression:
     return Now()
 
 
+def statement_time(now: NowFn) -> datetime:
+    """
+    The time a write or filter uses, without a separate clock round trip.
+
+    The default database clock is evaluated by the statement that uses it, so a
+    lock wait still counts against that instant. Explicitly supplied clocks keep
+    their callable contract. Django writes the expression and filters by it.
+    """
+    return cast(datetime, _database_statement_clock()) if now is database_now else now()
+
+
 def claim_work[WorkT: DurableWork](
     model: type[WorkT],
     work_id: WorkId,
@@ -385,7 +396,7 @@ def renew_work[WorkT: DurableWork](
     # the row lock. Keep that wait inside the lease, and use the same instant
     # for both fields, without a separate clock round trip. Explicit clocks
     # retain their callable contract; use_database_clock controls both paths.
-    renewed_at = _database_statement_clock() if now is database_now else now()
+    renewed_at = statement_time(now)
     updated = claim.owned_work().update(
         lease_expires_at=renewed_at + lease_duration,
         updated_at=renewed_at,
@@ -444,7 +455,7 @@ def settle_locked_work[WorkT: DurableWork](
     current.lease_expires_at = None
     # Django 6 returns the persisted expression value before the finalizer.
     # An explicitly supplied clock retains its existing sampling behavior.
-    current.completed_at = cast(datetime, _database_statement_clock()) if now is database_now else now()
+    current.completed_at = statement_time(now)
     current.last_error_code = ""
     fields = ["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
     if prepared is not None:
@@ -1341,12 +1352,17 @@ def continue_work[WorkT: DurableWork](
     finalize_expired: Callable[[WorkT], None] | None = None,
 ) -> bool:
     """Release this claim for a later check, preserving revisions and failure history."""
-    now = database_now()
-    expired = continuation.until is not None and now >= continuation.until
-    available_at = now + continuation.delay
-    if continuation.until is not None:
-        available_at = min(available_at, continuation.until)
-    with transaction.atomic():
+    if continuation.until is None:
+        # Nothing to judge in Python: the release statement samples its own time.
+        now = statement_time(database_now)
+        expired = False
+        available_at = now + continuation.delay
+    else:
+        now = database_now()
+        expired = now >= continuation.until
+        available_at = min(now + continuation.delay, continuation.until)
+    # A release is one UPDATE; only an expiry adds owner locks and a finalizer.
+    with transaction.atomic() if expired else nullcontext():
         if expired:
             lock_work_owner(claim.work)
         updated = claim.owned_work().update(
