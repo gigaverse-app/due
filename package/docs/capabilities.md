@@ -480,6 +480,26 @@ ambiguous provider acceptance, late receipts and stale claim fencing. The
 package's UUID publication example runs the same scalar operation contract
 against real PostgreSQL and exercises JSON task transport.
 
+### Sharing a resource across nested executions
+
+`ExecutionResource(factory, validate=None)` owns an explicit keyed resource
+scope. Use `with resource.acquire(key) as value:` around a bounded dispatcher
+and in its individual work handler. Nested calls for the same key reuse the
+outer resource; independent recovery calls acquire and release their own.
+The factory remains a normal context manager and owns cleanup on every exit.
+
+This differs from `ExternalService`, whose factory result is cached only for
+one admitted execution. Resource reuse is explicit and can span several work
+invocations, for example a campaign concurrency slot or a provider session.
+It never caches work ownership, eligibility, database rows or provider receipts.
+Continue to check changing product state at the original boundaries.
+
+Supply `validate` when a resource can become invalid while its Python scope is
+still open. A PostgreSQL advisory-lock holder must reject a replaced or closed
+database session before reusing its slot. Different keys, threads, async tasks,
+processes and expired copied contexts cannot borrow another owner's resource.
+The library does not renew leases or repair a failed factory automatically.
+
 ### Reusing a canonical receipt read
 
 Evidence stores may override `record_and_read(attempt, result)` to return the
