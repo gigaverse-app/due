@@ -27,6 +27,7 @@ READ_OWNER = "read owner"
 COUNT_OWNER = "count owner"
 LOCK_OWNER = "lock owner"
 UPDATE_OWNER = "update owner"
+ROLLBACK = "rollback"
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,8 @@ class RoundTrips:
         work, owner, holds = (model._meta.db_table for model in (self.work, self.owner, RecoveryDeferral))
         if sql == "SELECT clock_timestamp()":
             return CLOCK
+        if sql == "ROLLBACK":
+            return ROLLBACK
         for verb, table, shape in (
             ("UPDATE", work, UPDATE_WORK),
             ("UPDATE", owner, UPDATE_OWNER),
