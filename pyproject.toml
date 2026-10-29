@@ -36,4 +36,4 @@ members = ["package"]
 [tool.uv.sources]
 django-due = { workspace = true }
 # Cost contracts (pytest-obligation#198); re-pin to the release once it is published.
-pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation", rev = "1af53bc8f0e3d1035a1506b1fb19602d962dc55b", subdirectory = "package" }
+pytest-obligation = { git = "https://github.com/gigaverse-app/pytest-obligation", rev = "bcdc1d7bc7dc873d1d86b78a2f5b9fe923c6d468", subdirectory = "package" }

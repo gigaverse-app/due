@@ -366,8 +366,11 @@ OBLIGATION_COST_BASELINE=update uv run pytest -p no:xdist -k test_statement_cost
 The cases use the real database clock (a frozen scheduler clock would hide clock
 reads) and run each path once unmeasured first, so first-use caches belong to no
 contract. They bind only `make_work`, `delivery` and the environment you already
-declare. Statement counts are deterministic and say nothing about time or CPU;
-keep those to a benchmark.
+declare, with two requirements: a row from `make_work` must be dispatchable once
+aged (otherwise the per-row case fails, rather than recording a cost of taking
+nothing), and the `delivery` binding must be re-enterable, because the warm-up
+and the measured delivery each enter it. Statement counts are deterministic and
+say nothing about time or CPU; keep those to a benchmark.
 
 ## Prove the proof, and use exploration where it applies
 

@@ -5,7 +5,7 @@
 # `OBLIGATION_COST_BASELINE=update pytest -p no:xdist <tests>` and review the diff: it is
 # the cost change of the PR.
 #
-# Canonical doc: docs/cost-contracts.md
+# Canonical doc: https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/cost-contracts.md
 
 costs:
 - contract: 'batch_self_test: idle tick'

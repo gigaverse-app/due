@@ -165,7 +165,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import outstanding_work
+from due.django.runtime.coordination import CLAIMABLE_STATES, outstanding_work
 from due.django.runtime.registry import DurableWorkRegistration
 from due.django.runtime.tasks import (
     recover_durable_work_task,
@@ -1005,8 +1005,16 @@ def assert_statement_costs[W: UniverseDurableWork, ResultT](
     def tick() -> None:
         recover_durable_work_task(entry.name)
 
+    made: list[Any] = []
+
     def make_owed() -> None:
-        bindings.age(examples.make_work())
+        work = examples.make_work()
+        bindings.age(work)
+        made.append(work.pk)
+
+    def waiting() -> int:
+        # A tick that left its rows due measured nothing; every one must be taken.
+        return capability.model.objects.filter(pk__in=made, state__in=CLAIMABLE_STATES).count()
 
     def deliver() -> Counter[str]:
         # Inside the example's scope: its provider seam must be live while the worker runs.
@@ -1024,7 +1032,7 @@ def assert_statement_costs[W: UniverseDurableWork, ResultT](
         if path == "idle tick":
             shapes = Counter(statement_shapes(tick))
         elif path == "per owed row":
-            shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick)
+            shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick, remaining=waiting)
         else:
             assert path == "one delivery", f"unknown cost path {path!r}"
             deliver()
