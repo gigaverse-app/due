@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0](https://github.com/gigaverse-app/due/compare/v0.12.2...v0.13.0) (2026-10-29)
+
+
+### Features
+
+* **runtime:** reuse explicitly scoped execution resources ([e0d817f](https://github.com/gigaverse-app/due/commit/e0d817f81545495964225ab90d62f8dae46b8379))
+
+
+### Performance
+
+* **bulk:** pass committed evidence into fenced completion ([ed88497](https://github.com/gigaverse-app/due/commit/ed88497dac83557abf5d096df8bedfec10ba4939))
+* **bulk:** persist diagnostics with canonical receipts ([fc1cd7d](https://github.com/gigaverse-app/due/commit/fc1cd7dbd7bdc9dc46aea10c80a14dac54496b6a))
+* **runtime:** avoid rebuilding fixed work ownership lookups ([d47c272](https://github.com/gigaverse-app/due/commit/d47c2728da5ae8e885a41abbb9c50d86408abd8b))
+
 ## [0.12.2](https://github.com/gigaverse-app/due/compare/v0.12.1...v0.12.2) (2026-10-29)
 
 
