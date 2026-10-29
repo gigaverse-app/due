@@ -4,7 +4,8 @@ Name every database round trip a durable-work path sends, by what it does to whi
 Budgets compare these names exactly, so a returning redundant read, a separate
 clock read or a savepoint fails where it is introduced rather than showing up
 as database load. Transaction control (BEGIN/COMMIT) is the same before and
-after an optimization and is left out; anything else unclassified fails.
+after an optimization and is left out; ROLLBACK is named, because a path that
+declines and retries another way pays for it. Anything else unclassified fails.
 """
 
 from collections.abc import Callable
@@ -27,6 +28,9 @@ READ_OWNER = "read owner"
 COUNT_OWNER = "count owner"
 LOCK_OWNER = "lock owner"
 UPDATE_OWNER = "update owner"
+ROLLBACK = "rollback"
+SAVEPOINT = "savepoint"
+RELEASE_SAVEPOINT = "release savepoint"
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,12 @@ class RoundTrips:
         work, owner, holds = (model._meta.db_table for model in (self.work, self.owner, RecoveryDeferral))
         if sql == "SELECT clock_timestamp()":
             return CLOCK
+        if sql == "ROLLBACK":
+            return ROLLBACK
+        if sql.startswith("SAVEPOINT "):
+            return SAVEPOINT
+        if sql.startswith("RELEASE SAVEPOINT "):
+            return RELEASE_SAVEPOINT
         for verb, table, shape in (
             ("UPDATE", work, UPDATE_WORK),
             ("UPDATE", owner, UPDATE_OWNER),
