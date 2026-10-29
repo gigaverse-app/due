@@ -1,7 +1,7 @@
 """Set-based writes preserve receipts and ordinary recovery after a group rollback."""
 
 import pytest
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from pytest_obligation.worker_death import WorkerDied
 
@@ -62,3 +62,27 @@ def test_failed_set_based_completion_recovers_without_repeating_mail(composed_in
             assert row.delivered == [str(i)]
             assert SendChunk.accepted_by_work[row.pk] == [str(i)]
         assert len(SendChunk.calls) == 3
+
+
+def test_rolled_back_nested_hook_cannot_leak_receipt_clearing_into_the_group(composed_inline_chunk, monkeypatch):
+    capability = composed_inline_chunk
+    rows = rows_for(capability)
+    finalize = type(capability).finalize_success
+
+    def rollback_receipt_marker(self, work, result):
+        try:
+            with transaction.atomic():
+                finalize(self, work, result)
+                raise ValueError("the hook's nested transaction rolled back")
+        except ValueError:
+            pass
+
+    with monkeypatch.context() as fault:
+        fault.setattr(type(capability), "finalize_success", rollback_receipt_marker)
+        assert all(capability.attempt_many([row.pk for row in rows], set_based=True).values())
+    # The success rows committed, but each inner marker write rolled back.
+    # A deferred-write collection must not survive that inner rollback.
+    assert all(attempts_for(row).get().receipt_pending for row in rows)
+    capability.recover()
+    assert all(not attempts_for(row).get().receipt_pending for row in rows)
+    assert len(SendChunk.calls) == 3

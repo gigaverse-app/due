@@ -256,6 +256,32 @@ call until exact-attempt evidence resolves it. Duplicate, foreign and
 contradictory receipts are rejected. Partial receipts merge monotonically in
 the canonical store and use the same settlement path as a live response.
 
+#### Completing several independent work rows
+
+`attempt_many(ids, settlement_batch_size=8)` shares bounded completion commits
+for self-owned work. Claims, provider calls and canonical receipts retain their
+individual transactions. Product progress becomes visible when the group commits
+or the iterable ends; the bound counts rows, not elapsed time. A lost buffer is
+reconstructed from receipts by ordinary recovery.
+
+For independent completion hooks, `set_based=True` additionally combines work
+updates and receipt-marker updates. The same coordinator prepares each success,
+the persistence adapter writes the group, and the existing finalizers run. Model
+save overrides, custom fields, inheritance and save-signal listeners fall back to
+ordinary saves. Nested savepoint rollbacks cannot leak deferred receipt writes.
+
+Before opting in, verify that preparation and completion hooks do not depend on
+peer progress or read receipt-debt markers. Preparation runs for the group before
+its success writes, and receipt markers are cleared after the group's finalizers.
+Rows in one UPDATE share a database statement timestamp; statement-level database
+triggers also see one group instead of separate statements. Applications that
+need those per-row observations should keep the default mode.
+
+Hook failure rolls back the group, then retries ordinary settlement per row.
+Hooks must remain transaction-local and safe to rerun after rollback. Accepted
+provider effects are not repeated. The existing single-row API remains available
+for synchronous per-row visibility and for recovery.
+
 #### Choose receipt storage
 
 Declare `receipt_model = None` to store captured membership and typed results
