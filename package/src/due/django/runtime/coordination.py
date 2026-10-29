@@ -4,7 +4,7 @@ See docs/architecture.md for Due's guarantees and integration boundaries.
 """
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -150,33 +150,50 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
         """Read current ownership without rebuilding a fixed ORM query.
 
         Custom managers and multi-table models keep their ordinary query path.
-        RawQuerySet retains field conversion, from_db and model init signals.
         No model data, authority decision or database clock is cached.
         """
         manager = self.model.objects
         if type(manager) is not models.Manager or self.model._meta.parents:
             return self.owned_work().select_for_update().first()
-        alias = manager.select_for_update().db
-        db = connections[alias]
-        if not db.in_atomic_block:
-            raise transaction.TransactionManagementError("work locking requires a transaction")
-        quote = db.ops.quote_name
-        columns = ", ".join(quote(cast(str, field.column)) for field in self.model._meta.concrete_fields)
-        authority = self._authority()
-        predicates = []
-        for name in authority:
-            column = self.model._meta.pk if name == "pk" else self.model._meta.get_field(name)
-            assert isinstance(column, models.Field)
-            predicates.append(f"{quote(cast(str, column.column))} = %s")
-        predicate = " AND ".join(predicates)
-        rows = list(
-            manager.raw(
-                f"SELECT {columns} FROM {quote(self.model._meta.db_table)} WHERE {predicate} FOR UPDATE",
-                list(authority.values()),
-                using=alias,
-            )
+        return locked_row(manager, self._authority(), subject="work")
+
+
+def locked_row[RowT: models.Model](
+    manager: models.Manager[RowT], lookup: Mapping[str, object], *, subject: str
+) -> RowT | None:
+    """Lock and read the one row matching exact column equalities, without query compilation.
+
+    This is always a database read, never a cached row. RawQuerySet retains
+    field conversion, from_db and model init signals. Locking uses the
+    manager's write routing and requires the caller's transaction. Callers own
+    the decision that the manager's plain table read is the authoritative
+    visibility; custom managers and multi-table models must use the ORM.
+    """
+    model = manager.model
+    alias = manager.select_for_update().db
+    db = connections[alias]
+    if not db.in_atomic_block:
+        raise transaction.TransactionManagementError(f"{subject} locking requires a transaction")
+    quote = db.ops.quote_name
+    # Select only this worker's known fields. A newer deployment may have
+    # added columns that an older Django model must not treat as annotations.
+    columns = ", ".join(quote(cast(str, field.column)) for field in model._meta.concrete_fields)
+    predicates = []
+    for name in lookup:
+        column = model._meta.pk if name == "pk" else model._meta.get_field(name)
+        assert isinstance(column, models.Field)
+        predicates.append(f"{quote(cast(str, column.column))} = %s")
+    predicate = " AND ".join(predicates)
+    # Identifiers come from the model; every value is a bound parameter, and
+    # FOR UPDATE retains serialization with late writers.
+    rows = list(
+        manager.raw(
+            f"SELECT {columns} FROM {quote(model._meta.db_table)} WHERE {predicate} FOR UPDATE",
+            list(lookup.values()),
+            using=alias,
         )
-        return rows[0] if rows else None
+    )
+    return rows[0] if rows else None
 
 
 class WorkOwnershipLost(RuntimeError):
