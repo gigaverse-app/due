@@ -1,7 +1,7 @@
 """Read committed membership with one round trip, retaining fail-closed identity checks."""
 
 import pytest
-from django.db import DatabaseError, connection
+from django.db import DatabaseError, connection, transaction
 from django.test.utils import CaptureQueriesContext
 
 from due.django.evidence.attempts import record_effect_attempt
@@ -70,12 +70,14 @@ def test_failed_commit_discards_the_prepared_provider_call(request, layout, monk
     assert claim is not None
     reached = []
 
-    def fail_commit():
+    def fail_commit(self):
         reached.append(operation.current_batch(claim.work).keys)
         raise DatabaseError("attempt commit failed")
 
     with monkeypatch.context() as patch:
-        patch.setattr(connection, "commit", fail_commit)
+        # Patching the ConnectionProxy instance restores a bound method onto the
+        # underlying connection, shadowing later class-level crash instrumentation.
+        patch.setattr(type(transaction.get_connection()), "commit", fail_commit)
         with pytest.raises(DatabaseError, match="attempt commit failed"):
             operation._apply_with_evidence(claim.work, WorkExecutionContext(claim, operation.policy.lease_duration))
     assert reached == [("a", "b")]
