@@ -176,7 +176,7 @@ def record_effect_attempt[WorkT: DurableWork](
     with transaction.atomic():
         if before_commit is not None:
             lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         # The lease can expire while SELECT FOR UPDATE waits. Sample the
         # authoritative clock only after acquiring the row, and use that same
         # instant for this attempt's start inside the protected transaction.
