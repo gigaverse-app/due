@@ -12,8 +12,15 @@ from due.django.testing import make_due
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 from tests.harness.self_work import SendChunk
 from tests.harness.self_work import composed_inline_chunk_environment as composed_inline_chunk_environment
+from tests.harness.self_work import inline_chunk_environment as inline_chunk_environment
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+@pytest.fixture(params=["composed_inline_chunk", "inline_chunk"], ids=["combined-progress", "separate-progress"])
+def chunk(request):
+    """Set-based writes with and without completed progress combined into core settlement."""
+    return request.getfixturevalue(request.param)
 
 
 def rows_for(capability):
@@ -24,10 +31,10 @@ def rows_for(capability):
 
 
 @pytest.mark.parametrize("set_based", [False, True])
-def test_completion_batches_actual_work_and_receipt_updates(composed_inline_chunk, set_based):
-    rows = rows_for(composed_inline_chunk)
+def test_completion_batches_actual_work_and_receipt_updates(chunk, set_based):
+    rows = rows_for(chunk)
     with CaptureQueriesContext(connection) as queries:
-        assert all(composed_inline_chunk.attempt_many([row.pk for row in rows], set_based=set_based).values())
+        assert all(chunk.attempt_many([row.pk for row in rows], set_based=set_based).values())
     successes = [q["sql"] for q in queries if q["sql"].startswith("UPDATE") and "completed_at" in q["sql"]]
     finishes = [q["sql"] for q in queries if q["sql"].startswith("UPDATE") and '"repair_pending" = false' in q["sql"]]
     assert len(successes) == (1 if set_based else 3), successes
@@ -41,8 +48,8 @@ def test_completion_batches_actual_work_and_receipt_updates(composed_inline_chun
 
 
 @pytest.mark.parametrize("death", [False, True])
-def test_failed_set_based_completion_recovers_without_repeating_mail(composed_inline_chunk, monkeypatch, death):
-    capability = composed_inline_chunk
+def test_failed_set_based_completion_recovers_without_repeating_mail(chunk, monkeypatch, death):
+    capability = chunk
     with WorkTableDelivery(capability).session() as delivery:
         rows = rows_for(capability)
         finalize = type(capability).finalize_success
@@ -64,8 +71,8 @@ def test_failed_set_based_completion_recovers_without_repeating_mail(composed_in
         assert len(SendChunk.calls) == 3
 
 
-def test_rolled_back_nested_hook_cannot_leak_receipt_clearing_into_the_group(composed_inline_chunk, monkeypatch):
-    capability = composed_inline_chunk
+def test_rolled_back_nested_hook_cannot_leak_receipt_clearing_into_the_group(chunk, monkeypatch):
+    capability = chunk
     rows = rows_for(capability)
     finalize = type(capability).finalize_success
 

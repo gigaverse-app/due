@@ -11,7 +11,7 @@ from due.django.identities import WorkId
 from due.django.integration import current_universe_scope
 from due.django.models import UniverseDurableWork
 from due.django.runtime.coordination import _WorkCompletion, finalize_locked_completion, require_autocommit
-from due.django.runtime.metrics import DurableWorkOperation, record_work_operation
+from due.django.runtime.metrics import DurableWorkOperation, operations_counted_on_success, record_work_operation
 from due.django.runtime.recovery_pass import ends_the_tick
 from due.django.runtime.settlement_writes import can_combine_saves, combined_receipt_writes, save_completions
 
@@ -62,7 +62,8 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
     def _group(self, pending: list[_WorkCompletion[WorkT]]) -> dict[WorkId, bool]:
         outcomes: dict[WorkId, bool] = {}
         query = pending[0].claim.model.objects.filter(pk__in=[item.claim.work_id for item in pending])
-        with transaction.atomic():
+        # Counted after the group commits: a rolled-back group is settled again per row.
+        with operations_counted_on_success(), transaction.atomic():
             # Global PK order prevents two batches taking these locks in opposite
             # order. Only self-owned rows may enter this path; owner locks retain
             # their existing ordering in ordinary execution.

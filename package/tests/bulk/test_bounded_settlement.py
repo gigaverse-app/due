@@ -1,5 +1,6 @@
 """Independent provider acceptances survive bounded, shared settlement commits."""
 
+from dataclasses import replace
 from datetime import datetime
 from uuid import uuid7
 
@@ -8,14 +9,17 @@ from billiard.exceptions import SoftTimeLimitExceeded
 from django.db import connection
 from django.db.models.signals import post_save
 from django.test.utils import CaptureQueriesContext
+from prometheus_client import REGISTRY
 from pytest_obligation.worker_death import WorkerDied
 
 from due.django.conformance.delivery import WorkTableDelivery
+from due.django.declarations.dependents import Dependent
 from due.django.evidence.attempts import attempts_for
 from due.django.models import DurableWorkState
 from due.django.testing import make_due
 from due.errors import EffectNotAppliedError
 from tests.harness.bulk import result
+from tests.harness.primitive import PrimitiveWork
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
 from tests.harness.self_work import SendChunk
 from tests.harness.self_work import composed_inline_chunk_environment as composed_inline_chunk_environment
@@ -197,3 +201,28 @@ def test_grouped_completion_preserves_model_saves_and_signals(composed_inline_ch
     finally:
         post_save.disconnect(observe, sender=capability.model)
     assert saves == signals == [row.pk for row in rows]
+
+
+def test_a_rolled_back_group_counts_each_settlement_once(composed_inline_chunk, monkeypatch):
+    capability = composed_inline_chunk
+    rows = chunks(capability)
+    labels = {"effect": capability.model._meta.label_lower, "operation": "succeeded"}
+    before = REGISTRY.get_sample_value("due_operations_total", labels) or 0
+
+    def broken(self, work, result):
+        if work.pk == rows[1].pk:
+            raise ValueError("broken product hook")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(SendChunk, "finalize_batch", broken)
+        with pytest.raises(ExceptionGroup, match="settlement"):
+            capability.attempt_many([row.pk for row in rows], settlement_batch_size=3)
+    # Row 0 settled inside the discarded group too; only the per-row retry committed.
+    assert (REGISTRY.get_sample_value("due_operations_total", labels) or 0) - before == 2
+
+
+def test_grouping_refuses_work_that_wakes_dependents(composed_inline_chunk):
+    waking = replace(composed_inline_chunk, wakes=(Dependent(work=PrimitiveWork, via=lambda work: None),))
+    with pytest.raises(ValueError, match="wakes dependents"):
+        waking.attempt_many([], settlement_batch_size=2)
+    assert waking.attempt_many([], settlement_batch_size=1) == {}
