@@ -58,7 +58,7 @@ from due.django.runtime.coordination import (
     unknown_locked_work,
 )
 from due.django.runtime.metrics import RecoveryPhase
-from due.django.runtime.recovery_pass import RecoveryStep
+from due.django.runtime.recovery_pass import RecoveryStep, ends_the_tick
 from due.django.runtime.settlement_batch import _SettlementBatch
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
@@ -398,6 +398,8 @@ class DurableBulkExternalOperation[
                 if batch.full:
                     batch.flush()
         except Exception as error:
+            if ends_the_tick(error):
+                raise
             try:
                 batch.flush()
             except Exception as settlement_error:

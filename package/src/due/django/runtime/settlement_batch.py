@@ -12,6 +12,7 @@ from due.django.integration import current_universe_scope
 from due.django.models import UniverseDurableWork
 from due.django.runtime.coordination import _WorkCompletion, require_autocommit
 from due.django.runtime.metrics import DurableWorkOperation, record_work_operation
+from due.django.runtime.recovery_pass import ends_the_tick
 
 
 class _SettlementBatch[WorkT: UniverseDurableWork]:
@@ -37,7 +38,9 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
             try:
                 self.outcomes.update(self._group(pending))
                 return
-            except Exception:
+            except Exception as error:
+                if ends_the_tick(error):
+                    raise
                 # The group rolled back. Preserve ordinary per-row isolation on
                 # the exceptional path, without ever executing a provider again.
                 pass
@@ -47,6 +50,8 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
                 with current_universe_scope(completion.claim.work.work_universe()), execution_external_services():
                     self.outcomes[completion.claim.work_id] = completion.complete()
             except Exception as error:
+                if ends_the_tick(error):
+                    raise
                 errors.append(error)
         if errors:
             # Durable receipts remain eligible for the registered recovery pass.

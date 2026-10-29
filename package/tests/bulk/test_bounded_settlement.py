@@ -3,6 +3,7 @@
 from uuid import uuid7
 
 import pytest
+from billiard.exceptions import SoftTimeLimitExceeded
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from pytest_obligation.worker_death import WorkerDied
@@ -143,3 +144,19 @@ def test_invalid_bound_rejected_before_provider_calls(composed_inline_chunk, siz
     with pytest.raises((ValueError, TypeError), match="settlement_batch_size"):
         composed_inline_chunk.attempt_many([row.pk], settlement_batch_size=size)
     assert SendChunk.calls == []
+
+
+def test_soft_time_limit_does_not_start_per_row_settlement_fallback(composed_inline_chunk, monkeypatch):
+    capability = composed_inline_chunk
+    rows = chunks(capability)
+    reached = []
+
+    def stop(self, work, result):
+        reached.append(work.pk)
+        raise SoftTimeLimitExceeded()
+
+    monkeypatch.setattr(SendChunk, "finalize_batch", stop)
+    with pytest.raises(SoftTimeLimitExceeded):
+        capability.attempt_many([row.pk for row in rows], settlement_batch_size=3)
+    assert reached == [rows[0].pk]
+    assert list(capability.model.objects.values_list("delivered", flat=True)) == [[], [], []]
