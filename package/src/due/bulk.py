@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from time import sleep as time_sleep
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, JsonValue
 
 from due.retry_delays import ExponentialDelay
 
@@ -34,6 +34,9 @@ class BulkOutcome[ResultT: BaseModel](BaseModel):
 
 class BulkResult[ResultT: BaseModel](BaseModel):
     items: tuple[BulkOutcome[ResultT], ...]
+    # Optional opaque metadata for inline receipts. It is not a verdict and is
+    # excluded from canonical result serialization and progress reduction.
+    diagnostics: JsonValue | None = Field(default=None, exclude=True)
 
     @property
     def complete(self) -> bool:

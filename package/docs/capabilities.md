@@ -275,8 +275,16 @@ retention remains disabled (`retention=None`), and Due's generic attempt
 compactor also excludes inline receipts.
 
 An inline receipt has `members`, `result`, and optionally `diagnostics` keys.
+Return `BulkResult(items=..., diagnostics=json_value)` to persist provider
+metadata in the same locked update and commit as its semantic receipt. `None`
+leaves existing diagnostics unchanged. Diagnostics are excluded from canonical
+result serialization and never authorize replay or create settlement debt.
+If receipt validation or its commit fails, neither the new verdicts nor the
+accompanying diagnostics persist; uncertainty still prevents another send.
+
 Use the capability's `record_receipt_diagnostics(attempt_id, json_value)` for
-opaque provider metadata. It preserves concurrently accepted semantic evidence
+independent metadata observations, including failures without a batch result.
+It retains its immediate-write behavior and preserves concurrently accepted semantic evidence
 and does not grant replay permission. It is available only with inline storage;
 custom receipt models keep their own metadata API. Diagnostics are last-write-wins
 and are not used as evidence unless the adopter separately validates a typed
