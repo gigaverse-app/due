@@ -13,6 +13,7 @@ from threading import Event
 from typing import ClassVar
 
 import pytest
+from billiard.exceptions import SoftTimeLimitExceeded
 from django.db import close_old_connections, connection
 from django.test.utils import CaptureQueriesContext
 from pytest_obligation.worker_death import WorkerDied
@@ -25,11 +26,24 @@ from due.django.public import (
     ReplaySafeEffect,
     database_now,
 )
+from due.django.runtime import coordination
 from due.django.testing import use_database_clock
+from due.errors import WorkDeferredError
 from tests.harness.primitive import PrimitiveOwner, PrimitiveWork, primitive, record
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
+from tests.harness.round_trips import (
+    LOCK_OWNER,
+    LOCK_WORK,
+    READ_OWNER,
+    RELEASE_SAVEPOINT,
+    SAVEPOINT,
+    UPDATE_OWNER,
+    UPDATE_WORK,
+    RoundTrips,
+)
 
 pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("isolated_primitive")]
+_round_trips = RoundTrips(work=PrimitiveWork, owner=PrimitiveOwner).of
 
 
 class Advance(DatabaseEffect[PrimitiveOwner, PrimitiveWork]):
@@ -94,18 +108,64 @@ def test_an_on_time_attempt_claims_transitions_and_settles_in_one_commit(fusion,
     assert work.lease_expires_at is None
 
 
-@pytest.mark.parametrize("fusion", [ClaimFusion.AUTO, ClaimFusion.ALWAYS])
-def test_a_failed_fused_transition_rolls_back_and_is_counted_once(fusion):
+def _fail_once(fusion: ClaimFusion, fault: Exception) -> tuple[object, ...]:
     effect = capability(fusion)
     work = on_time(record())
-    Advance.fault = OSError("product write failed")
-    with pytest.raises(OSError, match="product write failed"):
-        effect.attempt_execution(work.pk)
+    Advance.fault, Advance.entered = fault, []
+    try:
+        returned = effect.attempt_execution(work.pk)
+    except type(fault):
+        returned = "raised"
     work.refresh_from_db()
-    # The transition ran once; its product write rolled back; the retry is recorded as ordinarily.
+    # The transition ran exactly once, and its product write rolled back.
     assert Advance.entered == [work.pk]
     assert owner_value(work) == "before"
-    assert (work.state, work.attempt_count, work.rearm_count) == (DurableWorkState.RETRYABLE, 1, 1)
+    return returned, work.state, work.attempt_count, work.rearm_count, work.last_error_code
+
+
+@pytest.mark.parametrize("fusion", [ClaimFusion.AUTO, ClaimFusion.ALWAYS])
+@pytest.mark.parametrize(
+    "fault",
+    [OSError("product write failed"), SoftTimeLimitExceeded(), WorkDeferredError("dependency not ready")],
+    ids=["retryable", "orderly-stop", "deferral"],
+)
+def test_a_failed_fused_attempt_is_recorded_exactly_like_an_ordinary_one(fusion, fault):
+    # Recorded through a committed claim after the rollback: the same outcome, budget and count.
+    assert _fail_once(fusion, fault) == _fail_once(ClaimFusion.NEVER, fault)
+
+
+def test_the_conformance_entry_seam_sees_fused_attempts(monkeypatch):
+    effect = capability(ClaimFusion.AUTO)
+    work = on_time(record())
+    original = coordination._execute_claim
+    entered: list[bool] = []
+
+    def counted(claim, **options):
+        entered.append(claim.uncommitted is not None)
+        return original(claim, **options)
+
+    monkeypatch.setattr(coordination, "_execute_claim", counted)
+    assert effect.attempt_execution(work.pk)
+    assert entered == [True]
+
+
+def test_a_completing_fused_attempt_relocks_inside_its_transaction():
+    effect = capability(ClaimFusion.AUTO)
+    work = on_time(record())
+    PrimitiveOwner.objects.filter(pk=work.owner_id).update(value="before+")
+    # Completion reuses complete_work, which re-locks owner and work in a savepoint
+    # (as ordinary database-only completion does). A known redundancy, pinned here.
+    assert _round_trips(lambda: effect.attempt_execution(work.pk)) == [
+        LOCK_OWNER,
+        LOCK_WORK,
+        READ_OWNER,
+        UPDATE_OWNER,
+        SAVEPOINT,
+        LOCK_OWNER,
+        LOCK_WORK,
+        UPDATE_WORK,
+        RELEASE_SAVEPOINT,
+    ]
 
 
 def test_auto_loses_at_most_the_on_time_death_then_counts_every_attempt():

@@ -38,7 +38,7 @@ from due.django.runtime.metrics import (
     record_work_census,
     record_work_operation,
 )
-from due.django.runtime.recovery_pass import RecoveryPass, ends_the_tick, recovery_pass_for
+from due.django.runtime.recovery_pass import RecoveryPass, recovery_pass_for
 from due.errors import WorkDeferredError, WorkFailureDisposition, provider_wait_delay
 
 logger = logging.getLogger(__name__)
@@ -1391,14 +1391,16 @@ def _run_fused[WorkT: DurableWork](
     except _NotFused:
         return None
     except Exception as error:
-        if ends_the_tick(error):
-            raise
         # Nothing of the attempt survived the rollback. Count it with a committed
-        # claim, then record the same failure an ordinary attempt would have.
+        # claim, then record the same failure an ordinary attempt would have,
+        # including an orderly stop, which ordinary execution also records first.
         committed = claim_work(
             model, work_id, lease_duration=lease_duration, expected_revision=expected_revision, eligibility=eligibility
         )
         if committed is None:
+            # Another attempt owns the row now. A deferral has nothing to report.
+            if isinstance(error, WorkDeferredError):
+                return False
             raise
         with current_universe_scope(committed.work.work_universe()):
             return _record_failure(committed, error, options["failure"])
