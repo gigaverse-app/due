@@ -64,7 +64,9 @@ def merge_bulk_evidence[ResultT: BaseModel](
             continue  # Stale uncertainty cannot erase definite evidence.
         merged[item.key] = item
     return BulkResult(
-        items=tuple(merged.get(key, BulkOutcome(key=key, state=BulkOutcomeState.UNKNOWN)) for key in members)
+        items=tuple(
+            merged[key] if key in merged else BulkOutcome(key=key, state=BulkOutcomeState.UNKNOWN) for key in members
+        )
     )
 
 
