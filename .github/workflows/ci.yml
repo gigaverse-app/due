@@ -215,7 +215,16 @@ jobs:
       - name: Run library controls without demo applications
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false' }}
         working-directory: package
-        run: ../.venv/bin/python -m pytest -n 4 --dist worksteal --due-work-check-fixtures --junitxml=../library-timings.xml
+        run: |
+          mkdir -p ../library-reports
+          ../.venv/bin/python -m pytest -n 4 --dist worksteal --due-work-check-fixtures --junitxml=../library-timings.xml -p due.django.conformance.reporting --due-work-profile-report=../library-reports/profiles.json --durable-work-report=../library-reports/effects.json
+      - name: Retain executed library obligation proofs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && (needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false') }}
+        with:
+          name: library-obligation-profiles-${{ matrix.django }}
+          path: library-reports/*.json
+          if-no-files-found: error
       - name: Run full suite including live web, worker and Beat recovery
         if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
         run: uv run --no-sync pytest -n 4 --dist worksteal --due-work-check-fixtures --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=integration_tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json --junitxml=test-timings.xml -o junit_family=xunit1
