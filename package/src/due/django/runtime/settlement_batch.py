@@ -59,9 +59,7 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
 
     def _group(self, pending: list[_WorkCompletion[WorkT]]) -> dict[WorkId, bool]:
         outcomes: dict[WorkId, bool] = {}
-        query = pending[0].claim.model.objects.none()
-        for completion in pending:
-            query |= completion.claim.owned_work()
+        query = pending[0].claim.model.objects.filter(pk__in=[item.claim.work_id for item in pending])
         with transaction.atomic():
             # Global PK order prevents two batches taking these locks in opposite
             # order. Only self-owned rows may enter this path; owner locks retain
@@ -70,8 +68,11 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
             for completion in pending:
                 claim = completion.claim
                 row = current.pop(claim.work_id, None)
-                outcomes[claim.work_id] = row is not None
-                if row is None:
+                # Batch selection is only a lock acquisition. Publication still
+                # needs every captured ownership fact on the freshly locked row.
+                owned = row is not None and claim.owns_locked(row)
+                outcomes[claim.work_id] = owned
+                if not owned or row is None:
                     record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
                     continue
                 with current_universe_scope(row.work_universe()), execution_external_services():

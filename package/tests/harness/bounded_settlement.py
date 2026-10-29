@@ -7,6 +7,7 @@ from functools import partial
 from uuid import UUID
 
 from pytest_obligation.contract import ExtraProof
+from pytest_obligation.crash_histories import HandoffHistory, assert_crash_at_every_commit_converges
 from pytest_obligation.profiles.eventual_convergence import (
     ConvergentWrite,
     assert_convergent_write_contract,
@@ -17,6 +18,7 @@ from pytest_obligation.worker_death import WorkerDied
 
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.regressions import _with_duplicate_effect, _without_recovery
+from due.django.runtime.settlement_batch import _SettlementBatch
 from due.django.testing import make_due
 from tests.harness.self_work import SendChunk
 
@@ -87,8 +89,46 @@ def prove_buffered_convergence(capability: SendChunk) -> None:
         assert_convergent_write_contract(binding)
 
 
+def prove_settlement_commit_histories(capability: SendChunk) -> None:
+    # ARRANGE: the real engine captures completions after durable provider receipts.
+    # EXTERNAL SEAM: SendChunk's independent provider acceptance ledger.
+    def arrange():
+        rows = [capability.model.objects.create(universe="acme", bulk_keys=[str(i)]) for i in range(3)]
+        batches = [_SettlementBatch(2), _SettlementBatch(2)]
+        for index, row in enumerate(rows):
+            make_due(row)
+            capability._attempt_execution(row.pk, completion=batches[index // 2].add)
+        return rows, batches
+
+    # REAL PRODUCTION: the exact flush used by attempt_many, including its fallback.
+    def settle(handle):
+        for batch in handle[1]:
+            _SettlementBatch.flush(batch)
+
+    # OBSERVE: persisted product members and external provider acceptances.
+    def observe(handle):
+        return tuple(
+            (tuple(capability.model.objects.get(pk=row.pk).delivered), tuple(SendChunk.accepted_by_work[row.pk]))
+            for row in handle[0]
+        )
+
+    history = HandoffHistory(
+        name="bounded completion commit",
+        arrange=arrange,
+        transition=settle,
+        observe=observe,
+        expected=tuple(((str(i),), (str(i),)) for i in range(3)),
+    )
+    assert_crash_at_every_commit_converges(WorkTableDelivery(capability), history)
+
+
 def bounded_settlement_proofs(capability: SendChunk) -> tuple[ExtraProof, ...]:
     return (
+        ExtraProof(
+            name="bounded_completion_commit_histories",
+            run=partial(prove_settlement_commit_histories, capability),
+            transactional=True,
+        ),
         ExtraProof(
             name="bounded_receipt_recovery", run=partial(prove_buffered_convergence, capability), transactional=True
         ),

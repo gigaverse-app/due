@@ -136,11 +136,20 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
 
     def owned_work(self) -> QuerySet[ClaimedWorkT]:
         """Select this captured claim's authority; callers own locking and lease checks."""
-        return self.model.objects.filter(
-            pk=self.work_id,
-            state=DurableWorkState.CLAIMED,
-            fencing_token=self.token,
-            desired_revision=self.desired_revision,
+        return self.model.objects.filter(**self._authority())
+
+    def _authority(self) -> dict[str, object]:
+        return {
+            "pk": self.work_id,
+            "state": DurableWorkState.CLAIMED,
+            "fencing_token": self.token,
+            "desired_revision": self.desired_revision,
+        }
+
+    def owns_locked(self, current: ClaimedWorkT) -> bool:
+        """Check the same predicate on a freshly locked row, never a claim snapshot."""
+        return type(current) is self.model and all(
+            getattr(current, name) == value for name, value in self._authority().items()
         )
 
 
