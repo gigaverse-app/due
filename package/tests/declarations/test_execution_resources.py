@@ -102,7 +102,8 @@ def test_failed_validation_does_not_borrow_or_leak_the_resource():
 
 
 @pytest.mark.django_db(transaction=True)
-def test_postgres_lock_reuse_preserves_exclusion_until_the_outer_scope_exits():
+@pytest.mark.parametrize("reuse", [False, True])
+def test_postgres_lock_reuse_preserves_exclusion_until_the_outer_scope_exits(reuse):
     key = 83147590
 
     @contextmanager
@@ -127,12 +128,13 @@ def test_postgres_lock_reuse_preserves_exclusion_until_the_outer_scope_exits():
             connections.close_all()
 
     resource = ExecutionResource(lock)
+    acquire = resource.acquire if reuse else lock
     with ThreadPoolExecutor(max_workers=1) as observer:
         with CaptureQueriesContext(connection) as queries:
-            with resource.acquire(key):
+            with acquire(key):
                 for _ in range(9):
-                    with resource.acquire(key):
+                    with acquire(key):
                         assert not observer.submit(available).result(timeout=5)
                 assert not observer.submit(available).result(timeout=5)
         assert observer.submit(available).result(timeout=5)
-    assert len(queries) == 2
+    assert len(queries) == (2 if reuse else 20)
