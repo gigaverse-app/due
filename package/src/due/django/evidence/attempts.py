@@ -169,15 +169,14 @@ def record_effect_attempt[WorkT: DurableWork](
         # instant for this attempt's start inside the protected transaction.
         # Built-in scalar and bulk policies share their existing query with
         # this clock read. Adopter overrides retain their method and call order.
-        possible = None
+        evidence = None
         if (
             current is not None
             and current.requires_effect_evidence
             and inherits_unchanged(type(current), DurableWork, "has_possible_effect")
         ):
-            started_at, possible = coordination._database_now_with_exists(current._possible_effect_attempts())
-        else:
-            started_at = database_now()
+            evidence = current._possible_effect_attempts()
+        started_at, possible = coordination._read_database_clock(evidence)
         if current is None or current.lease_expires_at is None or current.lease_expires_at <= started_at:
             raise WorkOwnershipLost("provider attempt requires the captured current claim")
         if current.requires_effect_evidence and (current.has_possible_effect() if possible is None else possible):
