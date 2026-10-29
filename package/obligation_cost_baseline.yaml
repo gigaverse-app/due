@@ -1,0 +1,194 @@
+# Cost contracts: the database statements each named path sends, by shape.
+#
+# A test fails when a path sends a statement its entry does not list (a regression) or no
+# longer sends one it does (a saving the entry must keep). Record or lower entries with
+# `OBLIGATION_COST_BASELINE=update pytest -p no:xdist <tests>` and review the diff: it is
+# the cost change of the PR.
+#
+# Canonical doc: docs/cost-contracts.md
+
+costs:
+- contract: 'batch_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_batchwork: 1
+    read due_recoverydeferral: 1
+    read tests_batchwork: 4
+    select clock_timestamp(): 3
+- contract: 'batch_self_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    insert tests_batchreceipt: 1
+    lock due_effectattempt: 2
+    lock tests_batchwork: 3
+    lock tests_primitiveowner: 2
+    read tests_batchreceipt: 2
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_batchreceipt: 2
+    update tests_batchwork: 4
+    update tests_primitiveowner: 1
+- contract: 'batch_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_batchwork: 1
+    update tests_batchwork: 1
+- contract: 'chunk_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_chunk: 1
+    read due_recoverydeferral: 1
+    read tests_chunk: 4
+    select clock_timestamp(): 3
+- contract: 'chunk_self_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    insert tests_batchreceipt: 1
+    lock due_effectattempt: 2
+    lock tests_chunk: 3
+    read tests_batchreceipt: 2
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_batchreceipt: 2
+    update tests_chunk: 4
+- contract: 'chunk_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_chunk: 1
+    update tests_chunk: 1
+- contract: 'composed_chunk_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_composedchunk: 1
+    read due_recoverydeferral: 1
+    read tests_composedchunk: 4
+    select clock_timestamp(): 3
+- contract: 'composed_chunk_self_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    insert tests_batchreceipt: 1
+    lock due_effectattempt: 1
+    lock tests_composedchunk: 3
+    read tests_batchreceipt: 1
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_batchreceipt: 2
+    update tests_composedchunk: 3
+- contract: 'composed_chunk_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_composedchunk: 1
+    update tests_composedchunk: 1
+- contract: 'composed_inline_chunk_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_composedinlinechunk: 1
+    read due_recoverydeferral: 1
+    read tests_composedinlinechunk: 4
+    select clock_timestamp(): 3
+- contract: 'composed_inline_chunk_self_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    lock due_effectattempt: 1
+    lock tests_composedinlinechunk: 3
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_composedinlinechunk: 3
+- contract: 'composed_inline_chunk_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_composedinlinechunk: 1
+    update tests_composedinlinechunk: 1
+- contract: 'inline_chunk_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_inlinechunk: 1
+    read due_recoverydeferral: 1
+    read tests_inlinechunk: 4
+    select clock_timestamp(): 3
+- contract: 'inline_chunk_self_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    lock due_effectattempt: 2
+    lock tests_inlinechunk: 3
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_inlinechunk: 4
+- contract: 'inline_chunk_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_inlinechunk: 1
+    update tests_inlinechunk: 1
+- contract: 'member_sync_self_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_membersyncwork: 1
+    read due_recoverydeferral: 1
+    read tests_membersyncwork: 2
+    select clock_timestamp(): 3
+- contract: 'member_sync_self_test: one delivery'
+  statements:
+    begin: 3
+    commit: 3
+    lock tests_membersyncwork: 3
+    lock tests_primitiveowner: 2
+    read tests_membersyncwork: 1
+    select clock_timestamp(): 1
+    update tests_membersyncwork: 4
+    update tests_primitiveowner: 1
+- contract: 'member_sync_self_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_membersyncwork: 1
+    update tests_membersyncwork: 1
+- contract: 'uuid_work_test: idle tick'
+  statements:
+    count due_recoverydeferral: 1
+    count tests_uuidwork: 1
+    read due_recoverydeferral: 1
+    read tests_uuidwork: 4
+    select clock_timestamp(): 3
+- contract: 'uuid_work_test: one delivery'
+  statements:
+    begin: 4
+    commit: 4
+    insert due_effectattempt: 1
+    insert tests_receipt: 1
+    lock due_effectattempt: 1
+    lock tests_primitiveowner: 2
+    lock tests_uuidwork: 3
+    read tests_receipt: 2
+    release savepoint: 1
+    savepoint: 1
+    select clock_timestamp(): 1
+    select clock_timestamp(), exists (…): 1
+    update due_effectattempt: 2
+    update tests_primitiveowner: 1
+    update tests_uuidwork: 3
+- contract: 'uuid_work_test: per owed row'
+  statements:
+    begin: 1
+    commit: 1
+    lock tests_uuidwork: 1
+    update tests_uuidwork: 1
