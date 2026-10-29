@@ -402,6 +402,11 @@ class DurableBulkExternalOperation[
             raise ValueError("settlement_batch_size must be between 1 and 64")
         if self.model.work_owner_field is not None or self.deadline_wakeup_horizon is not None:
             raise ValueError("bounded settlement requires self-owned work without deadline notifications")
+        if self.wakes and settlement_batch_size > 1:
+            # Waking takes each dependent row's lock last in its transaction. A group
+            # would interleave several rows' dependent locks in arrival order, so two
+            # groups sharing dependents could deadlock.
+            raise ValueError("bounded settlement cannot group work that wakes dependents")
         if self.model.objects.db != connection.alias:
             raise ValueError("bounded settlement requires the default database")
         batch = _SettlementBatch[WorkT](settlement_batch_size)
