@@ -12,7 +12,7 @@ from abc import abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
-from functools import cached_property
+from functools import cached_property, partial
 from typing import ClassVar, final
 from uuid import UUID
 
@@ -589,14 +589,30 @@ class DurableBulkExternalOperation[
                     raise
                 return after_rejection(rejected)
             last = crossing
-            # The writer's canonical snapshot is only a routing hint. Completion
-            # reloads work and receipt under locks before publishing progress.
-            # The independently committed receipt remains recoverable if we die
-            # before that single progress/completion transaction.
+            # The writer returns only after committing its canonical merge.
+            # Unknown members can still gain late evidence and must be reloaded.
+            retained = recorded
             if recorded is None:  # Legacy/custom writers need not return evidence.
                 recorded = self.evidence_store.read(crossing)
             predicted = advance_progress(work.bulk_keys, self._progress(work), recorded)
             if batch_state(work.bulk_keys, predicted) is BulkOutcomeState.COMPLETE:
+                if (
+                    retained is not None
+                    and retained.complete
+                    and self.combine_completed_progress
+                    and type(self.evidence_store) is BulkEvidenceStore
+                    and type(self).record_applied_effect_evidence
+                    is DurableBulkExternalOperation.record_applied_effect_evidence
+                    and type(self)._prepare_success is DurableBulkExternalOperation._prepare_success
+                ):
+                    # Definite outcomes for this exact membership cannot change:
+                    # the store rejects contradictions. Keep an independent copy
+                    # so provider-owned mutable models cannot alter committed facts.
+                    # This replaces only preparation, never the fresh work fence.
+                    context._success.result = crossing
+                    context._success.prepare = partial(
+                        self._prepare_committed_success, result=retained.model_copy(deep=True)
+                    )
                 return BulkStep.STOP
             with transaction.atomic():
                 lock_work_owner(work)
@@ -652,6 +668,12 @@ class DurableBulkExternalOperation[
             return self._prepare_completed_progress(work, recorded)
         self._consume_evidence(work, attempt, recorded, completing=True)
         return None
+
+    def _prepare_committed_success(self, work: WorkT, *, result: BulkResult[ResultT]) -> _PreparedWorkUpdates | None:
+        require_fenced_settlement(work)
+        if batch_state(work.bulk_keys, self._progress(work)) is BulkOutcomeState.COMPLETE:
+            return None
+        return self._prepare_completed_progress(work, result)
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         if batch_state(work.bulk_keys, self._progress(work)) is not BulkOutcomeState.COMPLETE:
