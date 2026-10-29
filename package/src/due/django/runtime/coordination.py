@@ -7,14 +7,14 @@ import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
 from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
-from django.db import connection, models, transaction
+from django.db import connection, connections, models, transaction
 from django.db.models import Count, F, Min, Q, QuerySet
 from django.db.models.functions import Now
 
@@ -152,6 +152,38 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
             getattr(current, name) == value for name, value in self._authority().items()
         )
 
+    def locked_work(self) -> ClaimedWorkT | None:
+        """Read current ownership without rebuilding a fixed ORM query.
+
+        Custom managers and multi-table models keep their ordinary query path.
+        RawQuerySet retains field conversion, from_db and model init signals.
+        No model data, authority decision or database clock is cached.
+        """
+        manager = self.model.objects
+        if type(manager) is not models.Manager or self.model._meta.parents:
+            return self.owned_work().select_for_update().first()
+        alias = manager.select_for_update().db
+        db = connections[alias]
+        if not db.in_atomic_block:
+            raise transaction.TransactionManagementError("work locking requires a transaction")
+        quote = db.ops.quote_name
+        columns = ", ".join(quote(cast(str, field.column)) for field in self.model._meta.concrete_fields)
+        authority = self._authority()
+        predicates = []
+        for name in authority:
+            column = self.model._meta.pk if name == "pk" else self.model._meta.get_field(name)
+            assert isinstance(column, models.Field)
+            predicates.append(f"{quote(cast(str, column.column))} = %s")
+        predicate = " AND ".join(predicates)
+        rows = list(
+            manager.raw(
+                f"SELECT {columns} FROM {quote(self.model._meta.db_table)} WHERE {predicate} FOR UPDATE",
+                list(authority.values()),
+                using=alias,
+            )
+        )
+        return rows[0] if rows else None
+
 
 class WorkOwnershipLost(RuntimeError):
     """Raised before provider I/O when this worker no longer owns the claim."""
@@ -186,12 +218,30 @@ def finalize_under_fence[WorkT: DurableWork, ResultT](work: WorkT, finalize: Cal
         _settlement.reset(token)
 
 
+@dataclass(slots=True)
+class _SuccessHandoff[WorkT: DurableWork]:
+    """Invocation-local preparation; the ordinary completion still owns all locks.
+
+    Bind to the exact returned object so a wrapping handler that substitutes its
+    result cannot accidentally settle another crossing's retained evidence.
+    """
+
+    result: object = None
+    prepare: Callable[[WorkT], _PreparedWorkUpdates | None] | None = None
+
+    def for_result(self, result: object) -> Callable[[WorkT], _PreparedWorkUpdates | None] | None:
+        return self.prepare if result is self.result else None
+
+
 @dataclass(frozen=True, slots=True)
 class WorkExecutionContext[ClaimedWorkT: DurableWork]:
     """Lease-aware operations available while executing one immutable claim."""
 
     claim: WorkClaim[ClaimedWorkT]
     lease_duration: timedelta
+    _success: _SuccessHandoff[ClaimedWorkT] = field(
+        default_factory=_SuccessHandoff, init=False, repr=False, compare=False
+    )
 
     @contextmanager
     def external_call(self) -> Iterator[None]:
@@ -475,7 +525,7 @@ def complete_work[WorkT: DurableWork](
     """
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is not None:
             _WorkCompletion(claim, prepare, finalize, now).settle(current)
     if current is None:
@@ -536,7 +586,7 @@ def retry_work[WorkT: DurableWork](
         if finalize is not None:
             lock_work_owner(claim.work)
         retry_at = now()
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is None:
             record_work_operation(
                 claim.model._meta.label_lower,
@@ -594,7 +644,7 @@ def terminal_work[WorkT: DurableWork](
     failed_at = now()
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         if current is not None:
             terminal_locked_work(current, failed_at=failed_at, error_code=error_code, finalize=finalize)
             pin_work_beneficiary(current)
@@ -634,7 +684,7 @@ def unknown_work[WorkT: DurableWork](
     """Release local ownership while retaining unresolved, non-dispatchable debt."""
     with transaction.atomic():
         lock_work_owner(claim.work)
-        current = claim.owned_work().select_for_update().first()
+        current = claim.locked_work()
         updated = current is not None
         if current is not None:
             unknown_locked_work(current, error_code=error_code, finalize=finalize)
@@ -1244,7 +1294,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             current = claim.work
             if database_only:
                 owner = lock_work_owner(current)
-                current = claim.owned_work().select_for_update().first()
+                current = claim.locked_work()
                 if current is None:
                     return False
                 field = _owner_relation(type(current))
@@ -1265,7 +1315,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             else:
                 pending = _WorkCompletion(
                     claim,
-                    prepare=_bind_finalizer(prepare_success, result),
+                    prepare=context._success.for_result(result) or _bind_finalizer(prepare_success, result),
                     finalize=_bind_finalizer(finalize_success, result),
                 )
                 completed = pending.complete() if completion is None else completion(pending)

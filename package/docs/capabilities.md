@@ -301,19 +301,35 @@ retention remains disabled (`retention=None`), and Due's generic attempt
 compactor also excludes inline receipts.
 
 An inline receipt has `members`, `result`, and optionally `diagnostics` keys.
+Return `BulkResult(items=..., diagnostics=json_value)` to persist provider
+metadata in the same locked update and commit as its semantic receipt. `None`
+leaves existing diagnostics unchanged. Diagnostics are excluded from canonical
+result serialization and never authorize replay or create settlement debt.
+If receipt validation or its commit fails, neither the new verdicts nor the
+accompanying diagnostics persist; uncertainty still prevents another send.
+
 Use the capability's `record_receipt_diagnostics(attempt_id, json_value)` for
-opaque provider metadata. It preserves concurrently accepted semantic evidence
+independent metadata observations, including failures without a batch result.
+It retains its immediate-write behavior and preserves concurrently accepted semantic evidence
 and does not grant replay permission. It is available only with inline storage;
 custom receipt models keep their own metadata API. Diagnostics are last-write-wins
 and are not used as evidence unless the adopter separately validates a typed
 result through `record_applied_effect_evidence`.
 
 Evidence writers may return the canonical result they already read while
-persisting it. Bulk delivery uses this committed snapshot only to route the
-next step; product settlement still reloads evidence under the work and attempt
-locks. Existing custom `record_applied` or `record_applied_effect_evidence` hooks
-returning `None` retain the ordinary read fallback. Return the merged canonical
-result, never the unmerged provider reply, when extending these hooks.
+persisting it. With `combine_completed_progress = True`, the built-in bulk
+writer passes a fully definite committed result into core completion. It avoids
+reloading that receipt: definite outcomes for a captured membership cannot
+change, and contradictory observations are rejected. Completion still locks
+current work and checks its state, token and revision before publishing anything.
+Custom writers/preparation hooks, unknown members, and legacy settlement retain
+their ordinary read path. Return the merged canonical result, never the unmerged
+provider reply, when extending evidence hooks.
+
+The handoff belongs to one invocation and exact returned attempt. Its independent
+copy cannot be changed through a provider-owned mutable result. Losing the
+process loses only this optimization: registered recovery loads the durable
+receipt and uses the same progress reducer and product settlement hooks.
 
 This avoids one receipt read per live bulk crossing. A late fragment arriving
 after a partial snapshot may cause an extra progress transaction before final
@@ -506,15 +522,35 @@ ambiguous provider acceptance, late receipts and stale claim fencing. The
 package's UUID publication example runs the same scalar operation contract
 against real PostgreSQL and exercises JSON task transport.
 
+### Sharing a resource across nested executions
+
+`ExecutionResource(factory, validate=None)` owns an explicit keyed resource
+scope. Use `with resource.acquire(key) as value:` around a bounded dispatcher
+and in its individual work handler. Nested calls for the same key reuse the
+outer resource; independent recovery calls acquire and release their own.
+The factory remains a normal context manager and owns cleanup on every exit.
+
+This differs from `ExternalService`, whose factory result is cached only for
+one admitted execution. Resource reuse is explicit and can span several work
+invocations, for example a campaign concurrency slot or a provider session.
+It never caches work ownership, eligibility, database rows or provider receipts.
+Continue to check changing product state at the original boundaries.
+
+Supply `validate` when a resource can become invalid while its Python scope is
+still open. A PostgreSQL advisory-lock holder must reject a replaced or closed
+database session before reusing its slot. Different keys, threads, async tasks,
+processes and expired copied contexts cannot borrow another owner's resource.
+The library does not renew leases or repair a failed factory automatically.
+
 ### Reusing a canonical receipt read
 
 Evidence stores may override `record_and_read(attempt, result)` to return the
 canonical value they just persisted while the caller holds the attempt lock.
 The default calls the existing `record` and `read` methods, so existing custom
 stores remain compatible. Bulk receipt ingestion uses the retained merged
-value to check completeness without a second SELECT. This reuse is confined
-to one evidence transaction; product settlement still rereads canonical
-evidence because a late receipt may have committed in between.
+value to check completeness without a second SELECT. Composed bulk completion
+can also reuse fully definite evidence after commit, as described above. Partial
+snapshots still reload because a late receipt may have committed in between.
 
 
 ### Ordered generation and ULID interoperability
