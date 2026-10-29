@@ -313,6 +313,22 @@ def statement_time(now: NowFn) -> datetime:
     return cast(datetime, _database_statement_clock()) if now is database_now else now()
 
 
+class DatabaseTime(models.Expression):
+    """
+    The coordination clock as part of a query, for static predicates such as eligibility.
+
+    ``Q(owner__expires_at__lte=DatabaseTime())`` lets an ``ExecutionEligibility``
+    stay static, so a claim judges it with the time it selects the row at instead
+    of a separate clock read. It resolves when each query is built, so
+    ``use_database_clock`` controls it like every other coordination read.
+    """
+
+    output_field = models.DateTimeField()
+
+    def resolve_expression(self, *args: Any, **kwargs: Any) -> models.Expression:
+        return _database_statement_clock().resolve_expression(*args, **kwargs)
+
+
 def claim_work[WorkT: DurableWork](
     model: type[WorkT],
     work_id: WorkId,

@@ -69,6 +69,7 @@ from .models import (
 )
 from .runtime.coordination import (
     ContinueAfter,
+    DatabaseTime,
     ReopenAfter,
     WakeAction,
     WorkClaim,
@@ -160,6 +161,7 @@ __all__ = [
     "claim_work",
     "complete_work",
     "database_now",
+    "DatabaseTime",
     "durable_work_schema",
     "dispatch_due_work",
     "due_work",
