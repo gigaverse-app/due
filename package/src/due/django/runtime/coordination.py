@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from functools import partial
@@ -177,12 +177,30 @@ def finalize_under_fence[WorkT: DurableWork, ResultT](work: WorkT, finalize: Cal
         _settlement.reset(token)
 
 
+@dataclass(slots=True)
+class _SuccessHandoff[WorkT: DurableWork]:
+    """Invocation-local preparation; the ordinary completion still owns all locks.
+
+    Bind to the exact returned object so a wrapping handler that substitutes its
+    result cannot accidentally settle another crossing's retained evidence.
+    """
+
+    result: object = None
+    prepare: Callable[[WorkT], _PreparedWorkUpdates | None] | None = None
+
+    def for_result(self, result: object) -> Callable[[WorkT], _PreparedWorkUpdates | None] | None:
+        return self.prepare if result is self.result else None
+
+
 @dataclass(frozen=True, slots=True)
 class WorkExecutionContext[ClaimedWorkT: DurableWork]:
     """Lease-aware operations available while executing one immutable claim."""
 
     claim: WorkClaim[ClaimedWorkT]
     lease_duration: timedelta
+    _success: _SuccessHandoff[ClaimedWorkT] = field(
+        default_factory=_SuccessHandoff, init=False, repr=False, compare=False
+    )
 
     @contextmanager
     def external_call(self) -> Iterator[None]:
@@ -1218,7 +1236,7 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             else:
                 completed = complete_work(
                     claim,
-                    prepare=_bind_finalizer(prepare_success, result),
+                    prepare=context._success.for_result(result) or _bind_finalizer(prepare_success, result),
                     finalize=_bind_finalizer(finalize_success, result),
                 )
             if database_only and not completed:
