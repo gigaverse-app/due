@@ -144,9 +144,10 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
     ) -> tuple[BulkResult[ResultT], tuple[str, ...]]:
         if attempt.receipt is None:
             raise EffectAttempt.DoesNotExist("the crossing has no captured inline receipt")
-        retained = merge_bulk_evidence(
-            attempt.receipt["members"], self._read_inline(attempt), self.adapter.validate_python(result)
-        )
+        # Merge the stored fragment directly. Expanding missing members to
+        # UNKNOWN first constructs verdicts the incoming fragment may replace.
+        recorded = self.adapter.validate_python({"items": attempt.receipt["result"]})
+        retained = merge_bulk_evidence(attempt.receipt["members"], recorded, self.adapter.validate_python(result))
         encoded = self.adapter.dump_python(retained, mode="json")["items"]
         fields: list[str] = []
         receipt = dict(attempt.receipt)
