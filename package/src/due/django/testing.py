@@ -11,12 +11,12 @@ from functools import wraps
 from threading import Lock
 from unittest.mock import patch
 
-from django.db.models import Value
+from django.db.models import QuerySet, Value
 
 from due.django.capabilities.observed_operations import ObservedExternalOperationWork
 from due.django.identities import WorkId
 from due.django.models import DurableWork, DurableWorkState, RecoveryDeferral
-from due.django.runtime.coordination import database_now
+from due.django.runtime.coordination import ClockReading, database_now
 
 
 @dataclass(frozen=True)
@@ -104,9 +104,12 @@ def use_database_clock(now: Callable[[], datetime]) -> Iterator[None]:
     transitioned by this control. The patch is process-scoped, like hold_nudges;
     independent concurrent scenarios need separate test processes.
     """
+
+    def read_clock(exists: QuerySet | None = None) -> ClockReading:
+        return now(), None if exists is None else exists.exists()
+
     with (
-        patch("due.django.runtime.coordination._read_database_clock", new=now),
-        patch("due.django.runtime.coordination._database_now_with_exists", new=lambda query: (now(), query.exists())),
+        patch("due.django.runtime.coordination._read_database_clock", new=read_clock),
         patch("due.django.runtime.coordination._database_statement_clock", new=lambda: Value(now())),
     ):
         yield
