@@ -60,6 +60,7 @@ from due.django.runtime.coordination import (
 from due.django.runtime.metrics import RecoveryPhase
 from due.django.runtime.recovery_pass import RecoveryStep, ends_the_tick
 from due.django.runtime.settlement_batch import _SettlementBatch
+from due.django.runtime.settlement_writes import finish_receipt
 from due.errors import EffectNotAppliedError, EffectOutcomeUnknownError, EffectRejection
 
 
@@ -235,12 +236,7 @@ class BulkEvidenceStore[ResultT: BaseModel](AppliedEffectEvidenceStore[BulkResul
     def finish(self, attempt: EffectAttempt) -> None:
         # Core completion owns the work fence; never trust a pre-I/O snapshot
         # of the attempt's markers when completing its retained evidence.
-        updates = {"repair_pending": False}
-        if self.model is None:
-            updates["receipt_pending"] = False
-        EffectAttempt.objects.filter(pk=attempt.pk).update(**updates)
-        if self.model is not None:
-            self.model.objects.filter(attempt=attempt).update(settlement_pending=False)
+        finish_receipt(attempt, self.model)
 
 
 @dataclass(frozen=True)
@@ -363,7 +359,9 @@ class DurableBulkExternalOperation[
     # still observe the persisted projection and SUCCEEDED state.
     combine_completed_progress: ClassVar[bool] = False
 
-    def attempt_many(self, work_ids: Iterable[WorkId], *, settlement_batch_size: int = 8) -> dict[WorkId, bool]:
+    def attempt_many(
+        self, work_ids: Iterable[WorkId], *, settlement_batch_size: int = 8, set_based: bool = False
+    ) -> dict[WorkId, bool]:
         """Attempt independent self-owned rows, sharing bounded settlement commits.
 
         Experimental opt-in: successful receipts commit separately before local
@@ -380,6 +378,13 @@ class DurableBulkExternalOperation[
         No claim, provider call, evidence commit or retry policy is batched. The
         returned booleans have attempt_execution's meaning after all flushes.
         Existing single-row APIs keep their synchronous behavior.
+
+        set_based additionally combines work updates and receipt-debt clearing.
+        Opt in only for independent transaction-local hooks: preparation cannot
+        rely on a peer's completion, and finalizers must not read receipt-debt
+        markers or peer progress. Success timestamps share a statement instant.
+        Custom model persistence, fields or save signals retain ordinary saves.
+        This changes neither receipt durability nor permission to resend.
         """
         require_autocommit()
         if isinstance(settlement_batch_size, bool) or not isinstance(settlement_batch_size, int):
@@ -390,7 +395,9 @@ class DurableBulkExternalOperation[
             raise ValueError("bounded settlement requires self-owned work without deadline notifications")
         if self.model.objects.db != connection.alias:
             raise ValueError("bounded settlement requires the default database")
-        batch = _SettlementBatch[WorkT](settlement_batch_size)
+        if not isinstance(set_based, bool):
+            raise TypeError("set_based must be a boolean")
+        batch = _SettlementBatch[WorkT](settlement_batch_size, set_based=set_based)
         outcomes: dict[WorkId, bool] = {}
         try:
             for identity in work_ids:

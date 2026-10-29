@@ -391,6 +391,15 @@ def settle_locked_work[WorkT: DurableWork](
     revision. Callers with a product finalizer also lock the owner first. This
     helper does not infer permission from a receipt, cancellation or claim.
     """
+    fields = prepare_locked_completion(current, revision=revision, now=now, prepared=prepared)
+    current.save(update_fields=fields)
+    finalize_locked_completion(current, finalize=finalize)
+
+
+def prepare_locked_completion[WorkT: DurableWork](
+    current: WorkT, *, revision: int, now: NowFn, prepared: _PreparedWorkUpdates | None
+) -> list[str]:
+    """The shared success transition; persistence is owned by its locked caller."""
     if not connection.in_atomic_block:
         raise RuntimeError("settling locked work requires a transaction")
     if current.desired_revision != revision:
@@ -405,7 +414,13 @@ def settle_locked_work[WorkT: DurableWork](
     fields = ["state", "applied_revision", "lease_expires_at", "completed_at", "last_error_code", "updated_at"]
     if prepared is not None:
         fields.extend(prepared.fields)
-    current.save(update_fields=fields)
+    return fields
+
+
+def finalize_locked_completion[WorkT: DurableWork](
+    current: WorkT, *, finalize: Callable[[WorkT], ReopenAfter | None] | None
+) -> None:
+    """Publish after the success write, with the ordinary fence and follow-up policy."""
     completed_at = current.completed_at
     assert isinstance(completed_at, datetime), "completion must return its persisted timestamp"
     followup = finalize_under_fence(current, finalize) if finalize is not None else None
@@ -426,11 +441,15 @@ class _WorkCompletion[WorkT: DurableWork]:
     now: NowFn = database_now
 
     def settle(self, current: WorkT) -> None:
+        fields = self.prepare_changes(current)
+        current.save(update_fields=fields)
+        finalize_locked_completion(current, finalize=self.finalize)
+
+    def prepare_changes(self, current: WorkT) -> list[str]:
         prepared = finalize_under_fence(current, self.prepare) if self.prepare is not None else None
-        settle_locked_work(
+        return prepare_locked_completion(
             current,
             revision=self.claim.desired_revision,
-            finalize=self.finalize,
             now=self.now,
             prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
         )
