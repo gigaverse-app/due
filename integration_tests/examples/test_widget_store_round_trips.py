@@ -6,6 +6,7 @@ order. The budget is exact: a separate clock read or a savepoint around the
 single release UPDATE fails here rather than showing up as database load.
 """
 
+from collections.abc import Iterator
 from uuid import uuid4
 
 import pytest
@@ -32,7 +33,7 @@ _round_trips = RoundTrips(work=CheckoutWork, owner=Order).of
 
 
 @pytest.fixture
-def paid_work() -> CheckoutWork:
+def paid_work() -> Iterator[CheckoutWork]:
     with override_settings(WIDGET_STAGE_SECONDS=1), hold_nudges():
         restock()
         key = uuid4()
