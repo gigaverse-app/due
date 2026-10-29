@@ -18,7 +18,6 @@ from examples.widget_store.effects import checkout_order
 from examples.widget_store.models import CheckoutWork, Order
 from examples.widget_store.services import checkout, payment, restock
 from tests.harness.round_trips import (
-    CLOCK,
     LOCK_OWNER,
     LOCK_WORK,
     READ_WORK,
@@ -42,7 +41,7 @@ def paid_work() -> Iterator[CheckoutWork]:
         yield CheckoutWork.objects.get(owner=order)
 
 
-def test_a_hinted_stage_claims_transitions_and_releases_with_one_clock_read(paid_work: CheckoutWork):
+def test_a_hinted_stage_claims_transitions_and_releases_without_a_clock_read(paid_work: CheckoutWork):
     make_due(paid_work)
     paid_work.refresh_from_db()
     with hold_nudges() as held:
@@ -54,8 +53,7 @@ def test_a_hinted_stage_claims_transitions_and_releases_with_one_clock_read(paid
     assert trips == [
         # The hint grants nothing: due now at this exact revision and deadline, judged by the statement.
         READ_WORK,
-        # The callable eligibility (payment decided, or reservation expired) needs a concrete time.
-        CLOCK,
+        # Static eligibility (payment decided, or reservation expired) is judged at the claim's own time.
         LOCK_WORK,
         UPDATE_WORK,
         # The database transition: owner before work, the product write, then the release.

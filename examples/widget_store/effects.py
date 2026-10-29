@@ -4,7 +4,14 @@ from typing import ClassVar
 from django.conf import settings
 from django.db.models import Q
 
-from due.django.public import ContinueAfter, DatabaseEffect, DurableWorkPolicy, DurableWorkState, ExecutionEligibility
+from due.django.public import (
+    ContinueAfter,
+    DatabaseEffect,
+    DatabaseTime,
+    DurableWorkPolicy,
+    DurableWorkState,
+    ExecutionEligibility,
+)
 from examples.widget_store import services
 from examples.widget_store.models import CheckoutWork, Order
 
@@ -29,7 +36,8 @@ checkout_order = CheckoutOrder.for_owner(
     work=CheckoutWork,
     input_fields=("universe", "submission_key"),
     policy=DurableWorkPolicy(lease_duration=timedelta(seconds=20), retry_delay=timedelta(seconds=1), retention=None),
+    # Static, so each claim judges expiry at the time it selects the row, without a clock read of its own.
     eligibility=ExecutionEligibility(
-        condition=lambda now: Q(owner__payment_status__in=("paid", "failed")) | Q(owner__expires_at__lte=now),
+        condition=Q(owner__payment_status__in=("paid", "failed")) | Q(owner__expires_at__lte=DatabaseTime()),
     ),
 )

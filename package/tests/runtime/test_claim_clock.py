@@ -12,7 +12,7 @@ from django.test.utils import CaptureQueriesContext
 
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.models import DurableWorkState
-from due.django.runtime.coordination import claim_work, database_now
+from due.django.runtime.coordination import DatabaseTime, claim_work, database_now
 from due.django.testing import use_database_clock
 from tests.harness.primitive import PrimitiveWork, record
 from tests.harness.primitive import isolated_primitive_fixture as isolated_primitive_fixture
@@ -194,3 +194,29 @@ def test_lock_wait_consumes_claim_lease(static):
     assert claim is not None
     assert claim.work.lease_expires_at is not None
     assert claim.work.lease_expires_at - LEASE < releasing_at
+
+
+@pytest.mark.parametrize("expired", [False, True])
+def test_a_database_time_predicate_stays_static_and_judges_at_the_claim(expired):
+    work = record()
+    # Eligible once the row's own availability has passed: expressed in the query, judged by its statement.
+    offset = timedelta(seconds=-1 if expired else 60)
+    PrimitiveWork.objects.filter(pk=work.pk).update(created_at=database_now() + offset)
+    gate = ExecutionEligibility(condition=Q(created_at__lte=DatabaseTime()))
+    assert not gate.requires_time
+    with CaptureQueriesContext(connection) as queries:
+        claim = claim_work(PrimitiveWork, work.pk, lease_duration=LEASE, eligibility=gate)
+    assert (claim is not None) is expired
+    assert [q["sql"] for q in queries if "clock_timestamp" in q["sql"]] == []
+
+
+def test_the_testing_clock_controls_database_time_predicates():
+    work = record()
+    created = database_now()
+    PrimitiveWork.objects.filter(pk=work.pk).update(created_at=created)
+    gate = ExecutionEligibility(condition=Q(created_at__lte=DatabaseTime()))
+    # The predicate is built before the clock is replaced and still follows it.
+    with use_database_clock(lambda: created - timedelta(seconds=1)):
+        assert not gate.filter(PrimitiveWork.objects.filter(pk=work.pk)).exists()
+    with use_database_clock(lambda: created + timedelta(seconds=1)):
+        assert gate.filter(PrimitiveWork.objects.filter(pk=work.pk)).exists()
