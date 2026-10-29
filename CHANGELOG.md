@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.2](https://github.com/gigaverse-app/due/compare/v0.12.1...v0.12.2) (2026-10-29)
+
+
+### Performance
+
+* **django:** compose claim and first provider entry ([#163](https://github.com/gigaverse-app/due/issues/163)) ([4d1ba9a](https://github.com/gigaverse-app/due/commit/4d1ba9a86faa4f1b55b2d2f7058049669bbb90cd))
+* **evidence:** avoid recompiling fixed attempt lookups ([#165](https://github.com/gigaverse-app/due/issues/165)) ([4047de6](https://github.com/gigaverse-app/due/commit/4047de672e35cbeec27a1c14e2a35409163a6de7))
+* **evidence:** read entry clock with the unresolved-attempt guard ([#166](https://github.com/gigaverse-app/due/issues/166)) ([c440f9e](https://github.com/gigaverse-app/due/commit/c440f9eabe6d395a2aba44310a6a32fc7da2d6c2))
+
+
+### Reverts
+
+* **django:** remove composed claim entry opt-in ([#167](https://github.com/gigaverse-app/due/issues/167)) ([be31f83](https://github.com/gigaverse-app/due/commit/be31f83f68b5e605763abcc4b3199adbd6670c4b))
+
 ## [0.12.1](https://github.com/gigaverse-app/due/compare/v0.12.0...v0.12.1) (2026-10-28)
 
 
