@@ -50,6 +50,7 @@ from .capabilities.scheduled import (
 from .declarations.capture import Capture
 from .declarations.dependents import Dependent
 from .declarations.eligibility import ExecutionEligibility
+from .declarations.execution_resources import ExecutionResource
 from .declarations.external_services import ExternalService
 from .declarations.mirrors import Outcome, StatusMirror
 from .evidence.effect_evidence import (
@@ -128,6 +129,7 @@ __all__ = [
     "Outcome",
     "StatusMirror",
     "ExternalService",
+    "ExecutionResource",
     "ContinueAfter",
     "ReopenAfter",
     "run_effect_coroutine",
