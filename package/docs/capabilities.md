@@ -283,11 +283,19 @@ and are not used as evidence unless the adopter separately validates a typed
 result through `record_applied_effect_evidence`.
 
 Evidence writers may return the canonical result they already read while
-persisting it. Bulk delivery uses this committed snapshot only to route the
-next step; product settlement still reloads evidence under the work and attempt
-locks. Existing custom `record_applied` or `record_applied_effect_evidence` hooks
-returning `None` retain the ordinary read fallback. Return the merged canonical
-result, never the unmerged provider reply, when extending these hooks.
+persisting it. With `combine_completed_progress = True`, the built-in bulk
+writer passes a fully definite committed result into core completion. It avoids
+reloading that receipt: definite outcomes for a captured membership cannot
+change, and contradictory observations are rejected. Completion still locks
+current work and checks its state, token and revision before publishing anything.
+Custom writers/preparation hooks, unknown members, and legacy settlement retain
+their ordinary read path. Return the merged canonical result, never the unmerged
+provider reply, when extending evidence hooks.
+
+The handoff belongs to one invocation and exact returned attempt. Its independent
+copy cannot be changed through a provider-owned mutable result. Losing the
+process loses only this optimization: registered recovery loads the durable
+receipt and uses the same progress reducer and product settlement hooks.
 
 This avoids one receipt read per live bulk crossing. A late fragment arriving
 after a partial snapshot may cause an extra progress transaction before final
@@ -486,9 +494,9 @@ Evidence stores may override `record_and_read(attempt, result)` to return the
 canonical value they just persisted while the caller holds the attempt lock.
 The default calls the existing `record` and `read` methods, so existing custom
 stores remain compatible. Bulk receipt ingestion uses the retained merged
-value to check completeness without a second SELECT. This reuse is confined
-to one evidence transaction; product settlement still rereads canonical
-evidence because a late receipt may have committed in between.
+value to check completeness without a second SELECT. Composed bulk completion
+can also reuse fully definite evidence after commit, as described above. Partial
+snapshots still reload because a late receipt may have committed in between.
 
 
 ### Ordered generation and ULID interoperability
