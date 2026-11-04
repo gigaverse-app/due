@@ -1,0 +1,6 @@
+# Uses dry-lint's default tracked-file scope; review include/exclude before changing it.
+# Strict CI refuses incomplete judging; sweep can use a larger one-off budget.
+preset = "sonnet"
+
+[budget]
+usd = 0.25
