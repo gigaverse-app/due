@@ -92,8 +92,6 @@ from due.django.conformance.composition import (
     assert_exhausted_producer_still_compensates,
     assert_late_projection_write_is_repaired,
     compensations_for,
-    held_deliveries,
-    recovered_delivery,
 )
 from due.django.conformance.composition import (
     SupersessionExample as SupersessionExample,
@@ -120,6 +118,7 @@ from due.django.conformance.observations import (
     OBSERVATION_HISTORIES,
     assert_observation_recovers_without_resend,
 )
+from due.django.conformance.recovered_deliveries import held_deliveries, recovered_delivery
 from due.django.conformance.recovery_isolation import (
     assert_one_poisoned_identity_does_not_stall_recovery,
     recovery_isolation_histories,

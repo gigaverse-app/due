@@ -1,10 +1,9 @@
 """Reusable crash schedules across a producer and its independent compensation."""
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -13,9 +12,9 @@ from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import CancellationResult, DurableScheduledAction
 from due.django.conformance.bindings import assert_registered_worker_options
+from due.django.conformance.recovered_deliveries import recovered_delivery
 from due.django.conformance.registrations import registered_capability, registration_of
 from due.django.evidence.attempts import attempts_for, observe_effect_outcome
-from due.django.identities import work_id_from_wire
 from due.django.models import EffectAttemptOutcome
 from due.django.public import (
     DurableWorkCapability,
@@ -23,12 +22,11 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.registry import DurableWorkRegistration, installed
+from due.django.runtime.registry import installed
 from due.django.runtime.tasks import (
-    recover_durable_work_task,
     run_durable_work_task,
 )
-from due.django.testing import WorkerDied, expire_lease, hold_nudges, make_due
+from due.django.testing import WorkerDied, expire_lease, hold_nudges
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -174,45 +172,6 @@ def compensations_for[W: UniverseDurableWork, ResultT](
         if isinstance(cleanup := registered_capability(entry.name), IndependentCompensation)
         and cleanup.producer_model is capability.model
     )
-
-
-#: One worker task a recovery tick published: its Celery arguments and options.
-type HeldDelivery = tuple[tuple[Any, ...], dict[str, Any]]
-
-
-@contextmanager
-def held_deliveries(entry: DurableWorkRegistration) -> Iterator[list[HeldDelivery]]:
-    """Hold every worker task published for ``entry`` instead of sending it to a broker."""
-    sent: list[HeldDelivery] = []
-
-    # Celery's apply_async keyword surface is the dynamic boundary here.
-    def capture(*, args: tuple[Any, ...], **options: Any) -> None:
-        if args[0] == entry.name:
-            sent.append((args, options))
-
-    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
-        yield sent
-
-
-def recovered_delivery(work: UniverseDurableWork) -> HeldDelivery:
-    """Lose ``work``'s notification, run the registered recovery task, and return its one delivery of ``work``."""
-    entry = registration_of(type(work))
-    # Advance eligibility/leases only. Reaping, retry and reservation remain production-owned.
-    # Compensation producers reserve cleanup before I/O; losing that worker includes lease expiry.
-    make_due(work)
-    entry.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
-        lease_expires_at=database_now() - timedelta(seconds=1)
-    )
-    with held_deliveries(entry) as sent:
-        recover_durable_work_task(entry.name)
-        # Reaping preserves the configured retry delay. Advance only its clock.
-        work.refresh_from_db()
-        if work.state == DurableWorkState.RETRYABLE:
-            make_due(work)
-            recover_durable_work_task(entry.name)
-    deliveries = [(args, options) for args, options in sent if work_id_from_wire(entry.model, args[1]) == work.pk]
-    assert len(deliveries) == 1, f"{entry.name}: recovery must publish exactly the still-owed work"
-    return deliveries[0]
 
 
 def recover_and_deliver(work: UniverseDurableWork) -> None:
