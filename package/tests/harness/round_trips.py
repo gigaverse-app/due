@@ -8,7 +8,8 @@ the generated cost contracts use; this harness only maps a capability's own
 tables to roles (work, owner, holds), so one budget reads the same for every
 model. Transaction control (BEGIN/COMMIT) is the same before and after an
 optimization and is left out; ROLLBACK and savepoints are named, because a path
-that pays for them is doing more work. Anything else fails.
+that pays for them is doing more work (a fused claim that declines and retries
+another way pays a ROLLBACK). Anything else fails.
 
 The generated contracts compare a multiset; these budgets keep the order where
 the order is the point, such as a clock read after a lock.
