@@ -1,0 +1,26 @@
+name: dry-lint judge
+on:
+  workflow_run:
+    workflows: [dry-lint]
+    types: [completed]
+permissions:
+  actions: read
+  checks: write
+  contents: read
+  pull-requests: write
+concurrency:
+  group: dry-lint-judge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+jobs:
+  judge:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      # Only trusted default-branch settings and baseline; fork code is artifact data.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: gigaverse-app/dry-lint@e082e82d08e96fe7786f088429be7a572ee094e1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugins: anthropic==2.4.0
+          baseline: .dry-lint/baseline.json
+          require-complete: 'true'

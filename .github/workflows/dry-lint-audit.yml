@@ -1,0 +1,33 @@
+name: dry-lint audit
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dry-lint-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: gigaverse-app/dry-lint@e082e82d08e96fe7786f088429be7a572ee094e1
+        with:
+          mode: sweep
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugins: anthropic==2.4.0
+          baseline: .dry-lint/baseline.json
+          require-complete: 'true'
+          budget-usd: '5'
+      - name: Retain the audit for human or agent review
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dry-lint-audit
+          path: |
+            ${{ runner.temp }}/dry-lint/report.json
+            ${{ runner.temp }}/dry-lint/comment.md
+          retention-days: 30
+          if-no-files-found: warn
