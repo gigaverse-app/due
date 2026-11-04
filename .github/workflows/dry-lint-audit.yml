@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: gigaverse-app/dry-lint@e082e82d08e96fe7786f088429be7a572ee094e1
+      - uses: gigaverse-app/dry-lint@0f7e3e75043a55f3a6e4d9aba2f8ec695211dd70
         with:
           mode: sweep
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

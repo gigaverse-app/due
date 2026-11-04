@@ -291,3 +291,24 @@ workflows, selector configuration, helpers, locks and non-import inputs; missing
 history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
 remain complete checkpoints.
+
+## Duplication audit
+
+The required `dry-lint` check accepts existing pairs recorded in `.dry-lint/baseline.json`
+and fails on new blocking duplicates or incomplete judging. The weekly **dry-lint audit**
+workflow publishes a read-only audit in its job summary and artifacts. Humans and agents
+choose refactors and open their own PRs; dry-lint does not change application code or open PRs.
+
+With your Anthropic credential in `ANTHROPIC_API_KEY`, install the pinned tool:
+
+```bash
+uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@0f7e3e75043a55f3a6e4d9aba2f8ec695211dd70'
+dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
+# Review findings, refactor selected code, and run its tests before updating the baseline.
+dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/due
+```
+
+Commit the baseline, progress JSON and README with the refactor. Do not commit the raw audit
+files; CI retains reports as artifacts. Cleanup counts are duplicate pairs, not lines of code.
+Suppressed findings are counted as dismissed, and never credited as cleanup. See the
+[dry-lint sweep guide](https://github.com/gigaverse-app/dry-lint/blob/main/docs/sweeps.md).
