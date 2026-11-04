@@ -641,34 +641,47 @@ def _settle_through_recovery(
 
 
 def _recover_lost_deliveries[W: UniverseDurableWork](
-    entry: DurableWorkRegistration, works: Iterable[W], sent: list[_SentTask]
+    entry: DurableWorkRegistration, works: Iterable[W], sent: list[_SentTask], *, dead_workers: bool = False
 ) -> list[_SentTask]:
     """
     Lose every post-commit notification, then let registered recovery deliver.
 
-    Expire only lost reservations; production recovery performs every state
-    transition and redispatch. Returns the deliveries it executed once.
+    Expire only lost reservations, or with ``dead_workers`` every lease a dead worker or a compensation
+    reservation left, whose reaping then waits out its retry delay on the clock alone. Production recovery
+    performs every state transition and redispatch, and must publish each owed work exactly once.
+    Returns the deliveries it executed once.
     """
     ids = set()
     sent.clear()
     for work in works:
         work.refresh_from_db()
         ids.add(work.pk)
-        if work.state == DurableWorkState.QUEUED:
+        if dead_workers:
+            type(work).objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
+                lease_expires_at=database_now() - timedelta(seconds=1)
+            )
+        elif work.state == DurableWorkState.QUEUED:
             expire_lease(work)
         make_due(work)
     recover_durable_work_task(entry.name)
+    if dead_workers:
+        # Reaping preserves the configured retry delay. Advance only its clock.
+        retrying = list(entry.model.objects.filter(pk__in=ids, state=DurableWorkState.RETRYABLE))
+        for work in retrying:
+            make_due(work)
+        if retrying:
+            recover_durable_work_task(entry.name)
     deliveries = [
         (args, options)
         for args, options in sent
         if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in ids
     ]
-    assert {work_id_from_wire(entry.model, args[1]) for args, _ in deliveries} == ids, (
-        "recovery omitted a committed obligation"
+    assert sorted(work_id_from_wire(entry.model, args[1]) for args, _ in deliveries) == sorted(ids), (
+        f"{entry.name}: configured recovery did not publish the producer's exact work"
     )
     for args, options in deliveries:
         assert_registered_worker_options(entry, options)
-        assert run_durable_work_task(*args), "recovered delivery did not execute"
+        assert run_durable_work_task(*args), "captured production delivery was not executable"
     return deliveries
 
 

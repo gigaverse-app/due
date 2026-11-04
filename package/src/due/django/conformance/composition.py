@@ -11,10 +11,9 @@ import pytest
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import CancellationResult, DurableScheduledAction
-from due.django.conformance.bindings import assert_registered_worker_options
 from due.django.conformance.registrations import registered_capability, registration_of
+from due.django.conformance.scenarios import _recover_lost_deliveries, _SentTask
 from due.django.evidence.attempts import attempts_for, observe_effect_outcome
-from due.django.identities import work_id_from_wire
 from due.django.models import EffectAttemptOutcome
 from due.django.public import (
     DurableWorkCapability,
@@ -23,11 +22,7 @@ from due.django.public import (
     database_now,
 )
 from due.django.runtime.registry import installed
-from due.django.runtime.tasks import (
-    recover_durable_work_task,
-    run_durable_work_task,
-)
-from due.django.testing import WorkerDied, expire_lease, hold_nudges, make_due
+from due.django.testing import WorkerDied, expire_lease, hold_nudges
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -176,33 +171,14 @@ def compensations_for[W: UniverseDurableWork, ResultT](
 
 
 def recover_and_deliver(work: UniverseDurableWork) -> None:
-    """Recover one work identity and execute the registered production worker delivery.
-
-    Its message was lost: only the clocks advance (availability, and any lease a dead worker or a compensation
-    reservation left). Reaping, retry and reservation remain production-owned, and recovery must publish exactly
-    this work to its registered worker, which must execute it."""
-    entry = registration_of(type(work))
-    sent = []
+    """Recover one work identity whose message and worker were lost, and execute its registered delivery."""
+    sent: list[_SentTask] = []
 
     def capture(*, args, **options):
-        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) == work.pk:
-            sent.append((args, options))
+        sent.append((args, options))
 
-    make_due(work)
-    entry.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
-        lease_expires_at=database_now() - timedelta(seconds=1)
-    )
     with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
-        recover_durable_work_task(entry.name)
-        # Reaping preserves the configured retry delay. Advance only its clock.
-        work.refresh_from_db()
-        if work.state == DurableWorkState.RETRYABLE:
-            make_due(work)
-            recover_durable_work_task(entry.name)
-    assert len(sent) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
-    args, options = sent[0]
-    assert_registered_worker_options(entry, options)
-    assert run_durable_work_task(*args), "captured production delivery was not executable"
+        _recover_lost_deliveries(registration_of(type(work)), [work], sent, dead_workers=True)
 
 
 def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT](
