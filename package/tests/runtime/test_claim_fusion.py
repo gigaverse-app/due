@@ -249,6 +249,7 @@ def test_fusion_is_only_for_database_transitions_with_a_window_inside_the_lease(
         Remote.for_owner(
             owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
         )
+
     class Wide(Advance):
         claim_fusion = ClaimFusion.AUTO
         claim_fusion_window = timedelta(days=1)
