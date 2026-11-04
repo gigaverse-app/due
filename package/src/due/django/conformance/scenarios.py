@@ -657,7 +657,7 @@ def _recover_lost_deliveries[W: UniverseDurableWork](
         work.refresh_from_db()
         ids.add(work.pk)
         if dead_workers:
-            type(work).objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
+            entry.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
                 lease_expires_at=database_now() - timedelta(seconds=1)
             )
         elif work.state == DurableWorkState.QUEUED:
