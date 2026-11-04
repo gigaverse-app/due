@@ -694,8 +694,8 @@ applications do not copy the timing assertions. The proof checks one second
 before the declared wait, so choose an example longer than one second. An absent
 wait preserves the ordinary rejection proof.
 
-This uses the shared provider-wait binding. The testing extra now requires
-pytest-obligation 0.24.0 for the full control set. Native application
+This uses the shared provider-wait binding. The testing extra requires
+pytest-obligation 0.26.0, which has the full control set and cost contracts. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.
