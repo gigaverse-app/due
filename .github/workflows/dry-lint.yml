@@ -24,8 +24,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - uses: gigaverse-app/dry-lint@4719e9dec997c6820ed43ca915ff7c69de7bce77
+      - uses: gigaverse-app/dry-lint@617f2371654c748aa2018d048a6b2d9c18df116d
         with:
+          python-version: '3.14'
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           plugins: anthropic==2.4.0
           baseline: .dry-lint/baseline.json
