@@ -68,6 +68,7 @@ from .models import (
     durable_work_schema,
 )
 from .runtime.coordination import (
+    ClaimFusion,
     ContinueAfter,
     DatabaseTime,
     ReopenAfter,
@@ -161,6 +162,7 @@ __all__ = [
     "claim_work",
     "complete_work",
     "database_now",
+    "ClaimFusion",
     "DatabaseTime",
     "durable_work_schema",
     "dispatch_due_work",

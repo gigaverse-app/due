@@ -34,6 +34,7 @@ from due.django.models import (
 from due.django.runtime import transport
 from due.django.runtime.coordination import (
     CLAIMABLE_STATES,
+    ClaimFusion,
     ContinueAfter,
     NowFn,
     Publisher,
@@ -233,6 +234,11 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
     # Opt in for registered Celery transport. Bound broker/worker timer storage;
     # PostgreSQL owns long deadlines, and recovery needs no hint receipts.
     deadline_wakeup_horizon: ClassVar[timedelta | None] = None
+    # Database-only effects may take a claim inside their transition's transaction
+    # (see ClaimFusion). NEVER keeps the committed claim; AUTO fuses an attempt
+    # that starts within claim_fusion_window of the row becoming available.
+    claim_fusion: ClassVar[ClaimFusion] = ClaimFusion.NEVER
+    claim_fusion_window: ClassVar[timedelta] = timedelta(seconds=1)
 
     def _enqueue_deadline_hint(self, work_id: WorkId) -> bool:
         require_autocommit()
@@ -316,6 +322,10 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
         for state, reason in self.model.work_external_states.items():
             if state not in choices or not isinstance(reason, str) or len(reason.strip()) < 20:
                 raise ValueError("external lifecycle states must name declared choices and their recovery owner")
+        if self.claim_fusion is not ClaimFusion.NEVER and not self._database_only:
+            raise ValueError("only database-only effects can fuse their claim with their transition")
+        if not timedelta(0) < self.claim_fusion_window < self.policy.lease_duration:
+            raise ValueError("claim_fusion_window must be positive and shorter than the lease")
         if self.deadline_wakeup_horizon is not None and not (
             timedelta(0) < self.deadline_wakeup_horizon <= timedelta(minutes=5)
         ):
@@ -504,6 +514,8 @@ class DurableWorkCapability[WorkT: UniverseDurableWork, ResultT = None](ABC):
             database_only=self._database_only,
             eligibility=self.eligibility,
             _completion=completion,
+            fusion=self.claim_fusion,
+            fusion_window=self.claim_fusion_window,
         )
         if transitioned and self.deadline_wakeup_horizon is not None:
             # Settlement committed before this disposable notification. Failure
