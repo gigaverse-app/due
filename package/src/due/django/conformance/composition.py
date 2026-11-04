@@ -1,9 +1,10 @@
 """Reusable crash schedules across a producer and its independent compensation."""
 
-from collections.abc import Callable
-from contextlib import suppress
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -22,12 +23,12 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.registry import installed
+from due.django.runtime.registry import DurableWorkRegistration, installed
 from due.django.runtime.tasks import (
     recover_durable_work_task,
     run_durable_work_task,
 )
-from due.django.testing import WorkerDied, expire_lease, hold_nudges
+from due.django.testing import WorkerDied, expire_lease, hold_nudges, make_due
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -175,29 +176,49 @@ def compensations_for[W: UniverseDurableWork, ResultT](
     )
 
 
-def recover_and_deliver(work: UniverseDurableWork) -> None:
-    """Recover one work identity and execute the registered production worker delivery."""
-    entry = registration_of(type(work))
-    sent = []
+#: One worker task a recovery tick published: its Celery arguments and options.
+type HeldDelivery = tuple[tuple[Any, ...], dict[str, Any]]
 
-    def capture(*, args, **options):
-        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) == work.pk:
+
+@contextmanager
+def held_deliveries(entry: DurableWorkRegistration) -> Iterator[list[HeldDelivery]]:
+    """Hold every worker task published for ``entry`` instead of sending it to a broker."""
+    sent: list[HeldDelivery] = []
+
+    # Celery's apply_async keyword surface is the dynamic boundary here.
+    def capture(*, args: tuple[Any, ...], **options: Any) -> None:
+        if args[0] == entry.name:
             sent.append((args, options))
 
+    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
+        yield sent
+
+
+def recovered_delivery(work: UniverseDurableWork) -> HeldDelivery:
+    """Lose ``work``'s notification, run the registered recovery task, and return its one delivery of ``work``."""
+    entry = registration_of(type(work))
     # Advance eligibility/leases only. Reaping, retry and reservation remain production-owned.
-    entry.model.objects.filter(pk=work.pk).update(available_at=database_now() - timedelta(seconds=1))
+    # Compensation producers reserve cleanup before I/O; losing that worker includes lease expiry.
+    make_due(work)
     entry.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
         lease_expires_at=database_now() - timedelta(seconds=1)
     )
-    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
+    with held_deliveries(entry) as sent:
         recover_durable_work_task(entry.name)
+        # Reaping preserves the configured retry delay. Advance only its clock.
         work.refresh_from_db()
         if work.state == DurableWorkState.RETRYABLE:
-            entry.model.objects.filter(pk=work.pk).update(available_at=database_now() - timedelta(seconds=1))
+            make_due(work)
             recover_durable_work_task(entry.name)
-    assert len(sent) == 1, "recovery must deliver the exact still-owed component"
-    args, options = sent[0]
-    assert_registered_worker_options(entry, options)
+    deliveries = [(args, options) for args, options in sent if work_id_from_wire(entry.model, args[1]) == work.pk]
+    assert len(deliveries) == 1, f"{entry.name}: recovery must publish exactly the still-owed work"
+    return deliveries[0]
+
+
+def recover_and_deliver(work: UniverseDurableWork) -> None:
+    """Recover one work identity and execute the registered production worker delivery."""
+    args, options = recovered_delivery(work)
+    assert_registered_worker_options(registration_of(type(work)), options)
     assert run_durable_work_task(*args), "component delivery must reach its actual executor"
 
 

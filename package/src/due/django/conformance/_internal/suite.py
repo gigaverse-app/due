@@ -92,6 +92,8 @@ from due.django.conformance.composition import (
     assert_exhausted_producer_still_compensates,
     assert_late_projection_write_is_repaired,
     compensations_for,
+    held_deliveries,
+    recovered_delivery,
 )
 from due.django.conformance.composition import (
     SupersessionExample as SupersessionExample,
@@ -949,49 +951,6 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
         )
 
 
-#: One worker task a recovery tick published: its Celery arguments and options.
-type HeldDelivery = tuple[tuple[Any, ...], dict[str, Any]]
-
-
-@contextmanager
-def _held_deliveries(entry: DurableWorkRegistration) -> Iterator[list[HeldDelivery]]:
-    """Hold every worker task published for ``entry`` instead of sending it to a broker."""
-    sent: list[HeldDelivery] = []
-
-    # Celery's apply_async keyword surface is the dynamic boundary here.
-    def capture(*, args: tuple[Any, ...], **options: Any) -> None:
-        if args[0] == entry.name:
-            sent.append((args, options))
-
-    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
-        yield sent
-
-
-def _recovered_delivery[W: UniverseDurableWork, ResultT](
-    capability: DurableWorkCapability[W, ResultT],
-    bindings: DurableWorkBindings[W, ResultT],
-    work: W,
-    sent: list[HeldDelivery],
-) -> HeldDelivery:
-    """Lose ``work``'s notification, run the registered recovery task, and return its one published delivery."""
-    entry = bindings.registration
-    bindings.age(work)
-    # Compensation producers reserve cleanup before I/O. Losing that worker
-    # includes lease expiry; this is clock fault injection, not settlement.
-    capability.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
-        lease_expires_at=database_now() - timedelta(seconds=1)
-    )
-    recover_durable_work_task(entry.name)
-    # Reaping preserves the configured retry delay. Advance only its clock.
-    work.refresh_from_db()
-    if work.state == DurableWorkState.RETRYABLE:
-        bindings.age(work)
-        recover_durable_work_task(entry.name)
-    deliveries = [(args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == work.pk]
-    assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
-    return deliveries[0]
-
-
 #: The recurring database costs every capability's contract holds to the committed baseline.
 type CostPath = Literal["idle tick", "per owed row", "one delivery"]
 COST_PATHS: tuple[CostPath, ...] = get_args(CostPath.__value__)
@@ -1030,22 +989,21 @@ def assert_statement_costs[W: UniverseDurableWork, ResultT](
         # A tick that left its rows due measured nothing; every one must be taken.
         return capability.model.objects.filter(pk__in=made, state__in=CLAIMABLE_STATES).count()
 
-    def deliver(sent: list[HeldDelivery]) -> Counter[str]:
+    def deliver() -> Counter[str]:
         # Inside the example's scope: its provider seam must be live while the worker runs.
-        sent.clear()
         with _binding(examples.delivery) as example:
-            args, _ = _recovered_delivery(capability, bindings, example.work, sent)
+            args, _ = recovered_delivery(example.work)
             return Counter(statement_shapes(lambda: run_durable_work_task(*args)))
 
-    with _binding(examples.environment), hold_nudges(), _held_deliveries(entry) as sent:
+    with _binding(examples.environment), hold_nudges(), held_deliveries(entry):
         tick()
         if path == "idle tick":
             shapes = Counter(statement_shapes(tick))
         elif path == "per owed row":
             shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick, remaining=waiting)
         else:
-            deliver(sent)
-            shapes = deliver(sent)
+            deliver()
+            shapes = deliver()
     assert_statement_cost(f"{entry.name}: {path}", shapes, root=root)
 
 
@@ -1059,7 +1017,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
     with (
         _binding(examples.environment),
         hold_nudges(),
-        _held_deliveries(entry) as sent,
+        held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         assert type(example.work) is capability.model, "producer returned another capability's work"
@@ -1069,7 +1027,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         assert not sent, "producer must record intent without inline worker execution"
         example.work.refresh_from_db()
         never_executed = example.work.state in (DurableWorkState.READY, DurableWorkState.QUEUED)
-        args, options = _recovered_delivery(capability, bindings, example.work, sent)
+        args, options = recovered_delivery(example.work)
         assert_registered_worker_options(entry, options)
         assert run_durable_work_task(*args), "captured production delivery was not executable"
         assert_observation(example.observe(), example.expected, because="worker reaches the required domain outcome")
@@ -1116,7 +1074,7 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
     with (
         _binding(examples.environment),
         hold_nudges(),
-        _held_deliveries(entry) as sent,
+        held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         work = example.work
