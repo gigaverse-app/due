@@ -51,9 +51,9 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          uv tool install --no-config --python 3.14 --with anthropic==2.4.0 \
-            'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1'
-          dry-lint sweep --update --store "$RUNNER_TEMP/dry-lint/verdicts" --budget-usd 5 \
+          uvx --no-config --python 3.14 --with anthropic==2.4.0 \
+            --from 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1' \
+            dry-lint sweep --update --store "$RUNNER_TEMP/dry-lint/verdicts" --budget-usd 5 \
             --readme README.md --repository "$GITHUB_REPOSITORY" --branch main
       # One standing branch: a later run updates the open ratchet PR instead of stacking another. The organization
       # credential makes the PR run ordinary CI, including the required dry-lint check that refuses any widening.
