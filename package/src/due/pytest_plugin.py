@@ -23,6 +23,9 @@ from pytest_obligation.collection import requires_complete_suite as requires_com
 # pytest-global: Detect selected suites omitted by collection rules even when their module never imports; suite-local checks cannot see an omitted module. The scanner imports no application code.
 from due._suite_inventory import selected_enrollment
 
+# pytest-global: Cost contracts are adopted per pytest root; only the collection hook can deselect a not-yet-adopted suite's cost cases before they fail. The predicate imports no suite or application code.
+from due.django.conformance._cost_adoption import COST_CASE, costs_adopted
+
 type CollectSuite = Callable[[pytest.Config, list[pytest.Function]], str]
 type EnforceOutcome = Callable[[pytest.Item, pytest.TestReport], None]
 
@@ -35,6 +38,16 @@ def _enrolled(item: pytest.Item) -> type | None:
 # pytest-global: A suite removed by collect_ignore never imports its validator; only an invocation-wide hook can compare selected source enrollment with actual collection and reject that silent loss.
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]):
+    if not costs_adopted(config.rootpath):
+        unadopted = [
+            item
+            for item in items
+            if _enrolled(item) is not None and cast(pytest.Function, item).originalname == COST_CASE
+        ]
+        if unadopted:
+            dropped = set(unadopted)
+            items[:] = [item for item in items if item not in dropped]
+            config.hook.pytest_deselected(items=unadopted)
     classes: dict[type, list[pytest.Function]] = {}
     for item in items:
         if (cls := _enrolled(item)) is not None:

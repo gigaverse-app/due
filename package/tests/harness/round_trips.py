@@ -1,11 +1,18 @@
 """
-Name every database round trip a durable-work path sends, by what it does to which table.
+Name every database round trip a durable-work path sends, by what it does to which table's role.
 
-Budgets compare these names exactly, so a returning redundant read, a separate
-clock read or a savepoint fails where it is introduced rather than showing up
-as database load. Transaction control (BEGIN/COMMIT) is the same before and
-after an optimization and is left out; ROLLBACK is named, because a path that
-declines and retries another way pays for it. Anything else unclassified fails.
+Budgets compare these names in order, so a returning redundant read, a separate
+clock read or a savepoint fails where it is introduced rather than showing up as
+database load. Statements are named by pytest-obligation's classifier, the one
+the generated cost contracts use; this harness only maps a capability's own
+tables to roles (work, owner, holds), so one budget reads the same for every
+model. Transaction control (BEGIN/COMMIT) is the same before and after an
+optimization and is left out; ROLLBACK and savepoints are named, because a path
+that pays for them is doing more work (a fused claim that declines and retries
+another way pays a ROLLBACK). Anything else fails.
+
+The generated contracts compare a multiset; these budgets keep the order where
+the order is the point, such as a clock read after a lock.
 """
 
 from collections.abc import Callable
@@ -13,6 +20,7 @@ from dataclasses import dataclass
 
 from django.db import connection, models
 from django.test.utils import CaptureQueriesContext
+from pytest_obligation.costs import statement_shape
 
 from due.django.models import RecoveryDeferral
 
@@ -32,6 +40,14 @@ ROLLBACK = "rollback"
 SAVEPOINT = "savepoint"
 RELEASE_SAVEPOINT = "release savepoint"
 
+_UNTABLED = {
+    "select clock_timestamp()": CLOCK,
+    "rollback": ROLLBACK,
+    "savepoint": SAVEPOINT,
+    "release savepoint": RELEASE_SAVEPOINT,
+}
+_HOLD_VERBS = {"read": HOLDS, "count": HOLD_CENSUS}
+
 
 @dataclass(frozen=True)
 class RoundTrips:
@@ -41,33 +57,17 @@ class RoundTrips:
     owner: type[models.Model]
 
     def shape(self, sql: str) -> str:
-        """What a statement does, by the table it targets: enough to name every round trip of these paths."""
-        work, owner, holds = (model._meta.db_table for model in (self.work, self.owner, RecoveryDeferral))
-        if sql == "SELECT clock_timestamp()":
-            return CLOCK
-        if sql == "ROLLBACK":
-            return ROLLBACK
-        if sql.startswith("SAVEPOINT "):
-            return SAVEPOINT
-        if sql.startswith("RELEASE SAVEPOINT "):
-            return RELEASE_SAVEPOINT
-        for verb, table, shape in (
-            ("UPDATE", work, UPDATE_WORK),
-            ("UPDATE", owner, UPDATE_OWNER),
-            ("DELETE FROM", work, DELETE_WORK),
-        ):
-            if sql.startswith(f'{verb} "{table}"'):
-                return shape
-        # The outermost FROM: an owner lock names the work table only in its sub-select.
-        target = sql.split(" FROM ", 1)[1].split()[0].strip('"') if sql.startswith("SELECT ") else ""
-        counted = "GROUP BY" in sql or "COUNT(" in sql
-        if target == holds:
-            return HOLD_CENSUS if counted else HOLDS
-        if target == work:
-            return LOCK_WORK if " FOR UPDATE" in sql else COUNT_WORK if counted else READ_WORK
-        if target == owner:
-            return LOCK_OWNER if " FOR UPDATE" in sql else COUNT_OWNER if counted else READ_OWNER
-        raise AssertionError(f"unclassified statement: {sql}")
+        """What a statement does, to which of these tables' roles; a statement outside them fails."""
+        named = statement_shape(sql, strict=True)
+        if named in _UNTABLED:
+            return _UNTABLED[named]
+        verb, _, table = named.partition(" ")
+        if table == RecoveryDeferral._meta.db_table and verb in _HOLD_VERBS:
+            return _HOLD_VERBS[verb]
+        role = {self.work._meta.db_table: "work", self.owner._meta.db_table: "owner"}.get(table)
+        if role is None:
+            raise AssertionError(f"unclassified statement: {sql}")
+        return f"{verb} {role}"
 
     def of(self, run: Callable[[], object]) -> list[str]:
         """Every statement ``run`` sends, in order, without transaction control."""
