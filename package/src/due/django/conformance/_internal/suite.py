@@ -83,7 +83,6 @@ from due.django.conformance.binding import Binding
 from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import (
     DurableWorkBindings,
-    assert_registered_worker_options,
 )
 from due.django.conformance.composition import (
     CancellationExample,
@@ -118,7 +117,7 @@ from due.django.conformance.observations import (
     OBSERVATION_HISTORIES,
     assert_observation_recovers_without_resend,
 )
-from due.django.conformance.recovered_deliveries import held_deliveries, recovered_delivery
+from due.django.conformance.recovered_deliveries import held_deliveries, recover_and_execute, recovered_delivery
 from due.django.conformance.recovery_isolation import (
     assert_one_poisoned_identity_does_not_stall_recovery,
     recovery_isolation_histories,
@@ -1026,9 +1025,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         assert not sent, "producer must record intent without inline worker execution"
         example.work.refresh_from_db()
         never_executed = example.work.state in (DurableWorkState.READY, DurableWorkState.QUEUED)
-        args, options = recovered_delivery(example.work)
-        assert_registered_worker_options(entry, options)
-        assert run_durable_work_task(*args), "captured production delivery was not executable"
+        recover_and_execute([example.work], expire_claimed=True)
         assert_observation(example.observe(), example.expected, because="worker reaches the required domain outcome")
         example.work.refresh_from_db()
         if never_executed:

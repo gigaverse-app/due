@@ -11,11 +11,12 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import patch
 
+from due.django.conformance.bindings import assert_registered_worker_options
 from due.django.conformance.registrations import registration_of
 from due.django.identities import work_id_from_wire
 from due.django.models import DurableWorkState, UniverseDurableWork
 from due.django.runtime.registry import DurableWorkRegistration
-from due.django.runtime.tasks import recover_durable_work_task
+from due.django.runtime.tasks import recover_durable_work_task, run_durable_work_task
 from due.django.testing import expire_lease, make_due
 
 #: One worker task a recovery tick published: its Celery arguments and options.
@@ -67,11 +68,33 @@ def recovered_deliveries(works: Iterable[UniverseDurableWork], *, expire_claimed
 
 def recovered_delivery(work: UniverseDurableWork) -> HeldDelivery:
     """The one delivery recovery publishes for ``work`` after its notification and any worker were lost."""
-    deliveries = recovered_deliveries([work], expire_claimed=True)
-    assert len(deliveries) == 1, (
-        f"{registration_of(type(work)).name}: configured recovery did not publish the producer's exact work"
+    (delivery,) = _one_each([work], recovered_deliveries([work], expire_claimed=True))
+    return delivery
+
+
+def recover_and_execute(works: Iterable[UniverseDurableWork], *, expire_claimed: bool) -> list[HeldDelivery]:
+    """
+    Recover ``works`` and execute each one's delivery once, as its registered worker.
+
+    Requires exactly one published delivery per work, with the registration's
+    worker options, and that each actually executes.
+    """
+    works = list(works)
+    deliveries = _one_each(works, recovered_deliveries(works, expire_claimed=expire_claimed))
+    entry = registration_of(type(works[0]))
+    for args, options in deliveries:
+        assert_registered_worker_options(entry, options)
+        assert run_durable_work_task(*args), f"{entry.name}: a recovered delivery did not reach its executor"
+    return deliveries
+
+
+def _one_each(works: list[UniverseDurableWork], deliveries: list[HeldDelivery]) -> list[HeldDelivery]:
+    entry = registration_of(type(works[0]))
+    delivered = sorted((str(work_id_from_wire(entry.model, args[1])) for args, _ in deliveries))
+    assert delivered == sorted(str(work.pk) for work in works), (
+        f"{entry.name}: configured recovery did not publish the producer's exact work"
     )
-    return deliveries[0]
+    return deliveries
 
 
 def _refreshed[W: UniverseDurableWork](work: W) -> W:

@@ -6,7 +6,7 @@ See docs/conformance.md#reusing-scenarios-without-duplicating-tests.
 """
 
 from asyncio import CancelledError
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from datetime import timedelta
@@ -31,8 +31,7 @@ from due.django.conformance.bindings import (
 )
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
-from due.django.conformance.recovered_deliveries import HeldDelivery, recovered_deliveries
-from due.django.conformance.registrations import registration_of
+from due.django.conformance.recovered_deliveries import HeldDelivery, recover_and_execute
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.evidence.attempts import attempts_for
@@ -284,7 +283,7 @@ def assert_producer_transaction[W: UniverseDurableWork, ResultT, ObservationT](
             )
             return
 
-        deliveries = _recover_lost_deliveries(works)
+        deliveries = recover_and_execute(works, expire_claimed=False)
         assert_observation(
             example.observe(), example.expected, because="producer recovery reaches its required product outcome"
         )
@@ -443,7 +442,7 @@ def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
         assert owed, "a refused effect must leave the accepted change owed, not abandoned"
         assert not [args for args, _ in sent if args[0] == entry.name], "a failed inline attempt nudged its worker"
         failed_calls = example.effect_calls()
-        _recover_lost_deliveries(capability.model.objects.filter(pk__in=owed))
+        recover_and_execute(capability.model.objects.filter(pk__in=owed), expire_claimed=False)
         assert_observation(
             example.observe(), example.expected, because="recovery delivers the change the caller accepted"
         )
@@ -637,26 +636,6 @@ def _settle_through_recovery(
             assert_registered_worker_options(entry, options)
             with suppress(Exception):
                 run_durable_work_task(*args)
-
-
-def _recover_lost_deliveries(works: Iterable[UniverseDurableWork]) -> list[HeldDelivery]:
-    """
-    Lose every post-commit notification, then let registered recovery deliver.
-
-    Expire only lost reservations; production recovery performs every state
-    transition and redispatch. Returns the deliveries it executed once.
-    """
-    works = list(works)
-    deliveries = recovered_deliveries(works, expire_claimed=False)
-    model = type(works[0])
-    assert {work_id_from_wire(model, args[1]) for args, _ in deliveries} == {work.pk for work in works}, (
-        "recovery omitted a committed obligation"
-    )
-    entry = registration_of(model)
-    for args, options in deliveries:
-        assert_registered_worker_options(entry, options)
-        assert run_durable_work_task(*args), "recovered delivery did not execute"
-    return deliveries
 
 
 # pytest-global: Every adopter with a wake command supplies it through this shared scenario contract.
