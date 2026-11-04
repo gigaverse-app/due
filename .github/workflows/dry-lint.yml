@@ -24,7 +24,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - uses: gigaverse-app/dry-lint@main
+      - uses: gigaverse-app/dry-lint@v1
         with:
           python-version: '3.14'
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

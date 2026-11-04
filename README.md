@@ -7,6 +7,7 @@
 [![Typed](https://img.shields.io/badge/typing-py.typed-blue)](package/src/due/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](package/LICENSE)
 [![Documentation](https://readthedocs.org/projects/due/badge/?version=latest)](https://due.readthedocs.io/en/latest/)
+[![dry-lint](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](#how-this-project-keeps-duplication-out)
 
 **An attempt can end. The obligation remains.**
 
@@ -306,6 +307,7 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 [![CI powered by CI-esta](https://img.shields.io/badge/CI_powered_by-CI--esta-EA580C?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI%2BPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTUiIGZpbGw9IiNFQTU4MEMiLz48cGF0aCBkPSJNMTUgMzRsMTEgMTEgMjAtMjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSI3IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNNDYgN2gxMGwtMTAgMTBoMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg%3D%3D)](https://github.com/gigaverse-app/ci-esta)
 [![Tests selected by pytest-selective](https://img.shields.io/badge/tests_selected_by-pytest--selective-2563EB)](https://github.com/gigaverse-app/pytest-selective)
 [![Crash-tested with pytest-obligation](https://img.shields.io/badge/crash--tested_with-pytest--obligation-7C3AED)](https://github.com/gigaverse-app/pytest-obligation)
+[![Duplication checked by dry-lint](https://img.shields.io/badge/duplication_checked_by-dry--lint-7E4FC9)](https://github.com/gigaverse-app/dry-lint)
 
 <sub>Pull requests run only the [test lanes](.github/test-lanes.json) a change can
 affect, behind CI-esta's required-check gates; every run gets a CI-esta
@@ -316,6 +318,12 @@ pytest-obligation tests generated from its contracts.</sub>
 
 See the [CI toolkit integration](docs/ci-toolkit.md) for lane selection, validated
 environment caches, required gates and real dependency critical-path reports.
+
+### How this project keeps duplication out
+
+A pre-commit hook and the required `dry-lint` check block code that re-implements a function Due already has.
+Duplication that predates adoption is an accepted backlog that only shrinks: the weekly audit records each
+pair a refactor removes. See [CONTRIBUTING.md](CONTRIBUTING.md#duplication).
 
 <!-- dry-lint-progress:start -->
 [![dry-lint cleanup progress](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](https://github.com/gigaverse-app/dry-lint)
