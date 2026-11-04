@@ -38,6 +38,6 @@ def test_extra_proof_is_forwarded_and_cannot_disappear_from_collection() -> None
         suite = effect_contract_suite(capability, examples=examples)(type("TestExtra", (), {}))
         path = Path(__file__).resolve()
         item = SimpleNamespace(cls=suite, path=path, name="test_registered_effect_enrollment")
-        config = SimpleNamespace(args=[str(path)])
+        config = SimpleNamespace(args=[str(path)], rootpath=path.parent)
         with pytest.raises(AssertionError, match="lost collected proofs:.*dependency_index"):
             collect_suite(cast(pytest.Config, config), [cast(pytest.Function, item)])

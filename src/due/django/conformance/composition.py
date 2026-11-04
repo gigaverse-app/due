@@ -11,10 +11,9 @@ import pytest
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import CancellationResult, DurableScheduledAction
-from due.django.conformance.bindings import assert_registered_worker_options
-from due.django.conformance.registrations import registered_capability, registration_of
+from due.django.conformance.recovered_deliveries import recover_and_execute
+from due.django.conformance.registrations import registered_capability
 from due.django.evidence.attempts import attempts_for, observe_effect_outcome
-from due.django.identities import work_id_from_wire
 from due.django.models import EffectAttemptOutcome
 from due.django.public import (
     DurableWorkCapability,
@@ -23,10 +22,6 @@ from due.django.public import (
     database_now,
 )
 from due.django.runtime.registry import installed
-from due.django.runtime.tasks import (
-    recover_durable_work_task,
-    run_durable_work_task,
-)
 from due.django.testing import WorkerDied, expire_lease, hold_nudges
 
 
@@ -106,7 +101,7 @@ def assert_cancellation_after_entry_is_honest(
         entered[0].refresh_from_db()
         assert entered[0].outcome == EffectAttemptOutcome.UNKNOWN
         assert example.change() == CancellationResult.ALREADY_STARTED, "worker death cannot prove remote cancellation"
-        recover_and_deliver(example.work)
+        recover_and_execute([example.work], expire_claimed=True)
         assert example.observe() == example.completed
     example.work.refresh_from_db()
     assert example.work.state == DurableWorkState.SUCCEEDED
@@ -150,14 +145,14 @@ def assert_late_projection_write_is_repaired(
         old = escaped[0]
         old.refresh_from_db()
         assert old.repair_pending, "late or unknown work must retain repair debt after successor settlement"
-        recover_and_deliver(example.work)
+        recover_and_execute([example.work], expire_claimed=True)
         assert example.observe() == example.latest, "recovery must restore the latest visible projection"
         if worker_dies:
             old.refresh_from_db()
             assert old.outcome == EffectAttemptOutcome.UNKNOWN and old.repair_pending
             # Definite late evidence is supplied through the production evidence seam.
             observe_effect_outcome(old, EffectAttemptOutcome.APPLIED)
-            recover_and_deliver(example.work)
+            recover_and_execute([example.work], expire_claimed=True)
             assert example.observe() == example.latest
         old.refresh_from_db()
         assert not old.repair_pending, "definite old completion must be covered by a subsequent current write"
@@ -173,32 +168,6 @@ def compensations_for[W: UniverseDurableWork, ResultT](
         if isinstance(cleanup := registered_capability(entry.name), IndependentCompensation)
         and cleanup.producer_model is capability.model
     )
-
-
-def recover_and_deliver(work: UniverseDurableWork) -> None:
-    """Recover one work identity and execute the registered production worker delivery."""
-    entry = registration_of(type(work))
-    sent = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) == work.pk:
-            sent.append((args, options))
-
-    # Advance eligibility/leases only. Reaping, retry and reservation remain production-owned.
-    entry.model.objects.filter(pk=work.pk).update(available_at=database_now() - timedelta(seconds=1))
-    entry.model.objects.filter(pk=work.pk, lease_expires_at__isnull=False).update(
-        lease_expires_at=database_now() - timedelta(seconds=1)
-    )
-    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
-        recover_durable_work_task(entry.name)
-        work.refresh_from_db()
-        if work.state == DurableWorkState.RETRYABLE:
-            entry.model.objects.filter(pk=work.pk).update(available_at=database_now() - timedelta(seconds=1))
-            recover_durable_work_task(entry.name)
-    assert len(sent) == 1, "recovery must deliver the exact still-owed component"
-    args, options = sent[0]
-    assert_registered_worker_options(entry, options)
-    assert run_durable_work_task(*args), "component delivery must reach its actual executor"
 
 
 def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT](
@@ -221,7 +190,7 @@ def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT]
 
     def output_then_die(current):
         for retired in example.retire():
-            recover_and_deliver(retired)
+            recover_and_execute([retired], expire_claimed=True)
         assert example.observe() == example.clean, "retirement must precede the escaped output"
         assert captured and captured[-1].pk is not None, "cleanup must be committed before output"
         example.produce_output(current)
@@ -252,16 +221,16 @@ def assert_exhausted_producer_still_compensates[W: UniverseDurableWork, ResultT]
         # Compensation has its own failure budget even after primary exhaustion.
         with patch.object(type(cleanup), "compensate", side_effect=OSError("cleanup unavailable")):
             with pytest.raises(OSError):
-                recover_and_deliver(compensation)
+                recover_and_execute([compensation], expire_claimed=True)
         compensation.refresh_from_db()
         assert compensation.state == DurableWorkState.RETRYABLE
-        recover_and_deliver(compensation)
+        recover_and_execute([compensation], expire_claimed=True)
         assert example.observe() == example.clean, "independent cleanup must remove escaped output"
 
         # An already-admitted PUT can land after a successful DELETE.
         example.produce_output(work)
         assert example.observe() != example.clean
-        recover_and_deliver(compensation)
+        recover_and_execute([compensation], expire_claimed=True)
         assert example.observe() == example.clean
         work.refresh_from_db()
         assert work.state == DurableWorkState.EXHAUSTED, "cleanup must not resurrect primary execution"

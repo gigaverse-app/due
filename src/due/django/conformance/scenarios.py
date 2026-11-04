@@ -6,7 +6,7 @@ See docs/conformance.md#reusing-scenarios-without-duplicating-tests.
 """
 
 from asyncio import CancelledError
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from datetime import timedelta
@@ -25,12 +25,13 @@ from due.django.capabilities.compensation import IndependentCompensation
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.capabilities.operations import DurableExternalOperation
-
-# pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.conformance.bindings import (
     DurableWorkBindings,
     assert_registered_worker_options,
 )
+
+# pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
+from due.django.conformance.recovered_deliveries import HeldDelivery, recover_and_execute
 
 # pytest-global: Shared generated scenarios exercise this production seam for every enrolled adopter.
 from due.django.evidence.attempts import attempts_for
@@ -282,7 +283,7 @@ def assert_producer_transaction[W: UniverseDurableWork, ResultT, ObservationT](
             )
             return
 
-        deliveries = _recover_lost_deliveries(entry, works, sent)
+        deliveries = recover_and_execute(works, expire_claimed=False)
         assert_observation(
             example.observe(), example.expected, because="producer recovery reaches its required product outcome"
         )
@@ -358,7 +359,7 @@ def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
     entry = DurableWorkBindings(
         capability, lambda: pytest.fail("synchronous callers admit through call()")
     ).registration
-    sent: list[_SentTask] = []
+    sent: list[HeldDelivery] = []
 
     def capture(*, args: tuple[str, int, str], **options: object) -> None:
         sent.append((args, options))
@@ -441,14 +442,11 @@ def assert_synchronous_caller[W: UniverseDurableWork, ResultT, ObservationT](
         assert owed, "a refused effect must leave the accepted change owed, not abandoned"
         assert not [args for args, _ in sent if args[0] == entry.name], "a failed inline attempt nudged its worker"
         failed_calls = example.effect_calls()
-        _recover_lost_deliveries(entry, capability.model.objects.filter(pk__in=owed), sent)
+        recover_and_execute(capability.model.objects.filter(pk__in=owed), expire_claimed=False)
         assert_observation(
             example.observe(), example.expected, because="recovery delivers the change the caller accepted"
         )
         assert example.effect_calls() > failed_calls, "recovery never reached the external boundary"
-
-
-type _SentTask = tuple[tuple[str, int, str], dict[str, object]]
 
 
 def _work_rows(model: type[UniverseDurableWork]) -> dict[int, tuple[object, ...]]:
@@ -484,7 +482,7 @@ def _assert_caller_waits_for_the_held_claim[W: UniverseDurableWork, ResultT, Obs
     capability: DurableWorkCapability[W, ResultT],
     example: SynchronousCallerExample[ObservationT],
     entry: DurableWorkRegistration,
-    sent: list[_SentTask],
+    sent: list[HeldDelivery],
     owed: set[int],
 ) -> None:
     """
@@ -528,7 +526,7 @@ def _assert_repeat_admits_nothing[W: UniverseDurableWork, ResultT, ObservationT]
     capability: DurableWorkCapability[W, ResultT],
     example: SynchronousCallerExample[ObservationT],
     entry: DurableWorkRegistration,
-    sent: list[_SentTask],
+    sent: list[HeldDelivery],
 ) -> None:
     """A repeat of the value already completed admits no revision, row, notification or effect."""
     example.call()
@@ -553,7 +551,7 @@ def _assert_lost_response_is_not_blindly_resent[W: UniverseDurableWork, ResultT,
     capability: DurableWorkCapability[W, ResultT],
     example: SynchronousCallerExample[ObservationT],
     entry: DurableWorkRegistration,
-    sent: list[_SentTask],
+    sent: list[HeldDelivery],
 ) -> None:
     """
     The provider accepted the inline attempt and the caller timed out.
@@ -608,7 +606,7 @@ def _settle_through_recovery(
     entry: DurableWorkRegistration,
     model: type[UniverseDurableWork],
     ids: set[int],
-    sent: list[_SentTask],
+    sent: list[HeldDelivery],
     *,
     rounds: int = 3,
 ) -> None:
@@ -638,38 +636,6 @@ def _settle_through_recovery(
             assert_registered_worker_options(entry, options)
             with suppress(Exception):
                 run_durable_work_task(*args)
-
-
-def _recover_lost_deliveries[W: UniverseDurableWork](
-    entry: DurableWorkRegistration, works: Iterable[W], sent: list[_SentTask]
-) -> list[_SentTask]:
-    """
-    Lose every post-commit notification, then let registered recovery deliver.
-
-    Expire only lost reservations; production recovery performs every state
-    transition and redispatch. Returns the deliveries it executed once.
-    """
-    ids = set()
-    sent.clear()
-    for work in works:
-        work.refresh_from_db()
-        ids.add(work.pk)
-        if work.state == DurableWorkState.QUEUED:
-            expire_lease(work)
-        make_due(work)
-    recover_durable_work_task(entry.name)
-    deliveries = [
-        (args, options)
-        for args, options in sent
-        if args[0] == entry.name and work_id_from_wire(entry.model, args[1]) in ids
-    ]
-    assert {work_id_from_wire(entry.model, args[1]) for args, _ in deliveries} == ids, (
-        "recovery omitted a committed obligation"
-    )
-    for args, options in deliveries:
-        assert_registered_worker_options(entry, options)
-        assert run_durable_work_task(*args), "recovered delivery did not execute"
-    return deliveries
 
 
 # pytest-global: Every adopter with a wake command supplies it through this shared scenario contract.
@@ -729,7 +695,7 @@ def assert_wake_rereads_facts[W: UniverseDurableWork, ResultT, ObservationT](
     assert type(work) is model, "wake example must use the capability model"
     actions: list[WakeAction] = []
     original = authoring.wake_work
-    sent: list[_SentTask] = []
+    sent: list[HeldDelivery] = []
 
     def observed_wake(woken: type[W], work_id: WorkId, **options: Any) -> WakeAction:
         action = original(woken, work_id, **options)
@@ -843,7 +809,7 @@ def assert_lost_acknowledgement_replay_converges[W: UniverseDurableWork, ResultT
     apply = type(capability).apply
     executions = 0
     continued: list[bool] = []
-    sent: list[_SentTask] = []
+    sent: list[HeldDelivery] = []
 
     def lose_acknowledgement(self: DurableWorkCapability[W, ResultT], current: W, result: ResultT) -> object:
         # The product write runs inside the settlement transaction that the death rolls back.

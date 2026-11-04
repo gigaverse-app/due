@@ -132,7 +132,7 @@ Import declarations from `due.django.conformance.examples` and enroll through
 
 | Capability feature | Application examples | Generated evidence |
 | --- | --- | --- |
-| Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes |
+| Every work table | `make_work`, `delivery`, `retry` | Recovery, fencing, lock order, duplicate workers, lost notifications, poison isolation, indexes, [statement costs](#hold-recurring-costs-to-a-baseline) |
 | Finite retry budget | `terminal` | Visible product failure and authorized rearm, or a reason rearm is forbidden |
 | Classified provider outcomes (any mode) | `rejections` | Each named outcome takes its declared classification in one execution and shows it on the product; a terminal one is never selected or sent again (profile J `classified_failures`) |
 | Provider-declared retry window | `RejectionExample(provider_wait=...)` or `ProviderSeam.rejection(..., provider_wait=...)` | Partial time advance keeps work ineligible; stale delivery cannot call the provider; repeated waiting preserves the failure budget |
@@ -343,6 +343,44 @@ be collected, selected and passed exactly once. Filtering to one easy test or
 retaining only a passing profile report cannot certify the application suite.
 For each effect claiming verified H, the gate independently requires all canonical
 replay proof names; deleting a replay binding cannot shrink the required evidence.
+
+## Hold recurring costs to a baseline
+
+An application adopts cost contracts by committing an empty
+`obligation_cost_baseline.yaml` at its pytest root and recording it (below).
+Until that file exists, Due deselects the cost cases and leaves them out of each
+suite's expected proofs, so upgrading Due fails nothing. Once it exists, every
+case runs and a missing entry fails.
+
+Every suite then generates `test_statement_cost` for three paths that run
+forever: the registered recovery task with nothing owed (`idle tick`), exactly
+what one more due row adds to it (`per owed row`), and the worker task recovery
+publishes, from accepting its reservation to settlement (`one delivery`). Each
+statement is named by its shape, such as `lock orders_work`, `commit` or `select
+clock_timestamp()`, and compared with the committed
+`obligation_cost_baseline.yaml` at the pytest root, using pytest-obligation's
+[cost contracts](https://github.com/gigaverse-app/pytest-obligation/blob/main/package/docs/cost-contracts.md).
+
+The comparison is exact. An added statement is a regression; a removed one is a
+saving the baseline must keep. Record new entries, or lower them after an
+optimization, with:
+
+```bash
+OBLIGATION_COST_BASELINE=update uv run pytest -p no:xdist -k test_statement_cost --obligation-cost-baseline-complete
+```
+
+Run from the pytest root so every cost case is selected: with
+`--obligation-cost-baseline-complete`, update mode also removes entries for
+capabilities or paths that no longer exist, and a check-mode run fails on them.
+
+The cases use the real database clock (a frozen scheduler clock would hide clock
+reads) and run each path once unmeasured first, so first-use caches belong to no
+contract. They bind only `make_work`, `delivery` and the environment you already
+declare, with two requirements: a row from `make_work` must be dispatchable once
+aged (otherwise the per-row case fails, rather than recording a cost of taking
+nothing), and the `delivery` binding must be re-enterable, because the warm-up
+and the measured delivery each enter it. Statement counts are deterministic and
+say nothing about time or CPU; keep those to a benchmark.
 
 ## Prove the proof, and use exploration where it applies
 
@@ -656,8 +694,8 @@ applications do not copy the timing assertions. The proof checks one second
 before the declared wait, so choose an example longer than one second. An absent
 wait preserves the ordinary rejection proof.
 
-This uses the shared provider-wait binding. The testing extra now requires
-pytest-obligation 0.24.0 for the full control set. Native application
+This uses the shared provider-wait binding. The testing extra requires
+pytest-obligation 0.26.0, which has the full control set and cost contracts. Native application
 lifecycles can bind `ClassifiedFailure` directly and use the same proof without a
 Due work-table migration. The SDK adapter still owns decoding headers and
 provider reset times; Due owns durable retry scheduling.
