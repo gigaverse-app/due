@@ -80,7 +80,6 @@ from due.django.conformance.binding import Binding
 from due.django.conformance.binding import entered_binding as _binding
 from due.django.conformance.bindings import (
     DurableWorkBindings,
-    assert_registered_worker_options,
 )
 from due.django.conformance.composition import (
     CancellationExample,
@@ -89,6 +88,7 @@ from due.django.conformance.composition import (
     assert_exhausted_producer_still_compensates,
     assert_late_projection_write_is_repaired,
     compensations_for,
+    recover_and_deliver,
 )
 from due.django.conformance.composition import (
     SupersessionExample as SupersessionExample,
@@ -972,25 +972,8 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         assert not sent, "producer must record intent without inline worker execution"
         example.work.refresh_from_db()
         never_executed = example.work.state in (DurableWorkState.READY, DurableWorkState.QUEUED)
-        bindings.age(example.work)
-        # Compensation producers reserve cleanup before I/O. Losing that worker
-        # includes lease expiry; this is clock fault injection, not settlement.
-        capability.model.objects.filter(pk=example.work.pk, lease_expires_at__isnull=False).update(
-            lease_expires_at=database_now() - timedelta(seconds=1)
-        )
-        recover_durable_work_task(entry.name)
-        # Reaping preserves the configured retry delay. Advance only its clock.
-        example.work.refresh_from_db()
-        if example.work.state == DurableWorkState.RETRYABLE:
-            bindings.age(example.work)
-            recover_durable_work_task(entry.name)
-        deliveries = [
-            (args, options) for args, options in sent if work_id_from_wire(capability.model, args[1]) == example.work.pk
-        ]
-        assert len(deliveries) == 1, f"{entry.name}: configured recovery did not publish the producer's exact work"
-        args, options = deliveries[0]
-        assert_registered_worker_options(entry, options)
-        assert run_durable_work_task(*args), "captured production delivery was not executable"
+        # Compensation producers reserve cleanup before I/O; losing that worker includes lease expiry.
+        recover_and_deliver(example.work)
         assert_observation(example.observe(), example.expected, because="worker reaches the required domain outcome")
         example.work.refresh_from_db()
         if never_executed:

@@ -326,13 +326,13 @@ class DurableExternalOperation[OwnerT: models.Model, WorkT: ExternalOperationWor
         if not isinstance(work, self.model):
             raise ValueError("work belongs to another operation model")
         try:
-            return (
-                attempts_for(work)
-                .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
-                .get(desired_revision=work.desired_revision)
-            )
+            return self._possible_effect_entries(work).exclude(outcome=EffectAttemptOutcome.NOT_APPLIED).get()
         except EffectAttempt.DoesNotExist:
             return None
+
+    def _possible_effect_entries(self, work: WorkT) -> QuerySet[EffectAttempt]:
+        """The entries that belong to this occurrence: those of its desired revision."""
+        return attempts_for(work).filter(desired_revision=work.desired_revision)
 
     def finalize_success(self, work: WorkT, result: EffectAttempt, /) -> None:
         # A webhook can commit newer evidence before the RPC returns. Live and

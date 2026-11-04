@@ -1,6 +1,6 @@
-from collections import Counter
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import AbstractContextManager, contextmanager
+from functools import partial
 from unittest.mock import patch
 
 from django.db import connection
@@ -8,7 +8,7 @@ from pytest_obligation.profiles.indivisible_admission import AdmissionAtomicity,
 from pytest_obligation.profiles.job_retry_limits import BoundedRetry
 
 from due.django.conformance import DurableWorkBindings
-from due.django.models import DurableWorkState
+from due.django.conformance.suite import failing_external_call, retry_bindings
 from due.django.runtime import transport
 from due.django.runtime.coordination import outstanding_work
 from due.django.testing import hold_nudges, make_due
@@ -18,40 +18,15 @@ from tests.harness import primitive as fixture
 from tests.harness.primitive import PrimitiveWork, primitive, record
 
 
-@contextmanager
-def retries() -> Iterator[BoundedRetry]:
-    # ARRANGE: real obligations through the library producer.
-    bindings = DurableWorkBindings(fixture.primitive, fixture.record)
-    calls: Counter[int] = Counter()
-
-    def fail(work: fixture.PrimitiveWork) -> str:
-        # EXTERNAL SEAM: a provider outage, counted independently of retry state.
-        calls[work.pk] += 1
-        raise OSError("provider unavailable")
-
-    run_attempt = fixture.primitive.attempt_execution
-
-    def execute(work: fixture.PrimitiveWork) -> None:
-        # REAL PRODUCTION: normal executor, including its failure settlement.
-        with suppress(OSError):
-            run_attempt(work.pk)
-
-    maximum = fixture.primitive.policy.max_rearms
-    assert maximum is not None
-    with patch.object(fixture, "call", fail):
-        yield BoundedRetry(
-            name="Due retry budget",
-            max_executions=maximum + 1,
-            make_failing=bindings.make,
-            due_work=fixture.primitive.due_work,
-            run_once=execute,
-            advance_to_due=bindings.age,
-            is_terminal=lambda work: bindings.observe(work)[0] == DurableWorkState.EXHAUSTED,
-            failure_attempt_count=lambda work: calls[work.pk],
-            # OBSERVE: database state and independent provider call counts.
-            observe=lambda work: (bindings.observe(work), calls[work.pk]),
-            identity_of=lambda work: work.pk,
-        )
+def retries() -> AbstractContextManager[BoundedRetry]:
+    # REAL PRODUCTION: the shipped binding runs the normal executor, including its failure settlement.
+    return retry_bindings(
+        # ARRANGE: real obligations through the library producer.
+        DurableWorkBindings(fixture.primitive, fixture.record),
+        # EXTERNAL SEAM: a provider outage.
+        # OBSERVE: database state, and provider calls counted independently of retry state.
+        partial(failing_external_call, f"{fixture.__name__}.call"),
+    )
 
 
 class AdmissionInterrupted(Exception):
