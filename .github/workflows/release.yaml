@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Only release the tested main head
         id: current
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const {data: branch} = await github.rest.repos.getBranch({...context.repo, branch: 'main'});
