@@ -115,6 +115,31 @@ class _PreparedWorkUpdates:
     fields: tuple[str, ...]
 
 
+class ClaimFusion(StrEnum):
+    """
+    Whether a database-only transition may take its claim in its own transaction.
+
+    A fused claim saves the claim's write and commit, but a process that dies
+    inside the transition rolls the attempt count back with it. ``AUTO`` fuses
+    only an attempt that starts within the effect's fusion window of the row's
+    availability. A rollback never moves availability, so every death makes the
+    next attempt later; once late, attempts take committed claims and count.
+    """
+
+    NEVER = "never"
+    AUTO = "auto"
+    ALWAYS = "always"
+
+
+@dataclass(frozen=True, slots=True)
+class _UncommittedClaim:
+    """What a fused claim's row still stores, and the attempt count it will record."""
+
+    state: str
+    token: UUID
+    attempt_count: int
+
+
 @dataclass(frozen=True, slots=True)
 class WorkClaim[ClaimedWorkT: DurableWork]:
     """
@@ -129,6 +154,8 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
     token: UUID
     claim_generation: int
     desired_revision: int
+    #: A fused claim is not committed: the locked row still has this stored state and token.
+    uncommitted: _UncommittedClaim | None = None
 
     @property
     def work_id(self) -> WorkId:
@@ -144,10 +171,11 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
         return self.model.objects.filter(**self._authority())
 
     def _authority(self) -> dict[str, object]:
+        stored = self.uncommitted
         return {
             "pk": self.work_id,
-            "state": DurableWorkState.CLAIMED,
-            "fencing_token": self.token,
+            "state": DurableWorkState.CLAIMED if stored is None else stored.state,
+            "fencing_token": self.token if stored is None else stored.token,
             "desired_revision": self.desired_revision,
         }
 
@@ -156,6 +184,16 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
         return type(current) is self.model and all(
             getattr(current, name) == value for name, value in self._authority().items()
         )
+
+    def unrecorded_fields(self) -> dict[str, object]:
+        """Claim bookkeeping a fused claim writes with its settlement; nothing once a claim is committed."""
+        if self.uncommitted is None:
+            return {}
+        return {
+            "fencing_token": self.token,
+            "claim_generation": self.claim_generation,
+            "attempt_count": self.uncommitted.attempt_count,
+        }
 
     def locked_work(self) -> ClaimedWorkT | None:
         """Read current ownership without rebuilding a fixed ORM query.
@@ -380,47 +418,15 @@ def claim_work[WorkT: DurableWork](
     """
 
     with transaction.atomic():
-        # Eligibility callbacks and explicit clocks require a concrete datetime.
-        # Ordinary claims obtain one statement-stable time with the row itself;
-        # the same value authorizes availability and anchors the lease.
-        needs_time = eligibility is not None and eligibility.requires_time
-        claimed_at = now() if needs_time or now is not database_now else None
-        selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
-        candidates = (
-            model.objects.select_for_update(of=("self",))
-            .annotate(_due_claimed_at=selection_time)
-            .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
-        )
-        if eligibility is not None:
-            candidates = eligibility.filter(candidates, now=claimed_at)
-        work = candidates.first()
-        if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
+        work = _select_claimable(model, work_id, now=now, expected_revision=expected_revision, eligibility=eligibility)
+        if work is None:
             record_work_operation(
                 model._meta.label_lower,
                 DurableWorkOperation.CLAIM_MISSED,
             )
             return None
-        work.state = DurableWorkState.QUEUED if queued else DurableWorkState.CLAIMED
-        work.fencing_token = uuid4()
-        # Both counters saturate: neither fences anything (the token does).
-        work.claim_generation = saturating_increment(work.claim_generation)
-        work.attempt_count = saturating_increment(work.attempt_count)
-        # Statement time precedes the row lock, so any lock wait still consumes
-        # the lease. Provider-entry validation separately reads a fresh clock.
-        selected_at = cast(datetime, vars(work).pop("_due_claimed_at"))
-        work.lease_expires_at = selected_at + lease_duration
-        work.last_error_code = ""
-        work.save(
-            update_fields=[
-                "state",
-                "fencing_token",
-                "claim_generation",
-                "attempt_count",
-                "lease_expires_at",
-                "last_error_code",
-                "updated_at",
-            ]
-        )
+        _take_claim(work, queued=queued, lease_duration=lease_duration)
+        work.save(update_fields=[*_CLAIM_FIELDS, "updated_at"])
     record_work_operation(
         model._meta.label_lower,
         DurableWorkOperation.CLAIMED,
@@ -431,6 +437,62 @@ def claim_work[WorkT: DurableWork](
         claim_generation=work.claim_generation,
         desired_revision=work.desired_revision,
     )
+
+
+#: The fields a claim writes, in the order an ordinary claim saves them.
+_CLAIM_FIELDS = ("state", "fencing_token", "claim_generation", "attempt_count", "lease_expires_at", "last_error_code")
+
+
+def _select_claimable[WorkT: DurableWork](
+    model: type[WorkT],
+    work_id: WorkId,
+    *,
+    now: NowFn,
+    expected_revision: int | None,
+    eligibility: ExecutionEligibility | None,
+    available_within: timedelta | None = None,
+) -> WorkT | None:
+    """
+    Lock this row if it may be claimed now, annotated with the time that judged it.
+
+    INVARIANT: the row lock and state re-read are the claim arbitration point.
+    ``available_within`` additionally requires the row to have become available
+    no longer ago than that, which is how a fused claim recognizes an on-time
+    attempt.
+    """
+    # Eligibility callbacks and explicit clocks require a concrete datetime.
+    # Ordinary claims obtain one statement-stable time with the row itself;
+    # the same value authorizes availability and anchors the lease.
+    needs_time = eligibility is not None and eligibility.requires_time
+    claimed_at = now() if needs_time or now is not database_now else None
+    selection_time = models.Value(claimed_at) if claimed_at is not None else _database_statement_clock()
+    candidates = (
+        model.objects.select_for_update(of=("self",))
+        .annotate(_due_claimed_at=selection_time)
+        .filter(id=work_id, state__in=CLAIMABLE_STATES, available_at__lte=selection_time)
+    )
+    if available_within is not None:
+        candidates = candidates.filter(available_at__gte=selection_time - available_within)
+    if eligibility is not None:
+        candidates = eligibility.filter(candidates, now=claimed_at)
+    work = candidates.first()
+    if work is None or (expected_revision is not None and work.desired_revision != expected_revision):
+        return None
+    return work
+
+
+def _take_claim(work: DurableWork, *, queued: bool, lease_duration: timedelta) -> None:
+    """Claim a selected, locked row in memory; the caller persists ``_CLAIM_FIELDS``."""
+    work.state = DurableWorkState.QUEUED if queued else DurableWorkState.CLAIMED
+    work.fencing_token = uuid4()
+    # Both counters saturate: neither fences anything (the token does).
+    work.claim_generation = saturating_increment(work.claim_generation)
+    work.attempt_count = saturating_increment(work.attempt_count)
+    # Statement time precedes the row lock, so any lock wait still consumes
+    # the lease. Provider-entry validation separately reads a fresh clock.
+    selected_at = cast(datetime, vars(work).pop("_due_claimed_at"))
+    work.lease_expires_at = selected_at + lease_duration
+    work.last_error_code = ""
 
 
 def renew_work[WorkT: DurableWork](
@@ -549,12 +611,17 @@ class _WorkCompletion[WorkT: DurableWork]:
 
     def prepare_changes(self, current: WorkT) -> list[str]:
         prepared = finalize_under_fence(current, self.prepare) if self.prepare is not None else None
-        return prepare_locked_completion(
+        fields = prepare_locked_completion(
             current,
             revision=self.claim.desired_revision,
             now=self.now,
             prepared=prepared if isinstance(prepared, _PreparedWorkUpdates) else None,
         )
+        # A fused claim records its bookkeeping in this same save.
+        for name, value in self.claim.unrecorded_fields().items():
+            setattr(current, name, value)
+            fields.append(name)
+        return fields
 
     def complete(self) -> bool:
         return complete_work(self.claim, prepare=self.prepare, finalize=self.finalize, now=self.now)
@@ -767,7 +834,7 @@ def lock_work_owner(work: DurableWork) -> models.Model | None:
     return None
 
 
-def lock_owner_of_work(model: type[DurableWork], work_id: WorkId) -> None:
+def lock_owner_of_work(model: type[DurableWork], work_id: WorkId) -> models.Model | None:
     """
     Lock the owner a stored work row names, before the caller locks that row: one statement.
 
@@ -781,7 +848,8 @@ def lock_owner_of_work(model: type[DurableWork], work_id: WorkId) -> None:
     if field is not None:
         owner_ids = model.objects.filter(pk=work_id).values(field.attname)
         owner_manager = getattr(field.remote_field.model, model.work_owner_manager_name)
-        owner_manager.select_for_update().filter(pk__in=owner_ids).first()
+        return owner_manager.select_for_update().filter(pk__in=owner_ids).first()
+    return None
 
 
 def rearm_stopped_work[WorkT: DurableWork](current: WorkT, *, now: NowFn = database_now) -> None:
@@ -1278,10 +1346,41 @@ def run_work[WorkT: DurableWork, ResultT](
     provider_retry_after: Callable[[Exception], timedelta] | None = None,
     database_only: bool = False,
     _completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
+    fusion: ClaimFusion = ClaimFusion.NEVER,
+    fusion_window: timedelta = timedelta(seconds=1),
 ) -> bool:
     """Claim, run outside transactions in-domain, and fenced-finalize."""
 
     require_autocommit()
+    options: dict[str, Any] = {
+        "handler": handler,
+        "lease_duration": lease_duration,
+        "prepare_success": prepare_success,
+        "finalize_success": finalize_success,
+        "failure": _FailurePolicy(
+            classify_error=classify_error,
+            max_rearms=max_rearms,
+            retry_delay=retry_delay,
+            finalize_terminal=finalize_terminal,
+            finalize_unknown=finalize_unknown,
+            finalize_retry=finalize_retry,
+            retry_delay_for=retry_delay_for,
+            provider_retry_after=provider_retry_after,
+        ),
+        "database_only": database_only,
+        "completion": _completion,
+    }
+    if fusion is not ClaimFusion.NEVER and database_only and delivery_token is None:
+        fused = _run_fused(
+            model,
+            work_id,
+            options,
+            expected_revision=expected_revision,
+            eligibility=eligibility,
+            available_within=fusion_window if fusion is ClaimFusion.AUTO else None,
+        )
+        if fused is not None:
+            return fused
     claim = (
         claim_work(
             model, work_id, lease_duration=lease_duration, expected_revision=expected_revision, eligibility=eligibility
@@ -1299,52 +1398,118 @@ def run_work[WorkT: DurableWork, ResultT](
     if claim is None:
         return False
     with current_universe_scope(claim.work.work_universe()), execution_external_services():
-        return _execute_claim(
-            claim,
-            handler=handler,
-            classify_error=classify_error,
-            lease_duration=lease_duration,
-            max_rearms=max_rearms,
-            retry_delay=retry_delay,
-            prepare_success=prepare_success,
-            finalize_success=finalize_success,
-            finalize_terminal=finalize_terminal,
-            finalize_unknown=finalize_unknown,
-            finalize_retry=finalize_retry,
-            retry_delay_for=retry_delay_for,
-            provider_retry_after=provider_retry_after,
-            database_only=database_only,
-            completion=_completion,
+        return _execute_claim(claim, **options)
+
+
+class _NotFused(Exception):
+    """The row was not claimable for a fused attempt; roll back its owner lock."""
+
+
+def _run_fused[WorkT: DurableWork](
+    model: type[WorkT],
+    work_id: WorkId,
+    options: dict[str, Any],
+    *,
+    expected_revision: int | None,
+    eligibility: ExecutionEligibility | None,
+    available_within: timedelta | None,
+) -> bool | None:
+    """
+    Claim, transition and settle a database-only row in one transaction.
+
+    Returns None when the row is not claimable this way (late under AUTO, not
+    due, or superseded); the caller then takes the ordinary committed claim,
+    which decides and counts the miss. The claim's write is folded into the
+    release or settlement UPDATE. A failure rolls everything back and is then
+    recorded through an ordinary committed claim, without running the
+    transition again, so retry and attempt accounting match ordinary
+    execution. Only a process death inside the transaction goes uncounted.
+    """
+    lease_duration: timedelta = options["lease_duration"]
+    try:
+        with transaction.atomic():
+            # Owner before work, as everywhere else; the claim's own row lock is the fence.
+            owner = lock_owner_of_work(model, work_id)
+            work = _select_claimable(
+                model,
+                work_id,
+                now=database_now,
+                expected_revision=expected_revision,
+                eligibility=eligibility,
+                available_within=available_within,
+            )
+            if work is None:
+                raise _NotFused
+            stored_state, stored_token = work.state, work.fencing_token
+            _take_claim(work, queued=False, lease_duration=lease_duration)
+            claim = WorkClaim(
+                work=work,
+                token=work.fencing_token,
+                claim_generation=work.claim_generation,
+                desired_revision=work.desired_revision,
+                uncommitted=_UncommittedClaim(stored_state, stored_token, work.attempt_count),
+            )
+            field = _owner_relation(model)
+            if field is not None and owner is not None:
+                setattr(work, field.name, owner)
+            with current_universe_scope(work.work_universe()), execution_external_services():
+                completed = _execute_claim(claim, **options)
+    except _NotFused:
+        return None
+    except Exception as error:
+        # Nothing of the attempt survived the rollback. Count it with a committed
+        # claim, then record the same failure an ordinary attempt would have,
+        # including an orderly stop, which ordinary execution also records first.
+        committed = claim_work(
+            model, work_id, lease_duration=lease_duration, expected_revision=expected_revision, eligibility=eligibility
         )
+        if committed is None:
+            # Another attempt owns the row now. A deferral has nothing to report.
+            if isinstance(error, WorkDeferredError):
+                return False
+            raise
+        with current_universe_scope(committed.work.work_universe()):
+            return _record_failure(committed, error, options["failure"])
+    record_work_operation(model._meta.label_lower, DurableWorkOperation.CLAIMED)
+    return completed
+
+
+@dataclass(frozen=True, slots=True)
+class _FailurePolicy[WorkT: DurableWork]:
+    """How one execution classifies and records a failed attempt."""
+
+    classify_error: Callable[[Exception], WorkFailureDisposition]
+    max_rearms: int | None
+    retry_delay: timedelta
+    finalize_terminal: Callable[[WorkT, Exception], None] | None
+    finalize_unknown: Callable[[WorkT], None] | None
+    finalize_retry: Callable[[WorkT, Exception], None] | None
+    retry_delay_for: Callable[[WorkT], timedelta] | None
+    provider_retry_after: Callable[[Exception], timedelta] | None
 
 
 def _execute_claim[WorkT: DurableWork, ResultT](
     claim: WorkClaim[WorkT],
     *,
     handler: Callable[[WorkT, WorkExecutionContext[WorkT]], ResultT | ContinueAfter],
-    classify_error: Callable[[Exception], WorkFailureDisposition],
     lease_duration: timedelta,
-    max_rearms: int | None,
-    retry_delay: timedelta,
     prepare_success: Callable[[WorkT, ResultT], _PreparedWorkUpdates | None] | None,
     finalize_success: Callable[[WorkT, ResultT], ReopenAfter | None] | None,
-    finalize_terminal: Callable[[WorkT, Exception], None] | None,
-    finalize_unknown: Callable[[WorkT], None] | None,
-    finalize_retry: Callable[[WorkT, Exception], None] | None,
-    retry_delay_for: Callable[[WorkT], timedelta] | None,
-    provider_retry_after: Callable[[Exception], timedelta] | None,
+    failure: _FailurePolicy[WorkT],
     database_only: bool,
     completion: Callable[[_WorkCompletion[WorkT]], bool] | None = None,
 ) -> bool:
     model = claim.model
     context = WorkExecutionContext(claim=claim, lease_duration=lease_duration)
+    fused = claim.uncommitted is not None
     try:
         # Database callbacks and their settlement share one commit. Acquire the
         # producer's owner-before-work locks and revalidate authority before any
         # application write; external handlers retain their autocommit boundary.
-        with transaction.atomic() if database_only else nullcontext():
+        # A fused claim already holds both locks inside its caller's transaction.
+        with transaction.atomic() if database_only and not fused else nullcontext():
             current = claim.work
-            if database_only:
+            if database_only and not fused:
                 owner = lock_work_owner(current)
                 current = claim.locked_work()
                 if current is None:
@@ -1362,7 +1527,9 @@ def _execute_claim[WorkT: DurableWork, ResultT](
                 completed = continue_work(
                     claim,
                     result,
-                    finalize_expired=_bind_finalizer(finalize_retry, TimeoutError("continuation deadline reached")),
+                    finalize_expired=_bind_finalizer(
+                        failure.finalize_retry, TimeoutError("continuation deadline reached")
+                    ),
                 )
             else:
                 pending = _WorkCompletion(
@@ -1374,51 +1541,10 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             if database_only and not completed:
                 raise WorkOwnershipLost("database transition changed its own settlement fence")
     except Exception as error:
-        possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
-        disposition = (
-            WorkFailureDisposition.UNKNOWN
-            if possible_attempt
-            else WorkFailureDisposition.RETRYABLE
-            if isinstance(error, WorkDeferredError)
-            else classify_error(error)
-        )
-        if disposition is WorkFailureDisposition.UNKNOWN:
-            transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=finalize_unknown)
-        elif disposition is WorkFailureDisposition.RETRYABLE:
-            delay = retry_delay_for(claim.work) if retry_delay_for is not None else retry_delay
-            wait = provider_wait_delay(
-                error,
-                fallback=delay,
-                provider_delay=provider_retry_after(error) if provider_retry_after is not None else timedelta(0),
-            )
-            transitioned = retry_work(
-                claim,
-                error_code=type(error).__name__,
-                max_rearms=max_rearms,
-                # The provider's wait is a floor: a retry inside it is refused again.
-                retry_delay=wait if wait is not None else delay,
-                consumes_budget=wait is None,
-                finalize=_bind_finalizer(finalize_retry, error),
-            )
-        else:
-            transitioned = terminal_work(
-                claim,
-                error_code=type(error).__name__,
-                finalize=_bind_finalizer(finalize_terminal, error),
-            )
-        if not transitioned:
-            logger.warning(
-                "Durable effect failure lost its fence",
-                extra={
-                    "effect": model._meta.label_lower,
-                    "work_id": claim.work_id,
-                    "claim_generation": claim.claim_generation,
-                    "disposition": disposition,
-                },
-            )
-        if isinstance(error, WorkDeferredError) and disposition is WorkFailureDisposition.RETRYABLE:
-            return transitioned
-        raise
+        if fused:
+            # The caller's transaction rolls back first; it records this failure.
+            raise
+        return _record_failure(claim, error, failure)
     if not completed:
         logger.warning(
             "Durable effect completion lost its fence",
@@ -1429,6 +1555,60 @@ def _execute_claim[WorkT: DurableWork, ResultT](
             },
         )
     return completed
+
+
+def _record_failure[WorkT: DurableWork](
+    claim: WorkClaim[WorkT], error: Exception, policy: _FailurePolicy[WorkT]
+) -> bool:
+    """Classify and record a failed attempt under its committed claim; re-raise unless it was a deferral."""
+    model = claim.model
+    possible_attempt = model.requires_effect_evidence and claim.work.has_possible_effect()
+    disposition = (
+        WorkFailureDisposition.UNKNOWN
+        if possible_attempt
+        else WorkFailureDisposition.RETRYABLE
+        if isinstance(error, WorkDeferredError)
+        else policy.classify_error(error)
+    )
+    if disposition is WorkFailureDisposition.UNKNOWN:
+        transitioned = unknown_work(claim, error_code=type(error).__name__, finalize=policy.finalize_unknown)
+    elif disposition is WorkFailureDisposition.RETRYABLE:
+        delay = policy.retry_delay_for(claim.work) if policy.retry_delay_for is not None else policy.retry_delay
+        wait = provider_wait_delay(
+            error,
+            fallback=delay,
+            provider_delay=(
+                policy.provider_retry_after(error) if policy.provider_retry_after is not None else timedelta(0)
+            ),
+        )
+        transitioned = retry_work(
+            claim,
+            error_code=type(error).__name__,
+            max_rearms=policy.max_rearms,
+            # The provider's wait is a floor: a retry inside it is refused again.
+            retry_delay=wait if wait is not None else delay,
+            consumes_budget=wait is None,
+            finalize=_bind_finalizer(policy.finalize_retry, error),
+        )
+    else:
+        transitioned = terminal_work(
+            claim,
+            error_code=type(error).__name__,
+            finalize=_bind_finalizer(policy.finalize_terminal, error),
+        )
+    if not transitioned:
+        logger.warning(
+            "Durable effect failure lost its fence",
+            extra={
+                "effect": model._meta.label_lower,
+                "work_id": claim.work_id,
+                "claim_generation": claim.claim_generation,
+                "disposition": disposition,
+            },
+        )
+    if isinstance(error, WorkDeferredError) and disposition is WorkFailureDisposition.RETRYABLE:
+        return transitioned
+    raise error
 
 
 def continue_work[WorkT: DurableWork](
@@ -1452,6 +1632,7 @@ def continue_work[WorkT: DurableWork](
         if expired:
             lock_work_owner(claim.work)
         updated = claim.owned_work().update(
+            **claim.unrecorded_fields(),
             state=DurableWorkState.EXHAUSTED if expired else DurableWorkState.READY,
             lease_expires_at=None,
             available_at=available_at,

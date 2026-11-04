@@ -88,6 +88,24 @@ statement timestamp, and `use_database_clock` still controls it. This changes cl
 retry backoff or eligibility semantics. Explicit clocks and eligibility callbacks retain
 their concrete datetime read; callbacks never receive a database expression.
 
+A database-only effect may set `claim_fusion` to fuse its claim with its
+transition. A fused attempt locks the owner, then the work row with the ordinary
+claim predicate, runs the transition, and writes the claim's token, generation
+and attempt count in the same release or settlement UPDATE: one transaction
+instead of two, and one work-row write instead of two. A failure rolls the
+transition back and is then recorded through an ordinary committed claim,
+without running the transition again, so retries and their budget match
+ordinary execution. The one difference is a process that dies inside the
+transaction: its attempt is rolled back too. `NEVER` (the default) keeps the
+committed claim. `ALWAYS` fuses every claim-path attempt, so a transition that
+kills its worker is never counted and never exhausts. `AUTO` fuses only an
+attempt that starts within `claim_fusion_window` of the row becoming available.
+A rollback cannot move `available_at`, so the attempt after a death is later
+still; once outside the window it takes a counted claim. Deaths before that cost
+at most the window's worth of retries. Reserved deliveries from recovery
+already hold a committed claim and are never fused. Hooks of a fused attempt
+see the work row's stored (pre-claim) state if they query it.
+
 Renewal uses PostgreSQL's UPDATE statement timestamp for both `updated_at` and
 the new lease deadline. Lock waits consume that lease; renewal does not start a
 fresh interval after acquiring the row. This avoids a separate clock query.
