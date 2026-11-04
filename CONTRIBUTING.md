@@ -16,8 +16,8 @@ uv build --project package --out-dir dist
 ```
 
 `uv.lock` is committed. Dependency edits need `uv lock`; normal development and
-CI use `--locked`. Pre-commit runs Ruff lint/format on staged Python files and
-Pyrefly on the whole project. Hooks can modify formatting; review and stage those
+CI use `--locked`. Pre-commit runs Ruff lint/format on staged Python files,
+Pyrefly on the whole project, and dry-lint on the staged functions ([Duplication](#duplication)). Hooks can modify formatting; review and stage those
 changes before committing again. Database and worker tests run separately from
 commit hooks so a commit does not depend on Docker availability.
 
@@ -292,23 +292,43 @@ history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
 remain complete checkpoints.
 
-## Duplication audit
+## Duplication
 
-The required `dry-lint` check accepts existing pairs recorded in `.dry-lint/baseline.json`
-and fails on new blocking duplicates or incomplete judging. The weekly **dry-lint audit**
-workflow publishes a read-only audit in its job summary and artifacts. Humans and agents
-choose refactors and open their own PRs; dry-lint does not change application code or open PRs.
+[dry-lint](https://github.com/gigaverse-app/dry-lint) keeps one implementation per concept at three points:
 
-With your Anthropic credential in `ANTHROPIC_API_KEY`, install dry-lint from `main` until its v1 launch:
+- **Before a commit.** `uv run pre-commit install` installs dry-lint's hook. It judges the staged functions
+  against the rest of the repository with Claude Sonnet, as CI does, and blocks a commit that re-implements an
+  existing function. Put your Anthropic credential in `ANTHROPIC_API_KEY`, in your shell or in the untracked
+  `.env`; the hook reads only judge credentials from it. Without the key the hook fails with a setup error,
+  never a silent pass; `SKIP=dry-lint git commit ...` leaves the check to CI. A second hook,
+  `dry-lint-trailers`, writes what the first one kept out into the commit message, so the pull request's
+  dry-lint comment counts it.
+- **On the pull request.** The required `dry-lint` check accepts the existing pairs recorded in
+  `.dry-lint/baseline.json` and fails on new blocking duplicates or incomplete judging. The baseline can only
+  shrink: a pull request that widens it fails.
+- **Every week.** The **dry-lint audit** workflow sweeps the whole repository, keeps the audit as an artifact,
+  and opens (or updates) a `chore(dry-lint)` pull request recording each accepted pair that a refactor removed
+  or that is now judged separate, with the README progress block and badge. Run it by hand after merging a
+  cleanup to record it at once.
+
+When dry-lint reports a pair, read both functions, then:
+
+- **The same concept:** reuse the existing function, or make one side the owner and have the other call it,
+  keeping each caller's contract (transactions, fencing, errors, ordering).
+- **Different concepts:** say why next to the code: `# dry-lint: distinct-from path/to/file.py::name` and the
+  reason. Dismissals are counted as dismissed, never as cleanup.
+
+Do not refactor mechanically from a score, and do not add blanket ignores.
+
+To choose the next cleanup, read the latest audit artifact, or run it yourself:
 
 ```bash
-uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@main'
+uv tool install --python 3.14 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1'
 dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
 # Review findings, refactor selected code, and run its tests before updating the baseline.
 dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/due
 ```
 
-Commit the baseline, progress JSON and README with the refactor. Do not commit the raw audit
-files; CI retains reports as artifacts. Cleanup counts are duplicate pairs, not lines of code.
-Suppressed findings are counted as dismissed, and never credited as cleanup. See the
+Commit the baseline, progress JSON and README with the refactor, or leave them to the weekly ratchet. Do not
+commit the raw audit files. Cleanup counts are duplicate pairs, not lines of code. See the
 [dry-lint sweep guide](https://github.com/gigaverse-app/dry-lint/blob/main/docs/sweeps.md).
