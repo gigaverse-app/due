@@ -15,7 +15,6 @@ from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.examples import DeliveryExample
 from due.django.conformance.seams import ProviderSeam
 from due.django.conformance.suite import (
-    AdmissionFailureExample,
     ProducerExample,
     TerminalExample,
 )
@@ -119,12 +118,6 @@ def create_producer() -> Iterator[ProducerExample[IndexBookWork, bool]]:
         )
 
 
-@contextmanager
-def create_admission_failure() -> Iterator[AdmissionFailureExample[IndexBookWork, bool]]:
-    with create_producer() as producer:
-        yield AdmissionFailureExample.after_save(producer, IndexBookWork)
-
-
 def run_process(point: str | None) -> ProcessResult:
     title = uuid4().hex
     marker = Path(os.environ["DUE_BOOK_INDEX"]).parent / f"fault-{title}"
@@ -214,7 +207,7 @@ INDEX_EXAMPLES = replace(
     immutable_inputs="Indexing captures the submission once; operator retry preserves that input and its identity.",
     perturb_inputs=perturb_book,
     admissions={"create book": create_producer},
-    admission_failures={"create book": create_admission_failure},
+    admission_failures={"create book": ProviderSeam.interrupted(create_producer, IndexBookWork)},
     process_handoffs=(
         ProcessHistory(
             name="book indexing and publication process death",

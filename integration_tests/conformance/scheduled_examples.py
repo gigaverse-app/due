@@ -14,7 +14,6 @@ from pytest_obligation.profiles.catalog import ConvergenceFamily
 from due.django.conformance.delivery import WorkTableDelivery
 from due.django.conformance.seams import ProviderSeam, seam_examples
 from due.django.conformance.suite import (
-    AdmissionFailureExample,
     CancellationExample,
     ProducerExample,
     TerminalExample,
@@ -88,12 +87,6 @@ def producer() -> Iterator[ProducerExample[PublicationDeadline, bool]]:
         )
 
 
-@contextmanager
-def admission_failure() -> Iterator[AdmissionFailureExample[PublicationDeadline, bool]]:
-    with producer() as scenario:
-        yield AdmissionFailureExample.after_save(scenario, PublicationDeadline)
-
-
 def run_process(point: str | None) -> tuple[str, int]:
     key = str(uuid4())
     marker = files.get().root / f"fault-{key}"
@@ -161,7 +154,7 @@ EXAMPLES = seam_examples(
     terminal=terminal,
     snapshot=snapshot,
     admissions={"schedule publication": producer},
-    admission_failures={"schedule publication": admission_failure},
+    admission_failures={"schedule publication": SEAM.interrupted(producer, PublicationDeadline)},
     convergence_families={
         family: NotApplicable(
             "A pending deadline is replaced or cancelled; immutable revision files and a fenced product pointer need no merge or dependency gate."

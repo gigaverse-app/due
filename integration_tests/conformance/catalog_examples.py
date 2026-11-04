@@ -9,7 +9,7 @@ from pytest_obligation.profiles.catalog import ConvergenceFamily
 from due.django.conformance.composition import ProjectionExample
 from due.django.conformance.scenarios import SynchronousCallerExample
 from due.django.conformance.seams import ProviderSeam
-from due.django.conformance.suite import AdmissionFailureExample, DeliveryExample, ProducerExample, TerminalExample
+from due.django.conformance.suite import DeliveryExample, ProducerExample, TerminalExample
 from due.django.testing import hold_nudges
 from examples.books import search
 from examples.catalog.effects import project_catalog
@@ -55,12 +55,6 @@ def producer() -> Iterator[ProducerExample[CatalogWork, bool]]:
             expected=True,
             effect_calls=lambda: calls.get().writes.total,
         )
-
-
-@contextmanager
-def admission_failure() -> Iterator[AdmissionFailureExample[CatalogWork, bool]]:
-    with producer() as scenario:
-        yield AdmissionFailureExample.after_save(scenario, CatalogWork)
 
 
 @contextmanager
@@ -142,7 +136,7 @@ EXAMPLES = replace(
     snapshot=snapshot,
     synchronous_callers={"save and project entry": synchronous_caller},
     admissions={"save entry": producer},
-    admission_failures={"save entry": admission_failure},
+    admission_failures={"save entry": SEAM.interrupted(producer, CatalogWork)},
     convergence_families={
         family: NotApplicable(
             "This catalog overwrites one provider key; late-write repair and captured revisions own convergence, not a monotonic merge or dependency gate."
