@@ -1,4 +1,4 @@
-# Check tracked Python/TypeScript, excluding generated/migration/test code by dry-lint defaults.
+# Uses dry-lint's default tracked-file scope; review include/exclude before changing it.
 # Strict CI refuses incomplete judging; sweep can use a larger one-off budget.
 preset = "sonnet"
 

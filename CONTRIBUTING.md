@@ -302,7 +302,7 @@ choose refactors and open their own PRs; dry-lint does not change application co
 With your Anthropic credential in `ANTHROPIC_API_KEY`, install the pinned tool:
 
 ```bash
-uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@0f7e3e75043a55f3a6e4d9aba2f8ec695211dd70'
+uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@4719e9dec997c6820ed43ca915ff7c69de7bce77'
 dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
 # Review findings, refactor selected code, and run its tests before updating the baseline.
 dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/due
