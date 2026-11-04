@@ -584,18 +584,9 @@ class DurableBulkExternalOperation[
     def blocking_attempt_filter(self) -> Q:
         return ~Q(outcome=EffectAttemptOutcome.APPLIED, repair_pending=False)
 
-    def possible_effect_attempt(self, work: WorkT) -> EffectAttempt | None:
-        if not isinstance(work, self.model):
-            raise ValueError("work belongs to another operation model")
-        try:
-            return (
-                attempts_for(work)
-                .filter(self.blocking_attempt_filter())
-                .exclude(outcome=EffectAttemptOutcome.NOT_APPLIED)
-                .get()
-            )
-        except EffectAttempt.DoesNotExist:
-            return None
+    def _possible_effect_entries(self, work: WorkT) -> QuerySet[EffectAttempt]:
+        """The batch's own possible effects: an APPLIED attempt stops counting once its progress is settled."""
+        return work._possible_effect_attempts()
 
     def evidence_requiring_settlement(self) -> QuerySet[EffectAttempt]:
         return self.evidence_store.pending_attempts(self.model._meta.label_lower)

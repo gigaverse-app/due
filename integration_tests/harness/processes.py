@@ -9,13 +9,22 @@ from django.db import connection
 from pytest_obligation.process_histories import fault_environment, fault_happened
 
 
-def run_child(module: str, argument: str, point: str | None, marker: Path) -> int:
+def run_child(
+    module: str,
+    argument: str,
+    point: str | None,
+    marker: Path,
+    *,
+    settings: str = "examples.settings",
+    log: Path | None = None,
+) -> int:
+    """Run ``python -m module argument`` on pytest's database, failing at ``point``; ``log`` keeps its output."""
     base = os.environ.get("DUE_DATABASE_URL", "postgresql://due:due@127.0.0.1:55439/due")
     result = subprocess.run(
         [sys.executable, "-m", module, argument],
         env={
             **os.environ,
-            "DJANGO_SETTINGS_MODULE": "examples.settings",
+            "DJANGO_SETTINGS_MODULE": settings,
             "DUE_DATABASE_URL": base.rsplit("/", 1)[0] + "/" + str(connection.settings_dict["NAME"]),
             **fault_environment(point, marker),
         },
@@ -24,6 +33,8 @@ def run_child(module: str, argument: str, point: str | None, marker: Path) -> in
         timeout=30,
         check=False,
     )
+    if log is not None:
+        log.write_text(result.stdout + result.stderr)
     if point is not None:
         assert fault_happened(marker), result.stderr
         assert result.returncode != 0, result.stderr
