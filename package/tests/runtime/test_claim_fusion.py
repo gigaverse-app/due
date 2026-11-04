@@ -57,14 +57,17 @@ class Advance(DatabaseEffect[PrimitiveOwner, PrimitiveWork]):
         owner = PrimitiveOwner.objects.get(pk=work.owner_id)
         owner.value += "+"
         owner.save(update_fields=["value"])
-        if type(self).fault is not None:
-            raise type(self).fault
+        fault = type(self).fault
+        if fault is not None:
+            raise fault
         return ContinueAfter(timedelta(seconds=1), until=None) if len(owner.value) < 8 else None
 
 
 def capability(fusion: ClaimFusion) -> Advance:
-    effect = type(f"Advance{fusion.value.title()}", (Advance,), {"claim_fusion": fusion})
-    return effect.for_owner(
+    class Fused(Advance):
+        claim_fusion = fusion
+
+    return Fused.for_owner(
         owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
     )
 
@@ -246,8 +249,11 @@ def test_fusion_is_only_for_database_transitions_with_a_window_inside_the_lease(
         Remote.for_owner(
             owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
         )
-    wide = type("Wide", (Advance,), {"claim_fusion": ClaimFusion.AUTO, "claim_fusion_window": timedelta(days=1)})
+    class Wide(Advance):
+        claim_fusion = ClaimFusion.AUTO
+        claim_fusion_window = timedelta(days=1)
+
     with pytest.raises(ValueError, match="claim_fusion_window"):
-        wide.for_owner(
+        Wide.for_owner(
             owner=PrimitiveOwner, work=PrimitiveWork, input_fields=("universe", "payload"), policy=primitive.policy
         )
