@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/gigaverse-app/due/compare/v0.13.1...v0.14.0) (2026-11-04)
+
+
+### Features
+
+* **conformance:** generate opt-in cost contracts for every work table ([#183](https://github.com/gigaverse-app/due/issues/183)) ([8d4d100](https://github.com/gigaverse-app/due/commit/8d4d100b3a9ffb2ef259931508f0ccde87a968dd))
+
+
+### Performance
+
+* **runtime:** fuse on-time database claims with their transition (ClaimFusion) ([#182](https://github.com/gigaverse-app/due/issues/182)) ([5c77421](https://github.com/gigaverse-app/due/commit/5c77421602e9deb49a70e3a145df4878a4cb0c37))
+
 ## [0.13.1](https://github.com/gigaverse-app/due/compare/v0.13.0...v0.13.1) (2026-10-29)
 
 
