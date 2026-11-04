@@ -66,7 +66,7 @@ jobs:
           fi
       - id: release
         if: steps.current.outputs.matches == 'true'
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           # The shared organization credential triggers ordinary PR CI.
           # The release-automation environment restricts this job to main.
