@@ -11,7 +11,7 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext, supp
 from datetime import timedelta
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 from unittest.mock import patch
 
 import pytest
@@ -154,7 +154,7 @@ from due.django.evidence.attempts import (
     observe_effect_outcome,
     record_effect_attempt,
 )
-from due.django.identities import work_id_from_wire
+from due.django.identities import WorkId, work_id_from_wire
 from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
     DatabaseEffect,
@@ -949,12 +949,30 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
         )
 
 
+#: One worker task a recovery tick published: its Celery arguments and options.
+type HeldDelivery = tuple[tuple[Any, ...], dict[str, Any]]
+
+
+@contextmanager
+def _held_deliveries(entry: DurableWorkRegistration) -> Iterator[list[HeldDelivery]]:
+    """Hold every worker task published for ``entry`` instead of sending it to a broker."""
+    sent: list[HeldDelivery] = []
+
+    # Celery's apply_async keyword surface is the dynamic boundary here.
+    def capture(*, args: tuple[Any, ...], **options: Any) -> None:
+        if args[0] == entry.name:
+            sent.append((args, options))
+
+    with patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture):
+        yield sent
+
+
 def _recovered_delivery[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT],
     bindings: DurableWorkBindings[W, ResultT],
     work: W,
-    sent: list[tuple[tuple[Any, ...], dict[str, Any]]],
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    sent: list[HeldDelivery],
+) -> HeldDelivery:
     """Lose ``work``'s notification, run the registered recovery task, and return its one published delivery."""
     entry = bindings.registration
     bindings.age(work)
@@ -975,11 +993,12 @@ def _recovered_delivery[W: UniverseDurableWork, ResultT](
 
 
 #: The recurring database costs every capability's contract holds to the committed baseline.
-COST_PATHS = ("idle tick", "per owed row", "one delivery")
+type CostPath = Literal["idle tick", "per owed row", "one delivery"]
+COST_PATHS: tuple[CostPath, ...] = get_args(CostPath.__value__)
 
 
 def assert_statement_costs[W: UniverseDurableWork, ResultT](
-    capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W], *, path: str, root: Path
+    capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W], *, path: CostPath, root: Path
 ) -> None:
     """
     Hold one recurring path's database statements to the committed cost baseline.
@@ -996,16 +1015,11 @@ def assert_statement_costs[W: UniverseDurableWork, ResultT](
     """
     bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
-    sent: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name:
-            sent.append((args, options))
 
     def tick() -> None:
         recover_durable_work_task(entry.name)
 
-    made: list[Any] = []
+    made: list[WorkId] = []
 
     def make_owed() -> None:
         work = examples.make_work()
@@ -1016,27 +1030,22 @@ def assert_statement_costs[W: UniverseDurableWork, ResultT](
         # A tick that left its rows due measured nothing; every one must be taken.
         return capability.model.objects.filter(pk__in=made, state__in=CLAIMABLE_STATES).count()
 
-    def deliver() -> Counter[str]:
+    def deliver(sent: list[HeldDelivery]) -> Counter[str]:
         # Inside the example's scope: its provider seam must be live while the worker runs.
         sent.clear()
         with _binding(examples.delivery) as example:
             args, _ = _recovered_delivery(capability, bindings, example.work, sent)
             return Counter(statement_shapes(lambda: run_durable_work_task(*args)))
 
-    with (
-        _binding(examples.environment),
-        hold_nudges(),
-        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
-    ):
+    with _binding(examples.environment), hold_nudges(), _held_deliveries(entry) as sent:
         tick()
         if path == "idle tick":
             shapes = Counter(statement_shapes(tick))
         elif path == "per owed row":
             shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick, remaining=waiting)
         else:
-            assert path == "one delivery", f"unknown cost path {path!r}"
-            deliver()
-            shapes = deliver()
+            deliver(sent)
+            shapes = deliver(sent)
     assert_statement_cost(f"{entry.name}: {path}", shapes, root=root)
 
 
@@ -1047,16 +1056,10 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
     bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     assert_registered_schedule(entry)
-    sent = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name:
-            sent.append((args, options))
-
     with (
         _binding(examples.environment),
         hold_nudges(),
-        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
+        _held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         assert type(example.work) is capability.model, "producer returned another capability's work"
@@ -1110,16 +1113,10 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
     """A reservation the broker lost is redelivered by recovery with the budget untouched."""
     bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
-    sent = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name:
-            sent.append((args, options))
-
     with (
         _binding(examples.environment),
         hold_nudges(),
-        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
+        _held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         work = example.work

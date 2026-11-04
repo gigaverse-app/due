@@ -31,6 +31,7 @@ from pytest_obligation.contract import (
     eligibility_bindings,
 )
 
+from due._cost_adoption import COST_CASE, costs_adopted
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.observed_operations import ObservedExternalOperation
 from due.django.capabilities.operations import DurableExternalOperation
@@ -120,7 +121,8 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         "test_lock_order_is_consistent",
         "test_two_workers_one_settlement",
     }
-    expected.update(f"test_statement_cost[{path}]" for path in COST_PATHS)
+    if costs_adopted(config.rootpath):
+        expected.update(f"{COST_CASE}[{path}]" for path in COST_PATHS)
     for history in recovery_isolation_histories(capability):
         for outcome in ("poisoned", "control"):
             expected.add(f"test_one_poisoned_identity_does_not_stall_recovery[{history}-{outcome}]")

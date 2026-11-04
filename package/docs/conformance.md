@@ -346,7 +346,13 @@ replay proof names; deleting a replay binding cannot shrink the required evidenc
 
 ## Hold recurring costs to a baseline
 
-Every suite also generates `test_statement_cost` for three paths that run
+An application adopts cost contracts by committing an empty
+`obligation_cost_baseline.yaml` at its pytest root and recording it (below).
+Until that file exists, Due deselects the cost cases and leaves them out of each
+suite's expected proofs, so upgrading Due fails nothing. Once it exists, every
+case runs and a missing entry fails.
+
+Every suite then generates `test_statement_cost` for three paths that run
 forever: the registered recovery task with nothing owed (`idle tick`), exactly
 what one more due row adds to it (`per owed row`), and the worker task recovery
 publishes, from accepting its reservation to settlement (`one delivery`). Each
@@ -360,8 +366,12 @@ saving the baseline must keep. Record new entries, or lower them after an
 optimization, with:
 
 ```bash
-OBLIGATION_COST_BASELINE=update uv run pytest -p no:xdist -k test_statement_cost <contract test files>
+OBLIGATION_COST_BASELINE=update uv run pytest -p no:xdist -k test_statement_cost --obligation-cost-baseline-complete
 ```
+
+Run from the pytest root so every cost case is selected: with
+`--obligation-cost-baseline-complete`, update mode also removes entries for
+capabilities or paths that no longer exist, and a check-mode run fails on them.
 
 The cases use the real database clock (a frozen scheduler clock would hide clock
 reads) and run each path once unmeasured first, so first-use caches belong to no
