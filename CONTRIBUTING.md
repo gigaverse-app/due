@@ -299,10 +299,10 @@ and fails on new blocking duplicates or incomplete judging. The weekly **dry-lin
 workflow publishes a read-only audit in its job summary and artifacts. Humans and agents
 choose refactors and open their own PRs; dry-lint does not change application code or open PRs.
 
-With your Anthropic credential in `ANTHROPIC_API_KEY`, install the pinned tool:
+With your Anthropic credential in `ANTHROPIC_API_KEY`, install dry-lint from `main` until its v1 launch:
 
 ```bash
-uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@617f2371654c748aa2018d048a6b2d9c18df116d'
+uv tool install 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@main'
 dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
 # Review findings, refactor selected code, and run its tests before updating the baseline.
 dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/due

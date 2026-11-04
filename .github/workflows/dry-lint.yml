@@ -20,11 +20,11 @@ jobs:
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'dry-lint detect' || 'dry-lint' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - uses: gigaverse-app/dry-lint@617f2371654c748aa2018d048a6b2d9c18df116d
+      - uses: gigaverse-app/dry-lint@main
         with:
           python-version: '3.14'
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
