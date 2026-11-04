@@ -1,4 +1,8 @@
 minimum_pre_commit_version: '4.3.0'
+# prepare-commit-msg carries dry-lint-trailers: `uv run pre-commit install` installs both stages. Every other hook
+# runs once, at pre-commit.
+default_install_hook_types: [pre-commit, prepare-commit-msg]
+default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
@@ -18,3 +22,16 @@ repos:
         language: system
         pass_filenames: false
         files: '((^|/)pyproject\.toml$|^uv\.lock$|\.pyi?$)'
+
+  # Blocks a commit whose staged functions re-implement one the repository already has, judged as in CI (Claude
+  # Sonnet, ANTHROPIC_API_KEY from the shell or the untracked .env) against the same accepted backlog. Setup and
+  # what to do with a finding: CONTRIBUTING.md, "Duplication".
+  - repo: https://github.com/gigaverse-app/dry-lint
+    rev: v1.0.0
+    hooks:
+      - id: dry-lint
+        args: [--preset, sonnet, --baseline, .dry-lint/baseline.json]
+        language_version: python3.14
+      # Writes what the hook kept out into the commit message, so the pull request's dry-lint comment counts it.
+      - id: dry-lint-trailers
+        language_version: python3.14

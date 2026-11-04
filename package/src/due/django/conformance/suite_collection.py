@@ -36,7 +36,9 @@ from due.django.capabilities.observed_operations import ObservedExternalOperatio
 from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance._cost_adoption import COST_CASE, costs_adopted
 from due.django.conformance._internal.immutable_inputs import admission_paths
+from due.django.conformance._internal.suite import COST_PATHS
 from due.django.conformance.composition import compensations_for
 from due.django.conformance.discovery_admissibility import candidate_edges, related_candidate_edges
 from due.django.conformance.observations import OBSERVATION_HISTORIES
@@ -119,6 +121,8 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
         "test_lock_order_is_consistent",
         "test_two_workers_one_settlement",
     }
+    if costs_adopted(config.rootpath):
+        expected.update(f"{COST_CASE}[{path}]" for path in COST_PATHS)
     for history in recovery_isolation_histories(capability):
         for outcome in ("poisoned", "control"):
             expected.add(f"test_one_poisoned_identity_does_not_stall_recovery[{history}-{outcome}]")

@@ -294,8 +294,8 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'selftest'", specifier = ">=8.4" },
     { name = "pytest-asyncio", marker = "extra == 'selftest'", specifier = ">=1.2" },
     { name = "pytest-mock", marker = "extra == 'selftest'", specifier = ">=3.16" },
-    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'selftest'", specifier = ">=0.24.0,<1" },
-    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", specifier = ">=0.24.0,<1" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'selftest'", specifier = ">=0.26.0,<1" },
+    { name = "pytest-obligation", extras = ["celery", "debt", "django", "exploration"], marker = "extra == 'testing'", specifier = ">=0.26.0,<1" },
     { name = "pytest-xdist", marker = "extra == 'selftest'", specifier = ">=3.8" },
     { name = "sentry-sdk", specifier = ">=2,<3" },
 ]
@@ -880,15 +880,15 @@ wheels = [
 
 [[package]]
 name = "pytest-obligation"
-version = "0.24.0"
+version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/45/7471cbe8034c5604f472e1862955b57c556e8e92775d40712ebbc5488f3f/pytest_obligation-0.24.0.tar.gz", hash = "sha256:c65615f4254b63cdc57e95e0a0e3386c3ae8032230a255bf8f7a5c31e2c87eaa", size = 774906, upload-time = "2026-10-27T09:30:22.4Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/df/c83f9365bae98d83796952bf9ce1577a66f90f917b7c247ea8355df976a3/pytest_obligation-0.26.0.tar.gz", hash = "sha256:078819f4b39429a839cbf97d84ef61bad7752a24a6a39de8463b4e6fa19084f8", size = 803284, upload-time = "2026-11-04T18:23:46.468Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/4f/f9e7cccee12f2d2394d7b81a1ca39ac6317496daa3b22f2895dec73a319c/pytest_obligation-0.24.0-py3-none-any.whl", hash = "sha256:7d1499efcbe1c1cc9b4f339157c25474e417f5fc709e16898928f221df6963c4", size = 514123, upload-time = "2026-10-27T09:30:20.442Z" },
+    { url = "https://files.pythonhosted.org/packages/36/5d/2af02420d2e30438b38e39c670cf05dcf1e2574f4e358584371edc3334ae/pytest_obligation-0.26.0-py3-none-any.whl", hash = "sha256:fd41fb32098fcd93f350c0c71507d6e5eac7bf70fe3f193efd3031337f81842d", size = 531443, upload-time = "2026-11-04T18:23:44.515Z" },
 ]
 
 [package.optional-dependencies]

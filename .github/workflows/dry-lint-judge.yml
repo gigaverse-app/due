@@ -18,7 +18,7 @@ jobs:
     steps:
       # Only trusted default-branch settings and baseline; fork code is artifact data.
       - uses: actions/checkout@v7
-      - uses: gigaverse-app/dry-lint@main
+      - uses: gigaverse-app/dry-lint@v1
         with:
           python-version: '3.14'
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

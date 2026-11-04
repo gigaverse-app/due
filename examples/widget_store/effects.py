@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db.models import Q
 
 from due.django.public import (
+    ClaimFusion,
     ContinueAfter,
     DatabaseEffect,
     DatabaseTime,
@@ -18,6 +19,10 @@ from examples.widget_store.models import CheckoutWork, Order
 
 class CheckoutOrder(DatabaseEffect[Order, CheckoutWork]):
     deadline_wakeup_horizon: ClassVar[timedelta] = timedelta(seconds=10)
+    # An on-time stage claims, transitions and releases in one transaction. A
+    # stage that starts late (after a crash, or from a recovery tick) takes a
+    # committed claim, so a transition that kills its worker still exhausts.
+    claim_fusion: ClassVar[ClaimFusion] = ClaimFusion.AUTO
 
     def transition(self, work: CheckoutWork) -> ContinueAfter | None:
         services.advance(work)

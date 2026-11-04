@@ -5,11 +5,13 @@ shared pytest-obligation runners and production behavior in Due's runtime;
 this module only binds them and adds work-table assertions and collection marks.
 """
 
+from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from datetime import timedelta
 from functools import wraps
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal, get_args
 from unittest.mock import patch
 
 import pytest
@@ -27,6 +29,7 @@ from pytest_obligation.contract import (
     Profile,
     due_work_contract_suite,
 )
+from pytest_obligation.costs import assert_statement_cost, marginal_statement_shapes, statement_shapes
 from pytest_obligation.evidence.observation import assert_observation
 from pytest_obligation.integrations.django.edge_values import CandidateEdge
 from pytest_obligation.integrations.django.lock_order import recording_against_the_ledger
@@ -88,7 +91,6 @@ from due.django.conformance.composition import (
     assert_exhausted_producer_still_compensates,
     assert_late_projection_write_is_repaired,
     compensations_for,
-    recover_and_deliver,
 )
 from due.django.conformance.composition import (
     SupersessionExample as SupersessionExample,
@@ -115,6 +117,7 @@ from due.django.conformance.observations import (
     OBSERVATION_HISTORIES,
     assert_observation_recovers_without_resend,
 )
+from due.django.conformance.recovered_deliveries import held_deliveries, recover_and_execute, recovered_delivery
 from due.django.conformance.recovery_isolation import (
     assert_one_poisoned_identity_does_not_stall_recovery,
     recovery_isolation_histories,
@@ -151,7 +154,7 @@ from due.django.evidence.attempts import (
     observe_effect_outcome,
     record_effect_attempt,
 )
-from due.django.identities import work_id_from_wire
+from due.django.identities import WorkId, work_id_from_wire
 from due.django.models import TERMINAL_WORK_STATES, EffectAttempt, EffectAttemptOutcome
 from due.django.public import (
     DatabaseEffect,
@@ -162,7 +165,7 @@ from due.django.public import (
     UniverseDurableWork,
     database_now,
 )
-from due.django.runtime.coordination import outstanding_work
+from due.django.runtime.coordination import CLAIMABLE_STATES, outstanding_work
 from due.django.runtime.registry import DurableWorkRegistration
 from due.django.runtime.tasks import (
     recover_durable_work_task,
@@ -946,6 +949,62 @@ def eligibility_binding[W: UniverseDurableWork, ResultT](
         )
 
 
+#: The recurring database costs every capability's contract holds to the committed baseline.
+type CostPath = Literal["idle tick", "per owed row", "one delivery"]
+COST_PATHS: tuple[CostPath, ...] = get_args(CostPath.__value__)
+
+
+def assert_statement_costs[W: UniverseDurableWork, ResultT](
+    capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W], *, path: CostPath, root: Path
+) -> None:
+    """
+    Hold one recurring path's database statements to the committed cost baseline.
+
+    A recovery tick runs every cadence, mostly with nothing to do, and a delivery
+    runs once per row, so each statement on them is paid indefinitely. ``idle
+    tick`` is the registered recovery task with nothing owed; ``per owed row`` is
+    exactly what one more due row adds to it; ``one delivery`` is the worker task
+    recovery publishes, from accepting the reservation to settlement.
+
+    The real database clock is used, never the frozen scheduler clock, which would
+    turn every clock read into a Python value and hide it. Each path runs once
+    unmeasured first, so a process's first-use caches belong to no contract.
+    """
+    bindings = _effect_bindings(capability, examples)
+    entry = bindings.registration
+
+    def tick() -> None:
+        recover_durable_work_task(entry.name)
+
+    made: list[WorkId] = []
+
+    def make_owed() -> None:
+        work = examples.make_work()
+        bindings.age(work)
+        made.append(work.pk)
+
+    def waiting() -> int:
+        # A tick that left its rows due measured nothing; every one must be taken.
+        return capability.model.objects.filter(pk__in=made, state__in=CLAIMABLE_STATES).count()
+
+    def deliver() -> Counter[str]:
+        # Inside the example's scope: its provider seam must be live while the worker runs.
+        with _binding(examples.delivery) as example:
+            args, _ = recovered_delivery(example.work)
+            return Counter(statement_shapes(lambda: run_durable_work_task(*args)))
+
+    with _binding(examples.environment), hold_nudges(), held_deliveries(entry):
+        tick()
+        if path == "idle tick":
+            shapes = Counter(statement_shapes(tick))
+        elif path == "per owed row":
+            shapes = marginal_statement_shapes(make_owed=make_owed, run_tick=tick, remaining=waiting)
+        else:
+            deliver()
+            shapes = deliver()
+    assert_statement_cost(f"{entry.name}: {path}", shapes, root=root)
+
+
 def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, ResultT](
     capability: DurableWorkCapability[W, ResultT], examples: EffectExamples[W]
 ) -> None:
@@ -953,16 +1012,10 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
     bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
     assert_registered_schedule(entry)
-    sent = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name:
-            sent.append((args, options))
-
     with (
         _binding(examples.environment),
         hold_nudges(),
-        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
+        held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         assert type(example.work) is capability.model, "producer returned another capability's work"
@@ -972,8 +1025,7 @@ def assert_lost_notification_reaches_domain_outcome[W: UniverseDurableWork, Resu
         assert not sent, "producer must record intent without inline worker execution"
         example.work.refresh_from_db()
         never_executed = example.work.state in (DurableWorkState.READY, DurableWorkState.QUEUED)
-        # Compensation producers reserve cleanup before I/O; losing that worker includes lease expiry.
-        recover_and_deliver(example.work)
+        recover_and_execute([example.work], expire_claimed=True)
         assert_observation(example.observe(), example.expected, because="worker reaches the required domain outcome")
         example.work.refresh_from_db()
         if never_executed:
@@ -1015,16 +1067,10 @@ def assert_lost_delivery_spends_no_retry_budget[W: UniverseDurableWork, ResultT]
     """A reservation the broker lost is redelivered by recovery with the budget untouched."""
     bindings = _effect_bindings(capability, examples)
     entry = bindings.registration
-    sent = []
-
-    def capture(*, args, **options):
-        if args[0] == entry.name:
-            sent.append((args, options))
-
     with (
         _binding(examples.environment),
         hold_nudges(),
-        patch("due.django.runtime.tasks.run_durable_work_task.apply_async", capture),
+        held_deliveries(entry) as sent,
         _binding(examples.delivery) as example,
     ):
         work = example.work
@@ -1287,6 +1333,11 @@ def effect_contract_suite[W: UniverseDurableWork, ResultT](
         @proof
         def test_registered_producer_lost_notification(self):
             assert_lost_notification_reaches_domain_outcome(capability, examples)
+
+        @proof
+        @pytest.mark.parametrize("path", COST_PATHS)
+        def test_statement_cost(self, request, path):
+            assert_statement_costs(capability, examples, path=path, root=request.config.rootpath)
 
         if controls := regression_cases(examples):
 

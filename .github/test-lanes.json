@@ -27,6 +27,7 @@
         "package/src/**",
         "package/shims/**",
         "package/tests/**",
+        "package/obligation_cost_baseline.yaml",
         ".github/workflows/ci.yml#tests",
         ".github/workflows/ci.yml#package-export"
       ]
@@ -41,6 +42,7 @@
         "package/shims/**",
         "examples/**",
         "integration_tests/**",
+        "obligation_cost_baseline.yaml",
         "scripts/check_adoption_report.py",
         "scripts/check_acme_printworks.py",
         ".github/workflows/ci.yml#tests"
