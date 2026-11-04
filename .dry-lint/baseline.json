@@ -1,0 +1,240 @@
+{
+  "schema": 1,
+  "contract": "fbf56a4a852e47539b956057d11e9f3ee56a986bbb3b26ac209dc491d4b45f6e",
+  "started_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
+  "checked_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
+  "entries": [
+    {
+      "hashes": {
+        "examples/celery_migration/tasks.py::request_publication": "ac413c53f632b42b",
+        "examples/documents/effects.py::request_publication": "7cbe087afcf14d49"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/book_examples.py::index_content": "a7bb1448d1e13877",
+        "integration_tests/conformance/catalog_examples.py::content": "62cb8a0628436aa8"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/test_document_celery_worker.py::publish_a_document": "7a1612d00719e765",
+        "integration_tests/conformance/document_examples.py::make_work": "d7dc3797f7c2eaa3"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "examples/acme_printworks/acme/effects.py::PublishProof.finalize_success": "dc344122a55602a6",
+        "examples/acme_printworks/acme/stage2.py::PublishProof.finalize_success": "fe03419205c61c0e"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/capabilities/authoring.py::registered_nudge": "de18cf481b76a477",
+        "package/src/due/django/tasks/runtime.py::publish": "b7429e8e48d0ba4c"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/capabilities/operations.py::DurableExternalOperation.record_unknown_effect_outcome": "39446ec62e67a58a",
+        "package/src/due/django/runtime/coordination.py::unknown_locked_work": "424c615fcaccab72"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/capabilities/test_deadline_wakeups.py::files": "c26a55a8e64f623a",
+        "integration_tests/examples/test_scheduled.py::file_store": "c26a55a8e64f623a"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/book_examples.py::activated": "62cb8a0628436aa8",
+        "integration_tests/conformance/catalog_examples.py::content": "62cb8a0628436aa8"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/capabilities/test_deadline_wakeups.py::files": "c26a55a8e64f623a",
+        "integration_tests/examples/test_revision_storage.py::output": "c26a55a8e64f623a"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/conftest.py::book_index": "4a96faf9a4f21d25",
+        "integration_tests/examples/test_books.py::local_index": "4a96faf9a4f21d25"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/examples/test_revision_storage.py::output": "c26a55a8e64f623a",
+        "integration_tests/examples/test_scheduled.py::file_store": "c26a55a8e64f623a"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/test_application_binding_scopes.py::test_derived_book_replay_rejects_consistently_wrong_content": "51192c6b18ba43e5",
+        "integration_tests/conformance/test_books_contract_controls.py::test_generated_books_replay_rejects_consistently_wrong_provider_result": "37ec9bfe5be5ae78"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "examples/acme_printworks/acme/providers.py::observe_print": "c6dfb49689f6b700",
+        "examples/orders/provider.py::observe": "4fbd7d3ea738bce5"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/bindings.py::retries": "17b84d63f29a0470",
+        "package/src/due/django/conformance/_internal/suite.py::retry_bindings": "63e8e19254ad9826"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/book_examples.py::published": "979535dca70ddae2",
+        "integration_tests/conformance/catalog_examples.py::content": "62cb8a0628436aa8"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/book_examples.py::run_process": "d1b8c5aa7fdb22be",
+        "integration_tests/conformance/scheduled_examples.py::run_process": "826045f3b8219255"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/book_examples.py::run_process": "d1b8c5aa7fdb22be",
+        "integration_tests/conformance/document_examples.py::run_child": "c32b71550d5b1168"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/document_examples.py::run_child": "c32b71550d5b1168",
+        "integration_tests/conformance/scheduled_examples.py::run_process": "826045f3b8219255"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/test_document_celery_worker.py::published": "d111de7311e2a06f",
+        "integration_tests/examples/test_celery_migration.py::assert_published": "f9aa250ef2071ffd"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/conformance/test_document_process_control.py::test_process_history_rejects_disabled_production_recovery": "279e57128cc64da3",
+        "integration_tests/conformance/test_widget_controls.py::test_process_contract_rejects_disabled_recovery": "1934d5378953b5ce"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/conformance/composition.py::recover_and_deliver": "8ec640220630ef70",
+        "package/src/due/django/conformance/scenarios.py::_recover_lost_deliveries": "d05a7954808eb5fe"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/conformance/seams.py::ProviderSeam.interrupted": "2c453587946409bd",
+        "integration_tests/conformance/catalog_examples.py::admission_failure": "637a055c58622d76"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "examples/books/search.py::connection": "88288b248ee90ea0",
+        "examples/orders/provider.py::connection": "6c063768df205a45"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/capabilities/test_deadline_wakeups.py::test_lost_timer_message_recovers_at_deadline": "f56f16975ab90575",
+        "integration_tests/examples/test_scheduled.py::test_lost_wakeup_waits_for_deadline_then_recovers": "3cbdcde113851674"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/completion.py::CompletionLease.available": "a9bf20b55637ecc0",
+        "package/src/due/django/runtime/_delivery.py::RecoveryLease.available": "bd61709bb17897de"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/conformance/_internal/suite.py::assert_lost_notification_reaches_domain_outcome": "306a7a80cf4c0604",
+        "package/src/due/django/conformance/composition.py::recover_and_deliver": "8ec640220630ef70"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "integration_tests/comparison/test_books.py::test_shared_book_outcome_after_process_death": "797876a5a5c8210a",
+        "integration_tests/harness/processes.py::run_child": "167d8b981723f1c3"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/capabilities/bulk.py::DurableBulkExternalOperation.possible_effect_attempt": "a209e0fab33571a2",
+        "package/src/due/django/capabilities/operations.py::DurableExternalOperation.possible_effect_attempt": "5dc815d8c71a497d"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    },
+    {
+      "hashes": {
+        "package/src/due/django/capabilities/operations.py::DurableExternalOperation.possible_effect_attempt": "5dc815d8c71a497d",
+        "package/src/due/django/models.py::DurableWork._possible_effect_attempts": "bd71bb01da089cd3"
+      },
+      "context_hash": "",
+      "state": "remaining"
+    }
+  ]
+}
