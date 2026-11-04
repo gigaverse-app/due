@@ -31,12 +31,12 @@ from pytest_obligation.contract import (
     eligibility_bindings,
 )
 
-from due._cost_adoption import COST_CASE, costs_adopted
 from due.django.capabilities.compensation import IndependentCompensation
 from due.django.capabilities.observed_operations import ObservedExternalOperation
 from due.django.capabilities.operations import DurableExternalOperation
 from due.django.capabilities.projection import DurableProjection
 from due.django.capabilities.scheduled import DurableScheduledAction
+from due.django.conformance._cost_adoption import COST_CASE, costs_adopted
 from due.django.conformance._internal.immutable_inputs import admission_paths
 from due.django.conformance._internal.suite import COST_PATHS
 from due.django.conformance.composition import compensations_for
