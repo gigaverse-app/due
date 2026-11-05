@@ -46,6 +46,8 @@ def make_publish_work() -> PublishBookWork:
 
 
 def index_key(work: IndexBookWork) -> str:
+    # dry-lint: distinct-from examples/books/effects.py::IndexBook.perform_effect
+    # Recomputes the provider key on purpose: an independent oracle, not the code under test.
     return hashlib.sha256(work.provider_idempotency_key().encode()).hexdigest()
 
 

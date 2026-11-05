@@ -9,6 +9,8 @@ from examples.books.models import Book, BookWork, IndexBookWork, PublishBookWork
 
 class BookEffect[W: BookWork](ReplaySafeEffect[Book, W, str]):
     def finalize_retry(self, work: W, error: Exception) -> None:
+        # dry-lint: distinct-from examples/catalog/effects.py::CatalogProjection.finalize_retry
+        # Each example marks its own model's failure; a shared helper would tie the tutorials together.
         if work.state == DurableWorkState.EXHAUSTED:
             Book.objects.filter(pk=work.owner_id).update(indexing_failed=True)
 
