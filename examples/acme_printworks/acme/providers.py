@@ -107,6 +107,8 @@ def observe_print(reference):
 
 
 def print_receipt(reference):
+    # dry-lint: distinct-from examples/orders/provider.py::receipt
+    # Each example's fake provider stands alone so its tutorial reads (and runs) without the others.
     with database() as db:
         rows = db.execute(
             "SELECT id,reference,proof_key,quantity FROM orders WHERE reference=?",

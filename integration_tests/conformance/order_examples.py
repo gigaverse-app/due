@@ -11,7 +11,6 @@ from due.django.conformance.observations import ObservationExample
 from due.django.conformance.provider import ProviderProbe
 from due.django.conformance.seams import ProviderSeam, seam_examples
 from due.django.conformance.suite import (
-    AdmissionFailureExample,
     ProducerExample,
     TerminalExample,
 )
@@ -120,12 +119,6 @@ def producer() -> Iterator[ProducerExample[PrintWork, bool]]:
         )
 
 
-@contextmanager
-def admission_failure() -> Iterator[AdmissionFailureExample[PrintWork, bool]]:
-    with producer() as scenario:
-        yield AdmissionFailureExample.after_save(scenario, PrintWork)
-
-
 EXAMPLES = seam_examples(
     print_order,
     SEAM,
@@ -144,5 +137,5 @@ EXAMPLES = seam_examples(
     uncertainties={"accepted but response lost": uncertainty},
     observation=observation,
     admissions={"order print": producer},
-    admission_failures={"order print": admission_failure},
+    admission_failures={"order print": SEAM.interrupted(producer, PrintWork)},
 )

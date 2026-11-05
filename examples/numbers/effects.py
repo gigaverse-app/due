@@ -44,6 +44,8 @@ def request_number(calculation_id: int, number: int) -> CalculationWork:
 
 
 def retry_number(calculation_id: int) -> bool:
+    # dry-lint: distinct-from examples/documents/effects.py::retry_publication
+    # Each example shows the retry_failed() pattern on its own product model; a shared helper would tie the tutorials.
     with calculate.atomic(calculation_id) as pending:
         retried = pending.retry_failed()
         if retried:
