@@ -27,7 +27,7 @@ repos:
   # Sonnet, ANTHROPIC_API_KEY from the shell or the untracked .env) against the same accepted backlog. Setup and
   # what to do with a finding: CONTRIBUTING.md, "Duplication".
   - repo: https://github.com/gigaverse-app/dry-lint
-    rev: v1.4.2
+    rev: v1
     hooks:
       - id: dry-lint
         args: [--preset, sonnet, --baseline, .dry-lint/baseline.json]
