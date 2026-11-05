@@ -1,0 +1,89 @@
+name: Obligation report
+# Keeps the README's pytest-obligation report and badge current. It runs no tests: after the weekly complete CI
+# run on main (ordinary pushes run only the affected lanes, so their evidence is partial), it re-renders that run's
+# uploaded contract reports, library and integration, with pytest-obligation's reporter. When the evidence changed,
+# it opens or updates one pull request, which runs the ordinary checks. Dispatch it with a complete run's id to
+# render that run instead.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: A complete CI run on main whose evidence to render
+        required: true
+permissions: {}
+concurrency:
+  group: obligation-report
+  cancel-in-progress: false
+jobs:
+  readme:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # the CI run's artifacts and job outcomes
+      contents: read
+    env:
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run-id }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: obligation-profiles-locked
+          path: evidence/integration
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: library-obligation-profiles-locked
+          path: evidence/library
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+      # The test job, not the whole run: it holds every contract gate, and a lint failure is no contract failure.
+      - name: Read the contract job's outcome
+        id: tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name == "Execute tests (locked)") | .conclusion')
+          echo "outcome=${conclusion:-unknown}" >> "$GITHUB_OUTPUT"
+      - uses: gigaverse-app/pytest-obligation/report@v1
+        with:
+          report-path: evidence/*/profiles.json
+          expected-reports: '2'
+          test-outcome: ${{ steps.tests.outputs.outcome }}
+          python-version: '3.14'
+          post-comment: 'false'
+          sticky-key: due-readme
+          title: Due's own conformance suites
+          readme-path: README.md
+          readme-source: weekly complete CI run on main
+          badge-path: .github/obligation-badge.json
+      - name: Require ratchet PR authentication
+        env:
+          HAS_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN != '' }}
+        run: |
+          if [[ "$HAS_TOKEN" != "true" ]]; then
+            echo "::error::Share the organization GV_CI_CROSS_REPO_TOKEN secret with this repository."
+            exit 1
+          fi
+      # One standing branch: a later run updates the open pull request. It changes only when the evidence does.
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GV_CI_CROSS_REPO_TOKEN }}
+          branch: obligation/readme
+          delete-branch: true
+          add-paths: |
+            README.md
+            .github/obligation-badge.json
+          commit-message: 'docs(readme): update the pytest-obligation report'
+          title: 'docs(readme): update the pytest-obligation report'
+          body: |
+            The weekly complete CI run's obligation contracts gave a different report than the README shows. This
+            updates the README's report block and its badge to match.
+
+            Evidence: [CI run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ env.RUN_ID }}).
