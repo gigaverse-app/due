@@ -113,6 +113,8 @@ class OrderPrinting(ObservedExternalOperation[PrintOrder, PrintWork, providers.P
     on_terminal = mirror.outcome({"status": "stopped"})
 
     def perform_effect(self, work):
+        # dry-lint: distinct-from examples/orders/effects.py::OrderPrinting.perform_effect
+        # Each example's printer integration stands alone, so its tutorial reads and runs without the others.
         try:
             return providers.submit_print(str(work.reference), work.proof_key, work.quantity)
         except providers.PrinterRejected as error:

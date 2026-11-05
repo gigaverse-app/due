@@ -52,6 +52,8 @@ def publish_a_document() -> PublicationWork:
 
 
 def published(work: PublicationWork) -> bool:
+    # dry-lint: distinct-from integration_tests/conformance/document_examples.py::product
+    # Reads the object directory the separate Celery worker process wrote, not this process's file root.
     # OBSERVE: the document points at a published object holding exactly its text.
     key = Document.objects.get(pk=work.owner_id).published_key
     return bool(key) and (OBJECTS / key).read_text() == work.text

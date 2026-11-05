@@ -85,6 +85,8 @@ def test_obsolete_hint_cannot_publish(background_work: BackgroundWork, tmp_path:
 
 
 def test_lost_timer_message_recovers_at_deadline(background_work: BackgroundWork, tmp_path: Path) -> None:
+    # dry-lint: distinct-from integration_tests/examples/test_scheduled.py::test_lost_wakeup_waits_for_deadline_then_recovers
+    # Loses the deadline timer's message; that test loses the admission wake-up and checks nothing publishes early.
     publication = create_publication("Lost timer", timezone.now() + timedelta(seconds=3))
     from due.django.runtime.tasks import wake_scheduled_work_task
 

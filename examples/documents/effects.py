@@ -35,6 +35,8 @@ def request_publication(document_id: int, text: str) -> PublicationWork:
 
 
 def retry_publication(document_id: int) -> bool:
+    # dry-lint: distinct-from examples/widget_store/services.py::retry_order
+    # Each example grants a retry on its own product model; a shared helper would tie the tutorials together.
     """Explicitly grant an exhausted publication a fresh retry budget."""
     with publish_document.atomic(document_id) as pending:
         retried = pending.retry_failed()
