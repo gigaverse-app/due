@@ -1148,6 +1148,8 @@ Duplication that predates adoption is an accepted backlog that only shrinks: the
 pair a refactor removes. See [CONTRIBUTING.md](CONTRIBUTING.md#duplication).
 
 <!-- dry-lint-progress:start -->
+<a href="https://github.com/gigaverse-app/dry-lint"><picture><source media="(prefers-color-scheme: dark)" srcset="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?theme=dark&amp;key=35f6ba0c499a9204cc6a7aa502ed349c208027ccd99edbf9287eae3bf6bb181d&amp;name=gigaverse-app%2Fdue&amp;cleaned=8&amp;remaining=21&amp;dismissed=0"><img alt="dry-lint in gigaverse-app/due: duplicates kept out of its pull requests, and 8 of 29 accepted duplicate pairs cleaned up" src="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=35f6ba0c499a9204cc6a7aa502ed349c208027ccd99edbf9287eae3bf6bb181d&amp;name=gigaverse-app%2Fdue&amp;cleaned=8&amp;remaining=21&amp;dismissed=0" width="100%"></picture></a>
+
 [![dry-lint cleanup progress](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](https://github.com/gigaverse-app/dry-lint)
 
 **Cleaning up duplication with dry-lint.** CI checks new changes against the accepted backlog.
