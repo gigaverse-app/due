@@ -2,7 +2,7 @@
   "schema": 1,
   "contract": "fbf56a4a852e47539b956057d11e9f3ee56a986bbb3b26ac209dc491d4b45f6e",
   "started_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
-  "checked_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
+  "checked_at": "17024460506e20d5fb09138dd82fa58bde69fd3b",
   "entries": [
     {
       "hashes": {
@@ -114,7 +114,7 @@
         "package/src/due/django/conformance/_internal/suite.py::retry_bindings": "63e8e19254ad9826"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -170,7 +170,7 @@
         "package/src/due/django/conformance/scenarios.py::_recover_lost_deliveries": "d05a7954808eb5fe"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -178,7 +178,7 @@
         "integration_tests/conformance/catalog_examples.py::admission_failure": "637a055c58622d76"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -194,7 +194,7 @@
         "integration_tests/examples/test_scheduled.py::test_lost_wakeup_waits_for_deadline_then_recovers": "3cbdcde113851674"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -210,7 +210,7 @@
         "package/src/due/django/conformance/composition.py::recover_and_deliver": "8ec640220630ef70"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -218,7 +218,7 @@
         "integration_tests/harness/processes.py::run_child": "167d8b981723f1c3"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -226,7 +226,7 @@
         "package/src/due/django/capabilities/operations.py::DurableExternalOperation.possible_effect_attempt": "5dc815d8c71a497d"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -234,7 +234,7 @@
         "package/src/due/django/models.py::DurableWork._possible_effect_attempts": "bd71bb01da089cd3"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     }
   ]
 }
