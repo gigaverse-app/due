@@ -2,7 +2,7 @@
   "schema": 1,
   "contract": "fbf56a4a852e47539b956057d11e9f3ee56a986bbb3b26ac209dc491d4b45f6e",
   "started_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
-  "checked_at": "17024460506e20d5fb09138dd82fa58bde69fd3b",
+  "checked_at": "d0b572f5df8de7a9668368efe98d6b45311cddf8",
   "entries": [
     {
       "hashes": {
@@ -106,7 +106,7 @@
         "examples/orders/provider.py::observe": "4fbd7d3ea738bce5"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -130,7 +130,7 @@
         "integration_tests/conformance/scheduled_examples.py::run_process": "826045f3b8219255"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -138,7 +138,7 @@
         "integration_tests/conformance/document_examples.py::run_child": "c32b71550d5b1168"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
