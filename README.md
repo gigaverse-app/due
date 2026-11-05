@@ -7,7 +7,8 @@
 [![Typed](https://img.shields.io/badge/typing-py.typed-blue)](package/src/due/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](package/LICENSE)
 [![Documentation](https://readthedocs.org/projects/due/badge/?version=latest)](https://due.readthedocs.io/en/latest/)
-[![dry-lint](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](#how-this-project-keeps-duplication-out)
+[![dry-lint](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](#duplicates-kept-out)
+[![pytest-obligation](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.github%2Fobligation-badge.json)](#obligations-kept)
 
 **An attempt can end. The obligation remains.**
 
@@ -262,6 +263,903 @@ The read-only command reports exhausted, terminal-failed and unknown work,
 unresolved attempts, and deferred recovery identities. It never authorizes a
 replay. [Operations and monitoring →](package/docs/operations.md)
 
+## Does Due keep its own promises?
+
+Due's guarantees are checked the same way an adopter checks theirs, and so is its code.
+
+### Obligations kept
+
+Every week CI runs all of Due's conformance suites on `main`, the library's and the example applications',
+with [pytest-obligation](https://github.com/gigaverse-app/pytest-obligation): lost messages, dead workers, stale
+workers and retries, each against a real PostgreSQL. This is that run's report, kept current by a pull request
+whenever the evidence changes.
+
+<!-- pytest-obligation:start -->
+### Due&#x27;s own conformance suites
+
+<a href="https://github.com/gigaverse-app/pytest-obligation"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/sticky-banner-dark.svg"><img alt="pytest-obligation: what passed, what is missing, what to fix" src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/sticky-banner-light.svg" width="640"></picture></a>
+
+### Obligation contract checks
+
+Other pytest tests and workflow steps are not included in these counts.
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-1-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-1-light.svg" width="18" height="36" alt="17 applications" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-7-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-7-light.svg" width="18" height="36" alt="" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="51" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-1-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-1-light.svg" width="18" height="36" alt="1132 contract checks passed" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-1-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-1-light.svg" width="18" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-3-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-3-light.svg" width="18" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-2-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-2-light.svg" width="18" height="36" alt="" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="21" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/divider-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/divider-light.svg" width="1" height="36" alt="" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="12" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-light.svg" width="18" height="36" alt="0 contract failures" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="68" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-light.svg" width="18" height="36" alt="0 blocked checks" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="75" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-light.svg" width="18" height="36" alt="0 coverage gaps" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="72" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/good-0-light.svg" width="18" height="36" alt="0 rejected bindings" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="73" height="36" alt="" align="middle"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-0-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/neutral-0-light.svg" width="18" height="36" alt="0 skipped tests" align="middle"></picture><picture><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/space.svg" width="69" height="36" alt="" align="middle"></picture><br><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/captions-with-skips-dark.svg"><img src="https://raw.githubusercontent.com/gigaverse-app/pytest-obligation/v1/docs/assets/report-glyphs/captions-with-skips-light.svg" width="640" height="34" alt="applications · contract checks passed · contract failures · blocked checks · coverage gaps · rejected bindings · skipped tests" align="middle"></picture></p>
+
+<details>
+<summary>Application inventory and skipped tests</summary>
+
+**17** applications with results · **0** applications not run
+Checks skipped: **0**.
+
+Application inventory was not supplied; uncollected suites cannot be listed.
+
+</details>
+
+### Applications
+
+All collected applications, most actionable first. Expand the evidence below for reasons and tickets.
+
+| Application | Passed | Failed | Blocked | Gaps | Rejected |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| index&#95;book | **48** | 0 | 0 | 0 | 0 |
+| publish&#95;book | **43** | 0 | 0 | 0 | 0 |
+| project&#95;catalog | **54** | 0 | 0 | 0 | 0 |
+| Due replay-safe work tab&#8203;le | **87** | 0 | 0 | 0 | 0 |
+| celery: a worker runs &#x27;p&#8203;ublish&#95;document&#x27; through&#8203; Celery | **1** | 0 | 0 | 0 | 0 |
+| publish&#95;document | **50** | 0 | 0 | 0 | 0 |
+| calculate&#95;number | **49** | 0 | 0 | 0 | 0 |
+| print&#95;order | **49** | 0 | 0 | 0 | 0 |
+| publish&#95;at&#95;deadline | **47** | 0 | 0 | 0 | 0 |
+| checkout&#95;order | **55** | 0 | 0 | 0 | 0 |
+| uuid&#95;work&#95;test | **46** | 0 | 0 | 0 | 0 |
+| composed&#95;inline&#95;chunk&#95;se&#8203;lf&#95;test | **117** | 0 | 0 | 0 | 0 |
+| composed&#95;chunk&#95;self&#95;test | **117** | 0 | 0 | 0 | 0 |
+| batch&#95;self&#95;test | **106** | 0 | 0 | 0 | 0 |
+| inline&#95;chunk&#95;self&#95;test | **114** | 0 | 0 | 0 | 0 |
+| member&#95;sync&#95;self&#95;test | **43** | 0 | 0 | 0 | 0 |
+| chunk&#95;self&#95;test | **106** | 0 | 0 | 0 | 0 |
+
+### Evidence and decisions
+
+
+<details>
+<summary><strong>index&#95;book</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;book&#95;contracts.py:6</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: Indexing captures the submission once; operator retry preserves that input and its identity.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 6 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Repeating work is harmless**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;book&#95;contracts.TestBookIndexing</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>publish&#95;book</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;book&#95;contracts.py:11</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: Publication captures the upstream result key; later metadata and repeated settlement cannot replace it.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: Publication admission writes one successor row; the upstream handoff is covered by index&#95;book process histories and the interrupted-settlement journey.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Repeating work is harmless**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;book&#95;contracts.TestBookPublication</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>project&#95;catalog</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;catalog&#95;contract.py:10</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This catalog overwrites one provider key; late-write repair and captured revisions own convergence, not a monotonic merge or dependency gate.
+- **Results eventually settle correctly (E) / EVIDENCE&#95;CONFLUENCE** · Not applicable (application decision). Application reason: This catalog overwrites one provider key; late-write repair and captured revisions own convergence, not a monotonic merge or dependency gate.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 7 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Results eventually settle correctly**
+- **Repeating work is harmless**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;catalog&#95;contract.TestCatalogProjection</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>Due replay-safe work tab&#8203;le</strong> · evidence and decisions</summary>
+
+Contract contract setup: <code>integration&#95;tests/conformance/test&#95;contract.py:14</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: This example is replay-safe; evidence-required operations have their own regression tests.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: This example has an immutable target; projection revision tests exercise mutable targets.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: This example admits explicit obligations and declares no fact-derived discovery.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: This example has no prerequisite gate; eligibility has separate regression tests.
+- **Repeating work is harmless (H)** · Not applicable (application decision). Application reason: This example&#x27;s external call returns a value without a remote mutation.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;contract.TestWorkTable</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>celery: a worker runs &#x27;p&#8203;ublish&#95;document&#x27; through&#8203; Celery</strong> · evidence and decisions</summary>
+
+Contract contract setup: <code>integration&#95;tests/conformance/test&#95;document&#95;celery&#95;worker.py:60</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Unfinished work gets recovered (A)** · Not claimed by application. Application reason: what the worker loses is recovered by Due&#x27;s recovery of &#x27;publish&#95;document&#x27;, whose own contract proves its recovery; these histories run it after the worker restarts and check that every failure converges
+- **Worker ownership is bounded (B)** · Not claimed by application. Application reason: a task&#x27;s lease is the broker&#x27;s visibility timeout or connection, not a fenced claim Celery can check
+- **Uncertain outcomes are handled (C)** · Not claimed by application. Application reason: with task&#95;acks&#95;late a task whose worker died may run again; whether it reached its service is its own
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: stored results are the record of settled work, not work still owed
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: one worker settles each delivery; no two results race to write it
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: the obligation is the message itself, not a fact derived from product state
+- **Execution respects its gate (G)** · Not claimed by application. Application reason: Celery&#x27;s worker contract has no application readiness predicate; dependencies and product gates need their own ExecutionGate binding, including release with its notification lost.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: a task can run more than once (with task&#95;acks&#95;late, a redelivery after its worker was lost), so rerunning it must be safe, but that is a property of each task&#x27;s function, not of Celery
+- **Intent and work are saved together (I)** · Not claimed by application. Application reason: Celery&#x27;s worker receives already admitted work; it cannot make an application&#x27;s product transaction atomic with enqueue. Bind Profile I on the application&#x27;s command contract.
+- **Retries have a limit (J)** · Not claimed by application. Application reason: a task&#x27;s retries are its own (self.retry, autoretry&#95;for); a redelivery after a lost worker is not counted as one
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>⚪ 0 supported guarantees</strong></summary>
+
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;document&#95;celery&#95;worker.TestPublicationThroughCelery</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>publish&#95;document</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;document&#95;contract.py:11</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Results eventually settle correctly (E) / MONOTONIC&#95;RESULTS** · Not applicable (application decision). Application reason: File revisions have separate immutable keys; only a fenced pointer is settled.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: File revisions have separate immutable keys; only a fenced pointer is settled.
+- **Results eventually settle correctly (E) / EVIDENCE&#95;CONFLUENCE** · Not applicable (application decision). Application reason: File revisions have separate immutable keys; only a fenced pointer is settled.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 7 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Results eventually settle correctly**
+- **Repeating work is harmless**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;document&#95;contract.TestDocumentPublication</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>calculate&#95;number</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;number&#95;contract.py:18</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Results eventually settle correctly (E) / MONOTONIC&#95;RESULTS** · Not applicable (application decision). Application reason: Arithmetic has no mutable remote state; only the fenced product result is published.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: Arithmetic has no mutable remote state; only the fenced product result is published.
+- **Results eventually settle correctly (E) / EVIDENCE&#95;CONFLUENCE** · Not applicable (application decision). Application reason: Arithmetic has no mutable remote state; only the fenced product result is published.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 7 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Needed records are retained**
+- **Results eventually settle correctly**
+- **Repeating work is harmless**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;number&#95;contract.TestNumberCalculation</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>print&#95;order</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;order&#95;contract.py:6</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: A submitted print order is immutable and cannot become a different physical order.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;order&#95;contract.TestPrintOrder</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>publish&#95;at&#95;deadline</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;scheduled&#95;contract.py:6</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / MONOTONIC&#95;RESULTS** · Not applicable (application decision). Application reason: A pending deadline is replaced or cancelled; immutable revision files and a fenced product pointer need no merge or dependency gate.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: A pending deadline is replaced or cancelled; immutable revision files and a fenced product pointer need no merge or dependency gate.
+- **Results eventually settle correctly (E) / EVIDENCE&#95;CONFLUENCE** · Not applicable (application decision). Application reason: A pending deadline is replaced or cancelled; immutable revision files and a fenced product pointer need no merge or dependency gate.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 6 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Results eventually settle correctly**
+- **Repeating work is harmless**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;scheduled&#95;contract.TestScheduledPublication</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>checkout&#95;order</strong> · evidence and decisions</summary>
+
+Contract suite: <code>integration&#95;tests/conformance/test&#95;widget&#95;contract.py:6</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: A checkout captures one submission key; catalog edits and retries never replace it.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Repeating work is harmless (H)** · Not applicable (application decision). Application reason: DatabaseEffect commits its callback with the work fence; the separate delivery replay proof checks that boundary, not raw external-call idempotency.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Execution respects its gate**
+- **Intent and work are saved together**
+- **Retries have a limit**
+
+Suite (application code): <code>integration&#95;tests.conformance.test&#95;widget&#95;contract.TestWidgetCheckout</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>uuid&#95;work&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/uuid&#95;work/test&#95;contract.py:86</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: The publication captures its payload once; changing owner fields cannot revise that immutable occurrence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The owner already exists; admission commits one new work row atomically.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 4 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Retries have a limit**
+
+Suite (application code): <code>test&#95;contract.TestUUIDOperationContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>composed&#95;inline&#95;chunk&#95;se&#8203;lf&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;composed&#95;work&#95;contract.py:33</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / STALE&#95;SNAPSHOTS** · Not applicable (application decision). Application reason: A fixed batch refuses new inputs; no desired revision can supersede its captured membership.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This immutable cohort has no competing desired-state writer; receipt actors are covered by evidence confluence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The producer inserts business intent and coordination in one row; the rollback control proves they cannot split.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · Not run</strong></summary>
+
+Generated schedule exploration uses the application's scenario bindings.
+
+- Application scenario <code>bulk-partial-receipts</code>: **Disabled or filtered out**
+- Application scenario <code>bulk-receipts-across-subset-retry</code>: **Disabled or filtered out**
+
+These counts are scenario checks, not generated examples. Example counts, shrinking statistics and replay histories are not recorded in this report; inspect the pytest log for a failing history.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Results eventually settle correctly**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;composed&#95;work&#95;contract.TestComposedInlineReceiptContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>composed&#95;chunk&#95;self&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;composed&#95;work&#95;contract.py:18</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / STALE&#95;SNAPSHOTS** · Not applicable (application decision). Application reason: A fixed batch refuses new inputs; no desired revision can supersede its captured membership.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This immutable cohort has no competing desired-state writer; receipt actors are covered by evidence confluence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The producer inserts business intent and coordination in one row; the rollback control proves they cannot split.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · Not run</strong></summary>
+
+Generated schedule exploration uses the application's scenario bindings.
+
+- Application scenario <code>bulk-partial-receipts</code>: **Disabled or filtered out**
+- Application scenario <code>bulk-receipts-across-subset-retry</code>: **Disabled or filtered out**
+
+These counts are scenario checks, not generated examples. Example counts, shrinking statistics and replay histories are not recorded in this report; inspect the pytest log for a failing history.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Results eventually settle correctly**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;composed&#95;work&#95;contract.TestComposedSeparateReceiptContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>batch&#95;self&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;contract.py:116</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / STALE&#95;SNAPSHOTS** · Not applicable (application decision). Application reason: A fixed batch refuses new inputs; no desired revision can supersede its captured membership.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This immutable cohort has no competing desired-state writer; receipt actors are covered by evidence confluence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The owner exists before admission; admission commits one new work row atomically.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · Not run</strong></summary>
+
+Generated schedule exploration uses the application's scenario bindings.
+
+- Application scenario <code>bulk-partial-receipts</code>: **Disabled or filtered out**
+- Application scenario <code>bulk-receipts-across-subset-retry</code>: **Disabled or filtered out**
+
+These counts are scenario checks, not generated examples. Example counts, shrinking statistics and replay histories are not recorded in this report; inspect the pytest log for a failing history.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Results eventually settle correctly**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;contract.TestBulkOperationContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>inline&#95;chunk&#95;self&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;inline&#95;work&#95;contract.py:29</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / STALE&#95;SNAPSHOTS** · Not applicable (application decision). Application reason: A fixed batch refuses new inputs; no desired revision can supersede its captured membership.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This immutable cohort has no competing desired-state writer; receipt actors are covered by evidence confluence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The producer inserts business intent and coordination in one row; the rollback control proves they cannot split.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · Not run</strong></summary>
+
+Generated schedule exploration uses the application's scenario bindings.
+
+- Application scenario <code>bulk-partial-receipts</code>: **Disabled or filtered out**
+- Application scenario <code>bulk-receipts-across-subset-retry</code>: **Disabled or filtered out**
+
+These counts are scenario checks, not generated examples. Example counts, shrinking statistics and replay histories are not recorded in this report; inspect the pytest log for a failing history.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Results eventually settle correctly**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;inline&#95;work&#95;contract.TestInlineOperationContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>member&#95;sync&#95;self&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;replay&#95;safe&#95;contract.py:121</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Uncertain outcomes are handled (C)** · Not applicable (application decision). Application reason: Replay-safe mode requires the separately generated actual external replay proof.
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E)** · Not applicable (application decision). Application reason: A cohort&#x27;s member keys are captured at admission; a later sync admits a new cohort.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The owner exists before admission; admission commits one new work row atomically.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · No generated scenario bindings collected</strong></summary>
+
+No optional schedule-exploration cases were collected for this suite. Other Hypothesis use inside application callbacks is not assessed here.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 4 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Repeating work is harmless**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;replay&#95;safe&#95;contract.TestReplaySafeBulkContract</code>
+
+</details>
+
+</details>
+
+<details>
+<summary><strong>chunk&#95;self&#95;test</strong> · evidence and decisions</summary>
+
+Contract suite: <code>package/tests/bulk/test&#95;self&#95;work&#95;contract.py:13</code>
+
+<details>
+<summary><strong>⚪ Deliberate exclusions</strong></summary>
+
+- **Needed records are retained (D)** · Not applicable (application decision). Application reason: Registered policy retains work and evidence indefinitely.
+- **Results eventually settle correctly (E) / STALE&#95;SNAPSHOTS** · Not applicable (application decision). Application reason: A fixed batch refuses new inputs; no desired revision can supersede its captured membership.
+- **Results eventually settle correctly (E) / IN&#95;FLIGHT** · Not applicable (application decision). Application reason: This immutable cohort has no competing desired-state writer; receipt actors are covered by evidence confluence.
+- **Owed work is discovered from stored facts (F)** · Not applicable (application decision). Application reason: No canonical discovery is registered.
+- **Execution respects its gate (G)** · Not applicable (application decision). Application reason: The production capability has no execution gate.
+- **Repeating work is harmless (H)** · Not claimed by application. Application reason: Production requires definite provider evidence; another call can duplicate an occurrence.
+- **Intent and work are saved together (I)** · Not applicable (application decision). Application reason: The producer inserts business intent and coordination in one row; the rollback control proves they cannot split.
+
+These are scope decisions, not demonstrated defects. Review their reasons when the application changes.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hypothesis · Not run</strong></summary>
+
+Generated schedule exploration uses the application's scenario bindings.
+
+- Application scenario <code>bulk-partial-receipts</code>: **Disabled or filtered out**
+- Application scenario <code>bulk-receipts-across-subset-retry</code>: **Disabled or filtered out**
+
+These counts are scenario checks, not generated examples. Example counts, shrinking statistics and replay histories are not recorded in this report; inspect the pytest log for a failing history.
+
+</details>
+
+---
+
+<details>
+<summary><strong>🟢 5 supported guarantees</strong></summary>
+
+- **Unfinished work gets recovered**
+- **Worker ownership is bounded**
+- **Uncertain outcomes are handled**
+- **Results eventually settle correctly**
+- **Retries have a limit**
+
+Suite (application code): <code>tests.bulk.test&#95;self&#95;work&#95;contract.TestSelfContainedOperationContract</code>
+
+</details>
+
+</details>
+
+---
+
+<details>
+<summary><strong>What do these numbers mean?</strong></summary>
+
+- **Failures:** an executed assertion failed unexpectedly or was an application-declared expected failure. Expected failures still permit successful CI; the visible breakdown distinguishes them.
+- **Rejected bindings:** repair the connection to production code; these checks provide no supporting evidence.
+- **Blocked checks:** checks could not establish a result, including missing execution, setup/cleanup errors, binding-debt or unclassified expected failures, and unexpected passes requiring declaration review.
+- **Coverage gaps:** guarantees not assessed, missing scenarios, or with declared gaps. Each affected guarantee counts once. Deliberate exclusions are shown separately.
+
+Pass/fail/blocked/rejected counts partition unique checks. Gaps count guarantees, not extra tests. Declined and not-applicable declarations remain separate and do not establish passing coverage. Graphics color contract results: passing checks and zero issues are green, failures and rejected bindings are red, blocked checks and gaps are amber. Missing reports never show green zeroes. The workflow status above is separate from these contract counts.
+
+Elapsed time covers the pytest session. Summed check time includes setup, execution and cleanup; parallel work overlaps.
+Application totals include discovered declarations and reported suites. Skipped checks count known deselections and explicit pytest skips; incomplete selected checks are not skips. Uncollected applications have unknown check counts. Zero recorded outcomes do not certify passing coverage.
+
+Application names, quoted reasons and diagnostic values come from application code. Guarantee labels come from pytest-obligation. Results cover collected suites only; passing checks do not rate every test's quality.
+
+Test step (reported): **success**
+Source: <code>weekly complete CI run on main</code>
+
+</details>
+
+[Report guide](https://github.com/gigaverse-app/pytest-obligation/blob/v1/package/docs/github-action-report.md)
+<!-- pytest-obligation:end -->
+
+### Duplicates kept out
+
+A pre-commit hook and the required `dry-lint` check block code that re-implements a function Due already has.
+Duplication that predates adoption is an accepted backlog that only shrinks: the weekly audit records each
+pair a refactor removes. See [CONTRIBUTING.md](CONTRIBUTING.md#duplication).
+
+<!-- dry-lint-progress:start -->
+[![dry-lint cleanup progress](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](https://github.com/gigaverse-app/dry-lint)
+
+**Cleaning up duplication with dry-lint.** CI checks new changes against the accepted backlog.
+
+| Duplicate pairs cleaned | Remaining | Dismissed |
+| ---: | ---: | ---: |
+| 8 | 21 | 0 |
+
+[Accepted backlog](.dry-lint/baseline.json). Counts cover judged pairs in the configured scope, not lines of code; dismissals do not count as cleanup.
+[Read the audit](https://github.com/gigaverse-app/due/actions/workflows/dry-lint-audit.yml) to choose the next refactor.
+<!-- dry-lint-progress:end -->
+
 ## Documentation
 
 | You want to… | Read |
@@ -318,22 +1216,3 @@ pytest-obligation tests generated from its contracts.</sub>
 
 See the [CI toolkit integration](docs/ci-toolkit.md) for lane selection, validated
 environment caches, required gates and real dependency critical-path reports.
-
-### How this project keeps duplication out
-
-A pre-commit hook and the required `dry-lint` check block code that re-implements a function Due already has.
-Duplication that predates adoption is an accepted backlog that only shrinks: the weekly audit records each
-pair a refactor removes. See [CONTRIBUTING.md](CONTRIBUTING.md#duplication).
-
-<!-- dry-lint-progress:start -->
-[![dry-lint cleanup progress](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgigaverse-app%2Fdue%2Fmain%2F.dry-lint%2Fprogress.json)](https://github.com/gigaverse-app/dry-lint)
-
-**Cleaning up duplication with dry-lint.** CI checks new changes against the accepted backlog.
-
-| Duplicate pairs cleaned | Remaining | Dismissed |
-| ---: | ---: | ---: |
-| 8 | 21 | 0 |
-
-[Accepted backlog](.dry-lint/baseline.json). Counts cover judged pairs in the configured scope, not lines of code; dismissals do not count as cleanup.
-[Read the audit](https://github.com/gigaverse-app/due/actions/workflows/dry-lint-audit.yml) to choose the next refactor.
-<!-- dry-lint-progress:end -->
