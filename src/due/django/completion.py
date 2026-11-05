@@ -109,6 +109,9 @@ class CompletionLease[RowT: models.Model]:
         )
 
     def _owned(self, row_id: int, token: datetime) -> QuerySet[RowT]:
+        # dry-lint: distinct-from package/src/due/django/runtime/coordination.py::WorkClaim.owned_work
+        # A lease on any product row (configurable claimed_at/completed_at columns, a timestamp token), where a
+        # WorkClaim fences DurableWork rows by state, UUID fencing token and revision: one idea, no shared columns.
         # The captured token is part of every write: a resumed worker cannot
         # complete or release a successor's claim, even on the same product row.
         return self.model.objects.filter(pk=row_id, **{self.claimed_at: token, f"{self.completed_at}__isnull": True})
