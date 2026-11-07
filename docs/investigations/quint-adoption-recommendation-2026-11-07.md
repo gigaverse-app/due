@@ -251,8 +251,8 @@ give agents concrete debugging inputs.
 
 ### 8. LemmaScript-style source verification for Python
 
-Add a complementary path that verifies selected production Python functions from
-their own annotated source. Python remains the code that runs; a tool extracts
+Evaluate a complementary path that verifies selected production Python functions
+from their own annotated source, beginning with the existing tools below. Python remains the code that runs; a tool extracts
 verification artifacts from that code and its contracts. This reverses the
 direction of the generated-core proposal: implementation to proof artifacts,
 rather than specification to production code.
@@ -268,8 +268,9 @@ proof additions have separate regeneration rules; its CI workflow checks proofs
 and stale generated artifacts. These are documented capabilities inspected for
 this recommendation, not independently rerun LemmaScript experiments.
 
-A Python equivalent could use comments or sidecar contracts attached to typed
-functions, keeping proof annotations out of runtime execution:
+Python tools already offer variants of this architecture. Comments or sidecar
+contracts can attach to typed functions while keeping proof annotations out of
+runtime execution:
 
 ```text
 production Python + function contracts
@@ -292,9 +293,9 @@ and refinement obligation: under the stated preconditions, the projected Python
 result must be an allowed model result. Proving a local postcondition alone does
 not establish that connection.
 
-**Additional work:** define a supported Python fragment and faithful semantics
-for integers and floats, collection ordering, equality versus identity, aliasing,
-mutation, exceptions and termination. Start with small typed pure functions;
+**Integration requirements:** evaluate each candidate's supported Python fragment
+and semantics for integers and floats, collection ordering, equality versus
+identity, aliasing, mutation, exceptions and termination. Start with small typed pure functions;
 reject unsupported selected code unless a reviewed abstraction or external
 contract explicitly accounts for it. Arbitrary ORM, async and dynamic Python
 must not silently become pure mathematical functions.
@@ -323,18 +324,76 @@ support safer optimization. Proof checking can be expensive. Cache only with
 complete source, contract, dependency and toolchain inputs, and keep integration
 tests for behavior outside the verified fragment.
 
-**Existing Python alternatives:** first evaluate
-[Nagini](https://github.com/marcoeilers/nagini), a verifier for typed Python built
-on Viper, before committing to a new translator. Also compare
-[CrossHair](https://crosshair.readthedocs.io/en/latest/introduction.html) for
-symbolic contract counterexample search; its
-[documented limitations](https://crosshair.readthedocs.io/en/latest/limitations.html)
-explicitly state that absence of a counterexample is not a guarantee. Neither is
-claimed here to be an already integrated Quint/Python equivalent of LemmaScript.
+**Existing Python tools: evaluate before building.** A broader source survey
+found a close implementation of the proposed architecture in VeriPy. The
+recommendation is therefore to evaluate existing verifiers and integrate an
+appropriate one with Quint contracts and pytest evidence before considering a
+new Python frontend. The comparison below is based on upstream documentation and
+repository inspection on 2026-11-07; none of these tools was installed or its
+proof results independently reproduced for this report.
+
+| Tool | Mechanism and relationship to LemmaScript | Scope and evaluation implication |
+| --- | --- | --- |
+| [VeriPy](https://github.com/astrio-labs/veripy) | Preserves admitted Python bodies with `#@` contracts, generates Dafny or Lean artifacts and checks separate proof support. Includes agent diagnostics and old/new compatibility checking. Closest architectural match found. | A research tool supporting selected fragments. Its frontend correspondence is not mechanized end to end. First candidate for the source-preserving proof and maintenance experiment. |
+| [Nagini](https://github.com/marcoeilers/nagini) | Verifies typed Python through Viper, with contracts and specifications for functional and other properties. Has an established research history and documented MCP verification interfaces. | Evaluate supported language/heap semantics and annotation effort against our exact function. It is an alternative verification infrastructure, not a Dafny/Lean emitter. |
+| [Apex](https://github.com/hyperionaidev/apex) | Combines agent integration, Lean proofs about translated functions and counterexample search; records different strengths of evidence. | Its documented proof-supported Python subset is small. Translation is trusted and differential execution is testing evidence, not proof of correspondence. Secondary candidate for agent workflow ergonomics. |
+| [CrossHair](https://crosshair.readthedocs.io/en/latest/introduction.html) | Runs Python with symbolic inputs and searches for contract violations, including contracts expressed through supported assertion/docstring/decorator forms. | Useful complementary counterexample search. Absence of a counterexample is not a guarantee; do not report it as a discharged deductive proof. |
+| [Proofside](https://pypi.org/project/proofside/) | Separates mathematical intent, optional agent-proposed contracts, human-reviewed contract selection and Nagini/Viper checking. | A deliberately narrow sidecar for self-contained typed mathematical functions and restricted arithmetic contracts; useful workflow precedent rather than a general application verifier. |
+
+VeriPy's [README](https://github.com/astrio-labs/veripy/blob/main/README.md)
+documents a minimal example:
+
+```python
+#@ ensures result == x + 1
+def increment(x: int) -> int:
+    return x + 1
+```
+
+Its compatibility checker is especially relevant to drift. Two versions can
+satisfy the same underspecified contract while returning different values.
+VeriPy separately compares whether the new component admits the old inputs and
+preserves declared observations, including modeled exceptions. Its
+[assurance argument](https://github.com/astrio-labs/veripy/blob/main/docs/ASSURANCE-ARGUMENT.md)
+distinguishes checked propositions about emitted models from the additional
+correspondence required to apply them to native Python. A failed proof, timeout
+or unsupported construct is not automatically evidence of incompatibility.
+
+The [supported-fragment inventory](https://github.com/astrio-labs/veripy/blob/main/docs/SUPPORTED-FRAGMENTS.md)
+lists scoped arithmetic, loops, owned lists, string operations, modeled
+exceptions and record snapshots. These are explicit boundaries, not blanket
+support for arbitrary Python using those features. The repository documents
+Dafny/Lean proof artifacts, native execution checks and case studies, but those
+are upstream evidence, not a reproduction in Due or pytest-obligation. Install
+from the linked repository when evaluating it: its README warns that the
+`veripy` package on PyPI is unrelated.
+
+Nagini's [research overview](https://www.pm.inf.ethz.ch/research/nagini.html)
+describes modular verification of a typed Python subset, including concurrent
+programs and specifications for I/O, progress and information flow. Its repository
+documents an MCP server for file, method and snippet verification with structured
+diagnostics and optional counterexamples. This makes it relevant both as a proof
+backend candidate and as existing agent-facing infrastructure.
+
+Apex's [limits](https://github.com/hyperionaidev/apex/blob/main/docs/LIMITS.md)
+explicitly separate a Lean proof from translation correctness and from finite
+native/model agreement. Its stated restrictions include substantial ordinary
+Python behavior; assess the selected function before assuming it fits. Similarly,
+CrossHair's [limitations](https://crosshair.readthedocs.io/en/latest/limitations.html)
+matter for identity-sensitive code: symbolic proxies do not perfectly reproduce
+all identity behavior. Proofside's documented sidecar contract language excludes
+collections, floating point and general Python expressions; its relevance here
+is the separation of proposed requirements from independently checked outcomes.
+
+**Revised shortlist:** compare VeriPy and Nagini for implementation proofs, use
+CrossHair where useful for fast counterexample search, and retain Quint for
+protocol behavior and conformance histories. Consider Apex and Proofside for
+specific workflow lessons or a demonstrated fit. None of this survey establishes
+a ready-made Quint integration, universal Python support or production maturity
+for our workloads.
 
 **Next experiment and decision:** retain the conformance pilots as the immediate
-adoption step. For a separate source-verification experiment, select one small
-existing Python decision function and compare ordinary regressions plus Quint
+adoption step. For a separate source-verification experiment, evaluate VeriPy and Nagini on
+one small existing Python decision function and compare ordinary regressions plus Quint
 conformance against that same baseline with source-level verification added.
 Keep the source, contract and reviewed defect mutations fixed. Measure supported
 semantics, obligations discharged, mutations rejected, annotation/proof effort,
@@ -362,8 +421,8 @@ Measure binding effort, defects detected, debugging time and CI cost in the two
 pilots. Add dependency-aware checking and optimization support when justified.
 A production compiler needs a recurring benefit large enough to support its
 maintenance and correctness burden. Evaluate the LemmaScript-style Python
-direction as a separate, narrowly scoped source-verification experiment. These are compatible directions, not eight
-requirements for initial adoption.
+direction as a separate, narrowly scoped source-verification experiment using
+existing tools first. These are compatible directions, not eight requirements for initial adoption.
 
 ## Match Python and Quint at behavioral boundaries
 
