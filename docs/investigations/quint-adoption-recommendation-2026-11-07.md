@@ -9,6 +9,9 @@ the Python implementations. Build a small Python conformance bridge first, using
 one report-evidence machine from pytest-obligation and one claim/settlement
 machine from Due. Evaluate code generation only after those pilots establish
 useful correspondence between model behavior and real implementation behavior.
+Use those pilots to evaluate a general pytest-quint layer, reusable contract
+packages and a contract-governed agent workflow. Broader options and their
+existing Quint foundations are compared below.
 
 Keep Django, PostgreSQL, Celery and pytest as the execution infrastructure. A
 restricted generated Python transition core or an embedded Quint decision engine
@@ -75,6 +78,195 @@ Sources: [Quint's purpose](https://quint.sh/docs/what-does-quint-do),
 [model-based testing](https://quint.sh/docs/model-based-testing),
 [Quint Connect](https://github.com/quint-co/quint-connect),
 [versioned CLI source](https://github.com/quint-co/quint/blob/v0.33.1/quint/src/cli.ts).
+
+## Making Quint central to development
+
+The broader opportunity is to make an executable behavioral contract connect
+design, agent-written implementations, tests, optimization and observed execution.
+The following approaches build on existing Quint tools; the proposed Python
+package names are architectural labels, not claims of available packages.
+
+### 1. A general Python conformance layer: pytest-quint
+
+Create a language-neutral contract-to-implementation testing core with a Python
+driver and pytest integration. Bind model actions to real application commands,
+project independently observed state back into the model, and retain replayable
+failures. Support rejected operations and implementation-originated histories as
+well as model-generated valid histories. Minimize failures only while preserving
+the history's prerequisites and reproducing the discrepancy.
+
+This would be the pytest-obligation analogue for arbitrary Quint specifications.
+The distinction is contract ownership: pytest-obligation supplies durable-work
+contracts, while this layer accepts developer-authored or library-supplied Quint
+contracts. Both require explicit bindings. Being framework independent does not
+make pytest-obligation a general specification language; a parser, authorization
+policy or cache protocol may require different contracts.
+
+**Existing foundation:** [Quint Connect](https://github.com/quint-co/quint-connect)
+already generates traces, drives Rust implementations, compares state and
+supports reproducible seeds. Python would extend that approach, not invent
+model-based testing.
+
+**Additional work:** pytest fixtures and isolation, async execution, database and
+concurrency adapters, trace conversion, missing-binding errors, independent
+observations, fault controls and useful diagnostics. Reuse pytest-obligation
+capabilities where they fit; do not require arbitrary Quint models to pretend
+they are durable-work domains. Start with the two pilots below before deciding
+whether a standalone package is warranted.
+
+**Benefit:** agents get concrete behavioral feedback and maintainers detect
+implementation drift in exercised histories. Neither a passing model alone nor
+a passing bridge proves unrestricted implementation equivalence.
+
+### 2. An agent workflow governed by reviewed contracts
+
+A feature change should produce an explicit behavioral change, model checks,
+implementation edits and conformance evidence. Reviewers can examine assumptions,
+invariants and counterexamples before assessing a larger generated code diff.
+Source mappings help locate affected behavior, but a source edit alone does not
+establish semantic drift.
+
+**Existing foundation:** the [Quint LLM Kit](https://github.com/quint-co/quint-llm-kit)
+provides modeling and implementation assistance. The Quint team's
+[Malachite case study](https://quint.sh/posts/llm_era) describes specification
+changes, human validation, agent-assisted implementation and model-based testing.
+It is a reported case study, not a general productivity benchmark or compiler
+correctness result.
+
+**Additional work:** repository policy for contract ownership, reviewed assumption
+changes, action-to-code mappings, retained evidence and independent negative
+controls. An agent must not silently weaken the expected behavior to make its
+implementation pass. Humans must still judge whether the contract captures the
+requirement: model and implementation can agree on the same mistake.
+
+**Benefit:** a stable, executable target for implementation and debugging, with
+less repeated interpretation of prose across agent tasks.
+
+### 3. Reusable contract packages
+
+Package common behavioral requirements such as stale-owner fencing, harmless
+replay, atomic rejection and monotonic publication. Include the model,
+environment assumptions, binding interfaces, example histories and intentionally
+broken implementations that demonstrate the checks detect violations.
+
+**Existing foundation:** [Choreo](https://github.com/quint-co/choreo) provides
+reusable protocol-modeling abstractions for messages, local state, transitions
+and environmental effects. pytest-obligation already packages implementation
+contracts for durable work.
+
+**Additional work:** versioned contract distributions, Python/framework bindings
+and conformance evidence. Distinguish model-building abstractions from complete
+adoption contracts. Check composition explicitly: two individually conforming
+components can violate each other's environment assumptions.
+
+**Benefit:** maintainers and agents reuse reviewed requirements instead of
+repeatedly inventing ownership, retry or recovery semantics.
+
+### 4. CI driven by dependencies and reusable evidence
+
+Track the specifications, implementation code, adapters and environment inputs
+each check depends on. Replay known regressions first, run affected conformance
+checks on changes, and schedule broader exploration separately. Cache model
+results only when the relevant model inputs, tool versions, options, bounds and
+assumptions remain unchanged. Implementation evidence also depends on application
+and adapter revisions.
+
+**Existing foundation:** Quint provides deterministic scenarios, simulation,
+model checking, seeds and trace output. The
+[CLI](https://quint.sh/docs/quint) exposes TypeScript and Rust simulation
+backends. These are ingredients, not an application dependency graph.
+
+**Additional work:** conservative selection, cache invalidation, trace corpus
+management and reporting. Missing dependency knowledge must broaden checks.
+Select diverse histories for costly integration tests without claiming that the
+selection retains all possible defects.
+
+**Benefit:** potentially faster feedback and less repeated work. Adoption may
+initially increase CI time. A passing model never substitutes for integration
+checks of omitted behavior. Measure time-to-failure, total CI cost and faults
+detected at stated budgets before claiming an improvement.
+
+### 5. Contract-guided optimization of implementations
+
+Retain a simple behavioral specification while experimenting with batching,
+indexes, caching, allocations or concurrency. For Due, a candidate is replacing
+per-row operations with batches while preserving ownership, settlement and
+failure semantics. The real adapter must expose partial failure and transaction
+boundaries instead of hiding them behind one apparently atomic operation.
+
+**Existing foundation:** Quint's model exploration and implementation testing can
+already support this workflow. No production Quint evaluator is required.
+
+**Additional work:** a repeatable pipeline combining conformance checks, real
+concurrency controls, representative workload benchmarks and performance
+regression gates. Behavior-preserving optimization and intentional protocol
+changes are separate decisions; changes to assumptions need review.
+
+**Benefit:** agents can search for faster implementations against an explicit
+behavioral target. The implementation supplies the speed; Quint supplies part
+of the evidence that behavior was preserved. Sampled correspondence is weaker
+than a formal refinement argument.
+
+### 6. A compiled or embedded decision core
+
+Use one restricted artifact for both model decisions and production transition
+logic: state plus event yields next state plus requested effects. Generate
+Python first if justified; evaluate native compilation only for a demonstrated
+workload. Persistence, networking and effect execution remain host responsibilities.
+
+**Existing foundation:** Quint has evaluators and Choreo represents state/effect
+transitions. The [Rust simulator project](https://quint.sh/posts/quint_deserves_rust)
+targets faster specification exploration. That is distinct from a supported
+production Python compiler or evidence of faster application execution.
+
+**Additional work:** an executable subset, deterministic decision semantics,
+numeric and collection representations, effect interfaces, migrations and
+compiler validation. Environmental nondeterminism becomes explicit input; a
+compiler must not arbitrarily choose an outcome that the model merely permits.
+The generation and runtime sections below specify further gates.
+
+**Benefit:** less duplicated decision logic and possible performance gains.
+Conversion, startup and hosting overhead can also make this slower. Benchmark
+the complete boundary and distinguish a tested compiler from a proven one.
+
+### 7. Observed execution feeds back into the contract
+
+Capture relevant staging or production events and observations, validate whether
+their histories are permitted, and turn reproducible discrepancies into regression
+inputs. Version the contract with the trace.
+
+**Existing foundation:** Quint documents
+[trace validation](https://quint.sh/docs/model-based-testing) as the reverse of
+model-generated implementation testing.
+
+**Additional work:** instrumentation, causal ordering, privacy controls,
+observation completeness and diagnosis. Missing observations or uncertain ordering
+must yield an inconclusive result where appropriate. A discrepancy can originate
+in implementation, model or instrumentation; it is not automatically an
+application defect. Finite traces also do not establish unrestricted eventual
+progress.
+
+**Benefit:** real histories expose assumptions missed in laboratory tests and
+give agents concrete debugging inputs.
+
+### Compare the investments
+
+| Approach | Agentic development | Production performance | CI implications |
+| --- | --- | --- | --- |
+| Python conformance layer | Concrete feedback on generated code | Enables safer changes | Adds focused behavioral checks |
+| Contract-governed tasks | Precise implementation targets | Indirect | Earlier detection |
+| Reusable contracts | Less repeated design and binding work | Indirect | Reusable scenarios and controls |
+| Dependency-aware checks | Faster feedback | No direct effect | Potential savings after selection is validated |
+| Contract-guided optimization | Constrained optimization tasks | Direct opportunity, measured per workload | Correctness and performance gates |
+| Executable decision core | Less duplicated transition logic | Possible improvement or overhead | Compiler and host validation |
+| Trace validation | Actual histories for debugging | Observation overhead | New regression inputs |
+
+Prioritize the Python bridge, reusable contracts and agent workflow together.
+Measure binding effort, defects detected, debugging time and CI cost in the two
+pilots. Add dependency-aware checking and optimization support when justified.
+A production compiler needs a recurring benefit large enough to support its
+maintenance and correctness burden. These are compatible directions, not seven
+requirements for initial adoption.
 
 ## Match Python and Quint at behavioral boundaries
 
