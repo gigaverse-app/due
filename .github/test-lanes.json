@@ -82,7 +82,11 @@
         "**/*.py",
         "**/*.pyi",
         ".github/workflows/ci.yml",
-        ".github/workflows/widget-store.yml"
+        ".github/workflows/widget-store.yml",
+        ".github/workflows/obligation-report.yml",
+        "docs/quint/report-provenance/**",
+        "package.json",
+        "package-lock.json"
       ]
     },
     "wheel": {

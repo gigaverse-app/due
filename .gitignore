@@ -21,3 +21,6 @@ test-results/
 /.venv-docs/
 
 acme-reports/
+
+node_modules/
+.quint-mutant-*/

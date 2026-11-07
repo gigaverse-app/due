@@ -207,6 +207,22 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(result.lanes["library"], result.model_dump_json())
         self.assertNotIn("fallback", result.reason)
 
+    def test_quint_contract_inputs_select_contracts(self):
+        for path in (
+            "docs/quint/report-provenance/fixed.qnt",
+            "docs/quint/report-provenance/audit.qnt",
+            "docs/quint/report-provenance/README.md",
+            "scripts/ci/check_quint_report.py",
+            "scripts/ci/replay_report_provenance.py",
+            "scripts/ci/check_report_source.py",
+            "ci_tests/test_report_source.py",
+            ".github/workflows/obligation-report.yml",
+            "package.json",
+            "package-lock.json",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("contracts", self.selection(path))
+
     def test_execution_helpers_select_contracts_and_wheel(self):
         self.assertIn("contracts", self.selection("ci_tests/test_routing.py"))
         self.assertIn("wheel", self.selection("scripts/check_wheel.py"))

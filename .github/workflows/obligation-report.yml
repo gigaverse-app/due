@@ -3,7 +3,7 @@ name: Obligation report
 # run on main (ordinary pushes run only the affected lanes, so their evidence is partial), it re-renders that run's
 # uploaded contract reports, library and integration, with pytest-obligation's reporter. When the evidence changed,
 # it opens or updates one pull request, which runs the ordinary checks. Dispatch it with a complete run's id to
-# render that run instead.
+# re-render that scheduled run while its tested revision is still main.
 on:
   workflow_run:
     workflows: [CI]
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       run-id:
-        description: A complete CI run on main whose evidence to render
+        description: A completed scheduled CI run at the current main revision
         required: true
 permissions: {}
 concurrency:
@@ -30,6 +30,18 @@ jobs:
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run-id }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
+      # The run ID and artifact names do not establish a complete checkpoint.
+      # Dispatch profile inputs are unavailable in run metadata; admit scheduled
+      # runs only, and bind the reporter's source links to the tested revision.
+      - name: Validate the source checkpoint and read its contract outcome
+        id: tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/check_report_source.py --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --revision "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v8
         with:
           name: obligation-profiles-locked
@@ -42,15 +54,13 @@ jobs:
           path: evidence/library
           run-id: ${{ env.RUN_ID }}
           github-token: ${{ github.token }}
-      # The test job, not the whole run: it holds every contract gate, and a lint failure is no contract failure.
-      - name: Read the contract job's outcome
-        id: tests
+      - name: Reject a source rerun during artifact download
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_ATTEMPT: ${{ steps.tests.outputs.attempt }}
         run: |
-          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
-            --jq '.jobs[] | select(.name == "Execute tests (locked)") | .conclusion')
-          echo "outcome=${conclusion:-unknown}" >> "$GITHUB_OUTPUT"
+          python3 scripts/ci/check_report_source.py --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --revision "$(git rev-parse HEAD)" --expected-attempt "$SOURCE_ATTEMPT"
       - uses: gigaverse-app/pytest-obligation/report@v1
         with:
           report-path: evidence/*/profiles.json

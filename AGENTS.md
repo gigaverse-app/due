@@ -13,6 +13,14 @@ independent enrollment checks, and executed reports are required integration
 deliverables. Include them in examples and tutorials from the first native
 capability; a happy-path demo alone does not establish reliability.
 
+## Registered Quint contracts
+
+When changing behavior covered by a registered Quint contract, review its implementation,
+model and replay adapter together. Run the maintained command in
+[the report-provenance contract](docs/quint/report-provenance/README.md), preserve its
+mutation controls, and investigate mismatches rather than weakening the specification.
+This applies to registered contracts; unrelated changes do not require a new model.
+
 ## Commits and pull requests
 
 - Use Conventional Commits for commits you create and PR titles:
