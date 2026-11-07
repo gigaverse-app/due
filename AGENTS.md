@@ -56,4 +56,4 @@ remain complete checkpoints.
 ## GitHub Actions versions
 
 - ALWAYS use published major-version tags for established GitHub Actions, for example `actions/checkout@v7` and `actions/upload-artifact@v7`, so compatible fixes arrive without per-commit maintenance. NEVER replace those tags with commit hashes unless the user explicitly requests that exact exception. If a publisher has no major-version tag, use its published release tag rather than inventing a ref or substituting a hash.
-- ALWAYS use `gigaverse-app/dry-lint@v1` for the Action and the `@v1` ref for CLI installs, and pin the pre-commit hook to its newest `v1.x.y` release tag (pre-commit never refreshes a moving tag it has cached). Apply the same refs in workflow examples and adoption instructions.
+- ALWAYS use the `v1` major-version tag for dry-lint: `gigaverse-app/dry-lint@v1` for the Action, `@v1` for CLI installs, and `rev: v1` for pre-commit hooks. Do not use commit SHAs or minor/patch release pins. Apply the same ref in workflow examples and adoption instructions.

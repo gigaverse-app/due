@@ -311,7 +311,16 @@ remain complete checkpoints.
   or that is now judged separate, with the README progress block and badge. Run it by hand after merging a
   cleanup to record it at once.
 
-When dry-lint reports a pair, read both functions, then:
+Model duplication review also runs by default in the staged hook and PR check, starting with dry-lint 1.4.0.
+Use `rev: v1` for hooks and `@v1` for the Action and CLI installs. If a cached hook environment still runs an
+older version, run `uvx pre-commit clean` and rerun the hook.
+With our Sonnet setup, model candidates require source review; Sonnet judges functions, and no TypeSafe key
+is required for model detection. Review declarations and consumers before accepting or dismissing a pair.
+The function baseline and weekly function sweep do not certify the existing model inventory. Follow
+[model adoption](https://github.com/gigaverse-app/dry-lint/blob/main/docs/model-adoption.md) for its separate
+reviewed baseline. The explicit opt-out is `--no-models` locally or `models: false` on the Action.
+
+When dry-lint reports a function pair, read both functions, then:
 
 - **The same concept:** reuse the existing function, or make one side the owner and have the other call it,
   keeping each caller's contract (transactions, fencing, errors, ordering).
