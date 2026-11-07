@@ -249,6 +249,101 @@ progress.
 **Benefit:** real histories expose assumptions missed in laboratory tests and
 give agents concrete debugging inputs.
 
+### 8. LemmaScript-style source verification for Python
+
+Add a complementary path that verifies selected production Python functions from
+their own annotated source. Python remains the code that runs; a tool extracts
+verification artifacts from that code and its contracts. This reverses the
+direction of the generated-core proposal: implementation to proof artifacts,
+rather than specification to production code.
+
+**Existing foundation:** [LemmaScript](https://github.com/midspiral/LemmaScript)
+is a TypeScript verification toolchain, labeled a tech preview. Its
+[design](https://github.com/midspiral/LemmaScript/blob/main/DESIGN.md) and
+[current specification](https://github.com/midspiral/LemmaScript/blob/main/SPEC.md)
+describe source annotations for preconditions, postconditions and loop
+invariants, with Dafny or Lean/Velvet verification artifacts. The ordinary
+TypeScript remains the production source. Generated definitions and user/agent
+proof additions have separate regeneration rules; its CI workflow checks proofs
+and stale generated artifacts. These are documented capabilities inspected for
+this recommendation, not independently rerun LemmaScript experiments.
+
+A Python equivalent could use comments or sidecar contracts attached to typed
+functions, keeping proof annotations out of runtime execution:
+
+```text
+production Python + function contracts
+          |
+          +--> ordinary Python execution
+          |
+          +--> supported-subset extraction --> verifier artifacts
+                                                 + proof additions
+                                                        |
+                                                 checked obligations
+```
+
+This is distinct from pytest-quint's sampled implementation histories and does
+not require a Quint production runtime. Quint would remain useful for protocol
+histories, concurrency and environment assumptions. A Python verifier would
+check local function properties, such as a pure merge returning unchanged
+evidence on rejection or an allocator returning an identity outside the live
+set. Relating those properties to a Quint action requires an explicit abstraction
+and refinement obligation: under the stated preconditions, the projected Python
+result must be an allowed model result. Proving a local postcondition alone does
+not establish that connection.
+
+**Additional work:** define a supported Python fragment and faithful semantics
+for integers and floats, collection ordering, equality versus identity, aliasing,
+mutation, exceptions and termination. Start with small typed pure functions;
+reject unsupported selected code unless a reviewed abstraction or external
+contract explicitly accounts for it. Arbitrary ORM, async and dynamic Python
+must not silently become pure mathematical functions.
+
+The trusted boundary includes the Python-to-verifier translation, external
+contracts, verifier/backend assumptions and the execution semantics. Running the
+same Python source removes a separately maintained implementation copy; it does
+not eliminate translation risk. LemmaScript itself exposes assumptions, externs
+and abstractions in its current specification. A Python design should inventory
+such assumptions and exclusions in each result. Separate discharged obligations,
+trusted assumptions, timeouts and unsupported code. Regenerate from exact source
+revisions in CI, preserve proof additions, and fail on stale artifacts or
+unresolved obligations rather than accepting proof placeholders.
+
+**Benefit for agents:** agents can propose code, loop invariants and helper
+lemmas, then use verifier diagnostics to repair them. They may also propose
+contract changes, but those require explicit review; changing a precondition or
+adding an assumption must not silently turn an incorrect implementation green.
+The verifier checks proof attempts, while reviewers assess the requirements and
+the trusted boundary.
+
+**Runtime and CI effects:** offline proof artifacts need not add runtime
+overhead; optional boundary guards still have a cost. This does not inherently
+make Python faster, but checked equivalence or preservation properties could
+support safer optimization. Proof checking can be expensive. Cache only with
+complete source, contract, dependency and toolchain inputs, and keep integration
+tests for behavior outside the verified fragment.
+
+**Existing Python alternatives:** first evaluate
+[Nagini](https://github.com/marcoeilers/nagini), a verifier for typed Python built
+on Viper, before committing to a new translator. Also compare
+[CrossHair](https://crosshair.readthedocs.io/en/latest/introduction.html) for
+symbolic contract counterexample search; its
+[documented limitations](https://crosshair.readthedocs.io/en/latest/limitations.html)
+explicitly state that absence of a counterexample is not a guarantee. Neither is
+claimed here to be an already integrated Quint/Python equivalent of LemmaScript.
+
+**Next experiment and decision:** retain the conformance pilots as the immediate
+adoption step. For a separate source-verification experiment, select one small
+existing Python decision function and compare ordinary regressions plus Quint
+conformance against that same baseline with source-level verification added.
+Keep the source, contract and reviewed defect mutations fixed. Measure supported
+semantics, obligations discharged, mutations rejected, annotation/proof effort,
+regeneration behavior and CI time; report unresolved cases separately. Require
+that a deliberate behavior change invalidates the relevant obligation without
+weakening the contract. Use the result to choose an existing verifier, a narrow
+integration, or no further investment. No Python verifier or proof-backed speedup
+has been implemented or measured in this report.
+
 ### Compare the investments
 
 | Approach | Agentic development | Production performance | CI implications |
@@ -260,12 +355,14 @@ give agents concrete debugging inputs.
 | Contract-guided optimization | Constrained optimization tasks | Direct opportunity, measured per workload | Correctness and performance gates |
 | Executable decision core | Less duplicated transition logic | Possible improvement or overhead | Compiler and host validation |
 | Trace validation | Actual histories for debugging | Observation overhead | New regression inputs |
+| Python source verification | Machine-checked local obligations and proof feedback | No inherent speedup; supports checked optimizations | Proof checking and generated-artifact freshness |
 
 Prioritize the Python bridge, reusable contracts and agent workflow together.
 Measure binding effort, defects detected, debugging time and CI cost in the two
 pilots. Add dependency-aware checking and optimization support when justified.
 A production compiler needs a recurring benefit large enough to support its
-maintenance and correctness burden. These are compatible directions, not seven
+maintenance and correctness burden. Evaluate the LemmaScript-style Python
+direction as a separate, narrowly scoped source-verification experiment. These are compatible directions, not eight
 requirements for initial adoption.
 
 ## Match Python and Quint at behavioral boundaries
