@@ -82,7 +82,8 @@
         "**/*.py",
         "**/*.pyi",
         ".github/workflows/ci.yml",
-        ".github/workflows/widget-store.yml"
+        ".github/workflows/widget-store.yml",
+        ".github/workflows/obligation-report.yml"
       ]
     },
     "wheel": {
