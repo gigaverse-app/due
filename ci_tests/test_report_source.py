@@ -59,10 +59,14 @@ class ReportSourceTests(unittest.TestCase):
                 "if '/jobs' in sys.argv[2]:\n"
                 "    data = {'jobs': data['jobs']}\n"
                 "    if '--jq' in sys.argv:\n"
+                "        if sys.argv[sys.argv.index('--jq') + 1] == '.jobs | @json':\n"
+                "            if os.environ.get('SECOND_PAGE'):\n"
+                "                print('[]')\n"
+                "                if '--paginate' not in sys.argv: sys.exit(0)\n"
+                "            print(json.dumps(data['jobs']))\n"
+                "            sys.exit(0)\n"
                 "        print('\\n'.join(str(j['conclusion']) for j in data['jobs']))\n"
                 "        sys.exit(0)\n"
-                "    if '--slurp' in sys.argv:\n"
-                "        data = [{'jobs': []}, data] if os.environ.get('SECOND_PAGE') else [data]\n"
                 "else: data = data['run']\n"
                 "print(json.dumps(data))\n",
                 encoding="utf-8",

@@ -9,8 +9,9 @@ import subprocess
 def api(endpoint: str, *, pages: bool = False):
     command = ["gh", "api", endpoint]
     if pages:
-        command.extend(["--paginate", "--slurp"])
-    return json.loads(subprocess.check_output(command, text=True))
+        command.extend(["--paginate", "--jq", ".jobs | @json"])
+    output = subprocess.check_output(command, text=True)
+    return [json.loads(line) for line in output.splitlines()] if pages else json.loads(output)
 
 
 def main() -> None:
@@ -49,7 +50,7 @@ def main() -> None:
     # enough jobs to paginate. A failed contract job should render as failed;
     # an unrelated lint failure must not hide its available evidence.
     pages = api(f"{endpoint}/attempts/{attempt}/jobs?per_page=100", pages=True)
-    jobs = [job for page in pages for job in page["jobs"] if job["name"] == "Execute tests (locked)"]
+    jobs = [job for page in pages for job in page if job["name"] == "Execute tests (locked)"]
     if len(jobs) != 1 or jobs[0].get("status") != "completed":
         parser.error("expected exactly one completed locked contract execution job")
     outcome = jobs[0].get("conclusion")
