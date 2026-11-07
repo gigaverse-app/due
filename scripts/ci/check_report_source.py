@@ -4,9 +4,10 @@ import argparse
 import json
 import re
 import subprocess
+from typing import Any
 
 
-def api(endpoint: str, *, pages: bool = False):
+def api(endpoint: str, *, pages: bool = False) -> Any:
     command = ["gh", "api", endpoint]
     if pages:
         command.extend(["--paginate", "--jq", ".jobs | @json"])
