@@ -41,6 +41,23 @@ jobs:
           --with "$(python scripts/ci/selector_requirement.py)"
           --with "ci-esta @ git+https://github.com/gigaverse-app/ci-esta.git@315b0852ec0ba9ff217ea9b3f701496fc1817e85"
           python -m unittest discover -s ci_tests -v
+      - uses: actions/setup-node@v6
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).contracts }}
+        with:
+          node-version: '22'
+      - name: Check Quint report provenance and replay
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).contracts }}
+        run: |
+          mkdir -p test-results/quint-report
+          npm ci --ignore-scripts > test-results/quint-report/npm-ci.log 2>&1 || { cat test-results/quint-report/npm-ci.log; exit 1; }
+          uv run --no-project --python 3.14 --with "pyyaml==6.0.3" python scripts/ci/check_quint_report.py
+      - name: Retain Quint traces and replay failures
+        if: ${{ always() && (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).contracts) }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: quint-report-provenance
+          path: test-results/quint-report/
+          if-no-files-found: warn
       - name: Check aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14

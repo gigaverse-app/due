@@ -48,4 +48,19 @@ Executed with Quint 0.33.1: both files typechecked; the historical witness and f
 
 Eligibility and report validity are abstract booleans, not a model of the GitHub API, artifact service, credentials or action internals. The fixed model covers one source and a rerun before the final check; it does not make API checking and publication atomic. Runtime shell tests cover actual metadata predicates, pagination and attempt changes. A live read-only API control separately exercised a scheduled run. Manual sources are deliberately restricted to scheduled CI at the checked-out main SHA.
 
-These are handwritten state-machine abstractions, **not runtime contracts or a proof that Python/YAML refines the model**. Bounded sampling is not exhaustive model checking or a liveness proof. The linked runtime regressions independently exercise the implementation boundary; the `.qnt` files are reviewable evidence, not part of the installed package or automatic PR CI.
+## Maintained replay and CI
+
+This contract is registered in the `contracts` lane. Install Node 22 and Python 3.14, then run from the repository root:
+
+```sh
+npm ci --ignore-scripts
+uv run --no-project --python 3.14 --with "pyyaml==6.0.3" python scripts/ci/check_quint_report.py
+```
+
+The command typechecks both files, checks the historical expected counterexample and the original `report_provenance_fixed` abstraction, and samples the independent `report_replay` module. It generates seven named ITF histories (seed 1), plus 20 sampled histories (seed 22), and replays them through the actual shell from the workflow with controlled `gh` API responses. The adapter uses the same boundary fixture as `ci_tests/test_report_source.py`: it compares admission, outcome and recheck against model states, and executes the real YAML guard-order regression. Failed contract outcomes remain admissible; pagination and changed attempts have explicit histories. A disposable validator mutant deletes only the scheduled-event guard. The run requires precisely the `bad_event` admission mismatch and every positive history to remain successful; the mutant patch and mismatch are retained.
+
+`test-results/quint-report/` contains the Quint version, seeds, relevant source/model hashes, generated ITF traces, check logs, mutant patch and failure details. CI uploads these even on failure. Missing Quint, empty or missing traces, a generator error, and replay mismatch fail the gate. Do not update model, adapter or boundary independently without understanding any disagreement; preserve the mutation control.
+
+`report_provenance_fixed` is the original broad abstraction; `report_replay` is the separate trace-generating contract linked to implementation. In `report_replay`, `chooseScenario` selects controlled response facts, `admit`/`reject` map to the first validator shell, `recheck` maps to the post-download shell, and `render` means the guards allow reaching the renderer, not that a README or PR was changed. The adapter supplies fixtures for event, SHA, job outcome and pages. It assumes GitHub API responses accurately describe the source and assumes successful artifact downloads; it does not simulate a real GitHub service or verify artifact contents. The ordering assertion checks that both named downloads lie between the guards and the renderer. This does not establish atomicity between the last API check and publication.
+
+The model covers a bounded set of local facts, not all possible API responses, workflow executions or scheduler histories. Random trace sampling and model-to-implementation replay are not exhaustive verification. The separate Due runtime batch and lease models have no actual ORM/transaction replay in this contract.
