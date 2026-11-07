@@ -43,3 +43,12 @@ Local controlled histories do not certify every remote integration, prove
 throughput, or establish that an application's data migration has completed.
 Read the [architecture and guarantees](architecture.md) alongside your executed
 reports before treating a green result as a production guarantee.
+
+## Source contracts and native effects
+
+The repository's [Python contract workflow](https://github.com/gigaverse-app/due/blob/main/docs/contracts/python.md)
+checks the actual retry-delay bodies and claim authority/admission core with
+Dafny, paired with mandatory real PostgreSQL callback and rollback evidence.
+Those local source theorems do not prove database transactions or external
+provider semantics. The workflow documents its exact types, trusted lowering,
+source mappings, generated application contracts and mutation controls.

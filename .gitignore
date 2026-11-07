@@ -1,4 +1,6 @@
 .venv/
+.venv-contracts/
+.source-contract-tooling/
 __pycache__/
 *.py[cod]
 .pytest_cache/

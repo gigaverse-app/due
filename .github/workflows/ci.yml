@@ -66,6 +66,51 @@ jobs:
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
 
+  python-contracts:
+    needs: select-tests
+    if: >-
+      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) &&
+          (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).source_contracts) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: due
+          POSTGRES_PASSWORD: due
+          POSTGRES_DB: due_contracts
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U due"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DUE_DATABASE_URL: postgresql://due:due@localhost:5432/due_contracts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.14'
+          enable-cache: true
+      - name: Install locked product and reviewed verifier
+        run: |
+          uv sync --all-packages --locked
+          .venv/bin/python scripts/bootstrap_source_verifier.py
+          bash tooling/source-contracts/install-dafny.sh
+      - name: Check source proofs and PostgreSQL callback contracts
+        run: .venv/bin/python scripts/check_python_contracts.py
+      - name: Retain exact proof, callback and mutation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-source-contracts
+          path: |
+            test-results/python-contracts/
+            test-results/source-verifier/
+          if-no-files-found: error
+
   select-tests:
     if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
@@ -362,7 +407,7 @@ jobs:
 
   validation-gate:
     name: Validation gate
-    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build]
+    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build, python-contracts]
     if: >-
       ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
     runs-on: ubuntu-latest
@@ -371,4 +416,4 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
-          lane-jobs: '{"typecheck":["typecheck"]}'
+          lane-jobs: '{"typecheck":["typecheck"],"python-contracts":["source_contracts"]}'

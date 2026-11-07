@@ -17,6 +17,9 @@ DATABASES = {
         "PASSWORD": unquote(_db.password or ""),
         "HOST": _db.hostname,
         "PORT": _db.port or 5432,
+        # JSON evidence includes Unicode. Do not inherit a developer cluster's
+        # SQL_ASCII template; create the same UTF-8 database used in CI.
+        "TEST": {"CHARSET": "UTF8", "TEMPLATE": "template0"},
     }
 }
 CELERY_TASK_DEFAULT_QUEUE = "due"

@@ -86,7 +86,11 @@
         ".github/workflows/obligation-report.yml",
         "docs/quint/report-provenance/**",
         "package.json",
-        "package-lock.json"
+        "package-lock.json",
+        "veripy-project.json",
+        "contracts/python-checks.json",
+        "proofs/**",
+        "tooling/source-contracts/**"
       ]
     },
     "wheel": {
@@ -98,6 +102,26 @@
         "package/tests/core/test_compatibility.py",
         "package/tests/core/test_package_identity.py",
         ".github/workflows/ci.yml#build"
+      ]
+    },
+    "source_contracts": {
+      "roots": [],
+      "inputs": [
+        "package/src/**",
+        "package/tests/source_contracts/**",
+        "package/tests/harness/**",
+        "package/tests/bulk/test_composed_work_contract.py",
+        "package/tests/settings.py",
+        "package/tests/conftest.py",
+        "package/tests/__init__.py",
+        "veripy-project.json",
+        "contracts/python-checks.json",
+        "proofs/**",
+        "scripts/check_python_contracts.py",
+        "scripts/bootstrap_source_verifier.py",
+        "scripts/check_adoption_report.py",
+        "tooling/source-contracts/**",
+        ".github/workflows/ci.yml#python-contracts"
       ]
     }
   },

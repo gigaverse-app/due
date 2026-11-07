@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "sources": ["package/src/**/*.py"],
+  "required_targets": ["retry-delay", "claim-authority"],
+  "targets": [
+    {
+      "id": "retry-delay",
+      "source": "package/src/due/retry_delays.py",
+      "backend": "dafny-native",
+      "functions": ["ExponentialDelay.__post_init__", "ExponentialDelay.at"],
+      "dependencies": ["package/tests/source_contracts/test_authority.py"],
+      "sidecar": "package/src/due/retry_delays.proofs.dfy"
+    },
+    {
+      "id": "claim-authority",
+      "source": "package/src/due/claim_authority.py",
+      "backend": "dafny",
+      "functions": ["claim_authorized", "callback_admissions"],
+      "dependencies": [
+        "package/src/due/django/runtime/coordination.py",
+        "package/src/due/django/runtime/settlement_batch.py",
+        "package/src/due/django/runtime/settlement_writes.py",
+        "package/src/due/django/models.py",
+        "package/src/due/django/identities.py",
+        "package/tests/harness/claim_settlement.py",
+        "package/tests/source_contracts/test_authority.py",
+        "package/tests/source_contracts/test_settlement.py"
+      ]
+    }
+  ],
+  "artifacts": "proofs/generated",
+  "dafny_version": "4.11.0"
+}

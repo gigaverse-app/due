@@ -20,6 +20,7 @@ from django.db.models import Count, F, Min, Q, QuerySet
 from django.db.models.functions import Now
 from django.db.models.sql.compiler import SQLCompiler
 
+from due.claim_authority import ClaimAuthority, claim_authorized
 from due.django.declarations.eligibility import ExecutionEligibility
 from due.django.declarations.external_services import execution_external_services
 from due.django.identities import WorkId
@@ -181,8 +182,25 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
 
     def owns_locked(self, current: ClaimedWorkT) -> bool:
         """Check the same predicate on a freshly locked row, never a claim snapshot."""
-        return type(current) is self.model and all(
-            getattr(current, name) == value for name, value in self._authority().items()
+        if type(current) is not self.model:
+            return False
+        authority = row_authority(current)
+        if authority is None:
+            return False
+        return claim_authorized(
+            True,
+            self.captured_authority(),
+            authority,
+        )
+
+    def captured_authority(self) -> ClaimAuthority:
+        """Normalize captured facts, including the stored fence of a fused claim."""
+        stored = self.uncommitted
+        return normalized_authority(
+            self.work_id,
+            DurableWorkState.CLAIMED if stored is None else stored.state,
+            self.token if stored is None else stored.token,
+            self.desired_revision,
         )
 
     def unrecorded_fields(self) -> dict[str, object]:
@@ -205,6 +223,35 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
         if type(manager) is not models.Manager or self.model._meta.parents:
             return self.owned_work().select_for_update().first()
         return locked_row(manager, self._authority(), subject="work")
+
+
+def normalized_authority(identity: WorkId, state: str, token: UUID, revision: int) -> ClaimAuthority:
+    """Exact values at the proof boundary; never text-coerce database identities.
+
+    WorkId is an integer or UUID. Distinct tags preserve their disjoint equality
+    domains (an integer equal to UUID.int is still a different primary key).
+    Django choices are str enums whose equality is the equality of their value.
+    Reject subclasses with user-defined equality instead of silently modeling it.
+    """
+    if type(identity) is int:
+        kind, value = 0, identity
+    elif type(identity) is UUID:
+        kind, value = 1, identity.int
+    else:
+        raise TypeError("claim identity must be an exact int or UUID")
+    if type(state) is DurableWorkState:
+        state = state.value
+    if type(state) is not str or type(token) is not UUID or type(revision) is not int:
+        raise TypeError("claim authority requires a string state, UUID token and integer revision")
+    return ClaimAuthority(kind, value, state, token.int, revision)
+
+
+def row_authority(work: DurableWork) -> ClaimAuthority | None:
+    """Reject invalid row fields; never grant authority by coercing their values."""
+    try:
+        return normalized_authority(work.pk, work.state, work.fencing_token, work.desired_revision)
+    except TypeError:
+        return None
 
 
 def locked_row[RowT: models.Model](

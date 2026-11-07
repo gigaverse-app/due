@@ -88,6 +88,7 @@ class RoutingTests(unittest.TestCase):
         executes = {
             ".github/workflows/ci.yml": {
                 "ci-contracts": {"contracts"},
+                "python-contracts": {"source_contracts"},
                 "select-tests": {"contracts"},
                 "lint": set(),
                 "tests": {"library", "integration"},
@@ -113,7 +114,10 @@ class RoutingTests(unittest.TestCase):
 
     def test_settings_every_job_inherits_run_the_workflow_lanes(self):
         for path, lanes in (
-            (".github/workflows/ci.yml", {"library", "integration", "typecheck", "contracts", "wheel"}),
+            (
+                ".github/workflows/ci.yml",
+                {"library", "integration", "typecheck", "contracts", "wheel", "source_contracts"},
+            ),
             (".github/workflows/widget-store.yml", {"widget_comparison", "contracts"}),
         ):
             with self.subTest(path=path):
@@ -226,6 +230,27 @@ class RoutingTests(unittest.TestCase):
     def test_execution_helpers_select_contracts_and_wheel(self):
         self.assertIn("contracts", self.selection("ci_tests/test_routing.py"))
         self.assertIn("wheel", self.selection("scripts/check_wheel.py"))
+
+    def test_source_proof_and_native_bridge_dependencies_select_the_contract_lane(self):
+        for path in (
+            "package/src/due/retry_delays.py",
+            "package/src/due/retry_delays.proofs.dfy",
+            "package/src/due/claim_authority.py",
+            "package/src/due/django/runtime/coordination.py",
+            "package/src/due/django/runtime/settlement_batch.py",
+            "package/tests/harness/self_work.py",
+            "package/tests/harness/claim_settlement.py",
+            "package/tests/source_contracts/test_settlement.py",
+            "proofs/generated/claim-authority.dfy",
+            "veripy-project.json",
+            "contracts/python-checks.json",
+            "tooling/source-contracts/verifier.patch",
+            "tooling/source-contracts/requirements-project.lock",
+            "scripts/check_python_contracts.py",
+            "scripts/bootstrap_source_verifier.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("source_contracts", self.selection(path))
 
 
 if __name__ == "__main__":

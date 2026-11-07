@@ -31,6 +31,12 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 ## Changes and proofs
 
+The registered [Python source contracts](docs/contracts/python.md) prove retry
+arithmetic and claim/callback admission from actual production source. Run
+`python scripts/check_python_contracts.py` in the prepared environment for the
+required source, PostgreSQL and mutation gates. Update proof artifacts and native
+enrollment alongside changes to their declared inputs.
+
 Always build the pytest-obligation application contract alongside a Due
 integration. Enroll each native capability, bind its real application behavior,
 and require complete enrollment and executed reports in CI. The

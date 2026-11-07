@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "upstream": "https://github.com/astrio-labs/veripy.git",
+  "commit": "02022bb6db471998577fe79131f416c51c86bbb1",
+  "license": "MIT",
+  "patch_sha256": "PENDING_FINAL_REVIEWED_ENGINE_PATCH",
+  "requirements_sha256": "PENDING_FINAL_ENGINE_LOCK",
+  "source_tree_sha256": "PENDING_FINAL_REVIEWED_SOURCE_TREE",
+  "wheel_sha256": "PENDING_OPTIONAL_LOCAL_WHEEL"
+}
