@@ -81,8 +81,9 @@ and independent provider acceptances are observed separately. Rolled-back
 callbacks can run again during per-row fallback; these tests do not promise
 exactly-once callbacks or physical exactly-once provider effects.
 
-`contracts/python-checks.json` independently enrolls 69 native cases and the
-155 existing generated composed-inline application contract cases. The latter include bounded smoke exploration of both evidence-confluence scenarios and
+`contracts/python-checks.json` independently enrolls 70 native cases and the
+155 existing generated composed-inline application contract cases. One native guard checks that declared exploration cannot disappear from enrollment.
+The generated cases include bounded smoke exploration of both evidence-confluence scenarios and
 retain their obligation collection/report guards, recovery and fault histories.
 The domain-specific callback matrix is an ordinary native test suite, not an
 invented generic obligation profile. Removing a test or a generated obligation
@@ -106,11 +107,14 @@ then regenerate and inspect the generated diff:
 .venv/bin/python scripts/check_python_contracts.py
 ```
 
-An intentional target/function enrollment change additionally requires the
+An intentional target/function/dependency enrollment change additionally requires the
 project's explicit `--update-enrollment` option. Review changes to
-`contracts/python-checks.json` as changes to required runtime evidence. Never
+`contracts/python-checks.json` as changes to required runtime and mutation-control evidence. Never
 delete a required case, weaken a postcondition or add an assumption merely to
 make a failing implementation green.
+
+Changed contracts, proof assumptions or type policy require explicit review and
+`generate --update-contracts`; regeneration alone cannot silently accept them.
 
 The `source_contracts` CI lane includes production modules, proof sidecars,
 generated artifacts, adapters, native tests, generated contract fixtures,

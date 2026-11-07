@@ -1,6 +1,7 @@
 """Mandatory native counterpart of the pure ownership and admission proofs."""
 
 import pytest
+from django.db import connection
 
 from due.django.runtime.settlement_batch import _SettlementBatch
 from due.django.testing import make_due
@@ -12,7 +13,16 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 
 @pytest.mark.parametrize("case", settlement_cases(), ids=lambda case: case.name)
-def test_postgres_callback_matrix(composed_inline_chunk, case):
+def test_postgres_callback_matrix(composed_inline_chunk, case, record_property):
+    assert connection.vendor == "postgresql"
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('server_version_num')::int, current_setting('server_encoding')")
+        row = cursor.fetchone()
+    assert row is not None
+    version, encoding = row
+    record_property("postgresql_version", version)
+    record_property("postgresql_encoding", encoding)
+    assert encoding == "UTF8"
     assert_batch_conformance(composed_inline_chunk, case)
 
 

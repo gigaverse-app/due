@@ -90,7 +90,7 @@ def test_collection_requires_the_generated_custom_step_cases():
         delattr(suite, "test_one_poisoned_identity_does_not_stall_recovery")
         path = Path(__file__).resolve()
         item = SimpleNamespace(cls=suite, path=path, name="test_registered_effect_enrollment")
-        config = SimpleNamespace(args=[str(path)], rootpath=path.parent)
+        config = SimpleNamespace(args=[str(path)], rootpath=path.parent, getoption=lambda *args, **kwargs: "off")
         with pytest.raises(AssertionError, match=r"lost collected proofs:.*step:discovery-poisoned"):
             collect_suite(cast(pytest.Config, config), [cast(pytest.Function, item)])
 

@@ -38,6 +38,8 @@ class BatchObservation:
     products: tuple[str, ...]
     callbacks: tuple[int, ...]
     successes: tuple[int, ...]
+    callback_order: tuple[int, ...]
+    success_order: tuple[int, ...]
     sends: int
     errors: int
     rollbacks: int
@@ -55,6 +57,7 @@ def settlement_cases() -> tuple[SettlementCase, ...]:
 
 def assert_batch_conformance(capability: SendChunk, case: SettlementCase) -> BatchObservation:
     """Exercise a batch and observe effects through independent SQL connections."""
+    assert connection.vendor == "postgresql", "claim settlement conformance requires real PostgreSQL"
     rows = [capability.model.objects.create(universe="acme", bulk_keys=[str(i)]) for i in range(case.count)]
     products = [PrimitiveOwner.objects.create() for _ in rows]
     for row in rows:
@@ -162,18 +165,28 @@ def assert_batch_conformance(capability: SendChunk, case: SettlementCase) -> Bat
         published,
         tuple(callbacks.count(i) for i in range(case.count)),
         tuple(successes.count(i) for i in range(case.count)),
+        tuple(callbacks),
+        tuple(successes),
         len(SendChunk.calls) - provider_before,
         errors,
         len(rollbacks),
     )
     owns = tuple(i != 0 or case.fence == "none" for i in range(case.count))
     done = tuple(owns[i] and not (case.fault and i == 1) for i in range(case.count))
+    group_entries = tuple(i for i in range(case.count) if owns[i] and (not case.fault or i <= 1))
+    fallback_entries = tuple(i for i in range(case.count) if owns[i]) if case.fault else ()
+    group_successes = tuple(
+        i for i in range(case.count) if done[i] and (not case.fault or (i < 1 and not case.set_based))
+    )
+    fallback_successes = tuple(i for i in range(case.count) if done[i]) if case.fault else ()
     expected = BatchObservation(
         tuple((str(i),) if done[i] else () for i in range(case.count)),
         done,
         tuple("published" if done[i] else "before" for i in range(case.count)),
         tuple((2 if case.fault and i <= 1 else 1) if owns[i] else 0 for i in range(case.count)),
         tuple((2 if case.fault and i == 0 and not case.set_based else 1) if done[i] else 0 for i in range(case.count)),
+        group_entries + fallback_entries,
+        group_successes + fallback_successes,
         case.count,
         int(case.fault),
         int(case.fault),

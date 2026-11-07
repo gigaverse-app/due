@@ -41,8 +41,10 @@ def main() -> None:
     require(config["version"] == 1, "source-contract integrity check failed")
     patch = INPUTS / "verifier.patch"
     lock = INPUTS / "requirements-project.lock"
+    build_lock = INPUTS / "requirements-build.lock"
     require(digest(patch) == config["patch_sha256"], "unreviewed verifier patch")
     require(digest(lock) == config["requirements_sha256"], "unreviewed verifier dependencies")
+    require(digest(build_lock) == config["build_requirements_sha256"], "unreviewed verifier build dependencies")
     require(len(config["commit"]) == 40 and config["license"] == "MIT", "source-contract integrity check failed")
     output = ROOT / "test-results/source-verifier"
     output.mkdir(parents=True, exist_ok=True)
@@ -63,7 +65,17 @@ def main() -> None:
             require(digest(wheel) == config["wheel_sha256"], "unreviewed verifier wheel")
         else:
             wheels = Path(temporary) / "wheels"
-            run("uv", "build", "--wheel", "--out-dir", str(wheels), str(checkout))
+            run(
+                "uv",
+                "build",
+                "--wheel",
+                "--out-dir",
+                str(wheels),
+                "--build-constraints",
+                str(build_lock),
+                "--require-hashes",
+                str(checkout),
+            )
             candidates = list(wheels.glob("*.whl"))
             require(len(candidates) == 1, "source-contract integrity check failed")
             wheel = candidates[0]

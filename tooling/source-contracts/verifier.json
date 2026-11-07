@@ -3,8 +3,10 @@
   "upstream": "https://github.com/astrio-labs/veripy.git",
   "commit": "02022bb6db471998577fe79131f416c51c86bbb1",
   "license": "MIT",
-  "patch_sha256": "PENDING_FINAL_REVIEWED_ENGINE_PATCH",
-  "requirements_sha256": "PENDING_FINAL_ENGINE_LOCK",
-  "source_tree_sha256": "PENDING_FINAL_REVIEWED_SOURCE_TREE",
-  "wheel_sha256": "PENDING_OPTIONAL_LOCAL_WHEEL"
+  "candidate_commit": "4a04ea683cb0b52a5260c817f14e30c6fe91c8fd",
+  "patch_sha256": "654072cc021c33afa4983c2d7bf0976d7db92aa8c9663926c92738c82e6bde7d",
+  "requirements_sha256": "040d410d95b4849ec6001b77f69032fe71b26432d5a0cc481cab47670390eb27",
+  "source_tree_sha256": "25c7e94f06ca293f5aa9209426b424abbf6e7564713af3081ffb16c123cb8168",
+  "wheel_sha256": "c2141701eea5a5959b7ff245f6bab62c35533f85ff8abced12216f54417487fb",
+  "build_requirements_sha256": "6c9732aae65b84627ae07f56059c13aeb965db7cc54f5e9e720971067964ec36"
 }

@@ -1,21 +1,36 @@
 {
   "version": 1,
-  "sources": ["package/src/**/*.py"],
-  "required_targets": ["retry-delay", "claim-authority"],
+  "sources": [
+    "package/src/**/*.py"
+  ],
+  "required_targets": [
+    "retry-delay",
+    "claim-authority"
+  ],
   "targets": [
     {
       "id": "retry-delay",
       "source": "package/src/due/retry_delays.py",
       "backend": "dafny-native",
-      "functions": ["ExponentialDelay.__post_init__", "ExponentialDelay.at"],
-      "dependencies": ["package/tests/source_contracts/test_authority.py"],
+      "functions": [
+        "ExponentialDelay.__post_init__",
+        "ExponentialDelay.at"
+      ],
+      "dependencies": [
+        "package/tests/source_contracts/test_authority.py",
+        "contracts/python-checks.json",
+        "scripts/check_python_contracts.py"
+      ],
       "sidecar": "package/src/due/retry_delays.proofs.dfy"
     },
     {
       "id": "claim-authority",
       "source": "package/src/due/claim_authority.py",
       "backend": "dafny",
-      "functions": ["claim_authorized", "callback_admissions"],
+      "functions": [
+        "claim_authorized",
+        "callback_admissions"
+      ],
       "dependencies": [
         "package/src/due/django/runtime/coordination.py",
         "package/src/due/django/runtime/settlement_batch.py",
@@ -24,7 +39,11 @@
         "package/src/due/django/identities.py",
         "package/tests/harness/claim_settlement.py",
         "package/tests/source_contracts/test_authority.py",
-        "package/tests/source_contracts/test_settlement.py"
+        "package/tests/source_contracts/test_settlement.py",
+        "package/src/due/django/conformance/suite_collection.py",
+        "package/tests/conformance/test_exploration_collection.py",
+        "contracts/python-checks.json",
+        "scripts/check_python_contracts.py"
       ]
     }
   ],

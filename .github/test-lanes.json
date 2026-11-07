@@ -121,7 +121,8 @@
         "scripts/bootstrap_source_verifier.py",
         "scripts/check_adoption_report.py",
         "tooling/source-contracts/**",
-        ".github/workflows/ci.yml#python-contracts"
+        ".github/workflows/ci.yml#python-contracts",
+        "package/tests/conformance/test_exploration_collection.py"
       ]
     }
   },

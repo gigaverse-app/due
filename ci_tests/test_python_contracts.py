@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_python_contracts import junit_cases, require_native_inventory
+from scripts.check_python_contracts import junit_cases, require_mutation_inventory, require_native_inventory
 
 
 class NativeEnrollmentTests(unittest.TestCase):
@@ -35,6 +35,19 @@ class NativeEnrollmentTests(unittest.TestCase):
         ):
             with self.subTest(body=body), self.assertRaises(RuntimeError):
                 junit_cases(self.report(body))
+
+    def test_missing_or_inconclusive_mutation_cannot_complete_the_gate(self):
+        expected = {"fence": "failed", "equivalent": "ok"}
+        for results in (
+            [],
+            [{"control": "fence", "status": "failed"}],
+            [{"control": "fence", "status": "unsupported"}, {"control": "equivalent", "status": "ok"}],
+        ):
+            with self.subTest(results=results), self.assertRaises(RuntimeError):
+                require_mutation_inventory(results, expected)
+        require_mutation_inventory(
+            [{"control": "fence", "status": "failed"}, {"control": "equivalent", "status": "ok"}], expected
+        )
 
 
 if __name__ == "__main__":

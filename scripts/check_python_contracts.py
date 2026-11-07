@@ -16,6 +16,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# File-path invocation puts only scripts/ on sys.path. The shared repository
+# report validator is imported by its package name in both CLI and test use.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 SOURCE = ROOT / "package/src/due"
 REQUIRED_CHECKS = {"source", "native", "generated", "mutations"}
 
@@ -55,7 +59,7 @@ def junit_cases(path: Path) -> dict[str, ET.Element]:
 def require_native_inventory(path: Path, required: list[str]) -> None:
     require(required and len(required) == len(set(required)), "empty or duplicate required native cases")
     cases = junit_cases(path)
-    native = {key for key in cases if key.startswith("tests.source_contracts.")}
+    native = {key for key in cases if not key.startswith("tests.bulk.test_composed_work_contract.")}
     require(
         native == set(required),
         f"native enrollment differs: missing={set(required) - native}, unexpected={native - set(required)}",
@@ -71,6 +75,13 @@ def require_generated_inventory(path: Path, suite: str, required: list[str]) -> 
     require(set(report) == {suite}, "generated suite enrollment differs")
     require(set(report[suite]["expected"]) == set(required), "generated proof enrollment differs")
     check_effects(path, [suite], required=required)
+
+
+def require_mutation_inventory(results: list[dict[str, object]], required: dict[str, str]) -> None:
+    require(required, "zero required mutation controls")
+    actual = {item["control"]: item["status"] for item in results}
+    require(len(actual) == len(results), "duplicate mutation control")
+    require(actual == required, f"mutation enrollment differs: expected={required}, actual={actual}")
 
 
 def attestation(env: dict[str, str], expected: Path, output: Path, name: str) -> None:
@@ -158,7 +169,7 @@ def prove_controls(output: Path) -> list[dict[str, object]]:
             "admit-absent",
             "claim_authority.py",
             "admitted.append(present[i] and authorized)",
-            "admitted.append(authorized)",
+            "admitted.append((present[i] or not present[i]) and authorized)",
             "dafny",
             "failed",
         ),
@@ -263,6 +274,8 @@ def native_controls(output: Path, base_env: dict[str, str]) -> list[dict[str, ob
                 "tests/source_contracts/test_authority.py::test_imports_current_production_source",
                 selected,
                 "-q",
+                "-o",
+                "junit_family=xunit1",
                 f"--junitxml={junit}",
             ],
             output,
@@ -325,8 +338,11 @@ def main() -> None:
         "-m",
         "pytest",
         "tests/source_contracts",
+        "tests/conformance/test_exploration_collection.py",
         "tests/bulk/test_composed_work_contract.py::TestComposedInlineReceiptContract",
         "-q",
+        "-o",
+        "junit_family=xunit1",
         "--due-work-explore=smoke",
         "-p",
         "due.django.conformance.reporting",
@@ -340,6 +356,7 @@ def main() -> None:
     require_generated_inventory(effects, config["generated_suite"], config["generated_cases"])
     print("Checking source and PostgreSQL semantic mutation controls", flush=True)
     controls = prove_controls(output) + native_controls(output, env)
+    require_mutation_inventory(controls, config["mutation_controls"])
     # Restore evidence from an unmodified current checkout after all controls.
     restored = run("restored-native", native_args, output, cwd=ROOT / "package", env=env)
     require(restored.returncode == 0, "restored production baseline failed")

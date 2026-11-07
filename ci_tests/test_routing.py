@@ -241,11 +241,13 @@ class RoutingTests(unittest.TestCase):
             "package/tests/harness/self_work.py",
             "package/tests/harness/claim_settlement.py",
             "package/tests/source_contracts/test_settlement.py",
+            "package/tests/conformance/test_exploration_collection.py",
             "proofs/generated/claim-authority.dfy",
             "veripy-project.json",
             "contracts/python-checks.json",
             "tooling/source-contracts/verifier.patch",
             "tooling/source-contracts/requirements-project.lock",
+            "tooling/source-contracts/requirements-build.lock",
             "scripts/check_python_contracts.py",
             "scripts/bootstrap_source_verifier.py",
         ):
