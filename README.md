@@ -1209,3 +1209,5 @@ pytest-obligation tests generated from its contracts.</sub>
 
 See the [CI toolkit integration](docs/ci-toolkit.md) for lane selection, validated
 environment caches, required gates and real dependency critical-path reports.
+
+<!-- Documentation-only routing probe for #201; this PR is closed unmerged. -->
