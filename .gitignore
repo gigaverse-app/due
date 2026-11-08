@@ -21,3 +21,6 @@ test-results/
 /.venv-docs/
 
 acme-reports/
+
+# pytest-selective planner cache
+.test-impact/

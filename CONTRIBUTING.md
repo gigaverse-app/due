@@ -59,7 +59,10 @@ PostgreSQL/Redis test jobs. The test suite runs against locked Django and the
 minimum supported Django version, including the live HTTP/worker/Beat journeys.
 Obligation reports, process logs and distributions are retained as run artifacts.
 The distribution job builds through the sdist, then imports the wheel with
-isolated Python and no development dependencies.
+isolated Python and no development dependencies. Like the test jobs, it runs
+only when its lane selects a changed input (package sources, packaging metadata,
+the lockfile, `package/README.md`, `package/LICENSE` or its helper scripts), so a
+documentation-only PR builds nothing; a skipped required job still passes.
 
 `main` requires `lint`, `typecheck`, `tests (locked)`, `tests (minimum)`,
 `build` and `conventional-commit` to pass from GitHub Actions, with the branch
