@@ -16,7 +16,16 @@
       "package/pyproject.toml": "f928b7f7adc75b1171b99f126879846904dca255050d3c560bcf10dad3cf447a",
       "pyproject.toml": "0f8feceee9ab4f42e7f72fbb61dd11eef02d9a966e3056bc62ab9b4188ff11e0"
     },
-    "global_modules": []
+    "global_modules": [],
+    "global_inputs": [
+      "pyproject.toml",
+      "**/pyproject.toml",
+      "uv.lock",
+      "**/uv.lock",
+      ".python-version",
+      "pytest.ini",
+      "**/pytest.ini"
+    ]
   },
   "lanes": {
     "library": {
@@ -40,7 +49,10 @@
       "inputs": [
         "package/src/**",
         "package/shims/**",
-        "examples/**",
+        "examples/*.py",
+        "examples/**/*.py",
+        "examples/*.html",
+        "examples/**/*.html",
         "integration_tests/**",
         "obligation_cost_baseline.yaml",
         "scripts/check_adoption_report.py",
@@ -53,7 +65,10 @@
       "inputs": [
         "package/src/**",
         "package/shims/**",
-        "examples/widget_store/**",
+        "examples/widget_store/*.py",
+        "examples/widget_store/**/*.py",
+        "examples/widget_store/*.html",
+        "examples/widget_store/**/*.html",
         "examples/settings.py",
         "examples/celery_app.py",
         "examples/__init__.py",
@@ -89,10 +104,12 @@
       "inputs": [
         "package/src/**",
         "package/shims/**",
+        "package/README.md",
+        "package/LICENSE",
+        "scripts/ci/check_metadata.py",
         "scripts/check_wheel.py",
-        "scripts/check_core_is_framework_free.py",
-        "package/tests/core/test_compatibility.py",
-        "package/tests/core/test_package_identity.py",
+        "scripts/check_published_testing_wheel.py",
+        "scripts/check_testing_wheel.py",
         ".github/workflows/ci.yml#build"
       ]
     }

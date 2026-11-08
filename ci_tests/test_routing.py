@@ -40,16 +40,22 @@ class RoutingTests(unittest.TestCase):
         return cls.git("rev-parse", "HEAD")
 
     def selection(self, path, *, delete=False, edit=None):
+        return self.commit_selection((path,), delete=delete, edit=edit)
+
+    def commit_selection(self, paths, *, delete=False, edit=None):
+        """Lanes selected by one real commit that changes every path."""
         self.git("reset", "--hard", self.base)
-        file = self.repo / path
-        if delete:
-            file.unlink()
-        elif edit is not None:
-            file.write_text(edit(file.read_text()))
-        else:
-            file.parent.mkdir(parents=True, exist_ok=True)
-            with file.open("a") as output:
-                output.write("\n# Routing scenario\n")
+        self.git("clean", "-fd")
+        for path in paths:
+            file = self.repo / path
+            if delete:
+                file.unlink()
+            elif edit is not None:
+                file.write_text(edit(file.read_text()))
+            else:
+                file.parent.mkdir(parents=True, exist_ok=True)
+                with file.open("a") as output:
+                    output.write("\n# Routing scenario\n")
         result = plan(self.repo, self.config, self.base, self.commit())
         self.assertNotIn("fallback", result.reason, result.model_dump_json())
         return {name for name, enabled in result.lanes.items() if enabled}
@@ -71,10 +77,20 @@ class RoutingTests(unittest.TestCase):
     def test_prose_and_repository_metadata_do_not_start_runtime_lanes(self):
         for path in (
             "README.md",
-            "package/README.md",
             "package/docs/conformance.md",
             "docs/guide.rst",
             "md/guide.md",
+            "mkdocs.yml",
+            ".readthedocs.yaml",
+            # Read the Docs dependencies are not the test environment.
+            "documentation/requirements.in",
+            "documentation/requirements.txt",
+            "examples/README.md",
+            "examples/books/README.md",
+            "examples/widget_store/README.md",
+            "examples/acme_printworks/README.md",
+            # Standalone install instructions; CI runs Acme against the locked checkout environment.
+            "examples/acme_printworks/requirements.txt",
             ".github/ISSUE_TEMPLATE/bug.md",
             ".github/dependabot.yml",
             ".github/pull_request_template.md",
@@ -82,6 +98,57 @@ class RoutingTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path), set())
+
+    def test_documentation_only_commit_runs_no_lane(self):
+        self.assertEqual(
+            self.commit_selection(
+                (
+                    "README.md",
+                    "docs/architecture.md",
+                    "package/docs/quickstart.md",
+                    "examples/acme_printworks/README.md",
+                    "documentation/index.md",
+                    "documentation/requirements.in",
+                    "documentation/requirements.txt",
+                    "mkdocs.yml",
+                )
+            ),
+            set(),
+        )
+
+    def test_distribution_contents_select_only_the_package_build(self):
+        # The package README is the published long description; check_metadata.py compares it.
+        for path in (
+            "package/README.md",
+            "package/LICENSE",
+            "scripts/ci/check_metadata.py",
+            "scripts/check_published_testing_wheel.py",
+            "scripts/check_testing_wheel.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("wheel", self.selection(path))
+        for path in ("package/README.md", "package/LICENSE"):
+            with self.subTest(path=path):
+                self.assertEqual(self.selection(path), {"wheel"})
+
+    def test_example_code_and_templates_select_their_lanes(self):
+        # Narrowed inputs must still match files directly inside each directory and nested below it.
+        for path, lanes in (
+            ("examples/urls.py", {"integration"}),
+            ("examples/books/views.py", {"integration"}),
+            ("examples/widget_store/views.py", {"integration", "widget_comparison"}),
+            ("examples/widget_store/migrations/0001_initial.py", {"integration", "widget_comparison"}),
+        ):
+            with self.subTest(path=path):
+                self.assertLessEqual(lanes, self.selection(path))
+        # Templates are rendered by the live journeys and the widget benchmark.
+        for path, lanes in (
+            ("examples/books/templates/books/form.html", {"integration"}),
+            ("examples/scheduled/templates/scheduled/list.html", {"integration"}),
+            ("examples/widget_store/templates/widget_store/store.html", {"integration", "widget_comparison"}),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.selection(path), lanes)
 
     def test_each_workflow_job_runs_only_the_lanes_it_executes(self):
         # Every job is listed, so a new job must be classified here before it merges.
@@ -147,14 +214,14 @@ class RoutingTests(unittest.TestCase):
                 self.assertIn("fallback", result.reason)
 
     def test_environment_and_shared_runtime_keep_full_validation(self):
+        # The test environment is declared explicitly; Due resolves it with uv only.
         for path in (
             "uv.lock",
+            "pyproject.toml",
+            "package/pyproject.toml",
+            ".python-version",
             ".github/test-lanes.json",
             "package/src/due/__init__.py",
-            "requirements.txt",
-            "package/requirements-dev.txt",
-            "poetry.lock",
-            "pylock.toml",
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path), set(self.config.lanes))

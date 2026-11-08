@@ -46,8 +46,12 @@ Keep the symlink tracked in Git. See CONTRIBUTING.md for platform setup.
 
 Documentation-only PRs execute zero tests unless a test or lane explicitly
 declares that documentation as an input. This includes CI contract tests,
-installed-wheel smoke and public-action smoke. Metadata/link/build checks may
-still validate documentation without running runtime tests. Declare execution
+package builds, installed-wheel smoke and public-action smoke: the `build` job runs
+only when the `wheel` lane selects packaging inputs, and `package/README.md` is one
+because it is the published long description. Local link checks and the
+documentation site build still run. Read the Docs dependencies
+(`documentation/requirements.*`) are not test environment; `graph.global_inputs`
+in `.github/test-lanes.json` lists the real environment files. Declare execution
 workflows, selector configuration, helpers, locks and non-import inputs; missing
 history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
