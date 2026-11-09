@@ -1,5 +1,5 @@
 """
-Pure retry timing shared by durable capabilities and native work engines.
+Pure retry timing shared by durable capabilities and native work engines (probe).
 
 ExponentialDelay owns only bounded arithmetic. The caller supplies a zero-based
 step and owns its counter, budget and permission to retry. This module imports
