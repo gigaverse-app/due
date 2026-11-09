@@ -1150,7 +1150,16 @@ pair a refactor removes. See [CONTRIBUTING.md](CONTRIBUTING.md#duplication).
 <!-- dry-lint-progress:start -->
 <a href="https://github.com/gigaverse-app/dry-lint"><picture><source media="(prefers-color-scheme: dark)" srcset="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?theme=dark&amp;key=35f6ba0c499a9204cc6a7aa502ed349c208027ccd99edbf9287eae3bf6bb181d&amp;name=gigaverse-app%2Fdue&amp;cleaned=11&amp;remaining=18&amp;dismissed=0"><img alt="dry-lint in gigaverse-app/due: new duplicates kept out of its pull requests, 11 old duplicates cleaned up, 18 remaining" src="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=35f6ba0c499a9204cc6a7aa502ed349c208027ccd99edbf9287eae3bf6bb181d&amp;name=gigaverse-app%2Fdue&amp;cleaned=11&amp;remaining=18&amp;dismissed=0" width="100%"></picture></a>
 
+**Reviewed duplication debt** · Counts from the committed baselines.
+
+| Accepted pairs | Remaining | Retired | Dismissed |
+| :-- | --: | --: | --: |
+| Functions | 18 | 11 | 0 |
+| Models | Not initialized | — | — |
+
 [Accepted backlog](.dry-lint/baseline.json) · [Weekly audit](https://github.com/gigaverse-app/due/actions/workflows/dry-lint-audit.yml)
+
+Retired means a side was removed, or (functions only) the judge now finds the pair separate. It is not a count of refactors. Dismissals stay separate; an uninitialized model baseline is unknown.
 <!-- dry-lint-progress:end -->
 
 ## Documentation
