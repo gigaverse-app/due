@@ -86,20 +86,26 @@ See [package ownership and subtree development](package/docs/development.md) for
 
 ## Selective CI inputs
 
-`.github/test-lanes.json` uses pytest-selective to select complete library,
-integration, widget comparison, type-check, CI contract and wheel runtime lanes.
-Build/metadata and lint checks remain available without starting tests.
-Manual dispatch and `test:full` run complete suites; ordinary main pushes use selection.
-A failed planner executes the affected workflow in full, but the regular test
-gates require successful planning before merge.
+CI-esta's `plan-work` selects complete library, integration, widget comparison,
+type-check, CI contract and wheel runtime lanes before any runner starts. The lanes
+are the names the jobs' conditions read (`fromJSON(needs.select-tests.outputs.lanes).<lane>`),
+so a new lane-gated job must read that output directly, not a value derived from it.
+A change selects a lane through what its jobs run: the tests that import it
+([pytest-selective](https://github.com/gigaverse-app/pytest-selective)'s import graph),
+the files tests and scripts declare they read, and the scripts and actions each job
+executes. A job edit runs that job's lanes; workflow-level settings run every lane in
+that workflow. Build/metadata and lint checks remain available without starting tests.
+Manual dispatch, the weekly schedule and `test:full` run complete suites; ordinary main
+pushes use selection. A failed planner executes the affected workflow in full, but the
+regular test gates require successful planning before merge.
 
-Workflow inputs name execution jobs, such as `.github/workflows/ci.yml#tests`.
-An edit to that job runs its library and integration lanes; a type-check job edit
-runs type checking. Workflow-level settings still affect every lane in that
-workflow. Selector pin changes, reporting, comments and unrelated jobs do not
-start test services. Every execution-workflow edit selects the CI contract tests, which
-check the pinned selector and classify every job. If tests consume another job's output,
-declare that job as an additional input: job dependencies are not inferred.
+When a test or a script starts reading a file by path or loading it by name (settings,
+migrations, templates, cost baselines), declare it next to the reader: a
+`<test>.gv-dependency.yaml` sidecar, which `pytest-selective audit --write-declarations`
+writes from a recorded run, or a `# gv:test-dependency: PATH` comment at the top of the
+file. [.github/test-lanes.json](.github/test-lanes.json) extends the inferred lanes only
+where the commands cannot show them: the library and integration test roots, which one
+job runs together. `ci-esta lanes --base origin/main` shows what a change runs and why.
 
 For automatic PR events, CI-esta can reuse each Django variant independently
 after it has completed the same whole-tree inputs within 24 hours. The receipt

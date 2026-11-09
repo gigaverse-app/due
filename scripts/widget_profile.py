@@ -5,6 +5,8 @@ The opt-in bootstrap covers threads, prefork children and crash restarts without
 ptrace. Periodic snapshots retain evidence across SIGKILL; their final second
 can be absent. Application completion and business-function coverage are gated.
 """
+# The compare job runs this module, which starts the profiler bootstrap by path:
+# gv:test-dependency: scripts/widget_profile_bootstrap/**
 
 import argparse
 import importlib.metadata

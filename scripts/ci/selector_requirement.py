@@ -1,4 +1,6 @@
 """Use the workflow's planner action revision for real-Git routing checks."""
+# The contracts step runs this script, which reads the planner pin:
+# gv:test-dependency: .github/workflows/ci.yml
 
 import re
 from pathlib import Path

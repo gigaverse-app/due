@@ -3,6 +3,9 @@
 Uses separate pre-created disposable databases. Both servers run unmodified
 one-second stages, through the same process supervisor and HTTP client.
 """
+# The compare job runs this module, which serves the storefront by settings module and templates:
+# gv:test-dependency: examples/widget_store/**/*.py
+# gv:test-dependency: examples/widget_store/**/*.html
 
 import argparse
 import http.cookiejar

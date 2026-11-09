@@ -1209,8 +1209,8 @@ dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 [![Crash-tested with pytest-obligation](https://img.shields.io/badge/crash--tested_with-pytest--obligation-7C3AED)](https://github.com/gigaverse-app/pytest-obligation)
 [![Duplication checked by dry-lint](https://img.shields.io/badge/duplication_checked_by-dry--lint-7E4FC9)](https://github.com/gigaverse-app/dry-lint)
 
-<sub>Pull requests run only the [test lanes](.github/test-lanes.json) a change can
-affect, behind CI-esta's required-check gates; every run gets a CI-esta
+<sub>Pull requests run only the test lanes a change can
+affect, planned by CI-esta from the workflows, behind CI-esta's required-check gates; every run gets a CI-esta
 [timing report](.github/workflows/observe-ci.yml). Due's conformance lane runs the
 pytest-obligation tests generated from its contracts.</sub>
 

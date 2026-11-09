@@ -40,6 +40,6 @@ All adoption PRs remain unmerged pending review of that design.
 
 ## Opinionated defaults
 
-CI-esta now owns all standard profiles. The policy retains only the widget comparison expensive/performance tags and the existing PR-occasion exception for thorough. Both workflows and contracts read lane IDs from `.github/test-lanes.json`.
+CI-esta now owns all standard profiles. The policy retains only the widget comparison expensive/performance tags and the existing PR-occasion exception for thorough. Both workflows and contracts read lane IDs from the planner's report: the lanes CI-esta's `plan-work` infers from the workflows.
 
 Existing routing expectations are retained; ordinary workflows still default to `legacy` for compatibility. New adopters default to `ci`, which defers expensive/manual work. Overrides replace fields, including empty arrays; `extends` supports genuine exceptions and `defaults: none` disables the catalog.

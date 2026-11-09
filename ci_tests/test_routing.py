@@ -1,4 +1,9 @@
 """Keep Due's workflow routing tied to real repository inputs and Git changes."""
+# Plans real commits of this repository: the workflows, the lane file, every declaration and import.
+# gv:test-dependency: .github/workflows/*.yml
+# gv:test-dependency: .github/test-lanes.json
+# gv:test-dependency: **/*.py
+# gv:test-dependency: **/*.gv-dependency.yaml
 
 import re
 import subprocess
@@ -7,7 +12,8 @@ import unittest
 from pathlib import Path
 
 import yaml
-from pytest_selective.ci import LaneConfig, plan
+from ci_esta.testing.lane_inference import resolve
+from ci_esta.testing.work_plan import plan_work
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,11 +25,11 @@ class RoutingTests(unittest.TestCase):
         cls.repo = Path(cls.temporary.name)
         archive = subprocess.run(["git", "archive", "HEAD"], cwd=ROOT, check=True, capture_output=True).stdout
         subprocess.run(["tar", "-xf", "-", "-C", str(cls.repo)], input=archive, check=True)
-        cls.config = LaneConfig.model_validate_json((ROOT / ".github/test-lanes.json").read_text())
         cls.git("init", "-q")
         cls.git("config", "user.email", "ci@example.invalid")
         cls.git("config", "user.name", "CI routing test")
         cls.base = cls.commit()
+        cls.lanes = set(resolve(cls.repo, cls.base, cls.base, cls.repo / ".github/test-lanes.json").config.lanes)
 
     @classmethod
     def tearDownClass(cls):
@@ -32,6 +38,12 @@ class RoutingTests(unittest.TestCase):
     @classmethod
     def git(cls, *args):
         return subprocess.check_output(["git", *args], cwd=cls.repo, text=True).strip()
+
+    @classmethod
+    def plan(cls, base, head, *, full=False):
+        """CI-esta plan-work as the select-tests job runs it: lanes inferred from the workflows, then the lane file."""
+        resolved = resolve(cls.repo, base, head, cls.repo / ".github/test-lanes.json")
+        return plan_work(cls.repo, resolved.config, base, head, full=full, rules=resolved.rules)
 
     @classmethod
     def commit(cls):
@@ -56,7 +68,7 @@ class RoutingTests(unittest.TestCase):
                 file.parent.mkdir(parents=True, exist_ok=True)
                 with file.open("a") as output:
                     output.write("\n# Routing scenario\n")
-        result = plan(self.repo, self.config, self.base, self.commit())
+        result = self.plan(self.base, self.commit())
         self.assertNotIn("fallback", result.reason, result.model_dump_json())
         return {name for name, enabled in result.lanes.items() if enabled}
 
@@ -188,7 +200,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_workflow_edits_always_validate_the_complete_execution_contract(self):
         def bump(text):
-            return re.sub(r"(plan-lanes@)v[0-9]+(?:\.[0-9]+)*", r"\g<1>v99", text)
+            return re.sub(r"(plan-work@)v[0-9]+(?:\.[0-9]+)*", r"\g<1>v99", text)
 
         for path in (".github/workflows/ci.yml", ".github/workflows/widget-store.yml"):
             with self.subTest(path=path, change="pin"):
@@ -209,7 +221,7 @@ class RoutingTests(unittest.TestCase):
                     )
                 else:
                     target.write_text("[pytest]\ntestpaths = other_tests\n")
-                result = plan(self.repo, self.config, self.base, self.commit())
+                result = self.plan(self.base, self.commit())
                 self.assertTrue(all(result.lanes.values()), result.model_dump_json())
                 self.assertIn("fallback", result.reason)
 
@@ -224,7 +236,7 @@ class RoutingTests(unittest.TestCase):
             "package/src/due/__init__.py",
         ):
             with self.subTest(path=path):
-                self.assertEqual(self.selection(path), set(self.config.lanes))
+                self.assertEqual(self.selection(path), self.lanes)
 
     def test_widget_subprocess_helper_and_bootstrap_keep_benchmark_coverage(self):
         for path in (
@@ -255,8 +267,8 @@ class RoutingTests(unittest.TestCase):
 
     def test_missing_history_and_full_checkpoint_run_every_lane(self):
         for result in (
-            plan(self.repo, self.config, "missing-history", self.base),
-            plan(self.repo, self.config, self.base, self.base, full=True),
+            self.plan("missing-history", self.base),
+            self.plan(self.base, self.base, full=True),
         ):
             self.assertTrue(all(result.lanes.values()), result.model_dump_json())
 
@@ -270,7 +282,7 @@ class RoutingTests(unittest.TestCase):
         doc.write_text("before\n")
         base = self.commit()
         doc.write_text("after\n")
-        result = plan(self.repo, self.config, base, self.commit())
+        result = self.plan(base, self.commit())
         self.assertTrue(result.lanes["library"], result.model_dump_json())
         self.assertNotIn("fallback", result.reason)
 
