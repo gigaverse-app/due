@@ -1,76 +1,21 @@
 name: dry-lint audit
-# Audits the whole repository against the accepted backlog, then ratchets it: pairs that were refactored away or
-# judged separate are recorded as cleaned in .dry-lint/baseline.json, progress.json and the README block, through a
-# pull request that runs the ordinary checks. The baseline only ever shrinks; a new blocking pair fails the audit
-# and no ratchet pull request is opened. Run it by hand after merging a cleanup to record the progress at once.
+# Weekly, or dispatched after merging a cleanup: dry-lint's own audit workflow sweeps the repository against the
+# accepted backlog and opens or updates one dry-lint/ratchet pull request recording what was cleaned. Its steps ship
+# with dry-lint releases; this file only says when it runs and with which credentials.
 on:
   schedule:
     - cron: '23 6 * * 1'
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: dry-lint-audit
-  cancel-in-progress: false
 jobs:
   audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: gigaverse-app/dry-lint@v1
-        with:
-          mode: sweep
-          python-version: '3.14'
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugins: anthropic==2.4.0
-          baseline: .dry-lint/baseline.json
-          require-complete: 'true'
-          budget-usd: '5'
-      - name: Retain the audit for human or agent review
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: dry-lint-audit
-          path: |
-            ${{ runner.temp }}/dry-lint/report.json
-            ${{ runner.temp }}/dry-lint/comment.md
-          retention-days: 30
-          if-no-files-found: warn
-      - name: Require ratchet PR authentication
-        env:
-          HAS_RATCHET_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN != '' }}
-        run: |
-          if [[ "$HAS_RATCHET_TOKEN" != "true" ]]; then
-            echo "::error::Share the organization GV_CI_CROSS_REPO_TOKEN secret with this repository."
-            exit 1
-          fi
-      - uses: astral-sh/setup-uv@v7
-      # The Action's sweep mode only audits. The CLI records the ratchet, reusing the verdicts the audit just stored,
-      # so it judges nothing again. It writes nothing unless a pair changed state.
-      - name: Record cleaned pairs
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          uvx --no-config --python 3.14 --with anthropic==2.4.0 \
-            --from 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1' \
-            dry-lint sweep --update --store "$RUNNER_TEMP/dry-lint/verdicts" --budget-usd 5 \
-            --readme README.md --repository "$GITHUB_REPOSITORY" --branch main
-      # One standing branch: a later run updates the open ratchet PR instead of stacking another. The organization
-      # credential makes the PR run ordinary CI, including the required dry-lint check that refuses any widening.
-      - uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.GV_CI_CROSS_REPO_TOKEN }}
-          branch: dry-lint/ratchet
-          delete-branch: true
-          add-paths: |
-            .dry-lint/baseline.json
-            .dry-lint/progress.json
-            README.md
-          commit-message: 'chore(dry-lint): record cleaned duplicate pairs in the baseline'
-          title: 'chore(dry-lint): record cleaned duplicate pairs in the baseline'
-          body: |
-            The weekly dry-lint audit found accepted duplicate pairs that no longer exist or were judged separate,
-            and shrinks `.dry-lint/baseline.json`, the progress badge and the README block to match.
-
-            The baseline can only shrink: the required `dry-lint` check rejects any pull request that widens it.
-            The full audit is in the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+    uses: gigaverse-app/dry-lint/.github/workflows/audit.yml@v1
+    with:
+      python-version: '3.14'
+      budget-usd: '5'
+      plugins: anthropic==2.4.0
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # The organization credential makes the ratchet pull request run ordinary CI.
+      DRY_LINT_RATCHET_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN }}
