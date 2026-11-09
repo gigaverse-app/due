@@ -1,5 +1,0 @@
-dependencies:
-  - inputs:
-      - "//package/obligation_cost_baseline.yaml"
-    kind: content
-    reason: "Read at runtime; recorded by pytest-selective audit --write-declarations."

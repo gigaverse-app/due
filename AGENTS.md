@@ -54,7 +54,7 @@ documentation site build still run. Read the Docs dependencies
 `python-environment` rule watches the real environment files. Lanes are inferred from
 the jobs' `fromJSON(needs.select-tests.outputs.lanes).<lane>` conditions: declare
 non-import inputs next to the test or script that reads them (`*.gv-dependency.yaml`
-sidecars or `# gv:test-dependency:` comments), not in `.github/test-lanes.json`; missing
+sidecars, scoped `.gv-dependencies.yaml` shared rules, or `# gv:test-dependency:` comments), not in `.github/test-lanes.json`; missing
 history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
 remain complete checkpoints.
