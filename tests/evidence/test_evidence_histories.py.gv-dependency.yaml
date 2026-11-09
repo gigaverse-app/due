@@ -1,0 +1,6 @@
+dependencies:
+  - inputs:
+      - "//package/src/due/django/management/commands/__init__.py"
+      - "//package/src/due/django/management/commands/due_status.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."
