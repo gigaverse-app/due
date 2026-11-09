@@ -3,5 +3,13 @@
   "lanes": {
     "library": {"roots": ["package/tests"]},
     "integration": {"roots": ["integration_tests", "examples/acme_printworks/tests"]}
-  }
+  },
+  "rules": [
+    {
+      "name": "pyrefly",
+      "when": ["**/*.py", "**/*.pyi", "**/pyrefly.toml"],
+      "select": ["lane:typecheck"],
+      "reason": "pyrefly check covers every Python file"
+    }
+  ]
 }
