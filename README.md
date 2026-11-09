@@ -503,7 +503,7 @@ Suite (application code): <code>integration&#95;tests.conformance.test&#95;contr
 <details>
 <summary><strong>celery: a worker runs &#x27;p&#8203;ublish&#95;document&#x27; through&#8203; Celery</strong> · evidence and decisions</summary>
 
-Contract contract setup: <code>integration&#95;tests/conformance/test&#95;document&#95;celery&#95;worker.py:60</code>
+Contract contract setup: <code>integration&#95;tests/conformance/test&#95;document&#95;celery&#95;worker.py:62</code>
 
 <details>
 <summary><strong>⚪ Deliberate exclusions</strong></summary>
