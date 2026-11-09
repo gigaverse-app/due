@@ -3,7 +3,6 @@
 # gv:test-dependency: .github/workflows/*.yml
 # gv:test-dependency: .github/test-lanes.json
 # gv:test-dependency: **/*.py
-# gv:test-dependency: **/*.gv-dependency.yaml
 
 import re
 import subprocess

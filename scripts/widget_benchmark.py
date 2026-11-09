@@ -3,7 +3,12 @@
 Uses separate pre-created disposable databases. Both servers run unmodified
 one-second stages, through the same process supervisor and HTTP client.
 """
-# The compare job runs this module, which serves the storefront by settings module and templates:
+# The compare job runs this module, which starts the storefront, its Celery worker and the Due library it
+# measures by settings and module name (examples.widget_store.settings, examples.celery_app):
+# gv:test-dependency: package/src/**
+# gv:test-dependency: examples/__init__.py
+# gv:test-dependency: examples/settings.py
+# gv:test-dependency: examples/celery_app.py
 # gv:test-dependency: examples/widget_store/**/*.py
 # gv:test-dependency: examples/widget_store/**/*.html
 
