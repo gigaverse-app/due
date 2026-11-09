@@ -93,8 +93,9 @@ so a new lane-gated job must read that output directly, not a value derived from
 A change selects a lane through what its jobs run: the tests that import it
 ([pytest-selective](https://github.com/gigaverse-app/pytest-selective)'s import graph),
 the files tests and scripts declare they read, and the scripts and actions each job
-executes. A job edit runs that job's lanes; workflow-level settings run every lane in
-that workflow. Build/metadata and lint checks remain available without starting tests.
+executes. A job edit runs that job's lanes; an edit to the planner job (`select-tests`,
+its pin included) or to workflow-level settings re-plans every lane, and any workflow
+edit runs the CI contract tests. Build/metadata and lint checks remain available without starting tests.
 Manual dispatch, the weekly schedule and `test:full` run complete suites; ordinary main
 pushes use selection. A failed planner executes the affected workflow in full, but the
 regular test gates require successful planning before merge.
