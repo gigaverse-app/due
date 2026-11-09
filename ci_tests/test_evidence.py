@@ -1,4 +1,6 @@
 """Exercise the deployed matrix adapter: only literal successful proof skips work."""
+# Reads the evidence step of the workflow.
+# gv:test-dependency: .github/workflows/ci.yml
 
 import json
 import os

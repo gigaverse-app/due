@@ -1,4 +1,6 @@
 """Every runtime test command must be admitted by dependency selection."""
+# Reads every workflow.
+# gv:test-dependency: .github/workflows/*.yml
 
 import unittest
 from pathlib import Path
@@ -37,11 +39,8 @@ class ExecutionAdmissionTests(unittest.TestCase):
                         continue
                     admission = job.get("if", "") + " " + step.get("if", "")
                     assert "needs." in admission and "result != 'success'" in admission, (path.name, name, command)
-                    assert any(output in admission for output in ("lanes", "outputs.library", "outputs.integration")), (
-                        path.name,
-                        name,
-                        command,
-                    )
+                    # Lanes are inferred from these reads; a derived planner output would hide its lane.
+                    assert "fromJSON(needs.select-tests.outputs.lanes)." in admission, (path.name, name, command)
 
     def test_public_smoke_is_selected_and_requires_successful_planning(self):
         path = ROOT / ".github/workflows/public-actions.yml"
@@ -62,7 +61,7 @@ class ExecutionAdmissionTests(unittest.TestCase):
             jobs = yaml.safe_load(path.read_text()).get("jobs", {})
             for job in jobs.values():
                 for step in job.get("steps", []):
-                    if "plan-lanes" in step.get("uses", "") or step.get("id") == "files":
+                    if "plan-work" in step.get("uses", "") or step.get("id") == "files":
                         full = step.get("with", {}).get("full", "auto")
                         assert "github.event_name != 'pull_request'" not in str(full), path
                         assert full == "auto" or "workflow_dispatch" in str(full), path

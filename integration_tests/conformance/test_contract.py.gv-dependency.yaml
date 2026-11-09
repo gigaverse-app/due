@@ -1,0 +1,14 @@
+dependencies:
+  - inputs:
+      - "//examples/books/migrations/**"
+      - "//examples/catalog/migrations/**"
+      - "//examples/documents/migrations/**"
+      - "//examples/management/__init__.py"
+      - "//examples/numbers/migrations/**"
+      - "//examples/orders/migrations/**"
+      - "//examples/scheduled/migrations/**"
+      - "//examples/widget_store/migrations/**"
+      - "//package/src/due/django/management/__init__.py"
+      - "//package/src/due/django/migrations/**"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."

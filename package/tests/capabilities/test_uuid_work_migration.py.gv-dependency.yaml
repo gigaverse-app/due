@@ -1,0 +1,6 @@
+dependencies:
+  - inputs:
+      - "//package/src/due/django/migrations/__init__.py"
+      - "//package/src/due/django/tasks/migrations/__init__.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."
