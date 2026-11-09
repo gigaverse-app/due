@@ -1,3 +1,7 @@
 {
-  "extends": "workflow"
+  "extends": "workflow",
+  "lanes": {
+    "library": {"roots": ["package/tests"]},
+    "integration": {"roots": ["integration_tests", "examples/acme_printworks/tests"]}
+  }
 }
