@@ -1,9 +1,4 @@
 """Keep Due's workflow routing tied to real repository inputs and Git changes."""
-# Plans real commits of this repository: the workflows, the lane file, every declaration and import.
-# gv:test-dependency: .github/workflows/*.yml
-# gv:test-dependency: .github/test-lanes.json
-# gv:test-dependency: **/*.py
-# gv:test-dependency: **/*.gv-dependency.yaml
 
 import re
 import subprocess
