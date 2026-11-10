@@ -183,7 +183,6 @@ class RoutingTests(unittest.TestCase):
                 "python-contracts": {"source_contracts"},
                 # The planner: an edit to it, its pin included, re-plans every lane.
                 "select-tests": set(self.lanes),
-
                 "lint": set(),
                 "tests": {"library", "integration"},
                 "package-export": {"library"},
@@ -209,7 +208,6 @@ class RoutingTests(unittest.TestCase):
     def test_settings_every_job_inherits_run_the_workflow_lanes(self):
         # Workflow-level settings reach the planner job, which plans every lane.
         for path in (".github/workflows/ci.yml", ".github/workflows/widget-store.yml"):
-
             with self.subTest(path=path):
                 self.assertEqual(self.selection(path, edit=self.with_scenario_env()), self.lanes)
 

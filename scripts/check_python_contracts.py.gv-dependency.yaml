@@ -1,0 +1,16 @@
+dependencies:
+  - inputs:
+      - //package/src/**
+      - //package/tests/source_contracts/**
+      - //package/tests/harness/**
+      - //package/tests/bulk/test_composed_work_contract.py
+      - //package/tests/settings.py
+      - //package/tests/conftest.py
+      - //package/tests/__init__.py
+      - //package/tests/conformance/test_exploration_collection.py
+      - //veripy-project.json
+      - //contracts/python-checks.json
+      - //proofs/**
+      - //tooling/source-contracts/**
+    kind: content
+    reason: The maintained source gate verifies source hashes, exact test inventories, proof artifacts, and enrolled mutations.

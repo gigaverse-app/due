@@ -9,14 +9,15 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from scripts.source_contract_utils import require  # noqa: E402
+
 INPUTS = ROOT / "tooling/source-contracts"
 
 
-def require(condition: object, message: object) -> None:
-    if not condition:
-        raise RuntimeError(message)
-
-
+# dry-lint: distinct-from scripts/render_brand.py::digest
+# Verifier attestation hashes exact bytes; branding normalizes text newlines.
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 

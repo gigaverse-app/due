@@ -68,7 +68,7 @@ jobs:
   python-contracts:
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) &&
+      ${{ !cancelled() &&
           (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).source_contracts) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

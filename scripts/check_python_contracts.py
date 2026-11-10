@@ -20,13 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # report validator is imported by its package name in both CLI and test use.
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from scripts.source_contract_utils import require  # noqa: E402
+
 SOURCE = ROOT / "package/src/due"
 REQUIRED_CHECKS = {"source", "native", "generated", "mutations"}
-
-
-def require(condition: object, message: object) -> None:
-    if not condition:
-        raise RuntimeError(message)
 
 
 def write_json(path: Path, value: object) -> None:
@@ -116,6 +113,9 @@ def stage(output: Path, name: str) -> Path:
     return target
 
 
+# dry-lint: distinct-from integration_tests/harness/collection_sessions.py::ChildSession.edit
+# This validates enrolled production mutation seams with RuntimeError; ChildSession
+# edits synthetic pytest projects through its fixture writer and raises AssertionError.
 def replace_once(path: Path, old: str, new: str) -> None:
     source = path.read_text()
     require(source.count(old) == 1, f"mutation seam changed in {path}: {old!r}")
