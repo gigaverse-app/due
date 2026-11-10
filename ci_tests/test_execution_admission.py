@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 import yaml
+from ci_esta.testing.workflow_adoption import check
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = (
@@ -26,6 +27,9 @@ RUNTIME = (
 
 
 class ExecutionAdmissionTests(unittest.TestCase):
+    def test_aggregate_gate_accepts_every_required_job_condition(self):
+        check(ROOT / ".github/workflows/ci.yml", ROOT / ".github/test-lanes.json", repo=ROOT)
+
     def test_runtime_commands_have_selection_and_failure_fallback(self):
         for path in (ROOT / ".github/workflows").glob("*.y*ml"):
             # Release/full checkpoints deliberately execute everything.

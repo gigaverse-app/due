@@ -103,8 +103,15 @@ regular test gates require successful planning before merge.
 When a test or a script starts reading a file by path or loading it by name (settings,
 migrations, templates, cost baselines), declare it next to the reader: a
 `<test>.gv-dependency.yaml` sidecar, which `pytest-selective audit --write-declarations`
-writes from a recorded run, or a `# gv:test-dependency: PATH` comment at the top of the
-file. [.github/test-lanes.json](.github/test-lanes.json) extends the inferred lanes only
+writes from a recorded run, a shared `.gv-dependencies.yaml` with explicit `readers`,
+or a `# gv:test-dependency: PATH` comment at the top of the file. The manifests in
+`package/tests/` and `integration_tests/` own repeated cost-baseline and migration
+dependencies. Add a reader to the matching rule instead of duplicating its inputs.
+Keep package-marker imports separate from whole migration trees, and keep source
+reads as `content` rather than `import`. Retain sidecars for distinct dependencies;
+do not broaden reader or input globs just to remove a file. Shared manifests are
+inputs to the routing checks, so editing one validates its suite and the planner.
+[.github/test-lanes.json](.github/test-lanes.json) extends the inferred lanes only
 where the commands cannot show them: the library and integration test roots, which one
 job runs together. `ci-esta lanes --base origin/main` shows what a change runs and why.
 

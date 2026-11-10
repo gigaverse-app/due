@@ -129,6 +129,16 @@ class RoutingTests(unittest.TestCase):
             set(),
         )
 
+    def test_shared_declarations_select_their_suite_and_routing_checks(self):
+        # A declaration edit validates its readers and this planner check, without
+        # starting the other suite, widget benchmark, wheel or Python type checking.
+        for path, suite in (
+            ("package/tests/.gv-dependencies.yaml", "library"),
+            ("integration_tests/.gv-dependencies.yaml", "integration"),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.selection(path), {suite, "contracts"})
+
     def test_distribution_contents_select_only_the_package_build(self):
         # The package README is the published long description; check_metadata.py compares it.
         for path in (
