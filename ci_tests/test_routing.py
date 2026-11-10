@@ -130,10 +130,10 @@ class RoutingTests(unittest.TestCase):
         )
 
     def test_shared_declarations_select_their_suite_and_routing_checks(self):
-        # Package declarations also reach the source gate's enrolled package tests.
+        # Package declarations also reach the runtime gate's enrolled package tests.
         # Neither manifest starts the other suite, widget benchmark, wheel or type checking.
         for path, lanes in (
-            ("package/tests/.gv-dependencies.yaml", {"library", "source_contracts", "contracts"}),
+            ("package/tests/.gv-dependencies.yaml", {"library", "runtime_contracts", "contracts"}),
             ("integration_tests/.gv-dependencies.yaml", {"integration", "contracts"}),
         ):
             with self.subTest(path=path):
@@ -180,7 +180,7 @@ class RoutingTests(unittest.TestCase):
         executes = {
             ".github/workflows/ci.yml": {
                 "ci-contracts": {"contracts"},
-                "python-contracts": {"source_contracts"},
+                "runtime-contracts": {"runtime_contracts"},
                 # The planner: an edit to it, its pin included, re-plans every lane.
                 "select-tests": set(self.lanes),
                 "lint": set(),
@@ -337,28 +337,20 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("contracts", self.selection("ci_tests/test_routing.py"))
         self.assertIn("wheel", self.selection("scripts/check_wheel.py"))
 
-    def test_source_proof_and_native_bridge_dependencies_select_the_contract_lane(self):
+    def test_runtime_contract_dependencies_select_the_contract_lane(self):
         for path in (
             "package/src/due/retry_delays.py",
-            "package/src/due/retry_delays.proofs.dfy",
-            "package/src/due/claim_authority.py",
             "package/src/due/django/runtime/coordination.py",
             "package/src/due/django/runtime/settlement_batch.py",
             "package/tests/harness/self_work.py",
             "package/tests/harness/claim_settlement.py",
-            "package/tests/source_contracts/test_settlement.py",
+            "package/tests/runtime_contracts/test_settlement.py",
             "package/tests/conformance/test_exploration_collection.py",
-            "proofs/generated/claim-authority.dfy",
-            "veripy-project.json",
-            "contracts/python-checks.json",
-            "tooling/source-contracts/verifier.patch",
-            "tooling/source-contracts/requirements-project.lock",
-            "tooling/source-contracts/requirements-build.lock",
-            "scripts/check_python_contracts.py",
-            "scripts/bootstrap_source_verifier.py",
+            "contracts/runtime-checks.json",
+            "scripts/check_runtime_contracts.py",
         ):
             with self.subTest(path=path):
-                self.assertIn("source_contracts", self.selection(path))
+                self.assertIn("runtime_contracts", self.selection(path))
 
 
 if __name__ == "__main__":

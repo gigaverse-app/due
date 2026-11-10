@@ -44,11 +44,10 @@ throughput, or establish that an application's data migration has completed.
 Read the [architecture and guarantees](architecture.md) alongside your executed
 reports before treating a green result as a production guarantee.
 
-## Source contracts and native effects
+## PostgreSQL runtime contracts
 
-The repository's [Python contract workflow](https://github.com/gigaverse-app/due/blob/main/docs/contracts/python.md)
-checks the actual retry-delay bodies and claim authority/admission core with
-Dafny, paired with mandatory real PostgreSQL callback and rollback evidence.
-Those local source theorems do not prove database transactions or external
-provider semantics. The workflow documents its exact types, trusted lowering,
-source mappings, generated application contracts and mutation controls.
+The repository's [runtime contract workflow](https://github.com/gigaverse-app/due/blob/main/docs/contracts/runtime.md)
+exercises claim admission, callback ordering, rollback, and fallback against
+PostgreSQL. It requires complete native and generated test inventories and checks
+three deliberately broken runtime implementations. These are executed regression
+histories, not universal proofs of database transactions or concurrent schedules.

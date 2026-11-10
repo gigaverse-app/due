@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_python_contracts import junit_cases, require_mutation_inventory, require_native_inventory
+from scripts.check_runtime_contracts import junit_cases, require_mutation_inventory, require_native_inventory
 from scripts.file_edits import replace_once
 
 
@@ -30,22 +30,22 @@ class NativeEnrollmentTests(unittest.TestCase):
         return path
 
     def test_exact_passing_execution_is_accepted(self):
-        path = self.report('<testcase classname="tests.source_contracts.matrix" name="revision"/>')
-        require_native_inventory(path, ["tests.source_contracts.matrix::revision"])
+        path = self.report('<testcase classname="tests.runtime_contracts.matrix" name="revision"/>')
+        require_native_inventory(path, ["tests.runtime_contracts.matrix::revision"])
 
     def test_omitted_case_fails_even_when_pytest_was_successful(self):
-        path = self.report('<testcase classname="tests.source_contracts.matrix" name="token"/>')
+        path = self.report('<testcase classname="tests.runtime_contracts.matrix" name="token"/>')
         with self.assertRaisesRegex(RuntimeError, "native enrollment differs"):
             require_native_inventory(
-                path, ["tests.source_contracts.matrix::token", "tests.source_contracts.matrix::revision"]
+                path, ["tests.runtime_contracts.matrix::token", "tests.runtime_contracts.matrix::revision"]
             )
 
     def test_zero_skipped_duplicate_and_import_errors_are_not_detection(self):
         for body in (
             "",
-            '<testcase classname="tests.source_contracts.matrix" name="revision"><skipped/></testcase>',
-            '<testcase classname="tests.source_contracts.matrix" name="revision"><error>ImportError</error></testcase>',
-            '<testcase classname="tests.source_contracts.matrix" name="revision"/>' * 2,
+            '<testcase classname="tests.runtime_contracts.matrix" name="revision"><skipped/></testcase>',
+            '<testcase classname="tests.runtime_contracts.matrix" name="revision"><error>ImportError</error></testcase>',
+            '<testcase classname="tests.runtime_contracts.matrix" name="revision"/>' * 2,
         ):
             with self.subTest(body=body), self.assertRaises(RuntimeError):
                 junit_cases(self.report(body))

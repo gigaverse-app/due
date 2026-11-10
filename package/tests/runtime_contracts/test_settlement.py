@@ -1,4 +1,4 @@
-"""Mandatory native counterpart of the pure ownership and admission proofs."""
+"""Real PostgreSQL callback admission, rollback, and fallback regressions."""
 
 import pytest
 from django.db import connection

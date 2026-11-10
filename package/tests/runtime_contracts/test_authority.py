@@ -1,17 +1,17 @@
-"""Executable boundary checks for the normalized, source-proved runtime core."""
+"""Ownership fence and retry arithmetic regressions."""
 
 import os
 from datetime import timedelta
 from pathlib import Path
 from typing import cast
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from due import claim_authority, retry_delays
-from due.claim_authority import callback_admissions, claim_authorized
+from due import retry_delays
 from due.django.models import DurableWorkState
-from due.django.runtime.coordination import WorkClaim, _UncommittedClaim, normalized_authority
+from due.django.runtime import coordination, settlement_batch
+from due.django.runtime.coordination import WorkClaim, _UncommittedClaim
 from tests.harness.primitive import PrimitiveWork
 from tests.harness.self_work import InlineChunk
 
@@ -23,14 +23,15 @@ def test_imports_current_production_source():
     # The mutation runner intentionally supplies a staged current source tree.
     # Its separate import attestation validates that location before pytest.
     expected = Path(os.environ.get("DUE_CONTRACT_SOURCE", root)).resolve()
-    assert Path(claim_authority.__file__).resolve() == expected / "claim_authority.py"
+    assert Path(coordination.__file__).resolve() == expected / "django/runtime/coordination.py"
+    assert Path(settlement_batch.__file__).resolve() == expected / "django/runtime/settlement_batch.py"
     assert Path(retry_delays.__file__).resolve() == expected / "retry_delays.py"
 
 
 @pytest.mark.parametrize("uuid_key", [False, True], ids=["int-key", "uuid-key"])
 @pytest.mark.parametrize("fused", [False, True], ids=["committed", "fused"])
 @pytest.mark.parametrize("changed", ["none", "pk", "state", "token", "revision"])
-def test_normalization_preserves_the_full_ownership_predicate(uuid_key, fused, changed):
+def test_captured_fence_preserves_the_full_ownership_predicate(uuid_key, fused, changed):
     model = InlineChunk if uuid_key else PrimitiveWork
     identity = uuid4() if uuid_key else 7
     token, stored_token = uuid4(), uuid4()
@@ -55,7 +56,7 @@ def test_normalization_preserves_the_full_ownership_predicate(uuid_key, fused, c
     elif changed == "revision":
         current.desired_revision += 1
     # Independent original predicate and ORM lookup values must agree with the
-    # pure core on both ordinary and uncommitted stored claim fences.
+    # ownership check on both ordinary and uncommitted stored claim fences.
     original = type(current) is claim.model and all(getattr(current, name) == value for name, value in fields.items())
     assert claim.owns_locked(current) is original is (changed == "none")
 
@@ -71,26 +72,6 @@ def test_corrupt_current_fence_rejects_without_coercion_or_exception(field):
     current = InlineChunk(**claim._authority())
     setattr(current, field, None)
     assert claim.owns_locked(current) is False
-
-
-def test_scalar_enum_and_uuid_normalization_preserves_disjoint_identity_domains():
-    token = uuid4()
-    key = UUID(int=7)
-    integer = normalized_authority(7, "claimed", token, 1)
-    uuid = normalized_authority(key, DurableWorkState.CLAIMED, token, 1)
-    assert not claim_authorized(True, integer, uuid)
-    assert uuid == normalized_authority(UUID(str(key)), "claimed", UUID(str(token)), 1)
-    for identity in (True, "7"):
-        with pytest.raises(TypeError, match="identity"):
-            normalized_authority(cast(int, identity), "claimed", token, 1)
-
-
-def test_callback_admissions_preserve_presence_model_identity_and_order():
-    captured = normalized_authority(7, "claimed", uuid4(), 1)
-    stale = normalized_authority(7, "claimed", uuid4(), 2)
-    assert callback_admissions(
-        [captured] * 4, [captured, stale, captured, captured], [True, True, False, True], [True, True, True, False]
-    ) == [True, False, False, False]
 
 
 @pytest.mark.parametrize("initial,maximum", [(1, 1), (3, 10), (7, 9), (1, 86_399_999_999_999_999_999)])

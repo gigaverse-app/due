@@ -65,11 +65,11 @@ jobs:
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
 
-  python-contracts:
+  runtime-contracts:
     needs: select-tests
     if: >-
       ${{ !cancelled() &&
-          (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).source_contracts) }}
+          (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).runtime_contracts) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -93,21 +93,18 @@ jobs:
         with:
           python-version: '3.14'
           enable-cache: true
-      - name: Install locked product and reviewed verifier
+      - name: Install locked product
         run: |
           uv sync --all-packages --locked
-          .venv/bin/python scripts/bootstrap_source_verifier.py
-          bash tooling/source-contracts/install-dafny.sh
-      - name: Check source proofs and PostgreSQL callback contracts
-        run: .venv/bin/python scripts/check_python_contracts.py
-      - name: Retain exact proof, callback and mutation evidence
+      - name: Check PostgreSQL callback contracts and complete evidence
+        run: .venv/bin/python scripts/check_runtime_contracts.py
+      - name: Retain callback, enrollment and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: python-source-contracts
+          name: postgres-runtime-contracts
           path: |
-            test-results/python-contracts/
-            test-results/source-verifier/
+            test-results/runtime-contracts/
           if-no-files-found: error
 
   select-tests:
@@ -406,7 +403,7 @@ jobs:
 
   validation-gate:
     name: Validation gate
-    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build, python-contracts]
+    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build, runtime-contracts]
     if: >-
       ${{ !cancelled() }}
     runs-on: ubuntu-latest
@@ -415,4 +412,4 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
-          lane-jobs: '{"typecheck":["typecheck"],"build":["wheel"],"python-contracts":["source_contracts"]}'
+          lane-jobs: '{"typecheck":["typecheck"],"build":["wheel"],"runtime-contracts":["runtime_contracts"]}'

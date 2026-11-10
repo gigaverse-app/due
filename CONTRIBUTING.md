@@ -31,11 +31,11 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 ## Changes and proofs
 
-The registered [Python source contracts](docs/contracts/python.md) prove retry
-arithmetic and claim/callback admission from actual production source. Run
-`python scripts/check_python_contracts.py` in the prepared environment for the
-required source, PostgreSQL and mutation gates. Update proof artifacts and native
-enrollment alongside changes to their declared inputs.
+The [runtime contract workflow](docs/contracts/runtime.md) checks claim admission,
+retry arithmetic, and PostgreSQL callback behavior. Run
+`python scripts/check_runtime_contracts.py` in the development environment with
+PostgreSQL available. Keep the independent execution inventory and mutation
+controls current when adding or changing these tests.
 
 Always build the pytest-obligation application contract alongside a Due
 integration. Enroll each native capability, bind its real application behavior,

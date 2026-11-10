@@ -8,10 +8,7 @@ dependencies:
   - //docs/quint/report-provenance/**
   - //package.json
   - //package-lock.json
-  - //veripy-project.json
-  - //contracts/python-checks.json
-  - //proofs/**
-  - //tooling/source-contracts/**
+  - //contracts/runtime-checks.json
   kind: content
   reason: 'Plans real commits of this repository: the workflows, the lane file, and
     every import and declaration the planner reads. Content, not imports: a file another

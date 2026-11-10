@@ -1,4 +1,4 @@
-"""Shared integrity checks for the source verifier bootstrap and runner."""
+"""Integrity checks for the runtime contract runner."""
 
 
 def require(condition: object, message: object) -> None:

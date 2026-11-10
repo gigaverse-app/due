@@ -6,17 +6,11 @@ ordinary coordinator owns every transition, timestamp, save and finalizer.
 
 from django.db import transaction
 
-from due.claim_authority import callback_admissions
 from due.django.declarations.external_services import execution_external_services
 from due.django.identities import WorkId
 from due.django.integration import current_universe_scope
 from due.django.models import UniverseDurableWork
-from due.django.runtime.coordination import (
-    _WorkCompletion,
-    finalize_locked_completion,
-    require_autocommit,
-    row_authority,
-)
+from due.django.runtime.coordination import _WorkCompletion, finalize_locked_completion, require_autocommit
 from due.django.runtime.metrics import DurableWorkOperation, operations_counted_on_success, record_work_operation
 from due.django.runtime.recovery_pass import ends_the_tick
 from due.django.runtime.settlement_writes import can_combine_saves, combined_receipt_writes, save_completions
@@ -74,26 +68,13 @@ class _SettlementBatch[WorkT: UniverseDurableWork]:
             # order. Only self-owned rows may enter this path; owner locks retain
             # their existing ordering in ordinary execution.
             current: dict[WorkId, WorkT] = {row.pk: row for row in query.order_by("pk").select_for_update()}
-            # Normalize every captured/current pair and finish admission before
-            # entering any preparation or publication callback. A duplicate
-            # completion cannot consume the same locked row twice.
-            rows = [current.pop(item.claim.work_id, None) for item in pending]
-            captured = [item.claim.captured_authority() for item in pending]
-            same_models = [type(row) is item.claim.model for row, item in zip(rows, pending, strict=True)]
-            authorities = [
-                row_authority(row) if row is not None and same_models[i] else None for i, row in enumerate(rows)
-            ]
-            admissions = callback_admissions(
-                captured,
-                [authority if authority is not None else captured[i] for i, authority in enumerate(authorities)],
-                same_models,
-                [authority is not None for authority in authorities],
-            )
             owned_rows: list[tuple[_WorkCompletion[WorkT], WorkT]] = []
-            for completion, row, owned in zip(pending, rows, admissions, strict=True):
+            for completion in pending:
                 claim = completion.claim
+                row = current.pop(claim.work_id, None)
                 # Batch selection is only a lock acquisition. Publication still
                 # needs every captured ownership fact on the freshly locked row.
+                owned = row is not None and claim.owns_locked(row)
                 outcomes[claim.work_id] = owned
                 if not owned or row is None:
                     record_work_operation(claim.model._meta.label_lower, DurableWorkOperation.OWNERSHIP_LOST)
