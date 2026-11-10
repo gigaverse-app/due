@@ -24,3 +24,5 @@ acme-reports/
 
 node_modules/
 .quint-mutant-*/
+# pytest-selective planner cache
+.test-impact/

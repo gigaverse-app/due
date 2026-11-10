@@ -1,0 +1,10 @@
+dependencies:
+  - inputs:
+      - "//examples/scheduled/templates/**"
+    kind: content
+    reason: "Read at runtime; recorded by pytest-selective audit --write-declarations."
+  - inputs:
+      - "//examples/management/commands/__init__.py"
+      - "//examples/management/commands/scheduled_publication.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."

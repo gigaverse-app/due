@@ -1,0 +1,5 @@
+dependencies:
+  - inputs:
+      - "//examples/widget_store/templates/widget_store/store.html"
+    kind: content
+    reason: "Read at runtime; recorded by pytest-selective audit --write-declarations."
