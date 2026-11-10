@@ -126,7 +126,9 @@
         "dependencies": [
           "package/tests/source_contracts/test_authority.py",
           "contracts/python-checks.json",
-          "scripts/check_python_contracts.py"
+          "scripts/check_python_contracts.py",
+          "scripts/source_contract_utils.py",
+          "scripts/file_edits.py"
         ],
         "functions": [
           "ExponentialDelay.__post_init__",
@@ -150,7 +152,9 @@
           "package/src/due/django/conformance/suite_collection.py",
           "package/tests/conformance/test_exploration_collection.py",
           "contracts/python-checks.json",
-          "scripts/check_python_contracts.py"
+          "scripts/check_python_contracts.py",
+          "scripts/source_contract_utils.py",
+          "scripts/file_edits.py"
         ],
         "functions": [
           "claim_authorized",
@@ -176,7 +180,9 @@
     "package/tests/harness/claim_settlement.py": "690ca88aedcb484a080ba6028d25d096d60e7666e22a607ab3bca57d0761ddf3",
     "package/tests/source_contracts/test_authority.py": "d79f001cacf90df043adfc1b6c321bc2ff1eac38d70d0a5d62d944224bc18339",
     "package/tests/source_contracts/test_settlement.py": "aaa065f2bd487d4807d659156b5507a78a6080a228922bfad9385cc066963853",
-    "scripts/check_python_contracts.py": "dac3e2b14a7d4498a563a0f6ebc903b205f409078ce67e963d2911b602a11395"
+    "scripts/check_python_contracts.py": "bf51a541361f2f7187afa9a52c951cef95b83331541e007692c99e0bfcf091a4",
+    "scripts/file_edits.py": "8d7166c0a23d07e52df31e06a26c32bf10afc5ed38eb4cceae6d903cef248b83",
+    "scripts/source_contract_utils.py": "a2a1f25b22f2d591ad820f0f1bc282d26e96db29d02da516f9c97bdb77a68034"
   },
   "schema": "veripy-project-lock/1",
   "type_policy": {},

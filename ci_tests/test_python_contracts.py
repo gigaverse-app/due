@@ -5,9 +5,23 @@ import unittest
 from pathlib import Path
 
 from scripts.check_python_contracts import junit_cases, require_mutation_inventory, require_native_inventory
+from scripts.file_edits import replace_once
 
 
 class NativeEnrollmentTests(unittest.TestCase):
+    def test_guarded_edit_preserves_source_unless_seam_is_unique(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.py"
+            for source in ("missing", "seam seam"):
+                for error_type in (RuntimeError, AssertionError):
+                    path.write_text(source)
+                    with self.subTest(source=source, error_type=error_type), self.assertRaises(error_type):
+                        replace_once(path, "seam", "replacement", error_type=error_type)
+                    self.assertEqual(path.read_text(), source)
+            path.write_text("before seam after")
+            replace_once(path, "seam", "replacement")
+            self.assertEqual(path.read_text(), "before replacement after")
+
     def report(self, text):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # report validator is imported by its package name in both CLI and test use.
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from scripts.file_edits import replace_once  # noqa: E402
 from scripts.source_contract_utils import require  # noqa: E402
 
 SOURCE = ROOT / "package/src/due"
@@ -111,15 +112,6 @@ def stage(output: Path, name: str) -> Path:
         shutil.rmtree(target)
     shutil.copytree(SOURCE, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     return target
-
-
-# dry-lint: distinct-from integration_tests/harness/collection_sessions.py::ChildSession.edit
-# This validates enrolled production mutation seams with RuntimeError; ChildSession
-# edits synthetic pytest projects through its fixture writer and raises AssertionError.
-def replace_once(path: Path, old: str, new: str) -> None:
-    source = path.read_text()
-    require(source.count(old) == 1, f"mutation seam changed in {path}: {old!r}")
-    path.write_text(source.replace(old, new))
 
 
 def prove_controls(output: Path) -> list[dict[str, object]]:

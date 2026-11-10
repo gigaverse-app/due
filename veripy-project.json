@@ -19,7 +19,9 @@
       "dependencies": [
         "package/tests/source_contracts/test_authority.py",
         "contracts/python-checks.json",
-        "scripts/check_python_contracts.py"
+        "scripts/check_python_contracts.py",
+        "scripts/source_contract_utils.py",
+        "scripts/file_edits.py"
       ],
       "sidecar": "package/src/due/retry_delays.proofs.dfy"
     },
@@ -43,7 +45,9 @@
         "package/src/due/django/conformance/suite_collection.py",
         "package/tests/conformance/test_exploration_collection.py",
         "contracts/python-checks.json",
-        "scripts/check_python_contracts.py"
+        "scripts/check_python_contracts.py",
+        "scripts/source_contract_utils.py",
+        "scripts/file_edits.py"
       ]
     }
   ],
