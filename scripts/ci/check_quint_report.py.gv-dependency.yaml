@@ -1,0 +1,14 @@
+dependencies:
+  - inputs:
+      - //docs/quint/report-provenance/**
+      - //package.json
+      - //package-lock.json
+      - //.github/workflows/ci.yml
+      - //.github/workflows/obligation-report.yml
+      - //.github/test-lanes.json
+      - //scripts/ci/check_report_source.py
+      - //scripts/ci/replay_report_provenance.py
+      - //ci_tests/test_report_source.py
+      - //ci_tests/test_routing.py
+    kind: content
+    reason: The maintained replay reads models, workflow shell, boundary fixtures, and evidence manifest sources.
