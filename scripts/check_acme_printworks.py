@@ -1,4 +1,8 @@
 """Run the standalone adopter against this checkout, with isolated service state."""
+# The tests job runs this script, which runs the standalone Acme project by path:
+# gv:test-dependency: examples/acme_printworks/**/*.py
+# gv:test-dependency: examples/acme_printworks/pytest.ini
+# gv:test-dependency: scripts/check_adoption_report.py
 
 import os
 import subprocess

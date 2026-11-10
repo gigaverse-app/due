@@ -1,0 +1,7 @@
+dependencies:
+  - inputs:
+      - "//examples/management/commands/__init__.py"
+      - "//examples/management/commands/catalog_entry.py"
+      - "//examples/management/commands/print_book.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."

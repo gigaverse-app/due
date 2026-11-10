@@ -50,9 +50,11 @@ package builds, installed-wheel smoke and public-action smoke: the `build` job r
 only when the `wheel` lane selects packaging inputs, and `package/README.md` is one
 because it is the published long description. Local link checks and the
 documentation site build still run. Read the Docs dependencies
-(`documentation/requirements.*`) are not test environment; `graph.global_inputs`
-in `.github/test-lanes.json` lists the real environment files. Declare execution
-workflows, selector configuration, helpers, locks and non-import inputs; missing
+(`documentation/requirements.*`) are not test environment; CI-esta's built-in
+`python-environment` rule watches the real environment files. Lanes are inferred from
+the jobs' `fromJSON(needs.select-tests.outputs.lanes).<lane>` conditions: declare
+non-import inputs next to the test or script that reads them (`*.gv-dependency.yaml`
+sidecars, scoped `.gv-dependencies.yaml` shared rules, or `# gv:test-dependency:` comments), not in `.github/test-lanes.json`; missing
 history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
 remain complete checkpoints.

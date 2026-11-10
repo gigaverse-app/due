@@ -26,7 +26,7 @@ jobs:
   ci-contracts:
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
+      ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,23 +39,19 @@ jobs:
         run: >-
           uv run --no-project --python 3.14
           --with "$(python scripts/ci/selector_requirement.py)"
-          --with "ci-esta @ git+https://github.com/gigaverse-app/ci-esta.git@315b0852ec0ba9ff217ea9b3f701496fc1817e85"
           python -m unittest discover -s ci_tests -v
       - name: Check aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14
-          --with "ci-esta>=1.1.0,<2.0.0"
+          --with "ci-esta[selection]>=1.12.0,<2.0.0"
           ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
 
   select-tests:
-    if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.policy.outputs.admitted }}
-      library: ${{ fromJSON(steps.evidence.outputs.selection).library }}
-      integration: ${{ fromJSON(steps.evidence.outputs.selection).integration }}
       context: ${{ steps.evidence.outputs.context }}
       reused: ${{ steps.evidence.outputs.reused }}
       receipt: ${{ steps.evidence.outputs.receipt }}
@@ -64,8 +60,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # Lanes are the names job conditions read (fromJSON(needs.select-tests.outputs.lanes).<lane>); a change
+      # selects a lane through the tests, scripts and actions its jobs run. .github/test-lanes.json adds only
+      # what those graphs cannot see; `ci-esta lanes --base origin/main` shows a change's lanes and why.
       - id: select
-        uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
+        uses: gigaverse-app/ci-esta/actions/plan-work@v1
         with:
           config: .github/test-lanes.json
       - id: policy
@@ -73,7 +72,8 @@ jobs:
         uses: gigaverse-app/ci-esta/actions/plan-test-policy@v1
         with:
           policy: .github/test-policy.json
-          lanes: .github/test-lanes.json
+          # The planner's report: its lanes are the work inventory.
+          lanes: test-lanes.json
           profile: ${{ inputs.profile }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
@@ -90,7 +90,6 @@ jobs:
                 !contains(github.event.pull_request.labels.*.name, 'test:full') }}
 
   lint:
-    if: ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -107,7 +106,7 @@ jobs:
   typecheck:
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+      ${{ (always() && !cancelled() && (needs.select-tests.result != 'success' ||
           fromJSON(needs.select-tests.outputs.lanes).typecheck)) }}
     runs-on: ubuntu-latest
     steps:
@@ -122,8 +121,8 @@ jobs:
     name: Standalone package export
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
-          needs.select-tests.outputs.library != 'false')) }}
+      ${{ (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).library)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -166,8 +165,8 @@ jobs:
     name: Execute tests (${{ matrix.django }})
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
-          ((needs.select-tests.outputs.library != 'false' || needs.select-tests.outputs.integration != 'false') &&
+      ${{ (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          ((fromJSON(needs.select-tests.outputs.lanes).library || fromJSON(needs.select-tests.outputs.lanes).integration) &&
            (toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').locked) != 'true' ||
             toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true')))) }}
     runs-on: ubuntu-latest
@@ -213,20 +212,20 @@ jobs:
         if: matrix.django == 'minimum'
         run: uv pip install 'django==6.0.8'
       - name: Run library controls without demo applications
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).library }}
         working-directory: package
         run: |
           mkdir -p ../library-reports
           ../.venv/bin/python -m pytest -n 4 --dist worksteal --due-work-check-fixtures --obligation-cost-baseline-complete --junitxml=../library-timings.xml -p due.django.conformance.reporting --due-work-profile-report=../library-reports/profiles.json --durable-work-report=../library-reports/effects.json
       - name: Retain executed library obligation proofs
         uses: actions/upload-artifact@v7
-        if: ${{ always() && (needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false') }}
+        if: ${{ always() && (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).library) }}
         with:
           name: library-obligation-profiles-${{ matrix.django }}
           path: library-reports/*.json
           if-no-files-found: error
       - name: Run full suite including live web, worker and Beat recovery
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync pytest -n 4 --dist worksteal --due-work-check-fixtures --obligation-cost-baseline-complete --basetemp=test-results -p due.django.conformance.reporting --due-work-debt-baseline=integration_tests/conformance/debt_baseline.yaml --due-work-profile-report=profiles.json --durable-work-report=effects.json --durable-observation-report=observations.json --junitxml=test-timings.xml -o junit_family=xunit1
       - uses: gigaverse-app/ci-esta/actions/learn-test-timings@v1
         if: ${{ success() && hashFiles('test-timings.xml') != '' }}
@@ -234,47 +233,47 @@ jobs:
           junit-pattern: test-timings.xml
           artifact-name: test-timings-${{ matrix.django }}
       - name: Require executed obligation guarantees
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract "Due replay-safe work table" --verified A B D I J
       - name: Require complete application conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_document --verified A B D E H I J --effect-report effects.json --effect publish_document --required-effect-case "test_due_work_contract[process-document process death-assert_process_deaths_converge]"
       - name: Require complete tutorial conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract calculate_number --verified A B D E H I J --effect-report effects.json --effect calculate_number
       - name: Require complete book indexing conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract index_book --verified A B D H I J --effect-report effects.json --effect index_book --required-effect-case "test_due_work_contract[completion-searchable book-assert_completes_within]" --required-effect-case "test_immutable_inputs_hold[admission-create book]" --required-effect-case "test_immutable_inputs_hold[admission_failure-create book]" --required-effect-case "test_due_work_contract[process-book indexing and publication process death-assert_process_deaths_converge]"
       - name: Require complete book publication conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_book --verified A B D H J --effect-report effects.json --effect publish_book --required-effect-case "test_immutable_inputs_hold[producer-index settlement]"
       - name: Require catalog projection conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract project_catalog --verified A B D E H I J --effect-report effects.json --effect project_catalog
       # Non-repeatable orders decline harmless replay and retain evidence indefinitely.
       - name: Require observed print-order conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract print_order --verified A B C I J --effect-report effects.json --effect print_order
       - name: Require scheduled publication conformance
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract publish_at_deadline --verified A B E H I J --effect-report effects.json --effect publish_at_deadline --required-effect-case "test_due_work_contract[process-scheduled publication process death-assert_process_deaths_converge]"
       - name: Require widget checkout guarantees and crash histories
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_adoption_report.py profiles.json --contract checkout_order --verified A B G I J --effect-report effects.json --effect checkout_order --required-effect-case "test_due_work_contract[delivery-replay-reconnected dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[completion-paid hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-paid sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed hints-assert_completes_within]" --required-effect-case "test_due_work_contract[completion-failed sweep-assert_completes_within]" --required-effect-case "test_due_work_contract[delivery-replay-final dispatch-assert_delivery_replay]" --required-effect-case "test_due_work_contract[process-widget paid process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget paid process death without hints-assert_process_deaths_converge]" --required-effect-case "test_due_work_contract[process-widget failed process death without hints-assert_process_deaths_converge]"
       - name: Prove Acme contracts and the live tutorial journey
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python scripts/check_acme_printworks.py
       - name: Validate application setup
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         run: uv run --no-sync python -m django due_check
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
       - run: uv run --no-sync python -m django makemigrations --check --dry-run
-        if: ${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false' }}
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration }}
         env:
           DJANGO_SETTINGS_MODULE: examples.settings
       - uses: actions/upload-artifact@v7
-        if: ${{ always() && (needs.select-tests.result != 'success' || needs.select-tests.outputs.integration != 'false') }}
+        if: ${{ always() && (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).integration) }}
         with:
           name: obligation-profiles-${{ matrix.django }}
           path: |
@@ -296,7 +295,7 @@ jobs:
     name: tests (${{ matrix.django }})
     needs: [select-tests, tests, package-export]
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled()) }}
+      ${{ !cancelled() }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -309,15 +308,15 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           required: >-
-            {"select-tests":true,"package-export":${{ needs.select-tests.result != 'success' || needs.select-tests.outputs.library != 'false' }},"tests":${{ needs.select-tests.result != 'success' ||
-              ((needs.select-tests.outputs.library != 'false' || needs.select-tests.outputs.integration != 'false') &&
+            {"select-tests":true,"package-export":${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).library }},"tests":${{ needs.select-tests.result != 'success' ||
+              ((fromJSON(needs.select-tests.outputs.lanes).library || fromJSON(needs.select-tests.outputs.lanes).integration) &&
                (toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').locked) != 'true' ||
                 toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').minimum) != 'true')) }}}
 
   build:
     needs: select-tests
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result != 'success' ||
+      ${{ (always() && !cancelled() && (needs.select-tests.result != 'success' ||
           fromJSON(needs.select-tests.outputs.lanes).wheel)) }}
     runs-on: ubuntu-latest
     steps:
@@ -347,7 +346,7 @@ jobs:
     name: Validation gate
     needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build]
     if: >-
-      ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (!cancelled()) }}
+      ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: gigaverse-app/ci-esta/actions/validation-gate@v1

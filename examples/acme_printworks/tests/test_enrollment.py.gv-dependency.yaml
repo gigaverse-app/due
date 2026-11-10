@@ -1,0 +1,8 @@
+dependencies:
+  - inputs:
+      - "//examples/acme_printworks/tests/test_contracts.py"
+      - "//examples/acme_printworks/tests/test_stage2.py"
+      - "//examples/acme_printworks/tests/test_story.py"
+      - "//examples/acme_printworks/tests/test_task_contract.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."
