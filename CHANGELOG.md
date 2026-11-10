@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/gigaverse-app/due/compare/v0.14.0...v0.14.1) (2026-11-10)
+
+
+### Bug fixes
+
+* **ci:** validate README report checkpoint provenance ([#198](https://github.com/gigaverse-app/due/issues/198)) ([7c0ffef](https://github.com/gigaverse-app/due/commit/7c0ffeff5f07b8454d8c17d7b0eda4e2c546389a))
+
 ## [0.14.0](https://github.com/gigaverse-app/due/compare/v0.13.1...v0.14.0) (2026-11-04)
 
 
