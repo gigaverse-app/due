@@ -344,7 +344,7 @@ VeriPy's [README](https://github.com/astrio-labs/veripy/blob/main/README.md)
 documents a minimal example:
 
 ```python
-#@ ensures result == x + 1
+# @ ensures result == x + 1
 def increment(x: int) -> int:
     return x + 1
 ```
