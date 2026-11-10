@@ -181,9 +181,17 @@ class WorkClaim[ClaimedWorkT: DurableWork]:
 
     def owns_locked(self, current: ClaimedWorkT) -> bool:
         """Check the same predicate on a freshly locked row, never a claim snapshot."""
-        return type(current) is self.model and all(
-            getattr(current, name) == value for name, value in self._authority().items()
-        )
+        if type(current) is not self.model:
+            return False
+        # Reject malformed fences before equality can admit an application callback.
+        if (
+            type(current.pk) not in (int, UUID)
+            or type(current.state) not in (str, DurableWorkState)
+            or type(current.fencing_token) is not UUID
+            or type(current.desired_revision) is not int
+        ):
+            return False
+        return all(getattr(current, name) == value for name, value in self._authority().items())
 
     def unrecorded_fields(self) -> dict[str, object]:
         """Claim bookkeeping a fused claim writes with its settlement; nothing once a claim is committed."""

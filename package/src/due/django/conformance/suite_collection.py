@@ -216,6 +216,13 @@ def collect_suite(config: pytest.Config, collected: list[pytest.Function]) -> st
             "test_cancellation_after_provider_entry[completed]",
             "test_cancellation_after_provider_entry[worker-death]",
         }
+    # Enabled exploration is a declared proof, not an untracked extra test.
+    # Derive required names from the same scenarios installed by obligation so
+    # deleting the generated method cannot make executed reports look complete.
+    if config.getoption("due_work_explore", default="off") != "off":
+        expected.update(
+            f"test_due_work_exploration[{name}]" for name in (*contract.in_flight, *contract.evidence_confluence)
+        )
     actual = {item.name for item in collected}
     if requires_complete_suite(config.args, collected[0].path.resolve(), cls.__name__):
         assert_collected_proofs(expected, actual, cls.__name__)

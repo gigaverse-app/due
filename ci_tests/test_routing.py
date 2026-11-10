@@ -130,14 +130,14 @@ class RoutingTests(unittest.TestCase):
         )
 
     def test_shared_declarations_select_their_suite_and_routing_checks(self):
-        # A declaration edit validates its readers and this planner check, without
-        # starting the other suite, widget benchmark, wheel or Python type checking.
-        for path, suite in (
-            ("package/tests/.gv-dependencies.yaml", "library"),
-            ("integration_tests/.gv-dependencies.yaml", "integration"),
+        # Package declarations also reach the runtime gate's enrolled package tests.
+        # Neither manifest starts the other suite, widget benchmark, wheel or type checking.
+        for path, lanes in (
+            ("package/tests/.gv-dependencies.yaml", {"library", "runtime_contracts", "contracts"}),
+            ("integration_tests/.gv-dependencies.yaml", {"integration", "contracts"}),
         ):
             with self.subTest(path=path):
-                self.assertEqual(self.selection(path), {suite, "contracts"})
+                self.assertEqual(self.selection(path), lanes)
 
     def test_distribution_contents_select_only_the_package_build(self):
         # The package README is the published long description; check_metadata.py compares it.
@@ -180,6 +180,7 @@ class RoutingTests(unittest.TestCase):
         executes = {
             ".github/workflows/ci.yml": {
                 "ci-contracts": {"contracts"},
+                "runtime-contracts": {"runtime_contracts"},
                 # The planner: an edit to it, its pin included, re-plans every lane.
                 "select-tests": set(self.lanes),
                 "lint": set(),
@@ -335,6 +336,21 @@ class RoutingTests(unittest.TestCase):
     def test_execution_helpers_select_contracts_and_wheel(self):
         self.assertIn("contracts", self.selection("ci_tests/test_routing.py"))
         self.assertIn("wheel", self.selection("scripts/check_wheel.py"))
+
+    def test_runtime_contract_dependencies_select_the_contract_lane(self):
+        for path in (
+            "package/src/due/retry_delays.py",
+            "package/src/due/django/runtime/coordination.py",
+            "package/src/due/django/runtime/settlement_batch.py",
+            "package/tests/harness/self_work.py",
+            "package/tests/harness/claim_settlement.py",
+            "package/tests/runtime_contracts/test_settlement.py",
+            "package/tests/conformance/test_exploration_collection.py",
+            "contracts/runtime-checks.json",
+            "scripts/check_runtime_contracts.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("runtime_contracts", self.selection(path))
 
 
 if __name__ == "__main__":

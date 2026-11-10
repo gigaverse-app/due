@@ -1,0 +1,13 @@
+dependencies:
+  - inputs:
+      - //package/src/**
+      - //package/tests/runtime_contracts/**
+      - //package/tests/harness/**
+      - //package/tests/bulk/test_composed_work_contract.py
+      - //package/tests/settings.py
+      - //package/tests/conftest.py
+      - //package/tests/__init__.py
+      - //package/tests/conformance/test_exploration_collection.py
+      - //contracts/runtime-checks.json
+    kind: content
+    reason: The maintained runtime gate verifies runtime inputs, exact test inventories, and enrolled mutations.

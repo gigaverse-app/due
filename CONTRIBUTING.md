@@ -31,6 +31,12 @@ normal form submission and scheduled recovery of either lost notification. Set
 
 ## Changes and proofs
 
+The [runtime contract workflow](docs/contracts/runtime.md) checks claim admission,
+retry arithmetic, and PostgreSQL callback behavior. Run
+`python scripts/check_runtime_contracts.py` in the development environment with
+PostgreSQL available. Keep the independent execution inventory and mutation
+controls current when adding or changing these tests.
+
 Always build the pytest-obligation application contract alongside a Due
 integration. Enroll each native capability, bind its real application behavior,
 and require complete enrollment and executed reports in CI. The

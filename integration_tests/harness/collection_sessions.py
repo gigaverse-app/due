@@ -31,6 +31,8 @@ from typing import Any
 
 import pytest
 
+from scripts.file_edits import replace_once
+
 REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "pyproject.toml").is_file())
 
 # Children load only the plugins these specimens use. Autoloading every
@@ -172,9 +174,7 @@ class ChildSession:
         target.write_text(textwrap.dedent(source).strip() + "\n")
 
     def edit(self, name: str, old: str, new: str) -> None:
-        source = (self.path / name).read_text()
-        assert source.count(old) == 1, f"{name} must contain {old!r} exactly once"
-        self.write(name, source.replace(old, new))
+        replace_once(self.path / name, old, new, error_type=AssertionError)
 
     def append(self, name: str, source: str) -> None:
         with (self.path / name).open("a") as target:

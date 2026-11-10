@@ -65,6 +65,48 @@ jobs:
       - name: Check local documentation links
         run: python scripts/ci/check_docs.py
 
+  runtime-contracts:
+    needs: select-tests
+    if: >-
+      ${{ !cancelled() &&
+          (needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).runtime_contracts) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: due
+          POSTGRES_PASSWORD: due
+          POSTGRES_DB: due_contracts
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U due"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DUE_DATABASE_URL: postgresql://due:due@localhost:5432/due_contracts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.14'
+          enable-cache: true
+      - name: Install locked product
+        run: |
+          uv sync --all-packages --locked
+      - name: Check PostgreSQL callback contracts and complete evidence
+        run: .venv/bin/python scripts/check_runtime_contracts.py
+      - name: Retain callback, enrollment and mutation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-runtime-contracts
+          path: |
+            test-results/runtime-contracts/
+          if-no-files-found: error
+
   select-tests:
     runs-on: ubuntu-latest
     outputs:
@@ -361,7 +403,7 @@ jobs:
 
   validation-gate:
     name: Validation gate
-    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build]
+    needs: [ci-contracts, select-tests, lint, typecheck, test-gates, build, runtime-contracts]
     if: >-
       ${{ !cancelled() }}
     runs-on: ubuntu-latest
@@ -370,4 +412,4 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
-          lane-jobs: '{"typecheck":["typecheck"],"build":["wheel"]}'
+          lane-jobs: '{"typecheck":["typecheck"],"build":["wheel"],"runtime-contracts":["runtime_contracts"]}'
