@@ -1,0 +1,14 @@
+# Keep reader lists explicit: shared ownership must not widen dependency selection.
+dependencies:
+  - readers:
+      - conformance/test_book_contracts.py
+      - conformance/test_catalog_contract.py
+      - conformance/test_document_contract.py
+      - conformance/test_number_contract.py
+      - conformance/test_order_contract.py
+      - conformance/test_scheduled_contract.py
+      - conformance/test_widget_contract.py
+    inputs:
+      - //obligation_cost_baseline.yaml
+    kind: content
+    reason: Application contracts read the repository cost baseline.

@@ -1,110 +1,49 @@
 {
-  "graph": {
-    "module_roots": [
-      "package/src",
-      "package/shims",
-      "package",
-      "."
-    ],
-    "test_roots": [
-      "package/tests",
-      "integration_tests",
-      "examples/acme_printworks/tests"
-    ],
-    "pytest_policy": {
-      "examples/acme_printworks/pytest.ini": "3c8bd6444d17c6ffa931af02bd300b2e1a12b5dd3fc74489071eae90fc80340b",
-      "package/pyproject.toml": "f928b7f7adc75b1171b99f126879846904dca255050d3c560bcf10dad3cf447a",
-      "pyproject.toml": "0f8feceee9ab4f42e7f72fbb61dd11eef02d9a966e3056bc62ab9b4188ff11e0"
-    },
-    "global_modules": []
-  },
+  "extends": "workflow",
   "lanes": {
-    "library": {
-      "roots": [
-        "package/tests"
-      ],
-      "inputs": [
-        "package/src/**",
-        "package/shims/**",
-        "package/tests/**",
-        "package/obligation_cost_baseline.yaml",
-        ".github/workflows/ci.yml#tests",
-        ".github/workflows/ci.yml#package-export"
-      ]
-    },
-    "integration": {
-      "roots": [
-        "integration_tests",
-        "examples/acme_printworks/tests"
-      ],
-      "inputs": [
-        "package/src/**",
-        "package/shims/**",
-        "examples/**",
-        "integration_tests/**",
-        "obligation_cost_baseline.yaml",
-        "scripts/check_adoption_report.py",
-        "scripts/check_acme_printworks.py",
-        ".github/workflows/ci.yml#tests"
-      ]
-    },
-    "widget_comparison": {
-      "roots": [],
-      "inputs": [
-        "package/src/**",
-        "package/shims/**",
-        "examples/widget_store/**",
-        "examples/settings.py",
-        "examples/celery_app.py",
-        "examples/__init__.py",
-        "scripts/widget_*",
-        "scripts/__init__.py",
-        "integration_tests/integration/processes.py",
-        "integration_tests/__init__.py",
-        "integration_tests/integration/__init__.py",
-        "integration_tests/scripts/test_widget_profile.py",
-        ".github/workflows/widget-store.yml#compare"
-      ]
-    },
-    "typecheck": {
-      "inputs": [
-        "**/*.py",
-        "**/*.pyi",
-        "pyrefly.toml",
-        "**/pyrefly.toml",
-        ".github/workflows/ci.yml#typecheck"
-      ]
-    },
-    "contracts": {
-      "inputs": [
-        "ci_tests/**",
-        "scripts/ci/**",
-        "**/*.py",
-        "**/*.pyi",
-        ".github/workflows/ci.yml",
-        ".github/workflows/widget-store.yml"
-      ]
-    },
-    "wheel": {
-      "inputs": [
-        "package/src/**",
-        "package/shims/**",
-        "scripts/check_wheel.py",
-        "scripts/check_core_is_framework_free.py",
-        "package/tests/core/test_compatibility.py",
-        "package/tests/core/test_package_identity.py",
-        ".github/workflows/ci.yml#build"
-      ]
-    }
+    "library": {"roots": ["package/tests"]},
+    "integration": {"roots": ["integration_tests", "examples/acme_printworks/tests"]}
   },
-  "global_inputs": [
-    "**/pyproject.toml",
-    "pyproject.toml",
-    "**/uv.lock",
-    "uv.lock",
-    ".github/test-lanes.json",
-    ".github/actions/**",
-    ".python-version",
-    ".github/test-policy.json"
+  "rules": [
+    {
+      "name": "python-environment",
+      "when": [
+        "pyproject.toml",
+        "**/pyproject.toml",
+        "uv.lock",
+        "**/uv.lock",
+        ".python-version",
+        "pytest.ini",
+        "**/pytest.ini",
+        ".pytest.ini",
+        "**/.pytest.ini"
+      ],
+      "select": ["all"],
+      "reason": "Due's test environment is resolved by uv alone; requirements files are documentation installs"
+    },
+    {
+      "name": "pyrefly",
+      "when": ["**/*.py", "**/*.pyi", "**/pyrefly.toml"],
+      "select": ["lane:typecheck"],
+      "reason": "pyrefly check covers every Python file"
+    },
+    {
+      "name": "library-settings",
+      "when": ["package/tests/settings.py"],
+      "select": ["lane:library"],
+      "reason": "DJANGO_SETTINGS_MODULE in package/pyproject.toml loads it before any test"
+    },
+    {
+      "name": "integration-settings",
+      "when": ["integration_tests/settings.py"],
+      "select": ["lane:integration"],
+      "reason": "DJANGO_SETTINGS_MODULE in pyproject.toml loads it before any test"
+    },
+    {
+      "name": "widget-entry-modules",
+      "when": ["scripts/widget_benchmark.py", "scripts/widget_profile.py"],
+      "select": ["lane:widget_comparison"],
+      "reason": "the compare job runs them with python -m, and CI-esta 1.12.0 does not select a job when the module it runs is itself the change"
+    }
   ]
 }

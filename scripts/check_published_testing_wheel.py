@@ -1,4 +1,6 @@
 """Verify the installed testing extra using only published dependencies."""
+# The build job runs this script, which runs another by path:
+# gv:test-dependency: scripts/check_testing_wheel.py
 
 import subprocess
 import tempfile
