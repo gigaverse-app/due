@@ -1,0 +1,42 @@
+# Keep reader lists explicit: shared ownership must not widen dependency selection.
+dependencies:
+  - readers:
+      - bulk/test_composed_work_contract.py
+      - bulk/test_contract.py
+      - bulk/test_inline_work_contract.py
+      - bulk/test_replay_safe_contract.py
+      - bulk/test_self_work_contract.py
+      - uuid_work/test_contract.py
+    inputs:
+      - //package/obligation_cost_baseline.yaml
+    kind: content
+    reason: Obligation contracts read the standalone package cost baseline.
+  - readers:
+      - bulk/test_inline_work_contract.py
+      - capabilities/test_operation_rejection_evidence.py
+      - conformance/test_background_work_frozen_clock_skew.py
+      - declarations/test_simple_callbacks.py
+    inputs:
+      - //package/src/due/django/management/__init__.py
+      - //package/src/due/django/migrations/**
+      - //package/src/due/django/tasks/migrations/**
+    kind: import
+    reason: Django loads these management and migration modules during the runtime checks.
+  - readers:
+      - capabilities/test_recovery_deferral_migration.py
+      - capabilities/test_sparse_attempt_indexes.py
+      - capabilities/test_uuid_work_migration.py
+      - evidence/test_inline_receipt_migration.py
+      - evidence/test_ordered_attempt_ids.py
+    inputs:
+      - //package/src/due/django/migrations/__init__.py
+      - //package/src/due/django/tasks/migrations/__init__.py
+    kind: import
+    reason: These migration checks load package markers; they do not depend on every migration body.
+  - readers:
+      - evidence/test_evidence_histories.py
+    inputs:
+      - //package/src/due/django/management/commands/__init__.py
+      - //package/src/due/django/management/commands/due_status.py
+    kind: import
+    reason: The evidence history invokes the due_status management command.
