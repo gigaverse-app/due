@@ -22,14 +22,11 @@ SOURCE = ROOT / "package/src/due"
 REQUIRED_CHECKS = {"native", "generated", "mutations"}
 
 
-def write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2) + "\n")
-
-
 def run(
     name: str, args: list[str], output: Path, *, cwd: Path = ROOT, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
+    from due._json_report import write_json
+
     result = subprocess.run(args, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (output / f"{name}.log").write_text(result.stdout)
     write_json(output / f"{name}.command.json", {"argv": args, "cwd": str(cwd), "returncode": result.returncode})
@@ -78,6 +75,8 @@ def require_mutation_inventory(results: list[dict[str, object]], required: dict[
 
 
 def attestation(env: dict[str, str], expected: Path, output: Path, name: str) -> None:
+    from due._json_report import write_json
+
     code = """import hashlib, json
 from pathlib import Path
 from due import retry_delays
@@ -189,6 +188,8 @@ def native_controls(output: Path, base_env: dict[str, str]) -> list[dict[str, ob
 
 
 def main() -> None:
+    from due._json_report import write_json
+
     if sys.flags.optimize:
         raise RuntimeError(
             "run contract checks without Python optimization; generated obligation validators require assertions"

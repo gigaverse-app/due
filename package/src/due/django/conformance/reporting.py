@@ -1,6 +1,5 @@
 """Explicit reporting plugin: load with -p before requesting report options."""
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +11,7 @@ from pytest_obligation.evidence.observation import (
     record_observations,
 )
 
+from due._json_report import write_json
 from due.django.conformance.collected_effects import (
     NAMES,
     REPORT,
@@ -140,6 +140,4 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
         return
     destination = session.config.getoption("durable_work_report")
     if destination:
-        path = Path(destination)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(reports, indent=2) + "\n", encoding="utf-8")
+        write_json(Path(destination), reports)
