@@ -1,4 +1,6 @@
 """Run the deployed README admission step against controlled GitHub API responses."""
+# gv:test-dependency: .github/workflows/obligation-report.yml
+# gv:test-dependency: scripts/ci/check_report_source.py
 
 import json
 import os
