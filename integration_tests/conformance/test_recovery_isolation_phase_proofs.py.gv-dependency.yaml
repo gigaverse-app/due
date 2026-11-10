@@ -1,0 +1,7 @@
+dependencies:
+  - inputs:
+      - "//integration_tests/capabilities/test_deadline_wakeups.py"
+      - "//package/tests/capabilities/test_observation_recovery.py"
+      - "//package/tests/capabilities/test_operation_recovery_isolation.py"
+    kind: import
+    reason: "Loaded or run outside the test's imports; recorded by pytest-selective audit --write-declarations."

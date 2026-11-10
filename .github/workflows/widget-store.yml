@@ -27,7 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lanes: ${{ steps.policy.outputs.admitted }}
-      required: ${{ steps.select.outcome != 'success' || toJSON(fromJSON(steps.policy.outputs.admitted || '{}').widget_comparison) != 'false' }}
       reused: ${{ steps.evidence.outputs.reused }}
       receipt: ${{ steps.evidence.outputs.receipt }}
     steps:
@@ -35,7 +34,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: select
-        uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
+        uses: gigaverse-app/ci-esta/actions/plan-work@v1
         with:
           config: .github/test-lanes.json
       - id: policy
@@ -43,7 +42,8 @@ jobs:
         uses: gigaverse-app/ci-esta/actions/plan-test-policy@v1
         with:
           policy: .github/test-policy.json
-          lanes: .github/test-lanes.json
+          # The planner's report: its lanes are the work inventory.
+          lanes: test-lanes.json
           profile: ${{ inputs.profile }}
           affected: ${{ steps.select.outputs.lanes }}
       - id: evidence
@@ -64,7 +64,7 @@ jobs:
     # required gate red; it must not authorize ten benchmark captures.
     if: >-
       ${{ (github.event.action != 'labeled' || contains(fromJSON('["test:affected-deep","test:affected_deep","test:deep","test:full"]'), github.event.label.name)) && (always() && !cancelled() && (needs.select-tests.result == 'success' &&
-          (needs.select-tests.outputs.required != 'false' &&
+          (fromJSON(needs.select-tests.outputs.lanes).widget_comparison &&
            toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -193,7 +193,7 @@ jobs:
           needs: '{"compare":${{ toJSON(needs.compare) }}}'
           required: >-
             {"compare":${{ needs.select-tests.result != 'success' ||
-              (needs.select-tests.outputs.required != 'false' &&
+              (fromJSON(needs.select-tests.outputs.lanes).widget_comparison &&
                toJSON(fromJSON(needs.select-tests.outputs.reused || '{}').widgets) != 'true') }}}
       # Only actual complete execution establishes proof. A reused or empty run
       # cannot renew the 24-hour evidence lifetime or hide missing captures.

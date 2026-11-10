@@ -54,9 +54,15 @@ Keep the symlink tracked in Git. See CONTRIBUTING.md for platform setup.
 
 Documentation-only PRs execute zero tests unless a test or lane explicitly
 declares that documentation as an input. This includes CI contract tests,
-installed-wheel smoke and public-action smoke. Metadata/link/build checks may
-still validate documentation without running runtime tests. Declare execution
-workflows, selector configuration, helpers, locks and non-import inputs; missing
+package builds, installed-wheel smoke and public-action smoke: the `build` job runs
+only when the `wheel` lane selects packaging inputs, and `package/README.md` is one
+because it is the published long description. Local link checks and the
+documentation site build still run. Read the Docs dependencies
+(`documentation/requirements.*`) are not test environment; CI-esta's built-in
+`python-environment` rule watches the real environment files. Lanes are inferred from
+the jobs' `fromJSON(needs.select-tests.outputs.lanes).<lane>` conditions: declare
+non-import inputs next to the test or script that reads them (`*.gv-dependency.yaml`
+sidecars, scoped `.gv-dependencies.yaml` shared rules, or `# gv:test-dependency:` comments), not in `.github/test-lanes.json`; missing
 history or failed planning must execute the full affected lanes and fail the
 required planning gate. Ordinary PRs and pushes use selection; manual/release/scheduled/full overrides
 remain complete checkpoints.
@@ -64,4 +70,4 @@ remain complete checkpoints.
 ## GitHub Actions versions
 
 - ALWAYS use published major-version tags for established GitHub Actions, for example `actions/checkout@v7` and `actions/upload-artifact@v7`, so compatible fixes arrive without per-commit maintenance. NEVER replace those tags with commit hashes unless the user explicitly requests that exact exception. If a publisher has no major-version tag, use its published release tag rather than inventing a ref or substituting a hash.
-- ALWAYS use `gigaverse-app/dry-lint@v1` for the Action and the `@v1` ref for CLI installs, and pin the pre-commit hook to its newest `v1.x.y` release tag (pre-commit never refreshes a moving tag it has cached). Apply the same refs in workflow examples and adoption instructions.
+- ALWAYS use the `v1` major-version tag for dry-lint: `gigaverse-app/dry-lint@v1` for the Action, `@v1` for CLI installs, and `rev: v1` for pre-commit hooks. Do not use commit SHAs or minor/patch release pins. Apply the same ref in workflow examples and adoption instructions.

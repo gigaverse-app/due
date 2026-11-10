@@ -1,0 +1,11 @@
+dependencies:
+- inputs:
+  - //.github/workflows/*.yml
+  - //.github/test-lanes.json
+  - //**/*.py
+  - //**/*.gv-dependency.yaml
+  - //**/.gv-dependencies.yaml
+  kind: content
+  reason: 'Plans real commits of this repository: the workflows, the lane file, and
+    every import and declaration the planner reads. Content, not imports: a file another
+    test reads does not change routing.'

@@ -65,7 +65,10 @@ PostgreSQL/Redis test jobs. The test suite runs against locked Django and the
 minimum supported Django version, including the live HTTP/worker/Beat journeys.
 Obligation reports, process logs and distributions are retained as run artifacts.
 The distribution job builds through the sdist, then imports the wheel with
-isolated Python and no development dependencies.
+isolated Python and no development dependencies. Like the test jobs, it runs
+only when its lane selects a changed input (package sources, packaging metadata,
+the lockfile, `package/README.md`, `package/LICENSE` or its helper scripts), so a
+documentation-only PR builds nothing; a skipped required job still passes.
 
 `main` requires `lint`, `typecheck`, `tests (locked)`, `tests (minimum)`,
 `build` and `conventional-commit` to pass from GitHub Actions, with the branch
@@ -89,20 +92,34 @@ See [package ownership and subtree development](package/docs/development.md) for
 
 ## Selective CI inputs
 
-`.github/test-lanes.json` uses pytest-selective to select complete library,
-integration, widget comparison, type-check, CI contract and wheel runtime lanes.
-Build/metadata and lint checks remain available without starting tests.
-Manual dispatch and `test:full` run complete suites; ordinary main pushes use selection.
-A failed planner executes the affected workflow in full, but the regular test
-gates require successful planning before merge.
+CI-esta's `plan-work` selects complete library, integration, widget comparison,
+type-check, CI contract and wheel runtime lanes before any runner starts. The lanes
+are the names the jobs' conditions read (`fromJSON(needs.select-tests.outputs.lanes).<lane>`),
+so a new lane-gated job must read that output directly, not a value derived from it.
+A change selects a lane through what its jobs run: the tests that import it
+([pytest-selective](https://github.com/gigaverse-app/pytest-selective)'s import graph),
+the files tests and scripts declare they read, and the scripts and actions each job
+executes. A job edit runs that job's lanes; an edit to the planner job (`select-tests`,
+its pin included) or to workflow-level settings re-plans every lane, and any workflow
+edit runs the CI contract tests. Build/metadata and lint checks remain available without starting tests.
+Manual dispatch, the weekly schedule and `test:full` run complete suites; ordinary main
+pushes use selection. A failed planner executes the affected workflow in full, but the
+regular test gates require successful planning before merge.
 
-Workflow inputs name execution jobs, such as `.github/workflows/ci.yml#tests`.
-An edit to that job runs its library and integration lanes; a type-check job edit
-runs type checking. Workflow-level settings still affect every lane in that
-workflow. Selector pin changes, reporting, comments and unrelated jobs do not
-start test services. Every execution-workflow edit selects the CI contract tests, which
-check the pinned selector and classify every job. If tests consume another job's output,
-declare that job as an additional input: job dependencies are not inferred.
+When a test or a script starts reading a file by path or loading it by name (settings,
+migrations, templates, cost baselines), declare it next to the reader: a
+`<test>.gv-dependency.yaml` sidecar, which `pytest-selective audit --write-declarations`
+writes from a recorded run, a shared `.gv-dependencies.yaml` with explicit `readers`,
+or a `# gv:test-dependency: PATH` comment at the top of the file. The manifests in
+`package/tests/` and `integration_tests/` own repeated cost-baseline and migration
+dependencies. Add a reader to the matching rule instead of duplicating its inputs.
+Keep package-marker imports separate from whole migration trees, and keep source
+reads as `content` rather than `import`. Retain sidecars for distinct dependencies;
+do not broaden reader or input globs just to remove a file. Shared manifests are
+inputs to the routing checks, so editing one validates its suite and the planner.
+[.github/test-lanes.json](.github/test-lanes.json) extends the inferred lanes only
+where the commands cannot show them: the library and integration test roots, which one
+job runs together. `ci-esta lanes --base origin/main` shows what a change runs and why.
 
 For automatic PR events, CI-esta can reuse each Django variant independently
 after it has completed the same whole-tree inputs within 24 hours. The receipt
@@ -317,7 +334,16 @@ remain complete checkpoints.
   or that is now judged separate, with the README progress block and badge. Run it by hand after merging a
   cleanup to record it at once.
 
-When dry-lint reports a pair, read both functions, then:
+Model duplication review also runs by default in the staged hook and PR check, starting with dry-lint 1.4.0.
+Use `rev: v1` for hooks and `@v1` for the Action and CLI installs. If a cached hook environment still runs an
+older version, run `uvx pre-commit clean` and rerun the hook.
+With our Sonnet setup, model candidates require source review; Sonnet judges functions, and no TypeSafe key
+is required for model detection. Review declarations and consumers before accepting or dismissing a pair.
+The function baseline and weekly function sweep do not certify the existing model inventory. Follow
+[model adoption](https://github.com/gigaverse-app/dry-lint/blob/main/docs/model-adoption.md) for its separate
+reviewed baseline. The explicit opt-out is `--no-models` locally or `models: false` on the Action.
+
+When dry-lint reports a function pair, read both functions, then:
 
 - **The same concept:** reuse the existing function, or make one side the owner and have the other call it,
   keeping each caller's contract (transactions, fencing, errors, ordering).
