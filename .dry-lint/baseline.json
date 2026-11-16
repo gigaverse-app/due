@@ -2,7 +2,7 @@
   "schema": 1,
   "contract": "fbf56a4a852e47539b956057d11e9f3ee56a986bbb3b26ac209dc491d4b45f6e",
   "started_at": "d7d3b5a29a30e73a9038c568331b157afc1f7341",
-  "checked_at": "d0b572f5df8de7a9668368efe98d6b45311cddf8",
+  "checked_at": "2f100546f520686eccab2c6f1ec10d740eb7c2a2",
   "entries": [
     {
       "hashes": {
@@ -10,7 +10,7 @@
         "examples/documents/effects.py::request_publication": "7cbe087afcf14d49"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -18,7 +18,7 @@
         "integration_tests/conformance/catalog_examples.py::content": "62cb8a0628436aa8"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -34,7 +34,7 @@
         "examples/acme_printworks/acme/stage2.py::PublishProof.finalize_success": "fe03419205c61c0e"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -82,7 +82,7 @@
         "integration_tests/examples/test_books.py::local_index": "4a96faf9a4f21d25"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
@@ -162,7 +162,7 @@
         "integration_tests/conformance/test_widget_controls.py::test_process_contract_rejects_disabled_recovery": "1934d5378953b5ce"
       },
       "context_hash": "",
-      "state": "remaining"
+      "state": "cleaned"
     },
     {
       "hashes": {
